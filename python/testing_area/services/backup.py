@@ -8,10 +8,12 @@
 import os
 import shutil
 from datetime import datetime
+from pathlib import Path
 
-from config import DB_PATH
+from config import get_config
 
-BACKUP_FOLDER = os.path.join(os.path.dirname(DB_PATH), "backups")
+CONFIG = get_config()
+BACKUP_FOLDER = Path(CONFIG.db_path).parent / "backups"
 
 
 def backup_database():

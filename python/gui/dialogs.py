@@ -4,13 +4,20 @@ from tkinter import StringVar, messagebox
 from core.commands import cmd_wipe
 from core.database import list_backups, restore_database
 from core.database import register_student
+from gui.layout_utils import resolve_dialog_size
 
 
 # Lightweight dialog helpers used by the app entry points.
 def create_modal_dialog(parent, title, geometry):
     dialog = ctk.CTkToplevel(parent)
     dialog.title(title)
-    dialog.geometry(geometry)
+    screen_width = parent.winfo_screenwidth() if parent.winfo_screenwidth() > 0 else 1440
+    screen_height = parent.winfo_screenheight() if parent.winfo_screenheight() > 0 else 900
+    width, height = resolve_dialog_size(screen_width, screen_height, 760, 520)
+    if geometry:
+        dialog.geometry(geometry)
+    else:
+        dialog.geometry(f"{width}x{height}")
     dialog.transient(parent)
     dialog.grab_set()
     return dialog
@@ -26,7 +33,10 @@ def open_enroll_dialog(app):
         app.enroll_dialog.focus()
         return app.enroll_dialog
 
-    dialog = create_modal_dialog(app, "Enroll Fingerprint", "760x520")
+    screen_width = app.winfo_screenwidth() if app.winfo_screenwidth() > 0 else 1440
+    screen_height = app.winfo_screenheight() if app.winfo_screenheight() > 0 else 900
+    width, height = resolve_dialog_size(screen_width, screen_height, 760, 520)
+    dialog = create_modal_dialog(app, "Enroll Fingerprint", f"{width}x{height}")
     app.enroll_dialog = dialog
     app.enroll_ready_to_save = False
     app.enroll_completed = False
@@ -149,7 +159,10 @@ def open_wipe_dialog(app):
         app.wipe_dialog.focus()
         return app.wipe_dialog
 
-    dialog = create_modal_dialog(app, "Confirm Wipe", "560x360")
+    screen_width = app.winfo_screenwidth() if app.winfo_screenwidth() > 0 else 1440
+    screen_height = app.winfo_screenheight() if app.winfo_screenheight() > 0 else 900
+    width, height = resolve_dialog_size(screen_width, screen_height, 560, 360)
+    dialog = create_modal_dialog(app, "Confirm Wipe", f"{width}x{height}")
     app.wipe_dialog = dialog
     app.wipe_status_var = StringVar(value="This will erase stored fingerprints and clear related database records.")
     app.wipe_log_text = None

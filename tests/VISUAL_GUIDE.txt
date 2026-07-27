@@ -1,0 +1,240 @@
+═══════════════════════════════════════════════════════════════════════════════
+GUI LAYOUT & VISUAL GUIDE - Test Attendance System
+═══════════════════════════════════════════════════════════════════════════════
+
+FULL WINDOW VIEW
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  ┌──────────────────┐  ┌─────────────────────────────────────────────────┐ │
+│  │                  │  │                                                 │ │
+│  │  ⚙ SETTINGS TEST │  │            📊 ATTENDANCE DASHBOARD              │ │
+│  │                  │  │            👤 Admin                             │ │
+│  │ ┌──────────────┐ │  │                                                 │ │
+│  │ │Active Settings│ │  │  ┌──────────────┐ ┌──────────────┐ ┌────────┐ │ │
+│  │ │              │ │  │  │✓ Today's Check│ │📅 This Week  │ │⚙ Active│ │ │
+│  │ │☐ Auto-       │ │  │  │     08:34 AM  │ │   4/5 days   │ │ 4/4    │ │ │
+│  │ │  Reconnect   │ │  │  └──────────────┘ └──────────────┘ └────────┘ │ │
+│  │ │              │ │  │                                                 │ │
+│  │ │☐ Auto-Detect │ │  │  ┌─────────────────────────────────────────────┐│ │
+│  │ │  ESP32       │ │  │  │📋 ATTENDANCE RECORDS                        ││ │
+│  │ │              │ │  │  │                                             ││ │
+│  │ │☐ Compact     │ │  │  │ Student: John Doe        │Mon│Tue│Wed│    ││ │
+│  │ │  Sidebar     │ │  │  │ Student: Jane Smith      │ ✓ │ ✓ │ ✓ │    ││ │
+│  │ │              │ │  │  │ Student: Mike Johnson    │ ✓ │ ✓ │ ✗ │    ││ │
+│  │ │☐ Enable      │ │  │  │ Student: Sarah Williams  │ ✓ │ ✓ │ ✓ │    ││ │
+│  │ │  Profiler    │ │  │  │ Student: Alex Brown      │ ✓ │ ✗ │ ✓ │    ││ │
+│  │ │              │ │  │  │                                             ││ │
+│  │ │ [Save        │ │  │  │ Legend: ✓ = Present | ✗ = Absent           ││ │
+│  │ │  Settings]   │ │  │  │                                             ││ │
+│  │ │              │ │  │  └─────────────────────────────────────────────┘│ │
+│  │ ┌──────────────┐ │  │                                                 │ │
+│  │ │Status        │ │  │                                                 │ │
+│  │ │✓ Ready       │ │  │                                                 │ │
+│  │ ├──────────────┤ │  │                                                 │ │
+│  │ │Log           │ │  │                                                 │ │
+│  │ │[14:22] ...   │ │  │                                                 │ │
+│  │ │[14:23] ...   │ │  │                                                 │ │
+│  │ │[14:24] ...   │ │  │                                                 │ │
+│  │ │[14:25] ...   │ │  │                                                 │ │
+│  │ └──────────────┘ │  │                                                 │ │
+│  └──────────────────┘  └─────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+SIDEBAR DETAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+TOP SECTION - Header
+────────────────────
+    ⚙ Settings Test
+
+MIDDLE SECTION - Toggles
+────────────────────────
+
+    Active Settings
+    
+    ☐ Auto-Reconnect
+    ☐ Auto-Detect ESP32
+    ☐ Compact Sidebar  
+    ☐ Enable Profiler
+
+    [ Save Settings ]  ← Click to save and persist
+
+BOTTOM SECTIONS - Status & Log
+──────────────────────────────
+
+    Status              Status
+    ✓ Ready             (shows after save):
+                        ✓ Settings saved
+
+
+    Log                 Contains timestamps:
+    [14:22:35] Ready    [14:22:35] Ready
+    [14:23:11] Toggle   [14:23:11] Toggle changed
+    changed             [14:23:45] ✓ Settings saved
+    [14:23:45] ✓ 
+    Settings saved
+
+
+MAIN AREA DETAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+HEADER
+──────
+Title: 📊 ATTENDANCE DASHBOARD
+Role:  👤 Admin
+
+
+INFO CARDS (3 cards showing quick stats)
+─────────────────────────────────────────
+
+Card 1 - TODAY'S CHECK-IN
+┌──────────────────────┐
+│ ✓ Today's Check-in   │
+│ 08:34 AM             │
+└──────────────────────┘
+
+Card 2 - THIS WEEK
+┌──────────────────────┐
+│ 📅 This Week         │
+│ 4/5 days             │
+└──────────────────────┘
+
+Card 3 - ACTIVE TOGGLES
+┌──────────────────────┐
+│ ⚙ Active Toggles     │
+│ 4/4                  │ ← Updates as you toggle!
+└──────────────────────┘
+
+
+ATTENDANCE GRID (Sample data)
+────────────────────────────
+
+Student Name            | Mon | Tue | Wed | Thu | Fri | Sat | Sun |
+John Doe                |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  -  |  -  |
+Jane Smith              |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  -  |  -  |
+Mike Johnson            |  ✓  |  ✓  |  ✗  |  ✓  |  ✓  |  -  |  -  |
+Sarah Williams          |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  -  |  -  |
+Alex Brown              |  ✓  |  ✗  |  ✓  |  ✓  |  ✓  |  -  |  -  |
+
+Legend: ✓ = Present | ✗ = Absent | - = Weekend
+
+
+INTERACTION FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+1. GUI OPENS
+   ├─ Load settings from data/settings.json
+   ├─ Set checkboxes to saved values
+   └─ Display status "Ready"
+
+2. YOU TOGGLE A CHECKBOX
+   ├─ Checkbox changes state (checked ↔ unchecked)
+   ├─ "Active Toggles" counter updates (4/4 → 3/4 etc)
+   └─ Log shows "[14:23] Toggle changed"
+
+3. YOU CLICK "SAVE SETTINGS"
+   ├─ Read all checkbox values
+   ├─ Write to data/settings.json
+   ├─ Show status "✓ Settings saved"
+   ├─ Log shows "[14:24] ✓ Settings saved successfully"
+   └─ Status resets to "Ready" after 2 seconds
+
+4. YOU CLOSE AND REOPEN GUI
+   ├─ Load settings from data/settings.json
+   ├─ Your toggles are restored!
+   └─ Everything persists
+
+
+TESTING EACH TOGGLE
+═══════════════════════════════════════════════════════════════════════════════
+
+TEST 1: AUTO-RECONNECT
+────────────────────────
+Action:
+  1. Check the "Auto-Reconnect" box
+  2. Click "Save Settings"
+  3. Check the log shows success
+  4. Close and reopen GUI
+  
+Verify:
+  ✓ Checkbox is still checked
+  ✓ Setting saved in data/settings.json
+
+
+TEST 2: AUTO-DETECT ESP32
+──────────────────────────
+Action:
+  1. Check the "Auto-Detect ESP32" box
+  2. Click "Save Settings"
+  3. Watch the log
+  4. Close and reopen
+  
+Verify:
+  ✓ Checkbox is still checked
+  ✓ Setting persisted
+
+
+TEST 3: COMPACT SIDEBAR
+────────────────────────
+Action:
+  1. Check the "Compact Sidebar" box
+  2. Click "Save Settings"
+  3. In the real app (app.py), sidebar changes to icons only
+  
+Verify:
+  ✓ Checkbox is still checked
+  ✓ In real app, sidebar looks different
+
+
+TEST 4: ENABLE PROFILER
+────────────────────────
+Action:
+  1. Check the "Enable Profiler" box
+  2. Click "Save Settings"
+  3. In the real app, profiler starts tracking
+  
+Verify:
+  ✓ Checkbox is still checked
+  ✓ In real app, performance metrics appear in logs
+
+
+WHAT HAPPENS IN THE BACKGROUND
+═══════════════════════════════════════════════════════════════════════════════
+
+When you save:
+
+  Python Code:
+    new_settings = {
+        "auto_reconnect": True/False,
+        "auto_detect_serial": True/False,
+        "compact_sidebar": True/False,
+        "enable_profiler": True/False,
+    }
+
+  Saved to JSON:
+    {
+        "com_port": "COM3",
+        "baud_rate": 115200,
+        "cooldown": 10,
+        "theme": "dark",
+        "auto_reconnect": true,
+        "auto_detect_serial": false,
+        "compact_sidebar": true,
+        "enable_profiler": false
+    }
+
+  File Location:
+    data/settings.json ← Check this file!
+
+  On Restart:
+    1. Load data/settings.json
+    2. Parse JSON
+    3. Update app components
+    4. Restore UI state
+
+
+═══════════════════════════════════════════════════════════════════════════════

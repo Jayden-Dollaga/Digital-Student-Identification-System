@@ -1,8 +1,19 @@
-# Fingerprint Attendance System v2.0
+# Fingerprint Attendance System v2.4
 
-**Status:** ✅ Production Ready — ESP32 fingerprint scanning, a desktop GUI, SQLite storage, backup/restore support, role-based access, and reporting.
+**Status:** ✅ Production Ready — ESP32 fingerprint scanning, a desktop GUI, SQLite storage, backup/restore support, role-based access, reporting, and a refactored Python architecture for better maintainability and reliability.
 
 This project began as a practical hardware experiment: connect a fingerprint sensor to an ESP32, read biometric input, and use a desktop application to manage attendance records. It has since grown into a complete attendance-management platform with embedded firmware, a Python application, a local database, and reporting tools.
+
+The Python layer has recently been refactored around clearer responsibilities so database access, serial communication, attendance processing, and the GUI are easier to maintain, test, and extend without changing the overall user workflow.
+
+## Refactor highlights
+
+Recent improvements in the Python codebase include:
+
+- clearer separation of concerns between persistence, serial handling, attendance processing, and UI orchestration
+- more reliable serial communication with safer reconnect behavior and better connection-state handling
+- centralized attendance parsing and cooldown protection through `AttendanceProcessor`
+- stronger regression coverage for scan-processing behavior and better maintainability for future enhancements
 
 ---
 
@@ -174,6 +185,17 @@ Fingerprint-Attendance-System/
 
 ## Installation and setup
 
+### Portable Windows build
+
+To build a portable Windows executable for field testing:
+
+```bash
+python -m pip install -r requirements.txt
+tools\build_portable.bat
+```
+
+The build output will be created in the folder [dist/portable](dist/portable). The generated executable can be copied to a USB drive and launched on another Windows machine without needing a separate Python installation.
+
 ### 1. Install Python dependencies
 
 ```bash
@@ -183,6 +205,14 @@ pip install -r requirements.txt
 ### 2. Upload the firmware
 
 Open the Arduino sketch in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) and upload it to the ESP32 through the Arduino IDE.
+
+The firmware now uses the onboard ESP32 D2 LED as a simple status indicator:
+
+- slow blink (1 second ON / 1 second OFF): system ready / idle
+- double blink every 2 seconds: attendance scan mode active
+- fast blink (200 ms ON / OFF): enrollment in progress
+- solid ON for 2–3 seconds: fingerprint matched successfully or fingerprint stored
+- rapid flashing (100 ms ON / OFF for 5 seconds): error or failed enrollment
 
 ### 3. Connect the hardware
 
@@ -203,6 +233,8 @@ python python/gui/app.py
 ```
 
 > The GUI now opens larger by default so more of the interface fits on the screen.
+>
+> Automatic screen scaling has been removed to keep the interface layout stable across different displays.
 
 ---
 
@@ -246,6 +278,16 @@ python python/gui/app.py
 | DELETE:1 | Delete a specific fingerprint |
 | WIPE | Remove all stored fingerprints |
 | LIST | Show stored fingerprint count |
+
+### LED status guide
+
+The onboard D2 LED on the ESP32 provides quick feedback while the device is running:
+
+- Ready / idle: slow blink (1 second ON / OFF)
+- Attendance scan mode: double blink every 2 seconds
+- Enrollment in progress: fast blink (200 ms ON / OFF)
+- Successful match or stored fingerprint: solid ON for 2–3 seconds
+- Error state: rapid flashing (100 ms ON / OFF for 5 seconds)
 
 ---
 

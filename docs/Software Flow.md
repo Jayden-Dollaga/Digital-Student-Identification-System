@@ -4,6 +4,8 @@
 
 This document explains the runtime behavior of the application from startup through enrollment, scanning, logging, backup, and restore.
 
+The current Python implementation uses a more structured flow than earlier versions: raw serial data is read and interpreted by the communication layer, transformed into attendance outcomes by the attendance processor, and then persisted and reflected in the UI.
+
 ## Startup flow
 
 1. The user launches the application.
@@ -32,9 +34,10 @@ This document explains the runtime behavior of the application from startup thro
 1. Scan mode is started from the GUI.
 2. The ESP32 waits for a fingerprint.
 3. When a fingerprint is presented, the device attempts matching.
-4. The Python app receives the result over serial.
-5. The attendance event is recorded and the UI is refreshed.
-6. Unknown or unregistered scans are stored as history entries rather than being dropped.
+4. The serial handler receives the raw output and passes it to the attendance processor.
+5. The attendance processor interprets the scan result, applies cooldown and confidence rules, and returns a structured outcome.
+6. The database layer records the event and the GUI refreshes the attendance view.
+7. Unknown or unregistered scans are stored as history entries rather than being dropped.
 
 ## Backup and restore flow
 

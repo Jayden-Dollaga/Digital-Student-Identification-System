@@ -18,7 +18,7 @@ if errorlevel 1 (
 )
 
 echo Starting GUI app...
-%PYTHON_CMD% python\gui\app.py
+%PYTHON_CMD% python\main.py
 if errorlevel 1 (
     echo Application exited with errors.
 ) else (

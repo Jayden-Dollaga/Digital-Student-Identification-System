@@ -197,6 +197,7 @@ class StudentsPage:
         self.service.delete_student(fingerprint_id)
         self.refresh()
         self.app.refresh_statistics()
+        self.app.refresh_attendance_view()
         self.app.log_message(f"Deleted student profile for ID {fingerprint_id}.")
         return True
 

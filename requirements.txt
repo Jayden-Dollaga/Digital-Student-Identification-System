@@ -1,6 +1,7 @@
 pyserial==3.5
 customtkinter==6.0.0
 openpyxl==3.1.5
-matplotlib==3.8.4
+# Optional: install matplotlib separately if chart reports are needed on your machine.
 Pillow==10.1.0
 pytest==7.4.0
+pyinstaller==6.11.1

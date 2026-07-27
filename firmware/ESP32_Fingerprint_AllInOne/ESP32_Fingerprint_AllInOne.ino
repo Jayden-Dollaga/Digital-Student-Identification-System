@@ -47,15 +47,117 @@
 
 #define FINGERPRINT_RX   14    // orange wire (sensor TX) connects here
 #define FINGERPRINT_TX   27    // white wire  (sensor RX) connects here
+#define LED_PIN          2     // onboard D2 LED on ESP32
 #define MIN_CONFIDENCE   50    // minimum confidence to accept a match
 #define SCAN_COOLDOWN    2000  // ms to wait after a scan before scanning again
+
+const uint16_t MATCH_TIME = 2500;   // solid ON for successful match/store
+const uint16_t ERROR_TIME = 5000;   // rapid flash for error conditions
+const uint16_t READY_PERIOD = 2000; // slow blink for idle/ready state
+const uint16_t ENROLL_PERIOD = 400; // fast blink for enrollment state
 
 HardwareSerial mySerial(2);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
+enum LedMode {
+  LED_MODE_READY,
+  LED_MODE_SCAN,
+  LED_MODE_ENROLL,
+  LED_MODE_ERROR,
+  LED_MODE_MATCH
+};
+
+LedMode currentLedMode = LED_MODE_READY;
+LedMode returnLedMode = LED_MODE_READY;
+unsigned long patternStart = 0;
+bool ledState = false;
+
+void setLedMode(LedMode mode) {
+  currentLedMode = mode;
+  patternStart = millis();
+  ledState = false;
+  digitalWrite(LED_PIN, LOW);
+}
+
+void triggerMatchPulse() {
+  returnLedMode = currentLedMode;
+  currentLedMode = LED_MODE_MATCH;
+  patternStart = millis();
+  ledState = true;
+  digitalWrite(LED_PIN, HIGH);
+}
+
+void triggerErrorFlash() {
+  returnLedMode = currentLedMode;
+  currentLedMode = LED_MODE_ERROR;
+  patternStart = millis();
+  ledState = false;
+  digitalWrite(LED_PIN, LOW);
+}
+
+void updateLed() {
+  unsigned long now = millis();
+
+  if (currentLedMode == LED_MODE_MATCH) {
+    if (now - patternStart >= MATCH_TIME) {
+      setLedMode(returnLedMode);
+      return;
+    }
+    digitalWrite(LED_PIN, HIGH);
+    return;
+  }
+
+  if (currentLedMode == LED_MODE_ERROR) {
+    if (now - patternStart >= ERROR_TIME) {
+      setLedMode(returnLedMode);
+      return;
+    }
+
+    if ((now - patternStart) % 200 < 100) {
+      digitalWrite(LED_PIN, HIGH);
+    } else {
+      digitalWrite(LED_PIN, LOW);
+    }
+    return;
+  }
+
+  unsigned long elapsed = now - patternStart;
+
+  if (currentLedMode == LED_MODE_READY) {
+    if (elapsed % READY_PERIOD < READY_PERIOD / 2) {
+      digitalWrite(LED_PIN, HIGH);
+    } else {
+      digitalWrite(LED_PIN, LOW);
+    }
+    return;
+  }
+
+  if (currentLedMode == LED_MODE_SCAN) {
+    unsigned long phase = elapsed % 2000;
+    if (phase < 200 || (phase >= 300 && phase < 500)) {
+      digitalWrite(LED_PIN, HIGH);
+    } else {
+      digitalWrite(LED_PIN, LOW);
+    }
+    return;
+  }
+
+  if (currentLedMode == LED_MODE_ENROLL) {
+    if ((elapsed % ENROLL_PERIOD) < ENROLL_PERIOD / 2) {
+      digitalWrite(LED_PIN, HIGH);
+    } else {
+      digitalWrite(LED_PIN, LOW);
+    }
+  }
+}
+
 // ── Mode ──────────────────────────────────────────────────────────────────────
 bool scanMode = false;  // false = command mode, true = scan mode
 String pendingCommand = "";
+
+// NOTE: The firmware is intentionally kept in a single sketch for now.
+// If it grows further, the LED logic, command handling, and fingerprint flow
+// can later be split into separate .h/.cpp files for maintainability.
 
 
 // ==============================================================================
@@ -63,6 +165,9 @@ String pendingCommand = "";
 // ==============================================================================
 
 void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  setLedMode(LED_MODE_READY);
+
   Serial.begin(115200);
   delay(1000);
 
@@ -75,9 +180,14 @@ void setup() {
 
   if (finger.verifyPassword()) {
     Serial.println("Sensor found!");
+    setLedMode(LED_MODE_READY);
   } else {
     Serial.println("ERROR: Sensor not found. Check wiring.");
-    while (1) { delay(1); }
+    triggerErrorFlash();
+    while (1) {
+      updateLed();
+      delay(1);
+    }
   }
 
   finger.getTemplateCount();
@@ -94,6 +204,8 @@ void setup() {
 // ==============================================================================
 
 void loop() {
+  updateLed();
+
   // Process any pending command that was received during enrollment.
   if (pendingCommand.length() > 0) {
     String cmd = pendingCommand;
@@ -126,6 +238,7 @@ void handleCommand(String input) {
   // ── SCAN ──────────────────────────────────────────────────────
   if (input == "SCAN") {
     scanMode = true;
+    setLedMode(LED_MODE_SCAN);
     Serial.println("\n>> Switched to SCAN MODE");
     Serial.println("   Place finger on sensor to log attendance.");
     Serial.println("   Type STOP to return to command mode.");
@@ -136,6 +249,7 @@ void handleCommand(String input) {
   // ── STOP ──────────────────────────────────────────────────────
   if (input == "STOP") {
     scanMode = false;
+    setLedMode(LED_MODE_READY);
     Serial.println("\n>> Switched to COMMAND MODE");
     printHelp();
     Serial.println("CMD_MODE");
@@ -145,6 +259,7 @@ void handleCommand(String input) {
   // ── LIST ──────────────────────────────────────────────────────
   if (input == "LIST") {
     scanMode = false;
+    setLedMode(LED_MODE_READY);
     finger.getTemplateCount();
     Serial.print("\n>> Stored fingerprints: ");
     Serial.println(finger.templateCount);
@@ -155,6 +270,7 @@ void handleCommand(String input) {
   // ── WIPE ──────────────────────────────────────────────────────
   if (input == "WIPE") {
     scanMode = false;
+    setLedMode(LED_MODE_READY);
     Serial.println("\n>> Wiping ALL fingerprints...");
     if (finger.emptyDatabase() == FINGERPRINT_OK) {
       Serial.println("   SUCCESS - All fingerprints deleted.");
@@ -167,6 +283,7 @@ void handleCommand(String input) {
 
   // ── ENROLL / ENROLL:ID ──────────────────────────────────────
   if (input == "ENROLL") {
+    setLedMode(LED_MODE_ENROLL);
     int id = findNextAvailableId();
     if (id <= 0) {
       Serial.println("ERROR: No free fingerprint slots available. Delete one first.");
@@ -178,6 +295,7 @@ void handleCommand(String input) {
   }
 
   if (input.startsWith("ENROLL:")) {
+    setLedMode(LED_MODE_ENROLL);
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: ENROLL:5");
@@ -190,6 +308,7 @@ void handleCommand(String input) {
 
   // ── DELETE:ID ─────────────────────────────────────────────────
   if (input.startsWith("DELETE:")) {
+    setLedMode(LED_MODE_READY);
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: DELETE:5");
@@ -236,6 +355,7 @@ int findNextAvailableId() {
 
 bool checkEnrollmentCancel() {
   if (!Serial.available()) {
+    updateLed();
     return false;
   }
 
@@ -244,6 +364,7 @@ bool checkEnrollmentCancel() {
   input.toUpperCase();
 
   if (input == "STOP") {
+    setLedMode(LED_MODE_READY);
     Serial.println("\n>> Enrollment cancelled.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -252,6 +373,7 @@ bool checkEnrollmentCancel() {
 
   if (input.startsWith("DELETE:") || input.startsWith("ENROLL") || input == "WIPE" || input == "LIST" || input == "SCAN") {
     pendingCommand = input;
+    setLedMode(LED_MODE_READY);
     Serial.println("\n>> Enrollment cancelled due to a new command.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -269,6 +391,7 @@ bool checkEnrollmentCancel() {
 // ==============================================================================
 
 void enrollFinger(int id) {
+  setLedMode(LED_MODE_ENROLL);
   Serial.println();
   Serial.println("----------------------------------------");
   Serial.print("  ENROLLING FINGER AS ID #");
@@ -301,6 +424,7 @@ void enrollFinger(int id) {
   Serial.println("Step 2: Remove finger...");
   unsigned long start_wait = millis();
   while (millis() - start_wait < 2000) {
+    updateLed();
     if (checkEnrollmentCancel()) {
       return;
     }
@@ -308,6 +432,7 @@ void enrollFinger(int id) {
   }
   p = 0;
   while (p != FINGERPRINT_NOFINGER) {
+    updateLed();
     if (checkEnrollmentCancel()) {
       return;
     }
@@ -338,6 +463,7 @@ void enrollFinger(int id) {
   // ── CREATE MODEL ──────────────────────────────────────────────
   p = finger.createModel();
   if (p == FINGERPRINT_ENROLLMISMATCH) {
+    triggerErrorFlash();
     Serial.println("  ERROR: Fingerprints did not match.");
     Serial.println("  Tip: Use the SAME finger, same position, both times.");
     Serial.print("  Type ENROLL:");
@@ -346,6 +472,7 @@ void enrollFinger(int id) {
     return;
   }
   if (p != FINGERPRINT_OK) {
+    triggerErrorFlash();
     Serial.println("  ERROR: Could not create model.");
     return;
   }
@@ -353,6 +480,7 @@ void enrollFinger(int id) {
   // ── STORE ─────────────────────────────────────────────────────
   p = finger.storeModel(id);
   if (p == FINGERPRINT_OK) {
+    triggerMatchPulse();
     Serial.println("----------------------------------------");
     Serial.print("  SUCCESS! Finger saved as ID #");
     Serial.println(id);
@@ -362,8 +490,11 @@ void enrollFinger(int id) {
     Serial.println(finger.templateCount);
     Serial.println();
   } else {
+    triggerErrorFlash();
     Serial.println("  ERROR: Could not store fingerprint.");
   }
+
+  setLedMode(LED_MODE_READY);
 }
 
 
@@ -382,6 +513,7 @@ void scanFinger() {
   p = finger.fingerSearch();
   if (p == FINGERPRINT_OK) {
     if (finger.confidence >= MIN_CONFIDENCE) {
+      triggerMatchPulse();
       Serial.print("ID:");
       Serial.println(finger.fingerID);
       Serial.print("CONFIDENCE:");

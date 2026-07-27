@@ -1,14 +1,28 @@
 Folder PATH listing for volume OriginNexus500
 Volume serial number is 580C-F87B
-C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
+C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\AI-ASSISTED FINGERPRINT ATTENDANCE SYSTEM
 |   .gitignore
+|   INSTALLATION.md
+|   install_requirements.bat
 |   LICENSE
 |   list.txt
 |   list_files.bat
+|   PORTABLE_BUILD.md
 |   README.md
 |   requirements.txt
 |   run_app.bat
 |   
++---.pytest_cache
+|   |   .gitignore
+|   |   CACHEDIR.TAG
+|   |   README.md
+|   |   
+|   \---v
+|       \---cache
+|               lastfailed
+|               nodeids
+|               stepwise
+|               
 +---.venv
 |   |   .gitignore
 |   |   pyvenv.cfg
@@ -3941,8 +3955,30 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |       settings.json
 |       
 +---assets
++---build
+|   \---fingerprint_portable
+|       |   Analysis-00.toc
+|       |   base_library.zip
+|       |   COLLECT-00.toc
+|       |   EXE-00.toc
+|       |   FingerprintAttendanceSystem.exe
+|       |   FingerprintAttendanceSystem.pkg
+|       |   PKG-00.toc
+|       |   PYZ-00.pyz
+|       |   PYZ-00.toc
+|       |   warn-fingerprint_portable.txt
+|       |   xref-fingerprint_portable.html
+|       |   
+|       \---localpycs
+|               pyimod01_archive.pyc
+|               pyimod02_importers.pyc
+|               pyimod03_ctypes.pyc
+|               pyimod04_pywin32.pyc
+|               struct.pyc
+|               
 +---data
 |   |   attendance.db
+|   |   settings.json
 |   |   
 |   +---backups
 |   |       attendance_20260704_231236.db
@@ -3952,6 +3988,20 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |   |       attendance_20260704_233316.db
 |   |       attendance_20260704_234147.db
 |   |       attendance_20260705_034043.db
+|   |       attendance_20260705_175923.db
+|   |       attendance_20260705_191845.db
+|   |       attendance_20260707_023512.db
+|   |       attendance_20260707_111800.db
+|   |       attendance_20260707_115041.db
+|   |       attendance_20260709_111900.db
+|   |       attendance_20260709_112423.db
+|   |       attendance_20260709_114032.db
+|   |       attendance_20260709_114109.db
+|   |       attendance_20260709_120016.db
+|   |       attendance_20260709_121906.db
+|   |       attendance_20260710_213837.db
+|   |       attendance_20260710_214404.db
+|   |       attendance_20260711_154901.db
 |   |       
 |   +---charts
 |   |       attendance_timeline.png
@@ -3961,11 +4011,1150 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |   \---logs
 |           2026-07-04.log
 |           2026-07-05.log
+|           2026-07-06.log
+|           2026-07-07.log
+|           2026-07-08.log
+|           2026-07-09.log
+|           2026-07-10.log
+|           2026-07-11.log
+|           2026-07-12.log
+|           2026-07-15.log
 |           
++---dist
+|   \---FingerprintAttendanceSystem
+|       |   FingerprintAttendanceSystem.exe
+|       |   
+|       \---_internal
+|           |   api-ms-win-core-console-l1-1-0.dll
+|           |   api-ms-win-core-datetime-l1-1-0.dll
+|           |   api-ms-win-core-debug-l1-1-0.dll
+|           |   api-ms-win-core-errorhandling-l1-1-0.dll
+|           |   api-ms-win-core-fibers-l1-1-0.dll
+|           |   api-ms-win-core-fibers-l1-1-1.dll
+|           |   api-ms-win-core-file-l1-1-0.dll
+|           |   api-ms-win-core-file-l1-2-0.dll
+|           |   api-ms-win-core-file-l2-1-0.dll
+|           |   api-ms-win-core-handle-l1-1-0.dll
+|           |   api-ms-win-core-heap-l1-1-0.dll
+|           |   api-ms-win-core-interlocked-l1-1-0.dll
+|           |   api-ms-win-core-kernel32-legacy-l1-1-1.dll
+|           |   api-ms-win-core-libraryloader-l1-1-0.dll
+|           |   api-ms-win-core-localization-l1-2-0.dll
+|           |   api-ms-win-core-memory-l1-1-0.dll
+|           |   api-ms-win-core-namedpipe-l1-1-0.dll
+|           |   api-ms-win-core-processenvironment-l1-1-0.dll
+|           |   api-ms-win-core-processthreads-l1-1-0.dll
+|           |   api-ms-win-core-processthreads-l1-1-1.dll
+|           |   api-ms-win-core-profile-l1-1-0.dll
+|           |   api-ms-win-core-rtlsupport-l1-1-0.dll
+|           |   api-ms-win-core-string-l1-1-0.dll
+|           |   api-ms-win-core-synch-l1-1-0.dll
+|           |   api-ms-win-core-synch-l1-2-0.dll
+|           |   api-ms-win-core-sysinfo-l1-1-0.dll
+|           |   api-ms-win-core-sysinfo-l1-2-0.dll
+|           |   api-ms-win-core-timezone-l1-1-0.dll
+|           |   api-ms-win-core-util-l1-1-0.dll
+|           |   api-ms-win-crt-conio-l1-1-0.dll
+|           |   api-ms-win-crt-convert-l1-1-0.dll
+|           |   api-ms-win-crt-environment-l1-1-0.dll
+|           |   api-ms-win-crt-filesystem-l1-1-0.dll
+|           |   api-ms-win-crt-heap-l1-1-0.dll
+|           |   api-ms-win-crt-locale-l1-1-0.dll
+|           |   api-ms-win-crt-math-l1-1-0.dll
+|           |   api-ms-win-crt-process-l1-1-0.dll
+|           |   api-ms-win-crt-runtime-l1-1-0.dll
+|           |   api-ms-win-crt-stdio-l1-1-0.dll
+|           |   api-ms-win-crt-string-l1-1-0.dll
+|           |   api-ms-win-crt-time-l1-1-0.dll
+|           |   api-ms-win-crt-utility-l1-1-0.dll
+|           |   base_library.zip
+|           |   libcrypto-3.dll
+|           |   libffi-8.dll
+|           |   libssl-3.dll
+|           |   python314.dll
+|           |   select.pyd
+|           |   sqlite3.dll
+|           |   tcl86t.dll
+|           |   tk86t.dll
+|           |   ucrtbase.dll
+|           |   unicodedata.pyd
+|           |   VCRUNTIME140.dll
+|           |   VCRUNTIME140_1.dll
+|           |   zlib1.dll
+|           |   _bz2.pyd
+|           |   _ctypes.pyd
+|           |   _decimal.pyd
+|           |   _hashlib.pyd
+|           |   _lzma.pyd
+|           |   _socket.pyd
+|           |   _sqlite3.pyd
+|           |   _ssl.pyd
+|           |   _tkinter.pyd
+|           |   _wmi.pyd
+|           |   _zstd.pyd
+|           |   
+|           +---customtkinter
+|           |   \---assets
+|           |       |   .DS_Store
+|           |       |   
+|           |       +---fonts
+|           |       |   |   CustomTkinter_shapes_font.otf
+|           |       |   |   
+|           |       |   \---Roboto
+|           |       |           Roboto-Medium.ttf
+|           |       |           Roboto-Regular.ttf
+|           |       |           
+|           |       +---icons
+|           |       |       .DS_Store
+|           |       |       CustomTkinter_icon_Windows.ico
+|           |       |       
+|           |       \---themes
+|           |               blue.json
+|           |               dark-blue.json
+|           |               gold.json
+|           |               green.json
+|           |               
+|           +---data
+|           |   |   attendance.db
+|           |   |   settings.json
+|           |   |   
+|           |   +---backups
+|           |   |       attendance_20260704_231236.db
+|           |   |       attendance_20260704_231628.db
+|           |   |       attendance_20260704_231812.db
+|           |   |       attendance_20260704_232824.db
+|           |   |       attendance_20260704_233316.db
+|           |   |       attendance_20260704_234147.db
+|           |   |       attendance_20260705_034043.db
+|           |   |       attendance_20260705_175923.db
+|           |   |       attendance_20260705_191845.db
+|           |   |       attendance_20260707_023512.db
+|           |   |       attendance_20260707_111800.db
+|           |   |       attendance_20260707_115041.db
+|           |   |       attendance_20260709_111900.db
+|           |   |       attendance_20260709_112423.db
+|           |   |       attendance_20260709_114032.db
+|           |   |       attendance_20260709_114109.db
+|           |   |       attendance_20260709_120016.db
+|           |   |       
+|           |   +---charts
+|           |   |       attendance_timeline.png
+|           |   |       grade_chart.png
+|           |   |       section_chart.png
+|           |   |       
+|           |   \---logs
+|           |           2026-07-04.log
+|           |           2026-07-05.log
+|           |           2026-07-06.log
+|           |           2026-07-07.log
+|           |           2026-07-08.log
+|           |           2026-07-09.log
+|           |           
+|           +---tcl8
+|           |   +---8.4
+|           |   |   |   platform-1.0.19.tm
+|           |   |   |   
+|           |   |   \---platform
+|           |   |           shell-1.1.4.tm
+|           |   |           
+|           |   +---8.5
+|           |   |       msgcat-1.6.1.tm
+|           |   |       tcltest-2.5.8.tm
+|           |   |       
+|           |   \---8.6
+|           |           http-2.9.8.tm
+|           |           
+|           +---_tcl_data
+|           |   |   auto.tcl
+|           |   |   clock.tcl
+|           |   |   history.tcl
+|           |   |   init.tcl
+|           |   |   package.tcl
+|           |   |   parray.tcl
+|           |   |   safe.tcl
+|           |   |   tclIndex
+|           |   |   tm.tcl
+|           |   |   word.tcl
+|           |   |   
+|           |   +---encoding
+|           |   |       ascii.enc
+|           |   |       big5.enc
+|           |   |       cns11643.enc
+|           |   |       cp1250.enc
+|           |   |       cp1251.enc
+|           |   |       cp1252.enc
+|           |   |       cp1253.enc
+|           |   |       cp1254.enc
+|           |   |       cp1255.enc
+|           |   |       cp1256.enc
+|           |   |       cp1257.enc
+|           |   |       cp1258.enc
+|           |   |       cp437.enc
+|           |   |       cp737.enc
+|           |   |       cp775.enc
+|           |   |       cp850.enc
+|           |   |       cp852.enc
+|           |   |       cp855.enc
+|           |   |       cp857.enc
+|           |   |       cp860.enc
+|           |   |       cp861.enc
+|           |   |       cp862.enc
+|           |   |       cp863.enc
+|           |   |       cp864.enc
+|           |   |       cp865.enc
+|           |   |       cp866.enc
+|           |   |       cp869.enc
+|           |   |       cp874.enc
+|           |   |       cp932.enc
+|           |   |       cp936.enc
+|           |   |       cp949.enc
+|           |   |       cp950.enc
+|           |   |       dingbats.enc
+|           |   |       ebcdic.enc
+|           |   |       euc-cn.enc
+|           |   |       euc-jp.enc
+|           |   |       euc-kr.enc
+|           |   |       gb12345.enc
+|           |   |       gb1988.enc
+|           |   |       gb2312-raw.enc
+|           |   |       gb2312.enc
+|           |   |       iso2022-jp.enc
+|           |   |       iso2022-kr.enc
+|           |   |       iso2022.enc
+|           |   |       iso8859-1.enc
+|           |   |       iso8859-10.enc
+|           |   |       iso8859-11.enc
+|           |   |       iso8859-13.enc
+|           |   |       iso8859-14.enc
+|           |   |       iso8859-15.enc
+|           |   |       iso8859-16.enc
+|           |   |       iso8859-2.enc
+|           |   |       iso8859-3.enc
+|           |   |       iso8859-4.enc
+|           |   |       iso8859-5.enc
+|           |   |       iso8859-6.enc
+|           |   |       iso8859-7.enc
+|           |   |       iso8859-8.enc
+|           |   |       iso8859-9.enc
+|           |   |       jis0201.enc
+|           |   |       jis0208.enc
+|           |   |       jis0212.enc
+|           |   |       koi8-r.enc
+|           |   |       koi8-ru.enc
+|           |   |       koi8-t.enc
+|           |   |       koi8-u.enc
+|           |   |       ksc5601.enc
+|           |   |       macCentEuro.enc
+|           |   |       macCroatian.enc
+|           |   |       macCyrillic.enc
+|           |   |       macDingbats.enc
+|           |   |       macGreek.enc
+|           |   |       macIceland.enc
+|           |   |       macJapan.enc
+|           |   |       macRoman.enc
+|           |   |       macRomania.enc
+|           |   |       macThai.enc
+|           |   |       macTurkish.enc
+|           |   |       macUkraine.enc
+|           |   |       shiftjis.enc
+|           |   |       symbol.enc
+|           |   |       tis-620.enc
+|           |   |       
+|           |   +---http1.0
+|           |   |       http.tcl
+|           |   |       pkgIndex.tcl
+|           |   |       
+|           |   +---msgs
+|           |   |       af.msg
+|           |   |       af_za.msg
+|           |   |       ar.msg
+|           |   |       ar_in.msg
+|           |   |       ar_jo.msg
+|           |   |       ar_lb.msg
+|           |   |       ar_sy.msg
+|           |   |       be.msg
+|           |   |       bg.msg
+|           |   |       bn.msg
+|           |   |       bn_in.msg
+|           |   |       ca.msg
+|           |   |       cs.msg
+|           |   |       da.msg
+|           |   |       de.msg
+|           |   |       de_at.msg
+|           |   |       de_be.msg
+|           |   |       el.msg
+|           |   |       en_au.msg
+|           |   |       en_be.msg
+|           |   |       en_bw.msg
+|           |   |       en_ca.msg
+|           |   |       en_gb.msg
+|           |   |       en_hk.msg
+|           |   |       en_ie.msg
+|           |   |       en_in.msg
+|           |   |       en_nz.msg
+|           |   |       en_ph.msg
+|           |   |       en_sg.msg
+|           |   |       en_za.msg
+|           |   |       en_zw.msg
+|           |   |       eo.msg
+|           |   |       es.msg
+|           |   |       es_ar.msg
+|           |   |       es_bo.msg
+|           |   |       es_cl.msg
+|           |   |       es_co.msg
+|           |   |       es_cr.msg
+|           |   |       es_do.msg
+|           |   |       es_ec.msg
+|           |   |       es_gt.msg
+|           |   |       es_hn.msg
+|           |   |       es_mx.msg
+|           |   |       es_ni.msg
+|           |   |       es_pa.msg
+|           |   |       es_pe.msg
+|           |   |       es_pr.msg
+|           |   |       es_py.msg
+|           |   |       es_sv.msg
+|           |   |       es_uy.msg
+|           |   |       es_ve.msg
+|           |   |       et.msg
+|           |   |       eu.msg
+|           |   |       eu_es.msg
+|           |   |       fa.msg
+|           |   |       fa_in.msg
+|           |   |       fa_ir.msg
+|           |   |       fi.msg
+|           |   |       fo.msg
+|           |   |       fo_fo.msg
+|           |   |       fr.msg
+|           |   |       fr_be.msg
+|           |   |       fr_ca.msg
+|           |   |       fr_ch.msg
+|           |   |       ga.msg
+|           |   |       ga_ie.msg
+|           |   |       gl.msg
+|           |   |       gl_es.msg
+|           |   |       gv.msg
+|           |   |       gv_gb.msg
+|           |   |       he.msg
+|           |   |       hi.msg
+|           |   |       hi_in.msg
+|           |   |       hr.msg
+|           |   |       hu.msg
+|           |   |       id.msg
+|           |   |       id_id.msg
+|           |   |       is.msg
+|           |   |       it.msg
+|           |   |       it_ch.msg
+|           |   |       ja.msg
+|           |   |       kl.msg
+|           |   |       kl_gl.msg
+|           |   |       ko.msg
+|           |   |       kok.msg
+|           |   |       kok_in.msg
+|           |   |       ko_kr.msg
+|           |   |       kw.msg
+|           |   |       kw_gb.msg
+|           |   |       lt.msg
+|           |   |       lv.msg
+|           |   |       mk.msg
+|           |   |       mr.msg
+|           |   |       mr_in.msg
+|           |   |       ms.msg
+|           |   |       ms_my.msg
+|           |   |       mt.msg
+|           |   |       nb.msg
+|           |   |       nl.msg
+|           |   |       nl_be.msg
+|           |   |       nn.msg
+|           |   |       pl.msg
+|           |   |       pt.msg
+|           |   |       pt_br.msg
+|           |   |       ro.msg
+|           |   |       ru.msg
+|           |   |       ru_ua.msg
+|           |   |       sh.msg
+|           |   |       sk.msg
+|           |   |       sl.msg
+|           |   |       sq.msg
+|           |   |       sr.msg
+|           |   |       sv.msg
+|           |   |       sw.msg
+|           |   |       ta.msg
+|           |   |       ta_in.msg
+|           |   |       te.msg
+|           |   |       te_in.msg
+|           |   |       th.msg
+|           |   |       tr.msg
+|           |   |       uk.msg
+|           |   |       vi.msg
+|           |   |       zh.msg
+|           |   |       zh_cn.msg
+|           |   |       zh_hk.msg
+|           |   |       zh_sg.msg
+|           |   |       zh_tw.msg
+|           |   |       
+|           |   +---opt0.4
+|           |   |       optparse.tcl
+|           |   |       pkgIndex.tcl
+|           |   |       
+|           |   \---tzdata
+|           |       |   CET
+|           |       |   CST6CDT
+|           |       |   Cuba
+|           |       |   EET
+|           |       |   Egypt
+|           |       |   Eire
+|           |       |   EST
+|           |       |   EST5EDT
+|           |       |   GB
+|           |       |   GB-Eire
+|           |       |   GMT
+|           |       |   GMT+0
+|           |       |   GMT-0
+|           |       |   GMT0
+|           |       |   Greenwich
+|           |       |   Hongkong
+|           |       |   HST
+|           |       |   Iceland
+|           |       |   Iran
+|           |       |   Israel
+|           |       |   Jamaica
+|           |       |   Japan
+|           |       |   Kwajalein
+|           |       |   Libya
+|           |       |   MET
+|           |       |   MST
+|           |       |   MST7MDT
+|           |       |   Navajo
+|           |       |   NZ
+|           |       |   NZ-CHAT
+|           |       |   Poland
+|           |       |   Portugal
+|           |       |   PRC
+|           |       |   PST8PDT
+|           |       |   ROC
+|           |       |   ROK
+|           |       |   Singapore
+|           |       |   Turkey
+|           |       |   UCT
+|           |       |   Universal
+|           |       |   UTC
+|           |       |   W-SU
+|           |       |   WET
+|           |       |   Zulu
+|           |       |   
+|           |       +---Africa
+|           |       |       Abidjan
+|           |       |       Accra
+|           |       |       Addis_Ababa
+|           |       |       Algiers
+|           |       |       Asmara
+|           |       |       Asmera
+|           |       |       Bamako
+|           |       |       Bangui
+|           |       |       Banjul
+|           |       |       Bissau
+|           |       |       Blantyre
+|           |       |       Brazzaville
+|           |       |       Bujumbura
+|           |       |       Cairo
+|           |       |       Casablanca
+|           |       |       Ceuta
+|           |       |       Conakry
+|           |       |       Dakar
+|           |       |       Dar_es_Salaam
+|           |       |       Djibouti
+|           |       |       Douala
+|           |       |       El_Aaiun
+|           |       |       Freetown
+|           |       |       Gaborone
+|           |       |       Harare
+|           |       |       Johannesburg
+|           |       |       Juba
+|           |       |       Kampala
+|           |       |       Khartoum
+|           |       |       Kigali
+|           |       |       Kinshasa
+|           |       |       Lagos
+|           |       |       Libreville
+|           |       |       Lome
+|           |       |       Luanda
+|           |       |       Lubumbashi
+|           |       |       Lusaka
+|           |       |       Malabo
+|           |       |       Maputo
+|           |       |       Maseru
+|           |       |       Mbabane
+|           |       |       Mogadishu
+|           |       |       Monrovia
+|           |       |       Nairobi
+|           |       |       Ndjamena
+|           |       |       Niamey
+|           |       |       Nouakchott
+|           |       |       Ouagadougou
+|           |       |       Porto-Novo
+|           |       |       Sao_Tome
+|           |       |       Timbuktu
+|           |       |       Tripoli
+|           |       |       Tunis
+|           |       |       Windhoek
+|           |       |       
+|           |       +---America
+|           |       |   |   Adak
+|           |       |   |   Anchorage
+|           |       |   |   Anguilla
+|           |       |   |   Antigua
+|           |       |   |   Araguaina
+|           |       |   |   Aruba
+|           |       |   |   Asuncion
+|           |       |   |   Atikokan
+|           |       |   |   Atka
+|           |       |   |   Bahia
+|           |       |   |   Bahia_Banderas
+|           |       |   |   Barbados
+|           |       |   |   Belem
+|           |       |   |   Belize
+|           |       |   |   Blanc-Sablon
+|           |       |   |   Boa_Vista
+|           |       |   |   Bogota
+|           |       |   |   Boise
+|           |       |   |   Buenos_Aires
+|           |       |   |   Cambridge_Bay
+|           |       |   |   Campo_Grande
+|           |       |   |   Cancun
+|           |       |   |   Caracas
+|           |       |   |   Catamarca
+|           |       |   |   Cayenne
+|           |       |   |   Cayman
+|           |       |   |   Chicago
+|           |       |   |   Chihuahua
+|           |       |   |   Ciudad_Juarez
+|           |       |   |   Coral_Harbour
+|           |       |   |   Cordoba
+|           |       |   |   Costa_Rica
+|           |       |   |   Creston
+|           |       |   |   Cuiaba
+|           |       |   |   Curacao
+|           |       |   |   Danmarkshavn
+|           |       |   |   Dawson
+|           |       |   |   Dawson_Creek
+|           |       |   |   Denver
+|           |       |   |   Detroit
+|           |       |   |   Dominica
+|           |       |   |   Edmonton
+|           |       |   |   Eirunepe
+|           |       |   |   El_Salvador
+|           |       |   |   Ensenada
+|           |       |   |   Fortaleza
+|           |       |   |   Fort_Nelson
+|           |       |   |   Fort_Wayne
+|           |       |   |   Glace_Bay
+|           |       |   |   Godthab
+|           |       |   |   Goose_Bay
+|           |       |   |   Grand_Turk
+|           |       |   |   Grenada
+|           |       |   |   Guadeloupe
+|           |       |   |   Guatemala
+|           |       |   |   Guayaquil
+|           |       |   |   Guyana
+|           |       |   |   Halifax
+|           |       |   |   Havana
+|           |       |   |   Hermosillo
+|           |       |   |   Indianapolis
+|           |       |   |   Inuvik
+|           |       |   |   Iqaluit
+|           |       |   |   Jamaica
+|           |       |   |   Jujuy
+|           |       |   |   Juneau
+|           |       |   |   Knox_IN
+|           |       |   |   Kralendijk
+|           |       |   |   La_Paz
+|           |       |   |   Lima
+|           |       |   |   Los_Angeles
+|           |       |   |   Louisville
+|           |       |   |   Lower_Princes
+|           |       |   |   Maceio
+|           |       |   |   Managua
+|           |       |   |   Manaus
+|           |       |   |   Marigot
+|           |       |   |   Martinique
+|           |       |   |   Matamoros
+|           |       |   |   Mazatlan
+|           |       |   |   Mendoza
+|           |       |   |   Menominee
+|           |       |   |   Merida
+|           |       |   |   Metlakatla
+|           |       |   |   Mexico_City
+|           |       |   |   Miquelon
+|           |       |   |   Moncton
+|           |       |   |   Monterrey
+|           |       |   |   Montevideo
+|           |       |   |   Montreal
+|           |       |   |   Montserrat
+|           |       |   |   Nassau
+|           |       |   |   New_York
+|           |       |   |   Nipigon
+|           |       |   |   Nome
+|           |       |   |   Noronha
+|           |       |   |   Nuuk
+|           |       |   |   Ojinaga
+|           |       |   |   Panama
+|           |       |   |   Pangnirtung
+|           |       |   |   Paramaribo
+|           |       |   |   Phoenix
+|           |       |   |   Port-au-Prince
+|           |       |   |   Porto_Acre
+|           |       |   |   Porto_Velho
+|           |       |   |   Port_of_Spain
+|           |       |   |   Puerto_Rico
+|           |       |   |   Punta_Arenas
+|           |       |   |   Rainy_River
+|           |       |   |   Rankin_Inlet
+|           |       |   |   Recife
+|           |       |   |   Regina
+|           |       |   |   Resolute
+|           |       |   |   Rio_Branco
+|           |       |   |   Rosario
+|           |       |   |   Santarem
+|           |       |   |   Santa_Isabel
+|           |       |   |   Santiago
+|           |       |   |   Santo_Domingo
+|           |       |   |   Sao_Paulo
+|           |       |   |   Scoresbysund
+|           |       |   |   Shiprock
+|           |       |   |   Sitka
+|           |       |   |   St_Barthelemy
+|           |       |   |   St_Johns
+|           |       |   |   St_Kitts
+|           |       |   |   St_Lucia
+|           |       |   |   St_Thomas
+|           |       |   |   St_Vincent
+|           |       |   |   Swift_Current
+|           |       |   |   Tegucigalpa
+|           |       |   |   Thule
+|           |       |   |   Thunder_Bay
+|           |       |   |   Tijuana
+|           |       |   |   Toronto
+|           |       |   |   Tortola
+|           |       |   |   Vancouver
+|           |       |   |   Virgin
+|           |       |   |   Whitehorse
+|           |       |   |   Winnipeg
+|           |       |   |   Yakutat
+|           |       |   |   Yellowknife
+|           |       |   |   
+|           |       |   +---Argentina
+|           |       |   |       Buenos_Aires
+|           |       |   |       Catamarca
+|           |       |   |       ComodRivadavia
+|           |       |   |       Cordoba
+|           |       |   |       Jujuy
+|           |       |   |       La_Rioja
+|           |       |   |       Mendoza
+|           |       |   |       Rio_Gallegos
+|           |       |   |       Salta
+|           |       |   |       San_Juan
+|           |       |   |       San_Luis
+|           |       |   |       Tucuman
+|           |       |   |       Ushuaia
+|           |       |   |       
+|           |       |   +---Indiana
+|           |       |   |       Indianapolis
+|           |       |   |       Knox
+|           |       |   |       Marengo
+|           |       |   |       Petersburg
+|           |       |   |       Tell_City
+|           |       |   |       Vevay
+|           |       |   |       Vincennes
+|           |       |   |       Winamac
+|           |       |   |       
+|           |       |   +---Kentucky
+|           |       |   |       Louisville
+|           |       |   |       Monticello
+|           |       |   |       
+|           |       |   \---North_Dakota
+|           |       |           Beulah
+|           |       |           Center
+|           |       |           New_Salem
+|           |       |           
+|           |       +---Antarctica
+|           |       |       Casey
+|           |       |       Davis
+|           |       |       DumontDUrville
+|           |       |       Macquarie
+|           |       |       Mawson
+|           |       |       McMurdo
+|           |       |       Palmer
+|           |       |       Rothera
+|           |       |       South_Pole
+|           |       |       Syowa
+|           |       |       Troll
+|           |       |       Vostok
+|           |       |       
+|           |       +---Arctic
+|           |       |       Longyearbyen
+|           |       |       
+|           |       +---Asia
+|           |       |       Aden
+|           |       |       Almaty
+|           |       |       Amman
+|           |       |       Anadyr
+|           |       |       Aqtau
+|           |       |       Aqtobe
+|           |       |       Ashgabat
+|           |       |       Ashkhabad
+|           |       |       Atyrau
+|           |       |       Baghdad
+|           |       |       Bahrain
+|           |       |       Baku
+|           |       |       Bangkok
+|           |       |       Barnaul
+|           |       |       Beirut
+|           |       |       Bishkek
+|           |       |       Brunei
+|           |       |       Calcutta
+|           |       |       Chita
+|           |       |       Choibalsan
+|           |       |       Chongqing
+|           |       |       Chungking
+|           |       |       Colombo
+|           |       |       Dacca
+|           |       |       Damascus
+|           |       |       Dhaka
+|           |       |       Dili
+|           |       |       Dubai
+|           |       |       Dushanbe
+|           |       |       Famagusta
+|           |       |       Gaza
+|           |       |       Harbin
+|           |       |       Hebron
+|           |       |       Hong_Kong
+|           |       |       Hovd
+|           |       |       Ho_Chi_Minh
+|           |       |       Irkutsk
+|           |       |       Istanbul
+|           |       |       Jakarta
+|           |       |       Jayapura
+|           |       |       Jerusalem
+|           |       |       Kabul
+|           |       |       Kamchatka
+|           |       |       Karachi
+|           |       |       Kashgar
+|           |       |       Kathmandu
+|           |       |       Katmandu
+|           |       |       Khandyga
+|           |       |       Kolkata
+|           |       |       Krasnoyarsk
+|           |       |       Kuala_Lumpur
+|           |       |       Kuching
+|           |       |       Kuwait
+|           |       |       Macao
+|           |       |       Macau
+|           |       |       Magadan
+|           |       |       Makassar
+|           |       |       Manila
+|           |       |       Muscat
+|           |       |       Nicosia
+|           |       |       Novokuznetsk
+|           |       |       Novosibirsk
+|           |       |       Omsk
+|           |       |       Oral
+|           |       |       Phnom_Penh
+|           |       |       Pontianak
+|           |       |       Pyongyang
+|           |       |       Qatar
+|           |       |       Qostanay
+|           |       |       Qyzylorda
+|           |       |       Rangoon
+|           |       |       Riyadh
+|           |       |       Saigon
+|           |       |       Sakhalin
+|           |       |       Samarkand
+|           |       |       Seoul
+|           |       |       Shanghai
+|           |       |       Singapore
+|           |       |       Srednekolymsk
+|           |       |       Taipei
+|           |       |       Tashkent
+|           |       |       Tbilisi
+|           |       |       Tehran
+|           |       |       Tel_Aviv
+|           |       |       Thimbu
+|           |       |       Thimphu
+|           |       |       Tokyo
+|           |       |       Tomsk
+|           |       |       Ujung_Pandang
+|           |       |       Ulaanbaatar
+|           |       |       Ulan_Bator
+|           |       |       Urumqi
+|           |       |       Ust-Nera
+|           |       |       Vientiane
+|           |       |       Vladivostok
+|           |       |       Yakutsk
+|           |       |       Yangon
+|           |       |       Yekaterinburg
+|           |       |       Yerevan
+|           |       |       
+|           |       +---Atlantic
+|           |       |       Azores
+|           |       |       Bermuda
+|           |       |       Canary
+|           |       |       Cape_Verde
+|           |       |       Faeroe
+|           |       |       Faroe
+|           |       |       Jan_Mayen
+|           |       |       Madeira
+|           |       |       Reykjavik
+|           |       |       South_Georgia
+|           |       |       Stanley
+|           |       |       St_Helena
+|           |       |       
+|           |       +---Australia
+|           |       |       ACT
+|           |       |       Adelaide
+|           |       |       Brisbane
+|           |       |       Broken_Hill
+|           |       |       Canberra
+|           |       |       Currie
+|           |       |       Darwin
+|           |       |       Eucla
+|           |       |       Hobart
+|           |       |       LHI
+|           |       |       Lindeman
+|           |       |       Lord_Howe
+|           |       |       Melbourne
+|           |       |       North
+|           |       |       NSW
+|           |       |       Perth
+|           |       |       Queensland
+|           |       |       South
+|           |       |       Sydney
+|           |       |       Tasmania
+|           |       |       Victoria
+|           |       |       West
+|           |       |       Yancowinna
+|           |       |       
+|           |       +---Brazil
+|           |       |       Acre
+|           |       |       DeNoronha
+|           |       |       East
+|           |       |       West
+|           |       |       
+|           |       +---Canada
+|           |       |       Atlantic
+|           |       |       Central
+|           |       |       Eastern
+|           |       |       Mountain
+|           |       |       Newfoundland
+|           |       |       Pacific
+|           |       |       Saskatchewan
+|           |       |       Yukon
+|           |       |       
+|           |       +---Chile
+|           |       |       Continental
+|           |       |       EasterIsland
+|           |       |       
+|           |       +---Etc
+|           |       |       GMT
+|           |       |       GMT+0
+|           |       |       GMT+1
+|           |       |       GMT+10
+|           |       |       GMT+11
+|           |       |       GMT+12
+|           |       |       GMT+2
+|           |       |       GMT+3
+|           |       |       GMT+4
+|           |       |       GMT+5
+|           |       |       GMT+6
+|           |       |       GMT+7
+|           |       |       GMT+8
+|           |       |       GMT+9
+|           |       |       GMT-0
+|           |       |       GMT-1
+|           |       |       GMT-10
+|           |       |       GMT-11
+|           |       |       GMT-12
+|           |       |       GMT-13
+|           |       |       GMT-14
+|           |       |       GMT-2
+|           |       |       GMT-3
+|           |       |       GMT-4
+|           |       |       GMT-5
+|           |       |       GMT-6
+|           |       |       GMT-7
+|           |       |       GMT-8
+|           |       |       GMT-9
+|           |       |       GMT0
+|           |       |       Greenwich
+|           |       |       UCT
+|           |       |       Universal
+|           |       |       UTC
+|           |       |       Zulu
+|           |       |       
+|           |       +---Europe
+|           |       |       Amsterdam
+|           |       |       Andorra
+|           |       |       Astrakhan
+|           |       |       Athens
+|           |       |       Belfast
+|           |       |       Belgrade
+|           |       |       Berlin
+|           |       |       Bratislava
+|           |       |       Brussels
+|           |       |       Bucharest
+|           |       |       Budapest
+|           |       |       Busingen
+|           |       |       Chisinau
+|           |       |       Copenhagen
+|           |       |       Dublin
+|           |       |       Gibraltar
+|           |       |       Guernsey
+|           |       |       Helsinki
+|           |       |       Isle_of_Man
+|           |       |       Istanbul
+|           |       |       Jersey
+|           |       |       Kaliningrad
+|           |       |       Kiev
+|           |       |       Kirov
+|           |       |       Kyiv
+|           |       |       Lisbon
+|           |       |       Ljubljana
+|           |       |       London
+|           |       |       Luxembourg
+|           |       |       Madrid
+|           |       |       Malta
+|           |       |       Mariehamn
+|           |       |       Minsk
+|           |       |       Monaco
+|           |       |       Moscow
+|           |       |       Nicosia
+|           |       |       Oslo
+|           |       |       Paris
+|           |       |       Podgorica
+|           |       |       Prague
+|           |       |       Riga
+|           |       |       Rome
+|           |       |       Samara
+|           |       |       San_Marino
+|           |       |       Sarajevo
+|           |       |       Saratov
+|           |       |       Simferopol
+|           |       |       Skopje
+|           |       |       Sofia
+|           |       |       Stockholm
+|           |       |       Tallinn
+|           |       |       Tirane
+|           |       |       Tiraspol
+|           |       |       Ulyanovsk
+|           |       |       Uzhgorod
+|           |       |       Vaduz
+|           |       |       Vatican
+|           |       |       Vienna
+|           |       |       Vilnius
+|           |       |       Volgograd
+|           |       |       Warsaw
+|           |       |       Zagreb
+|           |       |       Zaporozhye
+|           |       |       Zurich
+|           |       |       
+|           |       +---Indian
+|           |       |       Antananarivo
+|           |       |       Chagos
+|           |       |       Christmas
+|           |       |       Cocos
+|           |       |       Comoro
+|           |       |       Kerguelen
+|           |       |       Mahe
+|           |       |       Maldives
+|           |       |       Mauritius
+|           |       |       Mayotte
+|           |       |       Reunion
+|           |       |       
+|           |       +---Mexico
+|           |       |       BajaNorte
+|           |       |       BajaSur
+|           |       |       General
+|           |       |       
+|           |       +---Pacific
+|           |       |       Apia
+|           |       |       Auckland
+|           |       |       Bougainville
+|           |       |       Chatham
+|           |       |       Chuuk
+|           |       |       Easter
+|           |       |       Efate
+|           |       |       Enderbury
+|           |       |       Fakaofo
+|           |       |       Fiji
+|           |       |       Funafuti
+|           |       |       Galapagos
+|           |       |       Gambier
+|           |       |       Guadalcanal
+|           |       |       Guam
+|           |       |       Honolulu
+|           |       |       Johnston
+|           |       |       Kanton
+|           |       |       Kiritimati
+|           |       |       Kosrae
+|           |       |       Kwajalein
+|           |       |       Majuro
+|           |       |       Marquesas
+|           |       |       Midway
+|           |       |       Nauru
+|           |       |       Niue
+|           |       |       Norfolk
+|           |       |       Noumea
+|           |       |       Pago_Pago
+|           |       |       Palau
+|           |       |       Pitcairn
+|           |       |       Pohnpei
+|           |       |       Ponape
+|           |       |       Port_Moresby
+|           |       |       Rarotonga
+|           |       |       Saipan
+|           |       |       Samoa
+|           |       |       Tahiti
+|           |       |       Tarawa
+|           |       |       Tongatapu
+|           |       |       Truk
+|           |       |       Wake
+|           |       |       Wallis
+|           |       |       Yap
+|           |       |       
+|           |       +---SystemV
+|           |       |       AST4
+|           |       |       AST4ADT
+|           |       |       CST6
+|           |       |       CST6CDT
+|           |       |       EST5
+|           |       |       EST5EDT
+|           |       |       HST10
+|           |       |       MST7
+|           |       |       MST7MDT
+|           |       |       PST8
+|           |       |       PST8PDT
+|           |       |       YST9
+|           |       |       YST9YDT
+|           |       |       
+|           |       \---US
+|           |               Alaska
+|           |               Aleutian
+|           |               Arizona
+|           |               Central
+|           |               East-Indiana
+|           |               Eastern
+|           |               Hawaii
+|           |               Indiana-Starke
+|           |               Michigan
+|           |               Mountain
+|           |               Pacific
+|           |               Samoa
+|           |               
+|           \---_tk_data
+|               |   bgerror.tcl
+|               |   button.tcl
+|               |   choosedir.tcl
+|               |   clrpick.tcl
+|               |   comdlg.tcl
+|               |   console.tcl
+|               |   dialog.tcl
+|               |   entry.tcl
+|               |   focus.tcl
+|               |   fontchooser.tcl
+|               |   iconlist.tcl
+|               |   icons.tcl
+|               |   license.terms
+|               |   listbox.tcl
+|               |   megawidget.tcl
+|               |   menu.tcl
+|               |   mkpsenc.tcl
+|               |   msgbox.tcl
+|               |   obsolete.tcl
+|               |   optMenu.tcl
+|               |   palette.tcl
+|               |   panedwindow.tcl
+|               |   pkgIndex.tcl
+|               |   safetk.tcl
+|               |   scale.tcl
+|               |   scrlbar.tcl
+|               |   spinbox.tcl
+|               |   tclIndex
+|               |   tearoff.tcl
+|               |   text.tcl
+|               |   tk.tcl
+|               |   tkfbox.tcl
+|               |   unsupported.tcl
+|               |   xmfbox.tcl
+|               |   
+|               +---images
+|               |       logo.eps
+|               |       logo100.gif
+|               |       logo64.gif
+|               |       logoLarge.gif
+|               |       logoMed.gif
+|               |       pwrdLogo.eps
+|               |       pwrdLogo100.gif
+|               |       pwrdLogo150.gif
+|               |       pwrdLogo175.gif
+|               |       pwrdLogo200.gif
+|               |       pwrdLogo75.gif
+|               |       README
+|               |       tai-ku.gif
+|               |       
+|               +---msgs
+|               |       cs.msg
+|               |       da.msg
+|               |       de.msg
+|               |       el.msg
+|               |       en.msg
+|               |       en_gb.msg
+|               |       eo.msg
+|               |       es.msg
+|               |       fi.msg
+|               |       fr.msg
+|               |       hu.msg
+|               |       it.msg
+|               |       nl.msg
+|               |       pl.msg
+|               |       pt.msg
+|               |       ru.msg
+|               |       sv.msg
+|               |       zh_cn.msg
+|               |       
+|               \---ttk
+|                       altTheme.tcl
+|                       aquaTheme.tcl
+|                       button.tcl
+|                       clamTheme.tcl
+|                       classicTheme.tcl
+|                       combobox.tcl
+|                       cursors.tcl
+|                       defaults.tcl
+|                       entry.tcl
+|                       fonts.tcl
+|                       menubutton.tcl
+|                       notebook.tcl
+|                       panedwindow.tcl
+|                       progress.tcl
+|                       scale.tcl
+|                       scrollbar.tcl
+|                       sizegrip.tcl
+|                       spinbox.tcl
+|                       treeview.tcl
+|                       ttk.tcl
+|                       utils.tcl
+|                       vistaTheme.tcl
+|                       winTheme.tcl
+|                       xpTheme.tcl
+|                       
 +---docs
 |       architecture.md
+|       Change Log.md
+|       Database Schema.md
 |       DATABASE_INTEGRATION_SUMMARY.md
 |       DATABASE_UPDATES.md
+|       fix_report.md
+|       Hardware Connections.md
 |       IMG20260630233940.jpg
 |       IMG20260630233946.jpg
 |       IMG20260630233949.jpg
@@ -3984,18 +5173,22 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |       IMG20260701010721.jpg
 |       IMG20260701010726.jpg
 |       IMG20260701010735.jpg
+|       implementation-summary.md
+|       Installation Guide.md
 |       LOGGER_USAGE.md
+|       logging-guide.md
 |       LOGGING_QUICK_REFERENCE.md
 |       LOGGING_SUMMARY.md
 |       MIGRATION_EXAMPLE.md
+|       notes.txt
 |       POLISH_PHASE_COMPLETE.md
 |       POLISH_PHASE_ROADMAP.md
 |       Project Overview.md
+|       Screenshot 2026-06-27 182256.png
 |       Screenshot 2026-06-29 232644.png
 |       Screenshot 2026-06-29 233641.png
 |       Screenshot 2026-06-30 115359.png
 |       Screenshot 2026-06-30 115404.png
-|       Screenshot 2026-06-30 115925.png
 |       Screenshot 2026-06-30 190312.png
 |       Screenshot 2026-06-30 193423.png
 |       Screenshot 2026-06-30 193928.png
@@ -4014,7 +5207,50 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |       Screenshot 2026-06-30 230553.png
 |       Screenshot 2026-06-30 230614.png
 |       Screenshot 2026-06-30 231636.png
+|       Screenshot 2026-06-30 234700.png
+|       Screenshot 2026-07-01 215932.png
+|       Screenshot 2026-07-01 220522.png
+|       Screenshot 2026-07-01 220725.png
+|       Screenshot 2026-07-01 222527.png
+|       Screenshot 2026-07-01 222624.png
+|       Screenshot 2026-07-01 223020.png
+|       Screenshot 2026-07-02 000130.png
+|       Screenshot 2026-07-02 213944.png
+|       Screenshot 2026-07-02 215347.png
+|       Screenshot 2026-07-02 215354.png
+|       Screenshot 2026-07-03 122804.png
+|       Screenshot 2026-07-04 010505.png
+|       Screenshot 2026-07-04 025719.png
+|       Screenshot 2026-07-04 025743.png
+|       Screenshot 2026-07-04 025834.png
+|       Screenshot 2026-07-04 030024.png
+|       Screenshot 2026-07-04 030032.png
+|       Screenshot 2026-07-04 030115.png
+|       Screenshot 2026-07-04 031323.png
+|       Screenshot 2026-07-04 031534.png
+|       Screenshot 2026-07-04 035208.png
+|       Screenshot 2026-07-04 221654.png
+|       Screenshot 2026-07-04 221905.png
+|       Screenshot 2026-07-04 222938.png
+|       Screenshot 2026-07-04 230533.png
+|       Screenshot 2026-07-05 172750.png
+|       Screenshot 2026-07-05 172808.png
+|       Screenshot 2026-07-05 172824.png
+|       Screenshot 2026-07-05 181406.png
+|       Screenshot 2026-07-05 181409.png
+|       Screenshot 2026-07-05 181414.png
+|       Screenshot 2026-07-05 182045.png
+|       Screenshot 2026-07-05 191105.png
+|       Screenshot 2026-07-05 201039.png
+|       Screenshot 2026-07-06 215013.png
+|       Screenshot 2026-07-06 220200.png
+|       Screenshot 2026-07-06 220415.png
+|       Screenshot 2026-07-06 220426.png
+|       Software Flow.md
 |       structure.txt
+|       System Architecture.md
+|       Testing Results.md
+|       todo.md
 |       wiring.md
 |       
 +---firmware
@@ -4031,18 +5267,20 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |   |       ESP32_Fingerprint_AllInOne.ino
 |   |       
 |   \---test
-|           fingerprint_check.ino
-|           
+|       \---fingerprint_check
+|               fingerprint_check.ino
+|               
 +---python
 |   |   config.py
-|   |   fix_emoji.py
 |   |   main.py
+|   |   settings_store.py
 |   |   __init__.py
 |   |   
 |   +---core
 |   |   |   attendance.py
 |   |   |   commands.py
 |   |   |   database.py
+|   |   |   database_addition_snippet.py
 |   |   |   logger.py
 |   |   |   serial_handler.py
 |   |   |   utils.py
@@ -4056,54 +5294,211 @@ C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\FINGERPRINT ATTENDANCE SYSTEM
 |   |           database.cpython-313.pyc
 |   |           database.cpython-314.pyc
 |   |           logger.cpython-313.pyc
+|   |           logger.cpython-314.pyc
 |   |           serial_handler.cpython-313.pyc
 |   |           serial_handler.cpython-314.pyc
+|   |           utils.cpython-313.pyc
+|   |           utils.cpython-314.pyc
 |   |           __init__.cpython-313.pyc
 |   |           __init__.cpython-314.pyc
 |   |           
 |   +---gui
 |   |   |   app.py
+|   |   |   app_original.py
 |   |   |   attendance_page.py
-|   |   |   main_window.py
+|   |   |   dashboard.py
+|   |   |   dialogs.py
+|   |   |   layout_utils.py
+|   |   |   log_page.py
+|   |   |   perf_profiler.py
+|   |   |   reports_page.py
+|   |   |   serial_troubleshooting.py
+|   |   |   settings_dialog.py
 |   |   |   settings_page.py
+|   |   |   sidebar.py
+|   |   |   statistics_page.py
 |   |   |   students_page.py
+|   |   |   theme.py
 |   |   |   __init__.py
 |   |   |   
+|   |   +---legacy
+|   |   |   |   app_test.py
+|   |   |   |   app_test1.py
+|   |   |   |   bfeas_app.py
+|   |   |   |   bfeas_app2.py
+|   |   |   |   reports_table_page.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           reports_table_page.cpython-313.pyc
+|   |   |           
 |   |   \---__pycache__
 |   |           app.cpython-313.pyc
 |   |           app.cpython-314.pyc
+|   |           app_original.cpython-313.pyc
+|   |           app_test1.cpython-313.pyc
+|   |           attendance_page.cpython-313.pyc
+|   |           attendance_page.cpython-314.pyc
+|   |           dashboard.cpython-313.pyc
+|   |           dashboard.cpython-314.pyc
+|   |           dialogs.cpython-313.pyc
+|   |           dialogs.cpython-314.pyc
+|   |           layout_utils.cpython-313.pyc
+|   |           layout_utils.cpython-314.pyc
+|   |           log_page.cpython-313.pyc
+|   |           log_page.cpython-314.pyc
+|   |           main_window.cpython-313.pyc
+|   |           perf_profiler.cpython-313.pyc
+|   |           perf_profiler.cpython-314.pyc
+|   |           reports_page.cpython-313.pyc
+|   |           reports_page.cpython-314.pyc
+|   |           reports_table_page.cpython-313.pyc
+|   |           serial_troubleshooting.cpython-313.pyc
+|   |           serial_troubleshooting.cpython-314.pyc
+|   |           settings_dialog.cpython-313.pyc
+|   |           settings_dialog.cpython-314.pyc
+|   |           settings_page.cpython-313.pyc
+|   |           settings_page.cpython-314.pyc
+|   |           sidebar.cpython-313.pyc
+|   |           sidebar.cpython-314.pyc
+|   |           statistics_page.cpython-313.pyc
+|   |           statistics_page.cpython-314.pyc
+|   |           students_page.cpython-313.pyc
+|   |           students_page.cpython-314.pyc
+|   |           theme.cpython-313.pyc
+|   |           theme.cpython-314.pyc
 |   |           __init__.cpython-313.pyc
 |   |           __init__.cpython-314.pyc
 |   |           
-|   +---services
-|   |       backup.py
-|   |       excel_export.py
-|   |       __init__.py
+|   +---non_workflow
+|   |       fix_emoji.py
+|   |       main_window.py
+|   |       serial.py
+|   |       widgets.py
 |   |       
+|   +---services
+|   |   |   attendance_service.py
+|   |   |   backup.py
+|   |   |   excel_export.py
+|   |   |   student_service.py
+|   |   |   __init__.py
+|   |   |   
+|   |   \---__pycache__
+|   |           attendance_service.cpython-313.pyc
+|   |           attendance_service.cpython-314.pyc
+|   |           student_service.cpython-313.pyc
+|   |           student_service.cpython-314.pyc
+|   |           __init__.cpython-313.pyc
+|   |           __init__.cpython-314.pyc
+|   |           
 |   \---__pycache__
 |           config.cpython-313.pyc
 |           config.cpython-314.pyc
 |           main.cpython-313.pyc
 |           main.cpython-314.pyc
+|           serial.cpython-313.pyc
+|           serial.cpython-314.pyc
+|           settings_store.cpython-313.pyc
+|           settings_store.cpython-314.pyc
 |           __init__.cpython-313.pyc
 |           
 +---tests
+|   |   app_test.py
 |   |   comprehensive_test.py
-|   |   phase2_databasev1.py
-|   |   phase2_databasev2.py
-|   |   phase2_databasev3.py
-|   |   phase2_databasev4.py
-|   |   phase2_serial_test.py
-|   |   raw_serial_diagnostic.ino
+|   |   ENHANCED_GUI_GUIDE.txt
+|   |   ESP32 R307 Finger print Sensor.zip
+|   |   HOW_TO_RUN_TEST_GUI.txt
+|   |   QUICK_REFERENCE.txt
+|   |   README_TEST_GUI.txt
+|   |   test_attendance_parsing.py
+|   |   test_attendance_refresh.py
+|   |   test_attendance_ui_utils.py
+|   |   test_auto_port_probe.py
+|   |   test_bfeas_app2_import.py
 |   |   test_database_features.py
+|   |   test_database_reset.py
+|   |   test_dialog_handlers.py
+|   |   test_gui_demo.py
+|   |   TEST_GUI_README.md
+|   |   test_gui_settings_integration.py
 |   |   test_gui_shutdown.py
+|   |   test_mode_exclusivity.py
 |   |   test_project_structure.py
+|   |   test_reports_page_import.py
+|   |   test_responsive_layout.py
+|   |   test_serial_troubleshooting.py
+|   |   test_settings_persistence.py
+|   |   test_settings_toggles.py
+|   |   test_theme_switching.py
+|   |   test_type_hints.py
+|   |   VISUAL_GUIDE.txt
+|   |   whs_dashboard.py
 |   |   
+|   +---ESP32 R307 Finger print Sensor
+|   |   +---ESP32_enroll_R307_finger_Print
+|   |   |       ESP32_enroll_R307_finger_Print.ino
+|   |   |       
+|   |   \---esp32_fingerprint_check_R307
+|   |           esp32_fingerprint_check_R307.ino
+|   |           
+|   +---legacy
+|   |   |   phase2_databasev1.py
+|   |   |   phase2_databasev2.py
+|   |   |   phase2_databasev3.py
+|   |   |   phase2_databasev4.py
+|   |   |   phase2_serial_test.py
+|   |   |   
+|   |   \---raw_serial_diagnostic
+|   |           raw_serial_diagnostic.ino
+|   |           
 |   \---__pycache__
+|           comprehensive_test.cpython-313-pytest-9.1.1.pyc
+|           comprehensive_test.cpython-314-pytest-7.4.0.pyc
+|           phase2_serial_test.cpython-313-pytest-9.1.1.pyc
+|           phase2_serial_test.cpython-314-pytest-7.4.0.pyc
+|           test_attendance_parsing.cpython-313-pytest-9.1.1.pyc
+|           test_attendance_parsing.cpython-313.pyc
+|           test_attendance_parsing.cpython-314-pytest-7.4.0.pyc
+|           test_attendance_parsing.cpython-314.pyc
+|           test_attendance_refresh.cpython-313-pytest-9.1.1.pyc
+|           test_attendance_refresh.cpython-314-pytest-7.4.0.pyc
+|           test_attendance_ui_utils.cpython-313-pytest-9.1.1.pyc
+|           test_attendance_ui_utils.cpython-314-pytest-7.4.0.pyc
+|           test_auto_port_probe.cpython-313-pytest-9.1.1.pyc
+|           test_auto_port_probe.cpython-314-pytest-7.4.0.pyc
+|           test_bfeas_app2_import.cpython-313-pytest-9.1.1.pyc
+|           test_database_features.cpython-313-pytest-9.1.1.pyc
+|           test_database_features.cpython-314-pytest-7.4.0.pyc
 |           test_database_features.cpython-314.pyc
+|           test_database_reset.cpython-313-pytest-9.1.1.pyc
+|           test_database_reset.cpython-314-pytest-7.4.0.pyc
+|           test_dialog_handlers.cpython-313-pytest-9.1.1.pyc
+|           test_dialog_handlers.cpython-314-pytest-7.4.0.pyc
+|           test_gui_demo.cpython-313.pyc
+|           test_gui_settings_integration.cpython-313-pytest-9.1.1.pyc
+|           test_gui_shutdown.cpython-313-pytest-9.1.1.pyc
 |           test_gui_shutdown.cpython-313.pyc
+|           test_gui_shutdown.cpython-314-pytest-7.4.0.pyc
 |           test_gui_shutdown.cpython-314.pyc
+|           test_mode_exclusivity.cpython-313-pytest-9.1.1.pyc
+|           test_project_structure.cpython-313-pytest-9.1.1.pyc
+|           test_project_structure.cpython-314-pytest-7.4.0.pyc
+|           test_reports_page_import.cpython-313-pytest-9.1.1.pyc
+|           test_responsive_layout.cpython-313-pytest-9.1.1.pyc
+|           test_responsive_layout.cpython-314-pytest-7.4.0.pyc
+|           test_serial_troubleshooting.cpython-313-pytest-9.1.1.pyc
+|           test_serial_troubleshooting.cpython-314-pytest-7.4.0.pyc
+|           test_settings_persistence.cpython-313-pytest-9.1.1.pyc
+|           test_settings_persistence.cpython-314-pytest-7.4.0.pyc
+|           test_settings_toggles.cpython-313-pytest-9.1.1.pyc
+|           test_theme_switching.cpython-313-pytest-9.1.1.pyc
+|           test_theme_switching.cpython-314-pytest-7.4.0.pyc
+|           test_type_hints.cpython-313-pytest-9.1.1.pyc
+|           test_type_hints.cpython-314-pytest-7.4.0.pyc
+|           whs_dashboard.cpython-313.pyc
 |           
 \---tools
+        build_portable.bat
+        fingerprint_portable.spec
         list_files.bat
+        portable_bootstrap.bat
         

@@ -8,10 +8,20 @@
 import os
 from datetime import datetime
 
-from config import EXPORT_FOLDER
+from config import get_config
+
+CONFIG = get_config()
 
 
 def get_export_path(filename):
+    """
+    Build a full export file path inside the exports folder.
+    Creates the folder if it doesn't exist.
+    Example: get_export_path("attendance_today.xlsx")
+    """
+    export_folder = CONFIG.export_folder
+    export_folder.mkdir(parents=True, exist_ok=True)
+    return str(export_folder / filename)
     """
     Build a full export file path inside the exports folder.
     Creates the folder if it doesn't exist.

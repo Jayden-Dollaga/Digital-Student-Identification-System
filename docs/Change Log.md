@@ -1,8 +1,18 @@
 Change Log
 ==========
 
+v2.4 — 2026-07-17
+-----------------
+
+- Refactor: reworked the Python architecture around clearer separation of concerns between database, serial communication, attendance processing, and the GUI.
+- Improve: centralized scan handling in `AttendanceProcessor` so parsing, cooldown protection, and structured outcomes are easier to test and maintain.
+- Improve: hardened serial communication and reconnect handling for more reliable background operation during temporary disconnects.
+- Improve: reduced direct database coupling in the GUI while preserving the existing attendance and enrollment workflow.
+- Test: added regression coverage for attendance processing behavior to protect the refactored flow.
+
 v2.3 — 2026-07-05
 -----------------
+
 - Add: Windows launcher for one-click startup and dependency setup via `run_app.bat`.
 - UI: Reworked the Attendance view into a Today-first experience with clearer cards, status badges, confidence indicators, and a secondary Recent/Load More history path.
 - Add: Unknown or unregistered scans now appear as red unregistered entries in the attendance UI, are saved to attendance history, and do not create student roster rows by default.
@@ -15,6 +25,7 @@ v2.3 — 2026-07-05
 
 Detailed Session Summary
 ------------------------
+
 - Enforced "Today" as the default attendance view on startup, while preserving a secondary "Recent" history mode with pagination.
 - Fixed attendance ordering so newest records render first and recent scans are inserted at the top of the current view.
 - Preserved and rendered UNKNOWN/unregistered fingerprint scans as real history entries using `fingerprint_id = 0`.

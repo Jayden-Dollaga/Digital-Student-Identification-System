@@ -1,216 +1,244 @@
-###############################################################################
-#  database.py
-#  AS608 Fingerprint Attendance System
-#
-#  All database operations live here.
-#  Tables:
-#    students   - maps fingerprint ID to student info
-#    attendance - normalized scan logs (fingerprint_id + scan data only)
-###############################################################################
+"""Persistence layer for students, attendance events, reports, and backup helpers.
 
-import sqlite3
+This module centralizes SQLite access for the fingerprint attendance system and
+keeps the rest of the application focused on workflow logic instead of raw SQL.
+"""
+
 import os
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TypedDict
 
-from config import DB_PATH
+from config import DB_PATH, get_config
 from core.logger import log
 
-# Chart generation
+CONFIG = get_config()
+DB_PATH = str(CONFIG.db_path)
+
 try:
     import matplotlib
-    matplotlib.use('Agg')  # Use non-GUI backend
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     CHARTS_AVAILABLE = True
 except ImportError:
+    plt = None  # type: ignore[assignment]
     CHARTS_AVAILABLE = False
 
 
+RowDict = Dict[str, Any]
+
+
+class AttendanceRow(TypedDict, total=False):
+    id: int
+    fingerprint_id: int
+    student_no: str
+    student_name: str
+    grade: str
+    section: str
+    date: str
+    time: str
+    confidence: int
+    status: str
+
+
+class StudentRow(TypedDict, total=False):
+    fingerprint_id: int
+    student_no: str
+    student_name: str
+    grade: str
+    section: str
+    enrollment_date: str
+    updated_date: str
+
+
+ATTENDANCE_JOIN_QUERY = """
+    SELECT
+        a.id,
+        a.fingerprint_id,
+        COALESCE(s.student_no, 'N/A') AS student_no,
+        CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
+        COALESCE(s.grade, 'N/A') AS grade,
+        COALESCE(s.section, 'N/A') AS section,
+        a.date,
+        a.time,
+        a.confidence,
+        a.status
+    FROM attendance a
+    LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+"""
+
+
 def get_connection() -> sqlite3.Connection:
-    """Open and return a database connection. Creates DB file if not exists."""
+    """Open and configure a database connection."""
     db_dir = os.path.dirname(DB_PATH)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Rows accessible by column name
-    return conn
+
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
+
+
+def _row_dicts(rows: Iterable[sqlite3.Row]) -> List[RowDict]:
+    return [dict(row) for row in rows]
 
 
 def init_database() -> None:
-    """Create tables if they don't exist. Safe to call every startup."""
-    conn = get_connection()
-    cursor = conn.cursor()
+    """Create database tables and indexes if they do not already exist."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
 
-    # ── Students table ────────────────────────────────────────────────────────
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS students (
-            fingerprint_id  INTEGER PRIMARY KEY,
-            student_no      TEXT    NOT NULL UNIQUE,
-            student_name    TEXT    NOT NULL,
-            grade           TEXT    NOT NULL,
-            section         TEXT    NOT NULL,
-            enrollment_date TEXT    NOT NULL,
-            updated_date    TEXT    NOT NULL
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS students (
+                fingerprint_id  INTEGER PRIMARY KEY,
+                student_no      TEXT    NOT NULL UNIQUE,
+                student_name    TEXT    NOT NULL,
+                grade           TEXT    NOT NULL,
+                section         TEXT    NOT NULL,
+                enrollment_date TEXT    NOT NULL,
+                updated_date    TEXT    NOT NULL
+            )
+            """
         )
-    """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_student_no ON students(student_no)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_grade_section ON students(grade, section)")
 
-    # ── Indexes on students table for faster lookups ───────────────────────────
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_student_no
-        ON students(student_no)
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_grade_section
-        ON students(grade, section)
-    """)
-
-    # ── Attendance table ──────────────────────────────────────────────────────
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS attendance (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            fingerprint_id  INTEGER NOT NULL,
-            date            TEXT    NOT NULL,
-            time            TEXT    NOT NULL,
-            confidence      INTEGER NOT NULL,
-            status          TEXT    NOT NULL,
-            timestamp       TEXT    NOT NULL,
-            FOREIGN KEY (fingerprint_id) REFERENCES students(fingerprint_id)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS attendance (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                fingerprint_id  INTEGER NOT NULL,
+                date            TEXT    NOT NULL,
+                time            TEXT    NOT NULL,
+                confidence      INTEGER NOT NULL,
+                status          TEXT    NOT NULL,
+                timestamp       TEXT    NOT NULL,
+                FOREIGN KEY (fingerprint_id) REFERENCES students(fingerprint_id)
+            )
+            """
         )
-    """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_fingerprint_id ON attendance(fingerprint_id)"
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_timestamp ON attendance(timestamp)")
 
-    # ── Indexes on attendance table for faster queries ──────────────────────────
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_attendance_fingerprint_id
-        ON attendance(fingerprint_id)
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_attendance_date
-        ON attendance(date)
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_attendance_timestamp
-        ON attendance(timestamp)
-    """)
+        conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
+        conn.commit()
 
-    # Protect the sentinel fingerprint ID from being treated as a real student profile.
-    conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
-
-    conn.commit()
-    conn.close()
     log.success(f"Database ready at {os.path.abspath(DB_PATH)}")
 
 
-# ==============================================================================
-#  STUDENT OPERATIONS
-# ==============================================================================
+# -----------------------------------------------------------------------------
+# Student operations
+# -----------------------------------------------------------------------------
 
-def add_student(fingerprint_id: int, student_no: str, student_name: str, grade: str, section: str) -> Tuple[bool, str]:
-    """
-    Add a new student to the database.
-    Automatically sets enrollment_date and updated_date to current time.
-    Returns (True, "OK") on success or (False, error message) on failure.
-    """
-    if fingerprint_id is None or int(fingerprint_id) <= 0:
+
+def add_student(
+    fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Tuple[bool, str]:
+    if fingerprint_id <= 0:
         return False, "Fingerprint ID must be a positive integer."
 
     now = datetime.now().isoformat()
-    conn = get_connection()
     try:
-        conn.execute("""
-            INSERT INTO students 
-            (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (fingerprint_id, student_no, student_name, grade, section, now, now))
-        conn.commit()
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO students
+                (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (fingerprint_id, student_no, student_name, grade, section, now, now),
+            )
+            conn.commit()
         return True, "OK"
-    except sqlite3.IntegrityError as e:
-        if "fingerprint_id" in str(e):
+    except sqlite3.IntegrityError as exc:
+        message = str(exc)
+        if "fingerprint_id" in message:
             return False, f"Fingerprint ID {fingerprint_id} already assigned to a student."
-        if "student_no" in str(e):
+        if "student_no" in message:
             return False, f"Student number {student_no} already exists."
-        return False, str(e)
-    finally:
-        conn.close()
+        return False, message
 
 
-def update_student(fingerprint_id: int, student_no: str, student_name: str, grade: str, section: str) -> Tuple[bool, str]:
-    """
-    Update an existing student's info by fingerprint ID.
-    Automatically updates the updated_date to current time.
-    """
+def update_student(
+    fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Tuple[bool, str]:
     now = datetime.now().isoformat()
-    conn = get_connection()
     try:
-        conn.execute("""
-            UPDATE students
-            SET student_no=?, student_name=?, grade=?, section=?, updated_date=?
-            WHERE fingerprint_id=?
-        """, (student_no, student_name, grade, section, now, fingerprint_id))
-        conn.commit()
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE students
+                SET student_no = ?, student_name = ?, grade = ?, section = ?, updated_date = ?
+                WHERE fingerprint_id = ?
+                """,
+                (student_no, student_name, grade, section, now, fingerprint_id),
+            )
+            conn.commit()
         return True, "OK"
-    except sqlite3.IntegrityError as e:
-        return False, str(e)
-    finally:
-        conn.close()
+    except sqlite3.IntegrityError as exc:
+        return False, str(exc)
 
 
 def delete_student(fingerprint_id: int) -> None:
-    """Delete a student by fingerprint ID."""
-    conn = get_connection()
-    conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (fingerprint_id,))
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (fingerprint_id,))
+        conn.commit()
 
 
 def clear_all_students() -> int:
-    """Delete every student profile and return the number removed."""
-    conn = get_connection()
-    try:
-        students = get_all_students()
+    students = get_all_students()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM attendance")
         conn.execute("DELETE FROM students")
         conn.commit()
-        return len(students)
-    finally:
-        conn.close()
+    return len(students)
 
 
-def get_student(fingerprint_id: int) -> Optional[Dict[str, Any]]:
-    """Get one student by fingerprint ID. Returns dict or None."""
-    if fingerprint_id is None or int(fingerprint_id) <= 0:
+def get_student(fingerprint_id: int) -> Optional[StudentRow]:
+    if fingerprint_id <= 0:
         return None
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT * FROM students WHERE fingerprint_id = ?", (fingerprint_id,)
-    ).fetchone()
-    conn.close()
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM students WHERE fingerprint_id = ?",
+            (fingerprint_id,),
+        ).fetchone()
     return dict(row) if row else None
 
 
-def get_all_students() -> List[Dict[str, Any]]:
-    """Get all students ordered by fingerprint ID. Returns list of dicts."""
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT * FROM students ORDER BY fingerprint_id"
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_all_students() -> List[StudentRow]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM students ORDER BY fingerprint_id").fetchall()
+    return _row_dicts(rows)
 
 
 def get_student_count() -> int:
-    """Return total number of students in database."""
-    conn = get_connection()
-    count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
-    conn.close()
-    return count
+    with get_connection() as conn:
+        return conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
 
 
-def register_student(fingerprint_id: int, student_no: str, student_name: str, grade: str, section: str) -> Tuple[bool, str]:
-    """
-    Register a student — adds if new, updates if fingerprint_id already exists.
-    Use this instead of add_student() when you want upsert behavior.
-    """
+def register_student(
+    fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Tuple[bool, str]:
     existing = get_student(fingerprint_id)
     if existing:
         return update_student(fingerprint_id, student_no, student_name, grade, section)
@@ -218,299 +246,200 @@ def register_student(fingerprint_id: int, student_no: str, student_name: str, gr
 
 
 def import_students_from_list(students: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Bulk import students from a list of dicts.
-    Each dict must have: fingerprint_id, student_no, student_name, grade, section
-
-    Example:
-        import_students_from_list([
-            {"fingerprint_id": 1, "student_no": "2026001",
-             "student_name": "Jayden", "grade": "12", "section": "STEM-A"},
-        ])
-    """
     results = {"success": 0, "failed": 0, "errors": []}
-    for s in students:
+    for student in students:
         ok, msg = register_student(
-            s["fingerprint_id"], s["student_no"],
-            s["student_name"], s["grade"], s["section"]
+            student["fingerprint_id"],
+            student["student_no"],
+            student["student_name"],
+            student["grade"],
+            student["section"],
         )
         if ok:
             results["success"] += 1
         else:
             results["failed"] += 1
-            results["errors"].append(f"ID {s['fingerprint_id']}: {msg}")
+            results["errors"].append(f"ID {student['fingerprint_id']}: {msg}")
     return results
 
 
-# ==============================================================================
-#  ATTENDANCE OPERATIONS
-# ==============================================================================
+# -----------------------------------------------------------------------------
+# Attendance operations
+# -----------------------------------------------------------------------------
 
-def log_attendance(fingerprint_id: int, confidence: int, status: str, now: Optional[datetime] = None) -> None:
-    """
-    Save one attendance scan to database.
-    now: datetime object (defaults to current time if not provided)
-    """
-    if now is None:
-        now = datetime.now()
-    
+
+def log_attendance(
+    fingerprint_id: int,
+    confidence: int,
+    status: str,
+    now: Optional[datetime] = None,
+) -> None:
+    now = now or datetime.now()
     timestamp = now.isoformat()
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")
-    
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO attendance (fingerprint_id, date, time, confidence, status, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (fingerprint_id, date_str, time_str, confidence, status, timestamp))
-    conn.commit()
-    conn.close()
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO attendance (fingerprint_id, date, time, confidence, status, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (fingerprint_id, date_str, time_str, confidence, status, timestamp),
+        )
+        conn.commit()
 
 
-def get_attendance_today() -> List[Dict[str, Any]]:
-    """
-    Get today's attendance records with student info via JOIN.
-    Returns list of dicts.
-    """
+def get_attendance_today() -> List[AttendanceRow]:
     today = datetime.now().strftime("%Y-%m-%d")
-    conn  = get_connection()
-    rows  = conn.execute("""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            COALESCE(s.student_no,   'N/A')             AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            COALESCE(s.grade,        'N/A')             AS grade,
-            COALESCE(s.section,      'N/A')             AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        WHERE a.date = ?
-        ORDER BY a.timestamp DESC
-    """, (today,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date = ? ORDER BY a.timestamp DESC, a.id DESC"
+    with get_connection() as conn:
+        rows = conn.execute(query, (today,)).fetchall()
+    return _row_dicts(rows)
 
 
-def get_attendance_all() -> List[Dict[str, Any]]:
-    """
-    Get ALL attendance records with student info via JOIN.
-    Returns list of dicts.
-    """
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            COALESCE(s.student_no,   'N/A')             AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            COALESCE(s.grade,        'N/A')             AS grade,
-            COALESCE(s.section,      'N/A')             AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        ORDER BY a.timestamp DESC
-    """).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_attendance_all() -> List[AttendanceRow]:
+    query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC"
+    with get_connection() as conn:
+        rows = conn.execute(query).fetchall()
+    return _row_dicts(rows)
 
 
-def get_attendance_paginated(limit=100, offset=0):
-    """Return attendance rows ordered by timestamp desc with LIMIT/OFFSET."""
-    conn = get_connection()
-    rows = conn.execute(f"""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_no, 'N/A') END AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            CASE WHEN a.fingerprint_id = 0 THEN 'N/A' ELSE COALESCE(s.grade, 'N/A') END AS grade,
-            CASE WHEN a.fingerprint_id = 0 THEN 'N/A' ELSE COALESCE(s.section, 'N/A') END AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        ORDER BY a.timestamp DESC
-        LIMIT ? OFFSET ?
-    """, (limit, offset)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_attendance_paginated(limit: int = 100, offset: int = 0) -> List[AttendanceRow]:
+    query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
+    with get_connection() as conn:
+        rows = conn.execute(query, (limit, offset)).fetchall()
+    return _row_dicts(rows)
 
 
-def get_attendance_count_today():
-    """Return number of scans logged today."""
+def get_attendance_count_today() -> int:
     today = datetime.now().strftime("%Y-%m-%d")
-    conn  = get_connection()
-    count = conn.execute(
-        "SELECT COUNT(*) FROM attendance WHERE date = ?", (today,)
-    ).fetchone()[0]
-    conn.close()
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM attendance WHERE date = ?",
+            (today,),
+        ).fetchone()[0]
+
+
+def get_daily_attendance_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> List[RowDict]:
+    filters: List[str] = []
+    params: List[Any] = []
+
+    if start_date:
+        filters.append("a.date >= ?")
+        params.append(start_date)
+    if end_date:
+        filters.append("a.date <= ?")
+        params.append(end_date)
+
+    where_clause = " AND ".join(filters)
+    query = f"{ATTENDANCE_JOIN_QUERY}"
+    if where_clause:
+        query += f" WHERE {where_clause}"
+    query += " ORDER BY a.date ASC, a.time ASC, a.timestamp ASC"
+
+    with get_connection() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+    grouped: Dict[Tuple[str, str], RowDict] = {}
+    for row in rows:
+        row_dict = dict(row)
+        key = (row_dict["student_name"], row_dict["date"])
+        entry = grouped.setdefault(
+            key,
+            {
+                "student_name": row_dict["student_name"],
+                "student_no": row_dict["student_no"],
+                "grade": row_dict["grade"],
+                "section": row_dict["section"],
+                "date": row_dict["date"],
+                "time_in": row_dict["time"],
+                "time_out": row_dict["time"],
+                "status": row_dict["status"],
+            },
+        )
+        entry["time_out"] = row_dict["time"]
+        if str(row_dict["status"]).lower() in {"present", "logged", "ok"}:
+            entry["status"] = row_dict["status"]
+
+    return list(grouped.values())
+
+
+def get_attendance_by_date(date_str: str) -> List[AttendanceRow]:
+    query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date = ? ORDER BY a.time"
+    with get_connection() as conn:
+        rows = conn.execute(query, (date_str,)).fetchall()
+    return _row_dicts(rows)
+
+
+def clear_all_attendance() -> int:
+    with get_connection() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
+        conn.execute("DELETE FROM attendance")
+        conn.commit()
     return count
 
 
-def get_attendance_by_date(date_str):
-    """
-    Get attendance for a specific date (format: YYYY-MM-DD).
-    Returns list of dicts with student info joined.
-    """
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            COALESCE(s.student_no,   'N/A')             AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            COALESCE(s.grade,        'N/A')             AS grade,
-            COALESCE(s.section,      'N/A')             AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        WHERE a.date = ?
-        ORDER BY a.time
-    """, (date_str,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-# ==============================================================================
-#  ADDITIONAL ATTENDANCE & REPORTING OPERATIONS
-# ==============================================================================
-
-def clear_all_attendance():
-    """
-    Delete ALL attendance records from database.
-    Useful for archiving or resetting. Returns count of records deleted.
-    WARNING: This is permanent!
-    """
-    conn = get_connection()
-    try:
-        records = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
-        conn.execute("DELETE FROM attendance")
-        conn.commit()
-        return records
-    finally:
-        conn.close()
-
-
-def clear_all_data():
-    """
-    Delete all student profiles and all attendance records.
-    Returns a tuple of (student_count, attendance_count).
-    """
-    conn = get_connection()
-    try:
+def clear_all_data() -> Tuple[int, int]:
+    with get_connection() as conn:
         student_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
         attendance_count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
-        conn.execute("DELETE FROM students")
         conn.execute("DELETE FROM attendance")
+        conn.execute("DELETE FROM students")
         conn.commit()
-        return student_count, attendance_count
-    finally:
-        conn.close()
+    return student_count, attendance_count
 
 
-def get_attendance_by_student(fingerprint_id):
-    """
-    Get all attendance records for a specific student (by fingerprint ID).
-    Returns list of dicts with metadata.
-    """
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            COALESCE(s.student_no,   'N/A')             AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            COALESCE(s.grade,        'N/A')             AS grade,
-            COALESCE(s.section,      'N/A')             AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        WHERE a.fingerprint_id = ?
-        ORDER BY a.date DESC, a.time DESC
-    """, (fingerprint_id,)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_attendance_by_student(fingerprint_id: int) -> List[AttendanceRow]:
+    query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.fingerprint_id = ? ORDER BY a.date DESC, a.time DESC"
+    with get_connection() as conn:
+        rows = conn.execute(query, (fingerprint_id,)).fetchall()
+    return _row_dicts(rows)
 
 
-def get_students_by_grade_section(grade, section):
-    """
-    Get all students in a specific grade and section.
-    Returns list of dicts.
-    """
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT * FROM students
-        WHERE grade = ? AND section = ?
-        ORDER BY student_name
-    """, (grade, section)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_students_by_grade_section(grade: str, section: str) -> List[StudentRow]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY student_name",
+            (grade, section),
+        ).fetchall()
+    return _row_dicts(rows)
 
 
-def count_attendance_by_date(date_str):
-    """
-    Count number of attendance records for a given date.
-    date_str format: YYYY-MM-DD
-    """
-    conn = get_connection()
-    count = conn.execute(
-        "SELECT COUNT(*) FROM attendance WHERE date = ?", (date_str,)
-    ).fetchone()[0]
-    conn.close()
-    return count
+def count_attendance_by_date(date_str: str) -> int:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM attendance WHERE date = ?",
+            (date_str,),
+        ).fetchone()[0]
 
 
-def get_attendance_statistics():
-    """
-    Get summary statistics about attendance data.
-    Returns dict with counts and breakdown by status.
-    """
-    conn = get_connection()
-    
-    total = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
-    unique_students = conn.execute(
-        "SELECT COUNT(DISTINCT fingerprint_id) FROM attendance"
-    ).fetchone()[0]
-    
-    # Count by status
-    status_counts = {}
-    rows = conn.execute("""
-        SELECT status, COUNT(*) as count
-        FROM attendance
-        GROUP BY status
-    """).fetchall()
-    for row in rows:
-        status_counts[row["status"]] = row["count"]
-    
-    # Average confidence
-    avg_confidence = conn.execute(
-        "SELECT AVG(confidence) FROM attendance"
-    ).fetchone()[0]
-    avg_confidence = round(avg_confidence, 2) if avg_confidence else 0
-    
-    # Date range
-    date_info = conn.execute("""
-        SELECT MIN(date) as earliest, MAX(date) as latest
-        FROM attendance
-    """).fetchone()
-    
-    conn.close()
-    
+def get_attendance_statistics() -> RowDict:
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
+        unique_students = conn.execute(
+            "SELECT COUNT(DISTINCT fingerprint_id) FROM attendance"
+        ).fetchone()[0]
+
+        status_counts = {
+            row["status"]: row["count"]
+            for row in conn.execute(
+                "SELECT status, COUNT(*) as count FROM attendance GROUP BY status"
+            ).fetchall()
+        }
+
+        avg_confidence = conn.execute(
+            "SELECT AVG(confidence) FROM attendance"
+        ).fetchone()[0] or 0
+        avg_confidence = round(avg_confidence, 2)
+
+        date_info = conn.execute(
+            "SELECT MIN(date) as earliest, MAX(date) as latest FROM attendance"
+        ).fetchone()
+
     return {
         "total_scans": total,
         "unique_students": unique_students,
@@ -521,39 +450,24 @@ def get_attendance_statistics():
     }
 
 
-def get_students_statistics():
-    """
-    Get summary statistics about enrolled students.
-    Returns dict with counts by grade and section.
-    """
-    conn = get_connection()
-    
-    total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
-    
-    # Count by grade
-    grade_counts = {}
-    rows = conn.execute("""
-        SELECT grade, COUNT(*) as count
-        FROM students
-        GROUP BY grade
-        ORDER BY grade
-    """).fetchall()
-    for row in rows:
-        grade_counts[row["grade"]] = row["count"]
-    
-    # Count by section
-    section_counts = {}
-    rows = conn.execute("""
-        SELECT section, COUNT(*) as count
-        FROM students
-        GROUP BY section
-        ORDER BY section
-    """).fetchall()
-    for row in rows:
-        section_counts[row["section"]] = row["count"]
-    
-    conn.close()
-    
+def get_students_statistics() -> RowDict:
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+
+        grade_counts = {
+            row["grade"]: row["count"]
+            for row in conn.execute(
+                "SELECT grade, COUNT(*) as count FROM students GROUP BY grade ORDER BY grade"
+            ).fetchall()
+        }
+
+        section_counts = {
+            row["section"]: row["count"]
+            for row in conn.execute(
+                "SELECT section, COUNT(*) as count FROM students GROUP BY section ORDER BY section"
+            ).fetchall()
+        }
+
     return {
         "total_students": total,
         "by_grade": grade_counts,
@@ -561,69 +475,39 @@ def get_students_statistics():
     }
 
 
-def export_attendance_range(start_date, end_date):
-    """
-    Export attendance records for a date range.
-    Dates format: YYYY-MM-DD
-    Returns list of dicts suitable for Excel export.
-    """
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT
-            a.id,
-            a.fingerprint_id,
-            COALESCE(s.student_no,   'N/A')             AS student_no,
-            CASE WHEN a.fingerprint_id = 0 THEN 'Unregistered' ELSE COALESCE(s.student_name, 'Unknown ID:' || a.fingerprint_id) END AS student_name,
-            COALESCE(s.grade,        'N/A')             AS grade,
-            COALESCE(s.section,      'N/A')             AS section,
-            a.date,
-            a.time,
-            a.confidence,
-            a.status
-        FROM attendance a
-        LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-        WHERE a.date >= ? AND a.date <= ?
-        ORDER BY a.date ASC, a.time ASC
-    """, (start_date, end_date)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def export_attendance_range(start_date: str, end_date: str) -> List[AttendanceRow]:
+    query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date >= ? AND a.date <= ? ORDER BY a.date ASC, a.time ASC"
+    with get_connection() as conn:
+        rows = conn.execute(query, (start_date, end_date)).fetchall()
+    return _row_dicts(rows)
 
 
-def generate_statistics_report():
-    """
-    Generate a comprehensive statistics report as formatted text.
-    Returns a multi-line string suitable for display or export.
-    """
+def generate_statistics_report() -> str:
     try:
-        conn = get_connection()
-        
-        # Total counts
-        total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()['count']
-        total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()['count']
-        
-        # Attendance by date
-        attendance_by_date = conn.execute("""
-            SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30
-        """).fetchall()
-        
-        # Top students by attendance
-        top_students = conn.execute("""
-            SELECT 
-                COALESCE(s.student_name, 'Unknown') as name,
-                COUNT(a.id) as count
-            FROM attendance a
-            LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-            GROUP BY a.fingerprint_id
-            ORDER BY count DESC
-            LIMIT 10
-        """).fetchall()
-        
-        # Grade statistics
-        grade_stats = conn.execute("""
-            SELECT grade, COUNT(*) as count FROM students GROUP BY grade
-        """).fetchall()
-        
-        # Build report
+        with get_connection() as conn:
+            total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()["count"]
+            total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()["count"]
+
+            attendance_by_date = conn.execute(
+                "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
+            ).fetchall()
+
+            top_students = conn.execute(
+                """
+                SELECT COALESCE(s.student_name, 'Unknown') as name,
+                       COUNT(a.id) as count
+                FROM attendance a
+                LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+                GROUP BY a.fingerprint_id
+                ORDER BY count DESC
+                LIMIT 10
+                """
+            ).fetchall()
+
+            grade_stats = conn.execute(
+                "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
+            ).fetchall()
+
         report_lines = [
             "=" * 70,
             "ATTENDANCE STATISTICS REPORT",
@@ -642,77 +526,72 @@ def generate_statistics_report():
             "TOP 10 STUDENTS (By Attendance Count)",
             "─" * 70,
         ]
-        
+
         if top_students:
-            for i, (name, count) in enumerate(top_students, 1):
-                report_lines.append(f"{i:2d}. {name:<30s} {count:4d} scans")
+            for i, row in enumerate(top_students, 1):
+                report_lines.append(f"{i:2d}. {row['name']:<30s} {row['count']:4d} scans")
         else:
             report_lines.append("No attendance records yet.")
-        
+
         report_lines.extend([
             "",
             "─" * 70,
             "STUDENTS BY GRADE",
             "─" * 70,
         ])
-        
+
         if grade_stats:
-            for grade, count in grade_stats:
-                grade_label = grade if grade else "Unspecified"
-                report_lines.append(f"{grade_label:<20s} {count:4d} students")
+            for row in grade_stats:
+                grade_label = row["grade"] or "Unspecified"
+                report_lines.append(f"{grade_label:<20s} {row['count']:4d} students")
         else:
             report_lines.append("No students registered.")
-        
+
         report_lines.extend([
             "",
             "─" * 70,
             "RECENT ATTENDANCE (Last 30 Days)",
             "─" * 70,
         ])
-        
+
         if attendance_by_date:
-            for date, count in attendance_by_date:
-                report_lines.append(f"{date}  {count:4d} scans")
+            for row in attendance_by_date:
+                report_lines.append(f"{row['date']}  {row['count']:4d} scans")
         else:
             report_lines.append("No attendance records yet.")
-        
-        report_lines.extend([
-            "",
-            "=" * 70,
-        ])
-        
-        conn.close()
+
+        report_lines.extend(["", "=" * 70])
         return "\n".join(report_lines)
-    except Exception as e:
-        log.error(f"Report generation failed: {e}")
-        return f"Error generating report: {e}"
+    except Exception as exc:
+        log.error(f"Report generation failed: {exc}")
+        return f"Error generating report: {exc}"
 
 
-def generate_attendance_chart():
-    """Generate attendance timeline chart (last 30 days). Returns image path or None."""
-    if not CHARTS_AVAILABLE:
+def _save_chart(fig: Any, filename: str) -> Optional[str]:
+    chart_dir = Path(DB_PATH).parent / "charts"
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    chart_path = chart_dir / filename
+    fig.savefig(str(chart_path), dpi=80, bbox_inches='tight')
+    fig.clf()
+    return str(chart_path)
+
+
+def generate_attendance_chart() -> Optional[str]:
+    if not CHARTS_AVAILABLE or plt is None:
         return None
-    
+
     try:
-        import io
-        from pathlib import Path
-        
-        conn = get_connection()
-        rows = conn.execute("""
-            SELECT date, COUNT(*) as count FROM attendance 
-            GROUP BY date ORDER BY date DESC LIMIT 30
-        """).fetchall()
-        conn.close()
-        
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
+            ).fetchall()
+
         if not rows:
             return None
-        
-        # Reverse to show chronological order
-        rows = list(reversed(rows))
-        dates = [r['date'] for r in rows]
-        counts = [r['count'] for r in rows]
-        
-        # Create chart
+
+        dates = [row["date"] for row in reversed(rows)]
+        counts = [row["count"] for row in reversed(rows)]
+
         fig, ax = plt.subplots(figsize=(10, 4), dpi=80)
         ax.plot(range(len(dates)), counts, marker='o', linewidth=2, markersize=6, color='#3b82f6')
         ax.fill_between(range(len(dates)), counts, alpha=0.3, color='#3b82f6')
@@ -720,195 +599,147 @@ def generate_attendance_chart():
         ax.set_ylabel('Attendance Count', fontsize=10)
         ax.set_title('Attendance Timeline (Last 30 Days)', fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3)
-        
-        # Limit x-axis labels to avoid crowding
+
         step = max(1, len(dates) // 10)
         ax.set_xticks(range(0, len(dates), step))
         ax.set_xticklabels(dates[::step], rotation=45, ha='right', fontsize=8)
-        
+
         plt.tight_layout()
-        
-        # Save to temporary file
-        chart_dir = Path(DB_PATH).parent / "charts"
-        chart_dir.mkdir(exist_ok=True)
-        chart_path = chart_dir / "attendance_timeline.png"
-        plt.savefig(str(chart_path), dpi=80, bbox_inches='tight')
-        plt.close()
-        
-        return str(chart_path)
-    except Exception as e:
-        log.error(f"Attendance chart generation failed: {e}")
+        return _save_chart(fig, 'attendance_timeline.png')
+    except Exception as exc:
+        log.error(f"Attendance chart generation failed: {exc}")
         return None
 
 
-def generate_section_chart():
-    """Generate students per section chart. Returns image path or None."""
-    if not CHARTS_AVAILABLE:
+def generate_section_chart() -> Optional[str]:
+    if not CHARTS_AVAILABLE or plt is None:
         return None
-    
+
     try:
-        conn = get_connection()
-        rows = conn.execute("""
-            SELECT section, COUNT(*) as count FROM students 
-            WHERE section IS NOT NULL AND section != ''
-            GROUP BY section ORDER BY count DESC
-        """).fetchall()
-        conn.close()
-        
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT section, COUNT(*) as count FROM students WHERE section IS NOT NULL AND section != '' GROUP BY section ORDER BY count DESC"
+            ).fetchall()
+
         if not rows:
             return None
-        
-        sections = [r['section'] for r in rows]
-        counts = [r['count'] for r in rows]
-        
-        # Create chart
+
+        sections = [row["section"] for row in rows]
+        counts = [row["count"] for row in rows]
+
         fig, ax = plt.subplots(figsize=(10, 4), dpi=80)
         colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
-        ax.bar(sections, counts, color=colors[:len(sections)], edgecolor='black', linewidth=1.2)
+        ax.bar(sections, counts, color=colors[: len(sections)], edgecolor='black', linewidth=1.2)
         ax.set_xlabel('Section', fontsize=10)
         ax.set_ylabel('Number of Students', fontsize=10)
         ax.set_title('Students by Section', fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, axis='y')
-        
-        # Add value labels on bars
-        for i, (sec, cnt) in enumerate(zip(sections, counts)):
+
+        for i, cnt in enumerate(counts):
             ax.text(i, cnt + 0.1, str(cnt), ha='center', va='bottom', fontweight='bold')
-        
+
         plt.tight_layout()
-        
-        # Save to temporary file
-        chart_dir = Path(DB_PATH).parent / "charts"
-        chart_dir.mkdir(exist_ok=True)
-        chart_path = chart_dir / "section_chart.png"
-        plt.savefig(str(chart_path), dpi=80, bbox_inches='tight')
-        plt.close()
-        
-        return str(chart_path)
-    except Exception as e:
-        log.error(f"Section chart generation failed: {e}")
+        return _save_chart(fig, 'section_chart.png')
+    except Exception as exc:
+        log.error(f"Section chart generation failed: {exc}")
         return None
 
 
-def generate_grade_chart():
-    """Generate attendance by grade pie chart. Returns image path or None."""
-    if not CHARTS_AVAILABLE:
+def generate_grade_chart() -> Optional[str]:
+    if not CHARTS_AVAILABLE or plt is None:
         return None
-    
+
     try:
-        conn = get_connection()
-        rows = conn.execute("""
-            SELECT COALESCE(s.grade, 'Unspecified') as grade, COUNT(a.id) as count
-            FROM attendance a
-            LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-            GROUP BY s.grade
-            ORDER BY count DESC
-        """).fetchall()
-        conn.close()
-        
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT COALESCE(s.grade, 'Unspecified') as grade, COUNT(a.id) as count
+                FROM attendance a
+                LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+                GROUP BY s.grade
+                ORDER BY count DESC
+                """
+            ).fetchall()
+
         if not rows:
             return None
-        
-        grades = [r['grade'] for r in rows]
-        counts = [r['count'] for r in rows]
-        
-        # Create chart
+
+        grades = [row["grade"] for row in rows]
+        counts = [row["count"] for row in rows]
+
         fig, ax = plt.subplots(figsize=(8, 6), dpi=80)
         colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
         wedges, texts, autotexts = ax.pie(
-            counts, labels=grades, autopct='%1.1f%%',
-            colors=colors[:len(grades)], startangle=90
+            counts,
+            labels=grades,
+            autopct='%1.1f%%',
+            colors=colors[: len(grades)],
+            startangle=90,
         )
-        
-        # Style text
+
         for text in texts:
             text.set_fontsize(10)
         for autotext in autotexts:
             autotext.set_color('white')
             autotext.set_fontweight('bold')
             autotext.set_fontsize(9)
-        
+
         ax.set_title('Attendance by Grade', fontsize=12, fontweight='bold')
         plt.tight_layout()
-        
-        # Save to temporary file
-        chart_dir = Path(DB_PATH).parent / "charts"
-        chart_dir.mkdir(exist_ok=True)
-        chart_path = chart_dir / "grade_chart.png"
-        plt.savefig(str(chart_path), dpi=80, bbox_inches='tight')
-        plt.close()
-        
-        return str(chart_path)
-    except Exception as e:
-        log.error(f"Grade chart generation failed: {e}")
+        return _save_chart(fig, 'grade_chart.png')
+    except Exception as exc:
+        log.error(f"Grade chart generation failed: {exc}")
         return None
 
 
-def backup_database():
-    """
-    Backup the database file to a backups directory.
-    Returns (success, message, backup_path).
-    """
+def backup_database() -> Tuple[bool, str, Optional[str]]:
     try:
-        backup_dir = Path(DB_PATH).parent / "backups"
-        backup_dir.mkdir(exist_ok=True)
-        
-        # Create timestamped backup
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_dir / f"attendance_{timestamp}.db"
-        
-        # Copy database file
-        if os.path.exists(DB_PATH):
+        backup_dir = Path(DB_PATH).parent / 'backups'
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_path = backup_dir / f'attendance_{timestamp}.db'
+
+        if Path(DB_PATH).exists():
             shutil.copy2(DB_PATH, backup_path)
             log.success(f"Database backed up to {backup_path}")
             return True, f"Backup created: {backup_path.name}", str(backup_path)
-        else:
-            return False, "Database file not found", None
-    except Exception as e:
-        log.error(f"Database backup failed: {e}")
-        return False, f"Backup failed: {e}", None
+        return False, 'Database file not found', None
+    except Exception as exc:
+        log.error(f"Database backup failed: {exc}")
+        return False, f"Backup failed: {exc}", None
 
 
-def restore_database(backup_path):
-    """
-    Restore database from a backup file.
-    Returns (success, message).
-    """
+def restore_database(backup_path: str) -> Tuple[bool, str]:
     try:
-        if not os.path.exists(backup_path):
-            return False, "Backup file not found"
-        
-        # Close any existing connection
-        # Restore from backup
+        if not Path(backup_path).exists():
+            return False, 'Backup file not found'
+
         shutil.copy2(backup_path, DB_PATH)
         log.success(f"Database restored from {backup_path}")
-        return True, f"Database restored successfully"
-    except Exception as e:
-        log.error(f"Database restore failed: {e}")
-        return False, f"Restore failed: {e}"
+        return True, 'Database restored successfully'
+    except Exception as exc:
+        log.error(f"Database restore failed: {exc}")
+        return False, f"Restore failed: {exc}"
 
 
-def list_backups():
-    """
-    List all available database backups.
-    Returns list of (backup_name, backup_path, backup_size, backup_date).
-    """
+def list_backups() -> List[RowDict]:
     try:
-        backup_dir = Path(DB_PATH).parent / "backups"
+        backup_dir = Path(DB_PATH).parent / 'backups'
         if not backup_dir.exists():
             return []
-        
-        backups = []
-        for backup_file in sorted(backup_dir.glob("attendance_*.db"), reverse=True):
-            size_mb = backup_file.stat().st_size / (1024 * 1024)
-            mtime = datetime.fromtimestamp(backup_file.stat().st_mtime)
-            backups.append({
-                'name': backup_file.name,
-                'path': str(backup_file),
-                'size_mb': f"{size_mb:.2f} MB",
-                'date': mtime.strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
+
+        backups: List[RowDict] = []
+        for backup_file in sorted(backup_dir.glob('attendance_*.db'), reverse=True):
+            stat = backup_file.stat()
+            backups.append(
+                {
+                    'name': backup_file.name,
+                    'path': str(backup_file),
+                    'size_mb': f"{stat.st_size / (1024 * 1024):.2f} MB",
+                    'date': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                }
+            )
         return backups
-    except Exception as e:
-        log.error(f"Failed to list backups: {e}")
+    except Exception as exc:
+        log.error(f"Failed to list backups: {exc}")
         return []

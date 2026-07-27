@@ -2,12 +2,14 @@ import customtkinter as ctk
 from datetime import datetime
 
 from core.database import get_all_students, get_attendance_all, count_attendance_by_date
+from gui.theme import get_theme_colors
 from core.database import generate_statistics_report, generate_attendance_chart, generate_section_chart, generate_grade_chart
 from core.database import get_attendance_today
 from core.database import get_all_students
 
 
 def build_statistics_tab(app, tab):
+    colors = get_theme_colors(ctk.get_appearance_mode())
     tab.grid_columnconfigure(0, weight=1)
     tab.grid_rowconfigure(0, weight=0)
     tab.grid_rowconfigure(1, weight=1)
@@ -39,14 +41,14 @@ def build_statistics_tab(app, tab):
     ]
 
     for i, (label, value_fn, color) in enumerate(metrics_data):
-        card = ctk.CTkFrame(scrollable, corner_radius=10, fg_color="#2a2a2a")
+        card = ctk.CTkFrame(scrollable, corner_radius=10, fg_color=colors["card_background"])
         card.grid(row=0, column=i, padx=8, pady=8, sticky="ew")
         card.grid_columnconfigure(0, weight=1)
         try:
             value = value_fn()
         except Exception:
             value = "—"
-        ctk.CTkLabel(card, text=label, font=("Segoe UI", 10), text_color="#8b8c8d").pack(padx=14, pady=(10, 4))
+        ctk.CTkLabel(card, text=label, font=("Segoe UI", 10), text_color=colors["muted_text"]).pack(padx=14, pady=(10, 4))
         ctk.CTkLabel(card, text=value, font=("Segoe UI", 24, "bold"), text_color=color).pack(padx=14, pady=(0, 12))
 
     summary_card = ctk.CTkFrame(scrollable, corner_radius=10)
@@ -67,7 +69,7 @@ def build_statistics_tab(app, tab):
     except Exception as e:
         summary_text = f"Could not load statistics: {e}"
 
-    ctk.CTkLabel(summary_card, text=summary_text, font=("Segoe UI", 11), text_color="#8b8c8d", justify="left").pack(anchor="w", padx=14, pady=(0, 12))
+    ctk.CTkLabel(summary_card, text=summary_text, font=("Segoe UI", 11), text_color=colors["muted_text"], justify="left").pack(anchor="w", padx=14, pady=(0, 12))
 
     report_card = ctk.CTkFrame(scrollable, corner_radius=10)
     report_card.grid(row=2, column=0, columnspan=2, padx=8, pady=8, sticky="ew")

@@ -12,6 +12,17 @@ Production-ready prototype with ESP32 firmware, a Python desktop interface, SQLi
 
 This project was built to automate attendance tracking using fingerprint recognition. Instead of relying on manual sign-in sheets, it uses a biometric sensor connected to an ESP32 and a desktop application that records attendance events and manages student data.
 
+The Python application has also been refactored to make the system easier to maintain and more resilient during real-world use. Core responsibilities are now divided more clearly among the database, serial, attendance, and GUI modules so each layer can evolve independently.
+
+## Refactor highlights
+
+The current implementation now emphasizes:
+
+- modular Python services instead of tightly coupled UI logic
+- safer serial reading and reconnect handling for temporary connection interruptions
+- centralized attendance processing with cooldown and confidence-aware behavior
+- better testability for scan parsing and attendance logging flows
+
 ## What the system does
 
 The system supports the full attendance lifecycle:
@@ -138,6 +149,8 @@ The current system includes:
 5. Enroll students and begin scanning.
 
 > The GUI now opens larger by default so more of the user interface is visible on start.
+>
+> Automatic screen scaling is disabled in favor of a fixed layout for more predictable behavior on lower-spec and varied displays.
 
 ## Notes for future development
 

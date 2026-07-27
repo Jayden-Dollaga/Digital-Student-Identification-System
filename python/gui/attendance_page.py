@@ -1,6 +1,7 @@
 import customtkinter as ctk
 
 from core.utils import format_attendance_display
+from gui.theme import get_theme_colors
 from services.attendance_service import AttendanceService
 from services.student_service import StudentService
 
@@ -128,7 +129,8 @@ class AttendancePage:
             self.app.log_message(f"Error loading more attendance: {e}")
 
     def build_card(self, display: dict, prepend: bool = True):
-        card = ctk.CTkFrame(self.scroll_frame, corner_radius=10)
+        colors = get_theme_colors(ctk.get_appearance_mode())
+        card = ctk.CTkFrame(self.scroll_frame, corner_radius=10, fg_color=colors["card_background"])
         card.grid_columnconfigure(1, weight=1)
 
         left = ctk.CTkFrame(card, width=56, fg_color="transparent")
@@ -138,7 +140,7 @@ class AttendancePage:
         name = display.get('student_name', '') or ''
         initials = "".join([p[0] for p in name.split() if p])[:2].upper() if name else "--"
         avatar = ctk.CTkLabel(left, text=initials, width=40, height=40, corner_radius=20,
-                              fg_color="#3b3b3b", font=("Segoe UI", 12, "bold"))
+                              fg_color=colors["surface_background"], font=("Segoe UI", 12, "bold"))
         avatar.pack(pady=(6, 4))
 
         status_text = str(display.get('status', '')).upper()

@@ -1,0 +1,173 @@
+================================================================================
+TEST GUI INSTRUCTIONS - Fingerprint Attendance System
+================================================================================
+
+QUICK START
+===========
+cd "c:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System"
+python tests/test_gui_demo.py
+
+
+WHAT YOU'LL SEE
+===============
+- Left sidebar with 4 toggle switches
+- Settings controls and save button  
+- Log area showing what's happening
+- Main attendance dashboard with sample data
+- Status indicator showing when settings are saved
+
+
+THE 4 TOGGLES YOU CAN TEST
+==========================
+
+1. Auto-Reconnect
+   - Controls automatic ESP32 reconnection
+   - ON = auto reconnect when disconnected
+   - OFF = manual reconnect required
+
+2. Auto-Detect ESP32  
+   - Controls automatic port detection on startup
+   - ON = auto-find ESP32
+   - OFF = manual port selection
+
+3. Compact Sidebar
+   - Controls button display style
+   - ON = icons only (shorter buttons)
+   - OFF = full text labels
+
+4. Enable Profiler
+   - Controls performance tracking
+   - ON = track timing data
+   - OFF = no tracking
+
+
+STEP-BY-STEP TESTING
+====================
+
+Step 1: Run the GUI
+    python tests/test_gui_demo.py
+
+Step 2: Look at initial toggle state
+    - Which toggles are checked?
+    - Note the "Active Toggles" counter
+
+Step 3: Toggle each one ON and OFF
+    - Click each checkbox
+    - Watch the log show "Toggle changed"
+    - Watch the counter update
+
+Step 4: Save your changes
+    - Click "Save Settings" button
+    - See "✓ Settings saved" message
+    - Check the log confirms it
+
+Step 5: Close and reopen
+    - Close the GUI window
+    - Run it again: python tests/test_gui_demo.py
+    - Your settings should still be there!
+
+
+WHAT'S REALLY HAPPENING
+=======================
+
+When you click "Save Settings":
+  1. Toggles are read from checkboxes
+  2. Settings written to data/settings.json
+  3. GUI reloads and shows success
+  
+When you restart the GUI:
+  1. Settings loaded from data/settings.json
+  2. Checkboxes set to saved values
+  3. Settings applied to app components
+
+
+VERIFY IT WORKED
+================
+
+Check the settings file:
+  data/settings.json
+
+You should see:
+  "auto_reconnect": true or false
+  "auto_detect_serial": true or false  
+  "compact_sidebar": true or false
+  "enable_profiler": true or false
+
+
+AUTOMATED TESTS
+===============
+
+After testing the GUI manually, run the automated tests:
+
+Test 1 - Settings Persistence:
+  python tests/test_settings_toggles.py
+  Expected: ✅ All settings toggle tests passed!
+
+Test 2 - GUI Integration:
+  python tests/test_gui_settings_integration.py
+  Expected: ✅ All GUI settings integration tests passed!
+
+Test 3 - Full Test Suite:
+  python -m pytest tests/ -v
+  Expected: 35+ tests passing
+
+
+FILES INVOLVED
+==============
+
+Test GUI:
+  tests/test_gui_demo.py - The demo app you just ran
+
+Settings Storage:
+  python/settings_store.py - Save/load JSON
+  data/settings.json - Where settings are stored
+
+GUI Settings Dialog:
+  python/gui/settings_dialog.py - Real settings dialog in main app
+
+Main App:
+  python/gui/app.py - Where settings get applied
+
+
+TROUBLESHOOTING
+===============
+
+Error: "ModuleNotFoundError"
+  → Make sure you're in the project root directory
+  → cd to the project folder before running
+
+Error: "Settings not saving"  
+  → Check that data/ folder exists and is writable
+  → Look for data/settings.json file
+
+GUI won't open:
+  → Install customtkinter: pip install customtkinter
+  → Verify all dependencies with: pip install -r requirements.txt
+
+Toggles don't stick:
+  → Check data/settings.json exists
+  → Look at file permissions
+  → Run: python tests/test_settings_toggles.py to verify storage works
+
+
+NEXT STEPS
+==========
+
+1. Test the GUI demo (you're doing this!)
+2. Test with the real app: python python/gui/app.py
+3. Connect ESP32 and test auto-reconnect
+4. Test compact sidebar with real buttons
+5. Monitor profiler output in logs
+6. Check that settings persist between app restarts
+
+
+QUESTIONS?
+==========
+
+See:
+  - settings_store.py for settings logic
+  - gui/settings_dialog.py for the settings dialog
+  - gui/app.py for how settings get applied
+  - tests/test_gui_demo.py for this demo
+
+================================================================================

@@ -1,196 +1,151 @@
-git init 
-git remote add origin
-git pull https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+Fingerprint Attendance System — Project Status and Development Roadmap
+=================================================================
 
-Quick setup — if you’ve done this kind of thing before
-or	https
-https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+This document is the live project tracker for the Fingerprint Attendance System. It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work.
 
-Get started by creating a new file or uploading an existing file. We recommend every repository include a README, LICENSE, and .gitignore.
+1. Project summary
+------------------
 
-…or create a new repository on the command line
-echo "# stunning-couscous" >> README.md
+The project is a Windows-based fingerprint attendance system that combines:
+- ESP32 firmware for fingerprint scanning and command handling
+- Python desktop software for enrollment, attendance logging, backup/restore, and reporting
+- SQLite storage for student and attendance data
+- A modular GUI built with CustomTkinter
 
-git init
-git add README.md
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
-git push -u origin main
+The current goal is to make the system reliable for real-world testing outside the development computer. That means improving portability, dependency handling, UI responsiveness, and attendance refresh behavior.
 
+2. Project history from the start
+--------------------------------
 
-…or push an existing repository from the command line
+The system has evolved in stages:
+1. Initial prototype for fingerprint enrollment and scanning.
+2. Integration of ESP32 firmware and serial communication with the host computer.
+3. Development of a desktop GUI for easier operation.
+4. Addition of SQLite-based student and attendance storage.
+5. Addition of backup/restore, reports, and role-based access.
+6. Refactoring of the GUI into page-based modules for maintainability.
+7. Current phase: portable deployment and field-testing hardening.
 
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
-git branch -M main
-git push -u origin main
+3. Current issues discovered during real-world testing
+-----------------------------------------------------
 
+The following issues were identified during school testing on another computer:
+- Dependencies listed in requirements.txt were not always installed completely on the target machine.
+- The UI felt laggy on lower-spec machines compared with the developer PC.
+- Attendance updates did not always refresh immediately after a scan.
+- Some attendance entries appeared out of order or did not move to the top as expected after a registered fingerprint was scanned again.
+- The wipe/delete workflow needs clearer integration with database records so the system behaves consistently.
+- The start-scan action should not trigger enrollment behavior accidentally.
 
-bug:
+4. Current implementation focus
+------------------------------
 
-when i click the start scan it will click enroll too and make a any finger register again even tho it shoud not do that
+The project is currently focused on the following areas:
+- Portable deployment for USB-based testing
+- Dependency reliability on clean Windows machines
+- UI responsiveness and performance optimization
+- Attendance refresh reliability
+- Real-world validation and bug tracking
 
-integration/ my idea
-when i click wipe the student should also be wipe than save becasue the wipe only wipe the finger inside of the esp 32 data not the file or the whole database itself same with delete
+5. Phased roadmap
+-----------------
 
+Phase 1 — Portable Deployment (Highest Priority)
+- [ ] Package the application with PyInstaller
+- [ ] Bundle a Python runtime if needed
+- [ ] Include all required Python modules inside the portable package
+- [ ] Verify the application launches without a separate Python installation
+- [ ] Create one-click executable entry point for USB testing
+- [ ] Test launching directly from a removable drive
 
+Phase 2 — Dependency Reliability
+- [ ] Audit requirements.txt
+- [ ] Remove unused dependencies if needed
+- [ ] Add any missing required packages
+- [ ] Verify startup on a clean Windows installation
+- [ ] Create an automatic dependency checker or bootstrap script
+- [ ] Add portable runtime validation for deployment machines
 
+Phase 3 — Performance Optimization
+- [ ] Reduce unnecessary UI redraws
+- [ ] Optimize widget creation and page loading
+- [ ] Lazy-load heavy pages where possible
+- [ ] Cache statistics or repeated queries
+- [ ] Measure startup time and responsiveness on lower-spec hardware
 
+Phase 4 — Attendance Reliability
+- [ ] Investigate missed UI refreshes after scanning
+- [ ] Improve attendance refresh logic
+- [ ] Add a fallback refresh mechanism when the main refresh path fails
+- [ ] Verify serial communication recovery after interruptions
+- [ ] Test long scan sessions and repeated fingerprint checks
 
+Phase 5 — Real-World Testing
+- [ ] Test on another Windows computer
+- [ ] Test startup and first-run behavior
+- [ ] Test COM port auto-detection
+- [ ] Test enrollment workflows
+- [ ] Test attendance logging and refresh behavior
+- [ ] Test reports, backups, and restore
+- [ ] Test unknown fingerprint handling
+- [ ] Record all issues discovered during field tests
 
-[] - when i click format/wipe it will be erase all as intendent but there is a backup button we s
+Phase 6 — Documentation
+- [ ] Update README with deployment and testing instructions
+- [ ] Create INSTALLATION.md for setup guidance
+- [ ] Create PORTABLE_BUILD.md for USB deployment steps
+- [ ] Add a troubleshooting guide for common issues
+- [ ] Document hardware requirements and known limitations
 
+Phase 7 — Release Candidate
+- [ ] Build Release Candidate 1 (RC1)
+- [ ] Package all deployment files together
+- [ ] Version the release clearly
+- [ ] Keep a rollback copy of the last known-good build
+- [ ] Publish a GitHub release if appropriate
+- [ ] Prepare a demonstration package for school testing
 
-this is a bug for me but when i did a finger scan it doesnt auto refresh and also its still the same when i scanned a registerd finger it go benigh the unregisterd its not like i sanned it go at the top if i scannee a not registerd finger it also go at the top but when i scanned the registerd figer again it dosent now go at the top juust benight it 
+6. Live to-do list
+-----------------
 
+Status legend:
+- [x] Completed
+- [ ] Planned / not started
+- [~] In progress
 
+Current tracking list:
+- [x] Refactor the GUI into modular page-based components
+- [x] Add backup and restore support
+- [x] Add settings persistence for COM port, baud rate, theme, and reconnect behavior
+- [x] Improve theme switching safety and prevent UI freeze behavior
+- [x] Add regression tests for theme switching
+- [ ] Build a portable deployment package for Windows testing
+- [ ] Verify dependency installation on a clean machine
+- [ ] Improve UI responsiveness on lower-spec hardware
+- [ ] Fix attendance auto-refresh and ordering issues
+- [ ] Fix accidental enrollment trigger from start-scan actions
+- [ ] Improve wipe/delete integration so the database and ESP32 data stay consistent
+- [ ] Create deployment documentation and troubleshooting guides
+- [ ] Prepare RC1 for field testing
 
+7. Immediate next actions
+-------------------------
 
+The next work items should be completed in this order:
+1. Build a portable deployment workflow using PyInstaller or a similar packaging tool.
+2. Create a reliable dependency bootstrap script for Windows.
+3. Investigate the refresh bug in the attendance view and scan flow.
+4. Improve UI responsiveness by reducing unnecessary work on each update.
+5. Validate the full system on another machine and record findings.
 
-docs/
-│
-├── System Architecture.md
-├── Hardware Connections.md
-├── Database Schema.md
-├── Software Flow.md
-├── Installation Guide.md
-├── Testing Results.md
-└── Change Log.md
+8. Important notes
+------------------
 
-
-
-Type 'yes' if this has been implemented. If not, do it and create a to-do list so we can track what we are doing after that. Then update the documentation on what we did/implemented.
-
-Update the documentation of what we are doing from the start, including all the details, and list everything in the to-do list so that we can see where we are.
-
-
-
-
-
-
-
-
-
-
-
-Fingerprint-Attendance-System/
-│
-├── README.md
-├── LICENSE
-├── requirements.txt
-├── .gitignore
-│
-├── assets/                     # Logos, icons, images used by the app
-│
-├── data/
-│   ├── attendance.db           # SQLite database
-│   ├── backups/
-│   └── exports/
-│
-├── docs/       ✅
-│   ├── Project Overview.md
-│   ├── wiring.md
-│   ├── architecture.md
-│   ├── screenshots/
-│   └── photos/
-│
-├── firmware/
-│   └── ESP32_Fingerprint_AllInOne/     ✅
-│       └── ESP32_Fingerprint_AllInOne.ino      ✅
-│
-├── python/
-│   ├── main.py     ✅
-│   ├── config.py       ✅
-│   │
-│   ├── core/
-│   │   ├── database.py     ✅
-│   │   ├── serial_handler.py       ✅
-│   │   ├── attendance.py       ✅
-│   │   ├── commands.py     ✅
-│   │   └── utils.py        ✅
-│   │
-│   ├── gui/
-│   │   ├── main_window.py
-│   │   ├── attendance_page.py
-│   │   ├── students_page.py
-│   │   └── settings_page.py
-│   │
-│   └── services/
-│       ├── excel_export.py     ✅
-│       └── backup.py       ✅
-│
-├── tests/      ✅
-│   ├── raw_serial_test.py
-│   └── database_test.py
-│
-└── tools/      ✅
-    ├── list_files.bat
-    └── other helper scripts
-
-
-
-
-missing for now
-
-
-├── assets/                     # Logos, icons, images used by the app
-│
-├── data/
-│   ├── attendance.db           # SQLite database
-│   ├── backups/
-│   └── exports/
-
-and
-
-├── python/
-│   ├── gui/
-│   │   ├── main_window.py
-│   │   ├── attendance_page.py
-│   │   ├── students_page.py
-│   │   └── settings_page.py
-
-
-
-
-
-
-
-
-
-Fingerprint-Attendance-System/
-│
-├── README.md
-├── LICENSE
-├── requirements.txt
-├── .gitignore
-│
-├── firmware/                  # ESP32 code
-│   ├── attendance/
-│   │   └── attendance.ino
-│   │
-│   ├── enroll/
-│   │   └── enroll.ino
-│   │
-│   ├── delete/
-│   │   └── delete.ino
-│   │
-│   └── test/
-│       └── fingerprint_check.ino
-│
-├── python/
-│   ├── main.py                # Starts the whole application
-│   ├── config.py              # COM port, baud rate, settings
-│   ├── serial_handler.py      # Talks to ESP32
-│   ├── database.py            # SQLite functions
-│   ├── attendance.py          # Attendance logic
-│   ├── student_manager.py     # Student CRUD
-│   ├── excel_export.py        # Excel export
-│   └── gui.py                 # Main GUI
-│
-├── database/
-│   └── attendance_system.db
-│
-├── exports/
+- The current priority is real-world reliability over new features.
+- The team should treat every field test as a bug-reporting session.
+- The portable build should be tested as if it were being used by a teacher or staff member with no Python setup experience.
+- Any change that affects attendance flow or data deletion should be tested carefully before release.
+s/
 │   └── Attendance.xlsx
 │
 ├── docs/

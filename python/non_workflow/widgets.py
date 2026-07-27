@@ -1,9 +1,14 @@
 import customtkinter as ctk
 
+from gui.theme import get_theme_colors
+
 
 def section_header(parent, title, font=None, text_color="#f8fafc"):
     if font is None:
         font = ("Segoe UI", 13, "bold")
+    colors = get_theme_colors(ctk.get_appearance_mode())
+    if text_color == "#f8fafc":
+        text_color = colors["muted_text"]
     frame = ctk.CTkFrame(parent, fg_color="transparent")
     frame.grid_columnconfigure(0, weight=1)
     ctk.CTkLabel(frame, text=title, font=font, text_color=text_color).grid(row=0, column=0, sticky="w")
@@ -21,4 +26,5 @@ def action_button(parent, **kwargs):
 def subtle_label(parent, text, font=None):
     if font is None:
         font = ("Segoe UI", 11)
-    return ctk.CTkLabel(parent, text=text, font=font, text_color="#8b8b8d")
+    colors = get_theme_colors(ctk.get_appearance_mode())
+    return ctk.CTkLabel(parent, text=text, font=font, text_color=colors["muted_text"])

@@ -2,18 +2,24 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-from config import BAUD_RATE, COOLDOWN_SECONDS, DATA_DIR
+from config import get_config
 
-SETTINGS_FILE = DATA_DIR / "settings.json"
+CONFIG = get_config()
+SETTINGS_FILE = CONFIG.data_dir / "settings.json"
 
 
 def default_settings() -> Dict[str, Any]:
     return {
         "com_port": "",
-        "baud_rate": BAUD_RATE,
-        "cooldown": COOLDOWN_SECONDS,
+        "baud_rate": CONFIG.baud_rate,
+        "cooldown": CONFIG.cooldown_seconds,
         "theme": "dark",
         "auto_reconnect": True,
+        "auto_detect_serial": True,
+        # compact sidebar (icons-only) to save vertical space
+        "compact_sidebar": False,
+            # enable lightweight UI profiler (records timing of key UI events)
+            "enable_profiler": False,
     }
 
 

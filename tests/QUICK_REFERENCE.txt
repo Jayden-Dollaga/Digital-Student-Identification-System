@@ -1,0 +1,175 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║          QUICK REFERENCE - TEST GUI FOR TOGGLES                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+📍 LOCATION
+-----------
+tests/test_gui_demo.py
+
+
+🚀 HOW TO RUN
+-----------
+
+Option 1 - Direct Run:
+  cd "c:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System"
+  python tests/test_gui_demo.py
+
+Option 2 - One Liner:
+  python "c:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System\tests\test_gui_demo.py"
+
+
+📋 WHAT TO TEST
+-----------
+
+Left Sidebar:
+  ☐ Auto-Reconnect toggle (on/off)
+  ☐ Auto-Detect ESP32 toggle (on/off)
+  ☐ Compact Sidebar toggle (on/off)  
+  ☐ Enable Profiler toggle (on/off)
+
+Save & Persist:
+  ☐ Click "Save Settings" button
+  ☐ See "✓ Settings saved" message
+  ☐ Close GUI window
+  ☐ Reopen: python tests/test_gui_demo.py
+  ☐ Verify toggles are still in same state
+
+
+📊 WHAT YOU'LL SEE
+-----------
+
+Window: 1280x800 (resizable)
+
+Layout:
+  ┌─────────────────┬──────────────────────────────┐
+  │  SIDEBAR        │  MAIN AREA                   │
+  │  (280px)        │  - Dashboard Title           │
+  │                 │  - 3 Info Cards              │
+  │  Settings:      │  - Attendance Grid           │
+  │  • Toggle 1     │  - Sample Data               │
+  │  • Toggle 2     │                              │
+  │  • Toggle 3     │                              │
+  │  • Toggle 4     │                              │
+  │  [Save Button]  │                              │
+  │                 │                              │
+  │  Status: Ready  │                              │
+  │  Log Area:      │                              │
+  │  [messages]     │                              │
+  └─────────────────┴──────────────────────────────┘
+
+
+✅ FILES CREATED
+-----------
+
+1. tests/test_gui_demo.py
+   - The test GUI demo application
+   - 380+ lines of code
+   - Tests all 4 toggles
+
+2. tests/TEST_GUI_README.md  
+   - Detailed documentation
+   - Testing checklist
+   - Troubleshooting guide
+
+3. tests/HOW_TO_RUN_TEST_GUI.txt
+   - Step-by-step instructions
+   - Plain text format
+   - Easy to follow
+
+
+🔍 VERIFY IT WORKS
+-----------
+
+Check settings were saved:
+  Open: data/settings.json
+  
+  You should see:
+  {
+    ...
+    "auto_reconnect": true,
+    "auto_detect_serial": false,
+    "compact_sidebar": true,
+    "enable_profiler": false
+  }
+
+
+🧪 RUN AUTOMATED TESTS
+-----------
+
+After testing manually, verify with automated tests:
+
+All Settings Tests:
+  python tests/test_settings_toggles.py
+
+GUI Integration Tests:
+  python tests/test_gui_settings_integration.py
+
+Full Suite:
+  python -m pytest tests/ -v
+
+
+✨ FEATURES DEMONSTRATED
+-----------
+
+1. Settings Dialog
+   - 4 working toggles
+   - Save button
+   - Status indicator
+
+2. Settings Persistence  
+   - Save to JSON file
+   - Load on app restart
+   - Auto-merge with defaults
+
+3. Real-time Updates
+   - Active toggle counter
+   - Log messages
+   - Status feedback
+
+4. Attendance Dashboard
+   - Sample data display
+   - Info cards
+   - Attendance grid
+
+
+📚 DOCUMENTATION
+-----------
+
+In the tests/ folder:
+  - test_gui_demo.py ................. The test GUI code
+  - TEST_GUI_README.md ............... Full documentation  
+  - HOW_TO_RUN_TEST_GUI.txt .......... Quick instructions
+  - test_settings_toggles.py ......... Automated storage tests
+  - test_gui_settings_integration.py . Automated runtime tests
+
+
+💾 DATA FILES USED
+-----------
+
+Settings Storage:
+  data/settings.json ................ Where toggles are saved
+
+Code Modules:
+  python/settings_store.py .......... Settings save/load logic
+  python/gui/app.py ................. Main app (real version)
+  python/gui/settings_dialog.py ..... Settings dialog (real version)
+
+
+🛠️ TROUBLESHOOTING
+-----------
+
+Can't find module?
+  → cd to project root first
+  
+Settings not saving?
+  → Check data/ folder has write permissions
+  
+GUI won't launch?
+  → pip install customtkinter
+
+Toggles don't stick?
+  → Check data/settings.json exists
+  → Run test_settings_toggles.py to verify
+
+
+═════════════════════════════════════════════════════════════════════════════

@@ -4,7 +4,7 @@
 
 The Fingerprint Attendance System is a layered application that combines embedded firmware, a desktop GUI, serial communication, and a local database to support attendance tracking with fingerprint biometrics.
 
-The design separates concerns so that each part can be maintained independently:
+The design separates concerns so that each part can be maintained independently, and the recent Python refactor strengthens that separation further. Raw serial data is handled in the communication layer, converted into structured scan outcomes in the attendance processor, persisted through the database layer, and presented through the GUI without overloading the interface with core workflow logic.
 
 - firmware handles fingerprint capture and matching on the ESP32
 - Python manages serial communication, desktop operations, and database access
@@ -21,6 +21,17 @@ The architecture is intended to support:
 - persistent runtime settings
 - backup and restore for data safety
 - clear separation between UI, logic, and hardware communication
+
+## Refactored Python architecture
+
+The Python side is organized around a small set of focused responsibilities:
+
+- [python/core/serial_handler.py](../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
+- [python/core/attendance.py](../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
+- [python/core/database.py](../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
+- [python/gui/app.py](../python/gui/app.py) acts as the application shell and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
+
+This keeps the GUI thinner, improves testability, and makes it easier to evolve the system over time.
 
 ## Layered structure
 
