@@ -2,7 +2,7 @@
 
 **Status:** ✅ Production Ready — ESP32 fingerprint scanning, a desktop GUI, SQLite storage, backup/restore support, role-based access, and reporting.
 
-This project began as a practical hardware experiment: connect a fingerprint sensor to an ESP32, read biometric input, and use a desktop application to manage attendance records. It has since grown into a complete attendance-management platform with embedded firmware, a Python application, a local database, and reporting tools. Hi
+This project began as a practical hardware experiment: connect a fingerprint sensor to an ESP32, read biometric input, and use a desktop application to manage attendance records. It has since grown into a complete attendance-management platform with embedded firmware, a Python application, a local database, and reporting tools.
 
 ---
 
