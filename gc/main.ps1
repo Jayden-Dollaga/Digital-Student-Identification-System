@@ -204,11 +204,29 @@ function Do-Backup(){
     Write-Host "Creating backup $out" -ForegroundColor Cyan
     Push-Location $RepoRoot
     try {
-        Compress-Archive -Path * -DestinationPath $out -Force
-        if ($LASTEXITCODE -eq 0){ Write-Host "Backup created: $out" -ForegroundColor Green } else { Write-Host "Backup failed." -ForegroundColor Red }
+        if (Test-Path $out) {
+            Remove-Item $out -Force -ErrorAction SilentlyContinue
+        }
+
+        $sourceItems = Get-ChildItem -LiteralPath $RepoRoot -Force | Where-Object {
+            $_.FullName -ne $out -and $_.Name -ne 'Backups'
+        }
+
+        if ($sourceItems.Count -eq 0) {
+            Write-Host "Backup failed: no source items found." -ForegroundColor Red
+        } else {
+            Compress-Archive -Path $sourceItems.FullName -DestinationPath $out -Force -ErrorAction Stop
+            if (Test-Path $out -and (Get-Item $out).Length -gt 0) {
+                Write-Host "Backup created: $out" -ForegroundColor Green
+            } else {
+                Write-Host "Backup failed." -ForegroundColor Red
+            }
+        }
     } catch {
-        Write-Host "Backup error: $_" -ForegroundColor Red
-    } finally { Pop-Location }
+        Write-Host "Backup error: $($_.Exception.Message)" -ForegroundColor Red
+    } finally {
+        Pop-Location
+    }
     Pause-ForKey
 }
 
