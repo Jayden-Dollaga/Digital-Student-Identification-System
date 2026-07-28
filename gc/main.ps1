@@ -228,14 +228,32 @@ function Do-Backup(){
         }
 
         $excludedNames = @('.git', '.gitcommander', 'Backups')
-        $sourceItems = Get-ChildItem -LiteralPath $RepoRoot -Force | Where-Object {
-            $_.FullName -ne $out -and $_.Name -notin $excludedNames
+        $sourceItems = @()
+        foreach ($item in Get-ChildItem -LiteralPath $RepoRoot -Force) {
+            $skip = $false
+            foreach ($excludedName in $excludedNames) {
+                if ($item.Name -eq $excludedName) {
+                    $skip = $true
+                    break
+                }
+            }
+
+            if ($skip) {
+                continue
+            }
+
+            if ($item.FullName -eq $out) {
+                continue
+            }
+
+            $sourceItems += $item
         }
 
         if ($sourceItems.Count -eq 0) {
             Write-Host "Backup failed: no source items found." -ForegroundColor Red
         } else {
-            Compress-Archive -Path $sourceItems.FullName -DestinationPath $out -Force -ErrorAction Stop
+            $archivePaths = @($sourceItems | ForEach-Object { $_.FullName })
+            Compress-Archive -Path $archivePaths -DestinationPath $out -Force -ErrorAction Stop
             if (Test-Path $out -and (Get-Item $out).Length -gt 0) {
                 Write-Host "Backup created: $out" -ForegroundColor Green
             } else {
