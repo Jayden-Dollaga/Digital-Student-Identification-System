@@ -1,5 +1,5 @@
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-. "$scriptRoot\..\ui.ps1"
+. "$scriptRoot\..\main.ps1"
 
 $tempDir = Join-Path $env:TEMP ("gc-commit-lock-" + [System.Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null

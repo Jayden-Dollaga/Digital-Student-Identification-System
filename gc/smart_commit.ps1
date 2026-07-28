@@ -20,20 +20,42 @@ function Get-SmartCommitMessage {
     } catch { $meta = $null }
     foreach ($line in $lines) {
         # porcelain format: XY <path>
-        $path = $line.Trim()
+        $path = $line
         if ($path.Length -gt 3) { $path = $path.Substring(3) }
-        $path = $path -replace "\\","/"
+        $path = $path.Trim() -replace "\\","/"
         $ext = [IO.Path]::GetExtension($path).ToLower()
+        $fileName = [IO.Path]::GetFileName($path)
+        $fileBaseName = [IO.Path]::GetFileNameWithoutExtension($path)
         $lower = $path.ToLower()
 
-        # determine scope as first meaningful directory segment
+        # determine scope from the first meaningful directory segment after any generic top-level container
         $candidate = $null
-        $pattern = '^(?:[^/]+/)?(?:src|lib|bin|dist|assets|docs|test|tests|data|config|backup|organized/)?(?<s>[^/]+)'
-        $m = [regex]::Match($lower, $pattern)
-        if ($m.Success -and $m.Groups['s'].Value) { $candidate = $m.Groups['s'].Value }
-        if (-not $candidate) { $segments = $lower -split '/'; $candidate = ($segments[0] -or [IO.Path]::GetFileNameWithoutExtension($path)) }
-        # normalize scope: remove numeric prefixes and sanitize
-        $scope = $candidate -replace '^[0-9]+[_-]?', '' -replace '[^a-z0-9_-]', '-' -replace '_','-' -replace '--+','-'
+        $segments = $lower -split '/'
+        $segments = $segments | Where-Object { $_ -and $_ -ne '.' }
+
+        if ($segments.Count -gt 1) {
+            $dirSegments = @($segments[0..($segments.Count - 2)])
+            foreach ($segment in $dirSegments) {
+                if (-not $segment) { continue }
+                $segment = [IO.Path]::GetFileNameWithoutExtension($segment)
+                $segment = $segment -replace '^[0-9]+[_-]?', ''
+                if ($segment -match '^(src|lib|bin|dist|assets|docs|doc|test|tests|data|config|backup|organized|gc|git|root|main|app|index|package|module|utils|helpers)$') {
+                    continue
+                }
+                if ($segment -and $segment.Length -gt 1) {
+                    $candidate = $segment
+                    break
+                }
+            }
+        }
+
+        if (-not $candidate) {
+            $candidate = $fileBaseName
+            if (-not $candidate) { $candidate = $fileName }
+        }
+
+        # normalize scope: remove numeric prefixes and sanitize, keep only clean slug text
+        $scope = $candidate -replace '^[0-9]+[_-]?', '' -replace '\.[a-z0-9]+$','' -replace '[^a-z0-9_-]', '-' -replace '_','-' -replace '--+','-'
         $scope = $scope.Trim('-')
         if ($scope) { $scopes[$scope] = ($scopes[$scope] + 1) }
 
@@ -42,7 +64,7 @@ function Get-SmartCommitMessage {
         elseif ($lower -match '\btest(s)?\b' -or $path -match '(?i)test') { $types['test'] = ($types['test'] + 1) }
         elseif ($ext -in @('.png','.jpg','.jpeg','.gif','.svg','.ico')) { $types['assets'] = ($types['assets'] + 1) }
         elseif ($ext -in @('.yml','.yaml','.json','.xml')) { $types['config'] = ($types['config'] + 1) }
-        elseif ($lower -match '\bfix\b' -or $lower -match '\bbug\b') { $types['fix'] = ($types['fix'] + 1) }
+        elseif ($lower -match '(?<![a-z])(?:fix|bug)(?![a-z])' -or $lower -match '(?<![a-z])(?:fix|bug)[-_]' -or $lower -match '(?:^|[\/._-])(fix|bug)(?:[\/._-]|$)') { $types['fix'] = ($types['fix'] + 1) }
         elseif ($ext -in @('.ps1','.py','.js','.ts','.java','.cs','.cpp','.c','.go','.rb')) { $types['feat'] = ($types['feat'] + 1) }
         else { $types['chore'] = ($types['chore'] + 1) }
 
@@ -102,19 +124,23 @@ function Get-SmartCommitMessage {
     }
 
     if ($chosenScope) {
-        if ($summaryVerb -eq 'continue' -and $prevSubjects.Count -gt 0){
+        if ($summaryVerb -eq 'continue' -and $prevSubjects.Count -gt 0) {
             # continue previous subject if available
             $prev = $prevSubjects | Where-Object { $_ } | Select-Object -First 1
             if ($prev) { $summary = "$summaryVerb $prev" } else { $summary = "$summaryVerb $chosenScope" }
-        } else { $summary = "$summaryVerb $chosenScope" }
+        } else {
+            $summary = "$summaryVerb $chosenScope"
+        }
         $scopePart = "($chosenScope)"
     } else {
-        # if no scope, pick representative filename(s)
-        $sample = [IO.Path]::GetFileName($lines[0] -replace '^.\s+','')
-        if ($summaryVerb -eq 'continue' -and $prevSubjects.Count -gt 0){
+        # if no scope, pick representative filename(s) without extension
+        $sample = [IO.Path]::GetFileNameWithoutExtension($lines[0] -replace '^.\s+','')
+        if ($summaryVerb -eq 'continue' -and $prevSubjects.Count -gt 0) {
             $prev = $prevSubjects | Where-Object { $_ } | Select-Object -First 1
             if ($prev) { $summary = "$summaryVerb $prev" } else { $summary = "$summaryVerb $sample" }
-        } else { $summary = "$summaryVerb $sample" }
+        } else {
+            $summary = "$summaryVerb $sample"
+        }
         $scopePart = ''
     }
 
@@ -125,7 +151,7 @@ function Get-SmartCommitMessage {
         # remove trailing punctuation
         $t = $t.TrimEnd('.', ' ')
         # collapse multiple spaces
-        $t = -join ($t -split '\s+' ) -replace '\s{2,}', ' '
+        $t = ($t -split '\s+') -join ' '
         # remove duplicate adjacent words: 'update update' -> 'update'
         $t = [regex]::Replace($t, '\b(\w+)\s+\1\b', '$1', 'IgnoreCase')
         # normalize some common phrases

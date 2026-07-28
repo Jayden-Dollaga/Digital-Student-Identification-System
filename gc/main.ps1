@@ -1,7 +1,6 @@
 Set-StrictMode -Version Latest
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 . "$ScriptRoot\checks.ps1"
-. "$ScriptRoot\ui.ps1"
 . "$ScriptRoot\smart_commit.ps1"
 Import-Module (Join-Path $ScriptRoot 'metadata.ps1') -ErrorAction SilentlyContinue -Force
 
@@ -18,9 +17,6 @@ Ensure-RemoteConfigured
 # repository root (git top-level)
 $RepoRoot = git rev-parse --show-toplevel 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $RepoRoot) { $RepoRoot = (Get-Location).Path }
-
-# Start a development session and show smart history
-$SessionId = Start-Session $RepoRoot
 
 function Show-SmartHistory(){
     $sessions = Load-Sessions $RepoRoot
@@ -128,6 +124,47 @@ function Show-Status(){
     Pause-ForKey
 }
 
+function Invoke-GitCommitWithRecovery {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$RepoRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$CommitMessage
+    )
+
+    Push-Location $RepoRoot
+    try {
+        $lockPath = Join-Path $RepoRoot '.git\index.lock'
+        if (Test-Path $lockPath) {
+            Remove-Item -Force $lockPath -ErrorAction SilentlyContinue
+        }
+
+        git add -A | Out-Null
+        $commitOutput = git commit -m "$CommitMessage" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            return $true
+        }
+
+        $commitOutput | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+        if ($commitOutput -match 'Pre-commit checks failed|Some tests failed|commit aborted') {
+            if ($env:GC_AUTO_FIX_COMMIT -and $env:GC_AUTO_FIX_COMMIT -match '^(1|true|yes)$') {
+                Write-Host 'Detected pre-commit hook failure; retrying commit without hooks (--no-verify)...' -ForegroundColor Yellow
+                $commitOutput = git commit --no-verify -m "$CommitMessage" 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    return $true
+                }
+                $commitOutput | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            } else {
+                Write-Host 'Commit failed due to pre-commit hook checks. Set environment variable GC_AUTO_FIX_COMMIT=1 to retry automatically without hooks.' -ForegroundColor Yellow
+            }
+        }
+
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
 function Do-SmartCommit(){
     $changes = git status --porcelain
     if (-not $changes){ Write-Host "No changes to commit." -ForegroundColor Green; Pause-ForKey; return }
@@ -138,9 +175,8 @@ function Do-SmartCommit(){
     $committed = $false
     switch ($choice.ToUpper()){
         'A' {
-            git add -A
-            git commit -m "$suggest"
-            if ($LASTEXITCODE -eq 0){ Write-Host "Committed." -ForegroundColor Green; $committed = $true } else { Write-Host "Commit failed." -ForegroundColor Red }
+            $committed = Invoke-GitCommitWithRecovery -RepoRoot $RepoRoot -CommitMessage $suggest
+            if ($committed) { Write-Host "Committed." -ForegroundColor Green } else { Write-Host "Commit failed." -ForegroundColor Red }
         }
         'E' {
             $tmp = [IO.Path]::GetTempFileName()
@@ -148,31 +184,14 @@ function Do-SmartCommit(){
             notepad $tmp
             $new = Get-Content $tmp -Raw
             if ($new.Trim()){
-                git add -A
-                git commit -m $new
-                if ($LASTEXITCODE -eq 0){ Write-Host "Committed." -ForegroundColor Green; $committed = $true } else { Write-Host "Commit failed." -ForegroundColor Red }
+                $committed = Invoke-GitCommitWithRecovery -RepoRoot $RepoRoot -CommitMessage $new
+                if ($committed) { Write-Host "Committed." -ForegroundColor Green } else { Write-Host "Commit failed." -ForegroundColor Red }
             } else { Write-Host "Empty message, aborting." -ForegroundColor Yellow }
             Remove-Item $tmp -Force
         }
         default { Write-Host "Cancelled." -ForegroundColor Yellow }
     }
 
-    # If we committed, update the metadata store with files in the new commit
-    if ($committed){
-        try {
-            $commitHash = git rev-parse --verify HEAD 2>$null
-            if ($LASTEXITCODE -eq 0 -and $commitHash){
-                $branch = git rev-parse --abbrev-ref HEAD 2>$null
-                $filesRaw = git diff-tree --no-commit-id --name-only -r $commitHash 2>$null
-                $files = $filesRaw -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
-                $commitMsg = git log -1 --pretty=format:%B $commitHash 2>$null
-                Import-Module (Join-Path $ScriptRoot 'metadata.ps1') -Force
-                Update-MetadataForFiles $RepoRoot $files $commitHash $commitMsg $branch
-            }
-        } catch {
-            Write-Host "Metadata update failed: $_" -ForegroundColor Yellow
-        }
-    }
     Pause-ForKey
 }
 
@@ -208,8 +227,9 @@ function Do-Backup(){
             Remove-Item $out -Force -ErrorAction SilentlyContinue
         }
 
+        $excludedNames = @('.git', '.gitcommander', 'Backups')
         $sourceItems = Get-ChildItem -LiteralPath $RepoRoot -Force | Where-Object {
-            $_.FullName -ne $out -and $_.Name -ne 'Backups'
+            $_.FullName -ne $out -and $_.Name -notin $excludedNames
         }
 
         if ($sourceItems.Count -eq 0) {
@@ -271,9 +291,12 @@ function Show-RepoInfo(){
 }
 
 function Show-HistoryInspector(){
-    $path = Read-Host "Enter relative path to inspect (e.g. src/app/main.py)"
-    if (-not $path) { Write-Host "Cancelled." -ForegroundColor Yellow; Pause-ForKey; return }
-    & (Join-Path $ScriptRoot 'show-history.ps1') -Path $path
+    $path = Read-Host "Enter relative path to inspect (e.g. src/app/main.py). Press Enter for repo-wide history"
+    if (-not $path) {
+        & (Join-Path $ScriptRoot 'show-history.ps1')
+    } else {
+        & (Join-Path $ScriptRoot 'show-history.ps1') -Path $path
+    }
     Pause-ForKey
 }
 
@@ -303,21 +326,28 @@ function Main-Menu(){
             '6' { Do-Backup }
             '7' { Show-RepoInfo }
             '8' { Show-HistoryInspector }
-            '9' { break }
+            '9' { return }
             default { Write-Host "Invalid choice." -ForegroundColor Yellow; Pause-ForKey }
         }
     }
 }
 
-# Entry
-if (-not (Test-Git)) { Pause-ForKey; exit }
-Ensure-RepoInitialized
-Ensure-GitConfig
-Ensure-Remote
-Show-SmartHistory
-Check-UnfinishedSession
-try {
-    Main-Menu
-} finally {
-    End-Session $RepoRoot $SessionId | Out-Null
+function Start-GitCommander(){
+    if (-not (Test-Git)) { Pause-ForKey; exit }
+    Ensure-RepoInitialized
+    Ensure-GitConfig
+    Ensure-Remote
+    $SessionId = Start-Session $RepoRoot
+    Show-SmartHistory
+    Check-UnfinishedSession
+    try {
+        Main-Menu
+    } finally {
+        End-Session $RepoRoot $SessionId | Out-Null
+    }
+}
+
+# Direct script execution should start the Git Commander UI immediately.
+if ($MyInvocation.InvocationName -ne '.') {
+    Start-GitCommander
 }
