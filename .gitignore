@@ -7,19 +7,37 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.venv/
+.venv-1/
+venv/
+env/
+*.log
+*.sqlite
+*.sqlite3
 
-# Database
+# PyInstaller / portable build output
+dist/portable/
+build/pyinstaller/
+*.exe
+
+# Database and local runtime data
 data/attendance.db
 data/backups/
 data/exports/
+data/logs/
+data/settings.json
+Backups/
+*.db
+*.db-journal
 
-# VS Code
+# VS Code / editors
 .vscode/
+.idea/
 
-# Environment
+# Environment files
 .env
-venv/
-env/
+.env.*
 
 # OS
 .DS_Store
@@ -30,7 +48,9 @@ desktop.ini
 firmware/**/*.hex
 firmware/**/*.elf
 firmware/**/build/
+firmware/**/build-*/
 
-# Ignore runtime logs and user settings
-data/logs/
-data/settings.json
+# Local packaging / temp files
+*.tmp
+*.bak
+*.swp
