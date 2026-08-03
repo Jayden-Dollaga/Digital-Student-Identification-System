@@ -1,0 +1,178 @@
+/* ---------------------------------------------------------
+   Fingerprint Attendance — Qt Stylesheet
+   Dark theme, single accent color. Change ACCENT below (and
+   in theme.py if you templatize it) to re-skin the whole app.
+--------------------------------------------------------- */
+
+* {
+    font-family: "Segoe UI", "Inter", sans-serif;
+    font-size: 13px;
+    color: #E6E8EB;
+}
+
+QMainWindow, QWidget#centralWidget {
+    background-color: #14161A;
+}
+
+/* ---------------- Sidebar ---------------- */
+QWidget#sidebar {
+    background-color: #1B1E24;
+    border-right: 1px solid #262A31;
+}
+
+QLabel#sidebarTitle {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 20px 16px 8px 16px;
+    color: #F2F3F5;
+}
+
+QPushButton#navButton {
+    background-color: transparent;
+    border: none;
+    text-align: left;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin: 2px 8px;
+    color: #AEB4BD;
+    font-weight: 500;
+}
+
+QPushButton#navButton:hover {
+    background-color: #24282F;
+    color: #F2F3F5;
+}
+
+QPushButton#navButton:checked {
+    background-color: #2563EB22;
+    color: #4C8DFF;
+    font-weight: 600;
+    border-left: 3px solid #4C8DFF;
+}
+
+/* ---------------- Header bar ---------------- */
+QWidget#headerBar {
+    background-color: #14161A;
+    border-bottom: 1px solid #262A31;
+}
+
+QLabel#pageTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #F2F3F5;
+}
+
+QLabel#connectionStatus {
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QLabel#connectionStatus[state="connected"] {
+    background-color: #16532422;
+    color: #4ADE80;
+}
+
+QLabel#connectionStatus[state="disconnected"] {
+    background-color: #7F1D1D22;
+    color: #F87171;
+}
+
+QLabel#connectionStatus[state="connecting"] {
+    background-color: #78350F22;
+    color: #FBBF24;
+}
+
+/* ---------------- Cards ---------------- */
+QFrame#card {
+    background-color: #1B1E24;
+    border: 1px solid #262A31;
+    border-radius: 12px;
+}
+
+QLabel#cardLabel {
+    color: #8A909C;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+QLabel#cardValue {
+    color: #F2F3F5;
+    font-size: 26px;
+    font-weight: 700;
+}
+
+/* ---------------- Buttons ---------------- */
+QPushButton#primaryButton {
+    background-color: #4C8DFF;
+    color: #0B0D10;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #6BA1FF;
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: #3A76E0;
+}
+
+QPushButton#dangerButton {
+    background-color: #7F1D1D;
+    color: #FCA5A5;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+
+QPushButton#dangerButton:hover {
+    background-color: #991B1B;
+}
+
+/* ---------------- Table ---------------- */
+QTableWidget {
+    background-color: #1B1E24;
+    border: 1px solid #262A31;
+    border-radius: 8px;
+    gridline-color: #262A31;
+}
+
+QHeaderView::section {
+    background-color: #1B1E24;
+    color: #8A909C;
+    padding: 8px;
+    border: none;
+    border-bottom: 1px solid #262A31;
+    font-weight: 600;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QTableWidget::item:selected {
+    background-color: #4C8DFF33;
+    color: #F2F3F5;
+}
+
+/* ---------------- Scrollbars ---------------- */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background: #33383F;
+    border-radius: 5px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #43494F;
+}

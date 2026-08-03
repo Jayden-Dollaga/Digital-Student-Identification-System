@@ -1,0 +1,182 @@
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
+)
+
+from gui_qt.widgets.sidebar import Sidebar
+from gui_qt.pages.dashboard_page import DashboardPage
+from gui_qt.pages.attendance_page import AttendancePage
+from gui_qt.pages.students_page import StudentsPage
+from gui_qt.pages.reports_page import ReportsPage
+from gui_qt.pages.logs_page import LogsPage
+from gui_qt.pages.settings_page import SettingsPage
+from gui_qt.workers.serial_worker import SerialWorker
+
+from core.database import init_database
+from core.serial_handler import SerialHandler
+from core.attendance import AttendanceProcessor
+from settings_store import load_settings
+
+PAGE_TITLES = {
+    "dashboard": "Dashboard",
+    "attendance": "Attendance",
+    "students": "Students",
+    "reports": "Reports",
+    "logs": "Logs",
+    "settings": "Settings",
+}
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Fingerprint Attendance System")
+        self.resize(1180, 720)
+        self.setMinimumSize(860, 560)
+
+        init_database()
+
+        self.settings = load_settings()
+        self.serial_handler = SerialHandler()
+        self.serial_handler.auto_reconnect_enabled = self.settings.get("auto_reconnect", True)
+        self.attendance_processor = AttendanceProcessor()
+
+        central = QWidget()
+        central.setObjectName("centralWidget")
+        self.setCentralWidget(central)
+
+        root = QHBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ---- sidebar ----
+        self.sidebar = Sidebar()
+        self.sidebar.page_selected.connect(self.switch_page)
+        root.addWidget(self.sidebar)
+
+        # ---- right side: header + stacked pages ----
+        right = QVBoxLayout()
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(0)
+
+        header = QWidget()
+        header.setObjectName("headerBar")
+        header.setFixedHeight(56)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(24, 0, 24, 0)
+
+        self.page_title = QLabel("Dashboard")
+        self.page_title.setObjectName("pageTitle")
+
+        self.connection_label = QLabel("Disconnected")
+        self.connection_label.setObjectName("connectionStatus")
+        self.connection_label.setProperty("state", "disconnected")
+
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.setObjectName("primaryButton")
+        self.connect_button.clicked.connect(self.on_connect_clicked)
+
+        header_layout.addWidget(self.page_title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.connection_label)
+        header_layout.addSpacing(12)
+        header_layout.addWidget(self.connect_button)
+
+        right.addWidget(header)
+
+        self.stack = QStackedWidget()
+        self.dashboard_page = DashboardPage()
+        self.attendance_page = AttendancePage()
+        self.serial_worker = SerialWorker(self.serial_handler, self.attendance_processor)
+        self.students_page = StudentsPage(serial_handler=self.serial_handler, serial_worker=self.serial_worker)
+        self.reports_page = ReportsPage()
+        self.logs_page = LogsPage()
+        self.settings_page = SettingsPage(
+            serial_handler=self.serial_handler,
+            on_connection_settings_changed=self.on_connection_settings_changed,
+        )
+
+        self._pages = {
+            "dashboard": self.dashboard_page,
+            "attendance": self.attendance_page,
+            "students": self.students_page,
+            "reports": self.reports_page,
+            "logs": self.logs_page,
+            "settings": self.settings_page,
+        }
+        for page in self._pages.values():
+            self.stack.addWidget(page)
+
+        right.addWidget(self.stack)
+
+        right_container = QWidget()
+        right_container.setLayout(right)
+        root.addWidget(right_container)
+
+        self._page_order = list(self._pages.keys())
+
+        # ---- serial worker (created earlier so StudentsPage's enroll/wipe
+        #      dialogs can subscribe to its signals; starts polling now —
+        #      actual connect happens when the user clicks Connect, same as
+        #      app.py's toggle_connection -> start_reader_thread flow) ----
+        self.serial_worker.connection_changed.connect(self.on_connection_changed)
+        self.serial_worker.scan_event.connect(self.on_scan_event)
+        self.serial_worker.log_line.connect(self.logs_page.append_line)
+        self.serial_worker.error.connect(self.on_serial_error)
+        self.serial_worker.start()
+
+    def switch_page(self, key: str):
+        self.stack.setCurrentWidget(self._pages[key])
+        self.page_title.setText(PAGE_TITLES[key])
+        # refresh data-driven pages whenever the user navigates to them
+        page = self._pages[key]
+        if hasattr(page, "refresh"):
+            page.refresh()
+
+    def on_connect_clicked(self):
+        if self.serial_handler.is_connected():
+            self.serial_handler.disconnect()
+            self.connect_button.setText("Connect")
+            return
+
+        port = self.settings.get("com_port") or ""
+        baud = int(self.settings.get("baud_rate") or 115200)
+        ok, msg = self.serial_handler.connect(port, baud)
+        if ok:
+            self.connect_button.setText("Disconnect")
+        else:
+            self.logs_page.append_line(f"[ERROR] Connection failed: {msg}")
+
+    def on_connection_settings_changed(self, port: str, baud: int):
+        """Called by SettingsPage after Save — reconnect with new values if already connected."""
+        self.settings["com_port"] = port
+        self.settings["baud_rate"] = baud
+        if self.serial_handler.is_connected():
+            self.serial_handler.disconnect()
+            ok, msg = self.serial_handler.connect(port, baud)
+            if not ok:
+                self.logs_page.append_line(f"[ERROR] Reconnect failed: {msg}")
+
+    def on_connection_changed(self, state: str):
+        labels = {
+            "connected": "Connected",
+            "disconnected": "Disconnected",
+            "connecting": "Connecting…",
+        }
+        self.connection_label.setText(labels.get(state, state))
+        self.connection_label.setProperty("state", state)
+        self.connection_label.style().unpolish(self.connection_label)
+        self.connection_label.style().polish(self.connection_label)
+        self.connect_button.setText("Disconnect" if state == "connected" else "Connect")
+
+    def on_scan_event(self, event: dict):
+        self.dashboard_page.on_scan_event(event)
+        self.attendance_page.on_scan_event(event)
+
+    def on_serial_error(self, message: str):
+        self.logs_page.append_line(f"[ERROR] {message}")
+
+    def closeEvent(self, event):
+        self.serial_worker.stop()
+        if self.serial_handler.is_connected():
+            self.serial_handler.disconnect()
+        super().closeEvent(event)

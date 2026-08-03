@@ -1,0 +1,172 @@
+Folder PATH listing for volume OriginNexus500
+Volume serial number is 580C-F87B
+C:\USERS\ENFORCERX\DOWNLOADS\ARDUINO-IDE - PROJECT\AI-ASSISTED FINGERPRINT ATTENDANCE SYSTEM\PYTHON
+|   config.py
+|   list.txt
+|   list_files.bat
+|   main.py
+|   settings_store.py
+|   __init__.py
+|   
++---core
+|   |   attendance.py
+|   |   commands.py
+|   |   database.py
+|   |   firmware_helper.py
+|   |   logger.py
+|   |   serial_handler.py
+|   |   utils.py
+|   |   __init__.py
+|   |   
+|   \---__pycache__
+|           attendance.cpython-313.pyc
+|           attendance.cpython-314.pyc
+|           commands.cpython-313.pyc
+|           commands.cpython-314.pyc
+|           database.cpython-313.pyc
+|           database.cpython-314.pyc
+|           firmware_helper.cpython-313.pyc
+|           firmware_helper.cpython-314.pyc
+|           logger.cpython-313.pyc
+|           logger.cpython-314.pyc
+|           serial_handler.cpython-313.pyc
+|           serial_handler.cpython-314.pyc
+|           utils.cpython-313.pyc
+|           utils.cpython-314.pyc
+|           __init__.cpython-313.pyc
+|           __init__.cpython-314.pyc
+|           
++---gui
+|   |   app.py
+|   |   attendance_page.py
+|   |   dashboard.py
+|   |   dialogs.py
+|   |   layout_utils.py
+|   |   log_page.py
+|   |   perf_profiler.py
+|   |   reports_page.py
+|   |   serial_troubleshooting.py
+|   |   settings_dialog.py
+|   |   settings_page.py
+|   |   sidebar.py
+|   |   statistics_page.py
+|   |   students_page.py
+|   |   theme.py
+|   |   __init__.py
+|   |   
+|   +---legacy
+|   |   |   bfeas_app2.py
+|   |   |   reports_table_page.py
+|   |   |   
+|   |   \---__pycache__
+|   |           bfeas_app2.cpython-313.pyc
+|   |           reports_table_page.cpython-313.pyc
+|   |           reports_table_page.cpython-314.pyc
+|   |           
+|   \---__pycache__
+|           app.cpython-313.pyc
+|           app.cpython-314.pyc
+|           app_original.cpython-313.pyc
+|           app_test1.cpython-313.pyc
+|           attendance_page.cpython-313.pyc
+|           attendance_page.cpython-314.pyc
+|           dashboard.cpython-313.pyc
+|           dashboard.cpython-314.pyc
+|           dialogs.cpython-313.pyc
+|           dialogs.cpython-314.pyc
+|           layout_utils.cpython-313.pyc
+|           layout_utils.cpython-314.pyc
+|           log_page.cpython-313.pyc
+|           log_page.cpython-314.pyc
+|           main_window.cpython-313.pyc
+|           perf_profiler.cpython-313.pyc
+|           perf_profiler.cpython-314.pyc
+|           reports_page.cpython-313.pyc
+|           reports_page.cpython-314.pyc
+|           reports_table_page.cpython-313.pyc
+|           serial_troubleshooting.cpython-313.pyc
+|           serial_troubleshooting.cpython-314.pyc
+|           settings_dialog.cpython-313.pyc
+|           settings_dialog.cpython-314.pyc
+|           settings_page.cpython-313.pyc
+|           settings_page.cpython-314.pyc
+|           sidebar.cpython-313.pyc
+|           sidebar.cpython-314.pyc
+|           statistics_page.cpython-313.pyc
+|           statistics_page.cpython-314.pyc
+|           students_page.cpython-313.pyc
+|           students_page.cpython-314.pyc
+|           theme.cpython-313.pyc
+|           theme.cpython-314.pyc
+|           __init__.cpython-313.pyc
+|           __init__.cpython-314.pyc
+|           
++---non_workflow
+|   |   fix_emoji.py
+|   |   main_window.py
+|   |   serial.py
+|   |   widgets.py
+|   |   
+|   \---__pycache__
+|           fix_emoji.cpython-313.pyc
+|           main_window.cpython-313.pyc
+|           serial.cpython-313.pyc
+|           widgets.cpython-313.pyc
+|           
++---services
+|   |   attendance_service.py
+|   |   student_service.py
+|   |   __init__.py
+|   |   
+|   \---__pycache__
+|           attendance_service.cpython-313.pyc
+|           attendance_service.cpython-314.pyc
+|           student_service.cpython-313.pyc
+|           student_service.cpython-314.pyc
+|           __init__.cpython-313.pyc
+|           __init__.cpython-314.pyc
+|           
++---testing_area
+|   |   README.txt
+|   |   
+|   +---core
+|   |   |   database_addition_snippet.py
+|   |   |   
+|   |   \---__pycache__
+|   |           database_addition_snippet.cpython-313.pyc
+|   |           
+|   +---gui
+|   |   \---legacy
+|   |       |   app_test.py
+|   |       |   app_test1.py
+|   |       |   bfeas_app.py
+|   |       |   bfeas_app2.py
+|   |       |   reports_table_page.py
+|   |       |   
+|   |       \---__pycache__
+|   |               app_test.cpython-313.pyc
+|   |               app_test1.cpython-313.pyc
+|   |               bfeas_app.cpython-313.pyc
+|   |               bfeas_app2.cpython-313.pyc
+|   |               reports_table_page.cpython-313.pyc
+|   |               reports_table_page.cpython-314.pyc
+|   |               
+|   \---services
+|       |   backup.py
+|       |   excel_export.py
+|       |   
+|       \---__pycache__
+|               backup.cpython-313.pyc
+|               excel_export.cpython-313.pyc
+|               
+\---__pycache__
+        config.cpython-313.pyc
+        config.cpython-314.pyc
+        main.cpython-313.pyc
+        main.cpython-314.pyc
+        serial.cpython-313.pyc
+        serial.cpython-314.pyc
+        settings_store.cpython-313.pyc
+        settings_store.cpython-314.pyc
+        __init__.cpython-313.pyc
+        
