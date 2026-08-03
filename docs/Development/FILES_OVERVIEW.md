@@ -15,8 +15,8 @@ Top-level files
 Folders
 
 - docs/: Documentation, screenshots, architecture notes, and guides including:
-  - Project Overview.md: high-level summary of the project and goals.
-  - System Architecture.md / architecture.md: architecture notes and diagrams.
+  - [Project Overview](../UserGuide/project-overview.md): high-level summary of the project and goals.
+  - [System Architecture](../Architecture/system-architecture.md) / [architecture](../Architecture/architecture.md): architecture notes and diagrams.
   - LOGGING_SUMMARY.md, LOGGER_USAGE.md: logging design and usage.
   - DATABASE_*: DB change notes, schema and migration examples.
   - Installation Guide.md / PORTABLE_BUILD.md: packaging and deploy notes.
