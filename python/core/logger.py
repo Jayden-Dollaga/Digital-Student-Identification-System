@@ -98,6 +98,10 @@ def _log_with_structured(level: int, message: Any, **kwargs: Any) -> None:
     else:
         LOG.log(level, str(message), extra=extra)
 
+    for handler in LOG.handlers:
+        if hasattr(handler, "flush"):
+            handler.flush()
+
 
 def debug(message: Any, **kwargs: Any) -> None:
     _log_with_structured(logging.DEBUG, message, **kwargs)

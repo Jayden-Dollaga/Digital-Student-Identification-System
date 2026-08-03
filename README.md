@@ -146,38 +146,58 @@ The exact GPIO mapping may vary depending on the firmware and hardware layout. T
 
 ```text
 Fingerprint-Attendance-System/
-├── firmware/                     # ESP32 Arduino sketches
+├── firmware/                     # ESP32 Arduino sketches and firmware sources
 │   ├── attendance/
 │   ├── enroll/
 │   ├── delete/
 │   ├── test/
 │   └── ESP32_Fingerprint_AllInOne/
 ├── python/
-│   ├── main.py                   # Main entry point
-│   ├── config.py                 # Serial, database, role, and behavior settings
-│   ├── core/                     # Database, serial, attendance, command logic
-│   ├── gui/                      # Desktop UI modules
-│   └── services/                 # Backup and export helpers
-├── data/                         # Database, backups, logs, exports
-├── docs/                         # Project documentation
-├── tests/                        # Validation and regression tests
+│   ├── main.py                   # Console/legacy entry point for serial + CLI flow
+│   ├── config.py                 # Environment-aware runtime configuration
+│   ├── core/                     # Core services: DB, serial, attendance, logging, firmware helper
+│   ├── gui/                      # Original CustomTkinter desktop UI
+│   ├── gui_qt/                   # Modern PySide6 desktop UI prototype / replacement shell
+│   ├── services/                 # Backup and export helpers
+│   └── settings_store.py         # JSON-based settings persistence for GUI preferences
+├── data/                         # Local database, backups, logs, exports, runtime state
+├── docs/                         # Documentation and status notes
+├── tests/                        # Regression tests and GUI exploration harnesses
+├── tools/                        # Portable build, bootstrap, and packaging helpers
 ├── requirements.txt              # Python dependencies
+├── run_app.bat                   # Launcher for the legacy GUI
+├── run_qt_gui.py                 # Launcher for the Qt-based GUI
 └── LICENSE
 ```
 
-### Main Python modules
+### File-by-file purpose guide
 
-- [python/main.py](python/main.py) — startup entry point for the application
-- [python/config.py](python/config.py) — central configuration for port detection, serial settings, roles, and defaults
-- [python/core/serial_handler.py](python/core/serial_handler.py) — manages communication with the ESP32
-- [python/core/database.py](python/core/database.py) — stores and queries attendance and student records
-- [python/core/attendance.py](python/core/attendance.py) — processes scanned fingerprint events
-- [python/core/commands.py](python/core/commands.py) — sends firmware commands like scan, enroll, delete, and wipe
-- [python/gui/app.py](python/gui/app.py) — main GUI controller and page orchestrator
-- [python/gui/attendance_page.py](python/gui/attendance_page.py) — attendance view and record rendering
-- [python/gui/students_page.py](python/gui/students_page.py) — student registration and management UI
-- [python/gui/dialogs.py](python/gui/dialogs.py) — enrollment, backup, restore, and wipe dialogs
-- [python/gui/sidebar.py](python/gui/sidebar.py) — connection and quick-action controls
+- [python/main.py](python/main.py) — legacy application entry point for serial communication and the console-style workflow.
+- [python/config.py](python/config.py) — central runtime configuration with environment overrides and portable path logic.
+- [python/core/attendance.py](python/core/attendance.py) — parses ESP32 serial output into attendance events and applies cooldown logic.
+- [python/core/commands.py](python/core/commands.py) — wraps ESP32 commands like scan, stop, enroll, delete, wipe, and list.
+- [python/core/database.py](python/core/database.py) — SQLite persistence layer for students, attendance, backups, exports, and reset operations.
+- [python/core/firmware_helper.py](python/core/firmware_helper.py) — searches for firmware binaries and uploads them over serial using esptool.
+- [python/core/logger.py](python/core/logger.py) — centralized logging with rotation and consistent message formatting.
+- [python/core/serial_handler.py](python/core/serial_handler.py) — low-level serial port connection, read/write, and reconnect management.
+- [python/core/utils.py](python/core/utils.py) — shared formatting and helper routines used across the app.
+- [python/gui/app.py](python/gui/app.py) — original CustomTkinter main window and orchestration layer.
+- [python/gui/attendance_page.py](python/gui/attendance_page.py) — attendance list view for the legacy desktop UI.
+- [python/gui/dashboard.py](python/gui/dashboard.py) — dashboard widgets and summary UI for the legacy app.
+- [python/gui/dialogs.py](python/gui/dialogs.py) — enrollment, wipe, restore, and other modal dialogs.
+- [python/gui/settings_dialog.py](python/gui/settings_dialog.py) — settings popup with COM port and firmware helper controls.
+- [python/gui/settings_page.py](python/gui/settings_page.py) — settings page for the legacy GUI shell.
+- [python/gui/sidebar.py](python/gui/sidebar.py) — sidebar navigation for the legacy desktop UI.
+- [python/gui/students_page.py](python/gui/students_page.py) — student roster and management UI.
+- [python/gui_qt/main_qt.py](python/gui_qt/main_qt.py) — launcher for the newer PySide6 Qt interface.
+- [python/gui_qt/main_window.py](python/gui_qt/main_window.py) — main Qt shell with sidebar, header, and page switching.
+- [python/gui_qt/pages](python/gui_qt/pages) — page implementations for dashboard, attendance, students, logs, reports, and settings.
+- [python/gui_qt/widgets](python/gui_qt/widgets) — reusable Qt widgets such as the sidebar and stat cards.
+- [python/gui_qt/workers/serial_worker.py](python/gui_qt/workers/serial_worker.py) — background worker for serial communication and live scan parsing.
+- [python/services/backup.py](python/services/backup.py) — backup and restore service for database snapshots.
+- [python/services/excel_export.py](python/services/excel_export.py) — Excel export helpers for attendance and student data.
+- [python/settings_store.py](python/settings_store.py) — JSON persistence layer for GUI settings.
+- [run_qt_gui.py](run_qt_gui.py) — repo-root launcher for the Qt interface, so you can start it without changing directories.
 
 ---
 

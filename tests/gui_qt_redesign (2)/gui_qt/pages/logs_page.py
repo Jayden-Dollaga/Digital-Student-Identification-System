@@ -28,16 +28,11 @@ class LogsPage(QWidget):
             "border-radius: 8px; font-family: 'Consolas', monospace; color: #9AA4B2;"
         )
         self.console.appendPlainText("System ready.")
-        self.console.setCenterOnScroll(True)
         outer.addWidget(self.console)
 
     def append_line(self, line: str):
         """Call this from MainWindow when SerialWorker.log_line fires."""
-        if line is None:
-            return
-        self.console.appendPlainText(str(line))
-        self.console.ensureCursorVisible()
+        self.console.appendPlainText(line)
 
     def clear(self):
         self.console.clear()
-        self.console.appendPlainText("System ready.")

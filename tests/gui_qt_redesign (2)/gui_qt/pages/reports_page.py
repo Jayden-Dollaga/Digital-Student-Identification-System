@@ -23,10 +23,6 @@ class ReportsPage(QWidget):
         title = QLabel("Reports")
         title.setStyleSheet("font-size: 15px; font-weight: 600; color: #AEB4BD;")
 
-        intro_label = QLabel("Report preview")
-        intro_label.setObjectName("cardLabel")
-        intro_label.setStyleSheet("font-size: 13px; color: #8A909C;")
-
         export_btn = QPushButton("Export CSV (last 30 days)")
         export_btn.setObjectName("primaryButton")
         export_btn.clicked.connect(self.on_export_clicked)
@@ -39,14 +35,12 @@ class ReportsPage(QWidget):
 
         header_row.addWidget(title)
         header_row.addStretch()
-        header_row.addWidget(intro_label)
         header_row.addWidget(backup_btn)
         header_row.addWidget(restore_btn)
         header_row.addWidget(export_btn)
         outer.addLayout(header_row)
 
         self.report_view = QPlainTextEdit()
-        self.report_view.setPlaceholderText("Statistics will appear here as soon as the report is generated.")
         self.report_view.setReadOnly(True)
         self.report_view.setStyleSheet(
             "background-color: #0F1114; border: 1px solid #262A31; "
@@ -62,9 +56,6 @@ class ReportsPage(QWidget):
         except Exception as exc:
             report_text = f"Could not generate report: {exc}"
         self.report_view.setPlainText(report_text)
-
-    def refresh_report(self):
-        self.refresh()
 
     def on_export_clicked(self):
         end = datetime.now().strftime("%Y-%m-%d")

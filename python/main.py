@@ -1,3 +1,14 @@
+"""Legacy entry point for the fingerprint attendance system.
+
+This module wires the console/serial workflow together for the original
+application flow. It initializes the database, connects to the ESP32,
+receives serial output, and dispatches commands such as scan, enroll,
+delete, wipe, and list.
+
+It is kept for compatibility with the original workflow while the newer
+Qt-based GUI lives under python/gui_qt.
+"""
+
 ###############################################################################
 #  main.py
 #  AS608 Fingerprint Attendance System

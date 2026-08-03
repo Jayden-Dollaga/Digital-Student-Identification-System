@@ -21,16 +21,12 @@ class Sidebar(QWidget):
         self.setFixedWidth(200)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 12)
+        layout.setSpacing(2)
 
-        title = QLabel("Fingerprint")
+        title = QLabel("Attendance")
         title.setObjectName("sidebarTitle")
-        subtitle = QLabel("Attendance System")
-        subtitle.setObjectName("cardLabel")
-        subtitle.setStyleSheet("padding: 0 4px 10px 4px; color: #8A909C;")
         layout.addWidget(title)
-        layout.addWidget(subtitle)
 
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
@@ -39,7 +35,6 @@ class Sidebar(QWidget):
             btn = QPushButton(label)
             btn.setObjectName("navButton")
             btn.setCheckable(True)
-            btn.setCursor(self.cursor().shape())
             btn.clicked.connect(lambda _checked, k=key: self.page_selected.emit(k))
             self._group.addButton(btn)
             layout.addWidget(btn)

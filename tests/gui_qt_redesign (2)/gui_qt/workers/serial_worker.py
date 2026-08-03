@@ -46,7 +46,7 @@ class SerialWorker(QThread):
 
     def run(self):
         self._running = True
-        while self._running and not self.isInterruptionRequested():
+        while self._running:
             connected = self.serial_handler.is_connected()
 
             if connected != self._last_connected_state:
@@ -149,6 +149,4 @@ class SerialWorker(QThread):
 
     def stop(self):
         self._running = False
-        self.requestInterruption()
-        self.quit()
         self.wait(2000)

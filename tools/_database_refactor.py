@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypedDict
 
 from config import DB_PATH
+from core.database import get_connection as project_get_connection
 from core.logger import log
 
 try:
@@ -62,15 +63,12 @@ ATTENDANCE_JOIN_QUERY = """
 
 
 def get_connection() -> sqlite3.Connection:
-    """Open and configure a database connection."""
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
+    """Return the project's configured connection wrapper.
 
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    This delegates to `core.database.get_connection()` so tools reuse the
+    same ManagedConnection behavior and PRAGMA setup.
+    """
+    return project_get_connection()
 
 
 def _row_dicts(rows: Iterable[sqlite3.Row]) -> List[RowDict]:

@@ -1,7 +1,7 @@
-Fingerprint Attendance System — Project Status and Development Roadmap
-=================================================================
+Fingerprint Attendance System — Project Structure, Status, and Development Roadmap
+=================================================================================
 
-This document is the live project tracker for the Fingerprint Attendance System. It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work.
+This document is the live project tracker and architecture guide for the Fingerprint Attendance System. It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work. It also explains the purpose of the major files and folders so a new developer or UI designer can understand the codebase quickly.
 
 1. Project summary
 ------------------
@@ -14,7 +14,42 @@ The project is a Windows-based fingerprint attendance system that combines:
 
 The current goal is to make the system reliable for real-world testing outside the development computer. That means improving portability, dependency handling, UI responsiveness, and attendance refresh behavior.
 
-2. Project history from the start
+2. Repository layout and file purpose
+-------------------------------------
+
+The repository is divided into four main areas:
+- firmware/: Arduino sketches and ESP32 firmware sources
+- python/: desktop application, serial logic, database persistence, and GUI modules
+- data/: runtime database, exports, logs, backups, and generated files
+- tools/ and tests/: packaging, validation, and build automation helpers
+
+Key folders and their purpose:
+- firmware/attendance/: attendance-mode firmware sketch used for live scanning
+- firmware/enroll/: enrollment firmware sketch
+- firmware/delete/: delete/wipe firmware sketch
+- firmware/ESP32_Fingerprint_AllInOne/: bundled all-in-one firmware variant
+- python/core/: reusable backend services that do not depend on Tkinter/Qt UI widgets
+- python/gui/: the original CustomTkinter desktop app UI
+- python/gui_qt/: the newer PySide6 Qt UI prototype and replacement shell
+- python/services/: database backup and Excel export helpers
+- tests/: regression tests, demo apps, and GUI exploration harnesses
+- tools/: PyInstaller spec, build scripts, and validation helpers
+
+Key files and their purpose:
+- python/main.py: legacy entry point for the serial/CLI workflow
+- python/config.py: environment-aware application configuration and runtime defaults
+- python/core/database.py: SQLite schema, CRUD, backups, and report queries
+- python/core/serial_handler.py: ESP32 connection, read/write, and reconnect behavior
+- python/core/attendance.py: attendance event parsing and cooldown filtering
+- python/core/firmware_helper.py: firmware discovery and esptool-based upload support
+- python/gui/app.py: main legacy GUI controller and page coordinator
+- python/gui_qt/main_window.py: main Qt shell and page switching controller
+- python/gui_qt/pages/*.py: page implementations for dashboard, attendance, students, logs, reports, and settings
+- python/gui_qt/workers/serial_worker.py: background worker for ESP32 polling and scan parsing
+- python/settings_store.py: JSON-based settings persistence
+- run_qt_gui.py: repo-root launcher for the Qt UI
+
+3. Project history from the start
 --------------------------------
 
 The system has evolved in stages:

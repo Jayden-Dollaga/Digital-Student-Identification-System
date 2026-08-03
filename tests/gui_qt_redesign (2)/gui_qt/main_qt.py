@@ -1,9 +1,11 @@
-"""Launcher for the PySide6-based Qt interface.
+"""
+New entry point for the PySide6 redesign.
 
-This module is the entry point for the modern desktop UI. It loads the
-stylesheet, creates the main window, and starts the Qt application loop.
-It is intentionally separate from the legacy CustomTkinter interface so the
-new UI can be tested and iterated without replacing the older workflow.
+Keep your existing main.py (ESP32 connect, DB init, CLI handling) as-is
+for now — this file is a parallel entry point so you can run the new UI
+without ripping out the working CustomTkinter app until you're ready to
+switch over. Once you're happy with the redesign, point your
+build_portable.bat / fingerprint_portable.spec at this file instead.
 """
 
 import sys

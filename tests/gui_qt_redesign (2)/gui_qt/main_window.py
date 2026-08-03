@@ -176,13 +176,7 @@ class MainWindow(QMainWindow):
         self.logs_page.append_line(f"[ERROR] {message}")
 
     def closeEvent(self, event):
-        try:
-            self.serial_worker.stop()
-        except Exception:
-            pass
-        try:
-            if self.serial_handler.is_connected():
-                self.serial_handler.disconnect()
-        except Exception:
-            pass
+        self.serial_worker.stop()
+        if self.serial_handler.is_connected():
+            self.serial_handler.disconnect()
         super().closeEvent(event)

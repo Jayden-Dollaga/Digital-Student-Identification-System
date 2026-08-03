@@ -154,7 +154,13 @@ def main():
     print("=" * 55)
 
     # ── Connect to database ───────────────────────────────────────
-    conn = sqlite3.connect(DB_FILE)
+    # Use project get_connection() and allow legacy scripts to target a
+    # custom DB file by setting the environment variable used by
+    # `python/config.py`.
+    import os
+    os.environ["FINGERPRINT_DB_PATH"] = DB_FILE
+    from core.database import get_connection
+    conn = get_connection()
     init_database(conn)
     add_sample_students(conn)
 

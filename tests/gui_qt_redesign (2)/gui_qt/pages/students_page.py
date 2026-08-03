@@ -2,7 +2,6 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QTableWidget, QTableWidgetItem,
     QLabel, QHeaderView, QPushButton, QDialog, QLineEdit, QMessageBox, QTextEdit
 )
-from PySide6.QtCore import Qt
 
 from services.student_service import StudentService
 from core.commands import cmd_enroll, cmd_delete, cmd_wipe, cmd_stop
@@ -135,51 +134,6 @@ class EnrollDialog(QDialog):
         super().closeEvent(event)
 
 
-class StudentDetailsDialog(QDialog):
-    """Edit/create a student profile for a known fingerprint ID."""
-
-    def __init__(self, fingerprint_id: int, existing=None, parent=None):
-        super().__init__(parent)
-        self.fingerprint_id = fingerprint_id
-        self.existing = existing or {}
-
-        self.setWindowTitle(f"Student Profile — ID {fingerprint_id}")
-        self.setMinimumWidth(420)
-
-        outer = QVBoxLayout(self)
-        form = QFormLayout()
-        self.student_no = QLineEdit(self.existing.get("student_no", ""))
-        self.student_name = QLineEdit(self.existing.get("student_name", ""))
-        self.grade = QLineEdit(self.existing.get("grade", ""))
-        self.section = QLineEdit(self.existing.get("section", ""))
-        form.addRow("Fingerprint ID", QLabel(str(fingerprint_id)))
-        form.addRow("Student No.", self.student_no)
-        form.addRow("Full Name", self.student_name)
-        form.addRow("Grade", self.grade)
-        form.addRow("Section", self.section)
-        outer.addLayout(form)
-
-        buttons = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        save_btn.setObjectName("primaryButton")
-        save_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        buttons.addStretch()
-        buttons.addWidget(cancel_btn)
-        buttons.addWidget(save_btn)
-        outer.addLayout(buttons)
-
-    def get_values(self):
-        return {
-            "fingerprint_id": self.fingerprint_id,
-            "student_no": self.student_no.text().strip(),
-            "student_name": self.student_name.text().strip(),
-            "grade": self.grade.text().strip(),
-            "section": self.section.text().strip(),
-        }
-
-
 class WipeDialog(QDialog):
     """Matches gui/dialogs.py's open_wipe_dialog / confirm_wipe flow."""
 
@@ -268,9 +222,6 @@ class StudentsPage(QWidget):
         enroll_btn = QPushButton("+ Enroll Student")
         enroll_btn.setObjectName("primaryButton")
         enroll_btn.clicked.connect(self.on_enroll_clicked)
-        edit_btn = QPushButton("Edit Selected")
-        edit_btn.setObjectName("secondaryButton")
-        edit_btn.clicked.connect(self.on_edit_clicked)
         delete_btn = QPushButton("Delete Selected")
         delete_btn.setObjectName("dangerButton")
         delete_btn.clicked.connect(self.on_delete_clicked)
@@ -282,7 +233,6 @@ class StudentsPage(QWidget):
         header_row.addStretch()
         header_row.addWidget(wipe_btn)
         header_row.addWidget(delete_btn)
-        header_row.addWidget(edit_btn)
         header_row.addWidget(enroll_btn)
         outer.addLayout(header_row)
 
@@ -315,22 +265,17 @@ class StudentsPage(QWidget):
             for c, value in enumerate(values):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
 
-    def save_student_details(self, fingerprint_id: int, values: dict):
-        student_no = values.get("student_no", "").strip() or f"ID{fingerprint_id}"
-        student_name = values.get("student_name", "").strip() or f"Student {fingerprint_id}"
-        grade = values.get("grade", "").strip() or "N/A"
-        section = values.get("section", "").strip() or "N/A"
-        ok, msg = self.service.save_student(fingerprint_id, student_no, student_name, grade, section)
-        if ok:
-            self.refresh()
-        return ok, msg
-
     def on_enroll_clicked(self):
         dialog = EnrollDialog(self.serial_handler, self.serial_worker, parent=self)
         if dialog.exec():
             values = dialog.get_values()
-            ok, msg = self.save_student_details(values["fingerprint_id"], values)
-            if not ok:
+            ok, msg = self.service.save_student(
+                values["fingerprint_id"], values["student_no"], values["student_name"],
+                values["grade"], values["section"],
+            )
+            if ok:
+                self.refresh()
+            else:
                 QMessageBox.critical(self, "Save failed", msg)
 
     def on_delete_clicked(self):
@@ -350,20 +295,6 @@ class StudentsPage(QWidget):
         if self.serial_handler is not None and self.serial_handler.is_connected():
             cmd_delete(self.serial_handler, fingerprint_id)
         self.refresh()
-
-    def on_edit_clicked(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "No selection", "Select a student row first.")
-            return
-        fingerprint_id = int(self.table.item(row, 0).text())
-        existing = self.service.get_student(fingerprint_id) or {}
-        dialog = StudentDetailsDialog(fingerprint_id, existing=existing, parent=self)
-        if dialog.exec() == QDialog.Accepted:
-            values = dialog.get_values()
-            ok, msg = self.save_student_details(values["fingerprint_id"], values)
-            if not ok:
-                QMessageBox.critical(self, "Save failed", msg)
 
     def on_wipe_clicked(self):
         dialog = WipeDialog(self.serial_handler, self.serial_worker, on_wiped=self.refresh, parent=self)

@@ -165,7 +165,10 @@ def main():
     print("=" * 55)
 
     # ── Database ──────────────────────────────────────────────────
-    conn = sqlite3.connect(DB_FILE)
+    import os
+    os.environ["FINGERPRINT_DB_PATH"] = DB_FILE
+    from core.database import get_connection
+    conn = get_connection()
     init_database(conn)
     add_sample_students(conn)
     print()

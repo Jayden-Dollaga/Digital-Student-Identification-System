@@ -30,6 +30,31 @@ except ImportError:
 RowDict = Dict[str, Any]
 
 
+class ManagedConnection:
+    """Wrap a sqlite3 connection so it always closes when leaving a context."""
+
+    def __init__(self, connection: sqlite3.Connection):
+        self._connection = connection
+
+    def __enter__(self) -> sqlite3.Connection:
+        return self._connection
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        try:
+            if exc_type is None:
+                self._connection.commit()
+            else:
+                self._connection.rollback()
+        finally:
+            self._connection.close()
+
+    def close(self) -> None:
+        self._connection.close()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._connection, name)
+
+
 class AttendanceRow(TypedDict, total=False):
     id: int
     fingerprint_id: int
@@ -70,7 +95,7 @@ ATTENDANCE_JOIN_QUERY = """
 """
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection() -> ManagedConnection:
     """Open and configure a database connection."""
     db_dir = os.path.dirname(DB_PATH)
     if db_dir:
@@ -79,7 +104,7 @@ def get_connection() -> sqlite3.Connection:
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    return ManagedConnection(connection)
 
 
 def _row_dicts(rows: Iterable[sqlite3.Row]) -> List[RowDict]:
@@ -88,7 +113,8 @@ def _row_dicts(rows: Iterable[sqlite3.Row]) -> List[RowDict]:
 
 def init_database() -> None:
     """Create database tables and indexes if they do not already exist."""
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         cursor = conn.cursor()
 
         cursor.execute(
@@ -129,6 +155,8 @@ def init_database() -> None:
 
         conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
         conn.commit()
+    finally:
+        conn.close()
 
     log.success(f"Database ready at {os.path.abspath(DB_PATH)}")
 
@@ -149,17 +177,17 @@ def add_student(
         return False, "Fingerprint ID must be a positive integer."
 
     now = datetime.now().isoformat()
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO students
-                (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (fingerprint_id, student_no, student_name, grade, section, now, now),
-            )
-            conn.commit()
+        conn.execute(
+            """
+            INSERT INTO students
+            (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (fingerprint_id, student_no, student_name, grade, section, now, now),
+        )
+        conn.commit()
         return True, "OK"
     except sqlite3.IntegrityError as exc:
         message = str(exc)
@@ -168,6 +196,8 @@ def add_student(
         if "student_no" in message:
             return False, f"Student number {student_no} already exists."
         return False, message
+    finally:
+        conn.close()
 
 
 def update_student(
@@ -178,58 +208,75 @@ def update_student(
     section: str,
 ) -> Tuple[bool, str]:
     now = datetime.now().isoformat()
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            conn.execute(
-                """
-                UPDATE students
-                SET student_no = ?, student_name = ?, grade = ?, section = ?, updated_date = ?
-                WHERE fingerprint_id = ?
-                """,
-                (student_no, student_name, grade, section, now, fingerprint_id),
-            )
-            conn.commit()
+        conn.execute(
+            """
+            UPDATE students
+            SET student_no = ?, student_name = ?, grade = ?, section = ?, updated_date = ?
+            WHERE fingerprint_id = ?
+            """,
+            (student_no, student_name, grade, section, now, fingerprint_id),
+        )
+        conn.commit()
         return True, "OK"
     except sqlite3.IntegrityError as exc:
         return False, str(exc)
+    finally:
+        conn.close()
 
 
 def delete_student(fingerprint_id: int) -> None:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (fingerprint_id,))
         conn.commit()
+    finally:
+        conn.close()
 
 
 def clear_all_students() -> int:
     students = get_all_students()
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         conn.execute("DELETE FROM attendance")
         conn.execute("DELETE FROM students")
         conn.commit()
-    return len(students)
+        return len(students)
+    finally:
+        conn.close()
 
 
 def get_student(fingerprint_id: int) -> Optional[StudentRow]:
     if fingerprint_id <= 0:
         return None
 
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         row = conn.execute(
             "SELECT * FROM students WHERE fingerprint_id = ?",
             (fingerprint_id,),
         ).fetchone()
-    return dict(row) if row else None
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
 
 def get_all_students() -> List[StudentRow]:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute("SELECT * FROM students ORDER BY fingerprint_id").fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def get_student_count() -> int:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         return conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+    finally:
+        conn.close()
 
 
 def register_student(
@@ -293,23 +340,32 @@ def log_attendance(
 def get_attendance_today() -> List[AttendanceRow]:
     today = datetime.now().strftime("%Y-%m-%d")
     query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date = ? ORDER BY a.timestamp DESC, a.id DESC"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query, (today,)).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def get_attendance_all() -> List[AttendanceRow]:
     query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def get_attendance_paginated(limit: int = 100, offset: int = 0) -> List[AttendanceRow]:
     query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query, (limit, offset)).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def get_attendance_count_today() -> int:
@@ -370,55 +426,74 @@ def get_daily_attendance_summary(
 
 def get_attendance_by_date(date_str: str) -> List[AttendanceRow]:
     query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date = ? ORDER BY a.time"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query, (date_str,)).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def clear_all_attendance() -> int:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
         conn.execute("DELETE FROM attendance")
         conn.commit()
-    return count
+        return count
+    finally:
+        conn.close()
 
 
 def clear_all_data() -> Tuple[int, int]:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         student_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
         attendance_count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
         conn.execute("DELETE FROM attendance")
         conn.execute("DELETE FROM students")
         conn.commit()
-    return student_count, attendance_count
+        return student_count, attendance_count
+    finally:
+        conn.close()
 
 
 def get_attendance_by_student(fingerprint_id: int) -> List[AttendanceRow]:
     query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.fingerprint_id = ? ORDER BY a.date DESC, a.time DESC"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query, (fingerprint_id,)).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def get_students_by_grade_section(grade: str, section: str) -> List[StudentRow]:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(
             "SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY student_name",
             (grade, section),
         ).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def count_attendance_by_date(date_str: str) -> int:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         return conn.execute(
             "SELECT COUNT(*) FROM attendance WHERE date = ?",
             (date_str,),
         ).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def get_attendance_statistics() -> RowDict:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         total = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
         unique_students = conn.execute(
             "SELECT COUNT(DISTINCT fingerprint_id) FROM attendance"
@@ -440,18 +515,21 @@ def get_attendance_statistics() -> RowDict:
             "SELECT MIN(date) as earliest, MAX(date) as latest FROM attendance"
         ).fetchone()
 
-    return {
-        "total_scans": total,
-        "unique_students": unique_students,
-        "status_breakdown": status_counts,
-        "average_confidence": avg_confidence,
-        "earliest_date": date_info["earliest"],
-        "latest_date": date_info["latest"],
-    }
+        return {
+            "total_scans": total,
+            "unique_students": unique_students,
+            "status_breakdown": status_counts,
+            "average_confidence": avg_confidence,
+            "earliest_date": date_info["earliest"],
+            "latest_date": date_info["latest"],
+        }
+    finally:
+        conn.close()
 
 
 def get_students_statistics() -> RowDict:
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         total = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
 
         grade_counts = {
@@ -468,45 +546,50 @@ def get_students_statistics() -> RowDict:
             ).fetchall()
         }
 
-    return {
-        "total_students": total,
-        "by_grade": grade_counts,
-        "by_section": section_counts,
-    }
+        return {
+            "total_students": total,
+            "by_grade": grade_counts,
+            "by_section": section_counts,
+        }
+    finally:
+        conn.close()
 
 
 def export_attendance_range(start_date: str, end_date: str) -> List[AttendanceRow]:
     query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date >= ? AND a.date <= ? ORDER BY a.date ASC, a.time ASC"
-    with get_connection() as conn:
+    conn = get_connection()
+    try:
         rows = conn.execute(query, (start_date, end_date)).fetchall()
-    return _row_dicts(rows)
+        return _row_dicts(rows)
+    finally:
+        conn.close()
 
 
 def generate_statistics_report() -> str:
+    conn = get_connection()
     try:
-        with get_connection() as conn:
-            total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()["count"]
-            total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()["count"]
+        total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()["count"]
+        total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()["count"]
 
-            attendance_by_date = conn.execute(
-                "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
-            ).fetchall()
+        attendance_by_date = conn.execute(
+            "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
+        ).fetchall()
 
-            top_students = conn.execute(
-                """
-                SELECT COALESCE(s.student_name, 'Unknown') as name,
-                       COUNT(a.id) as count
-                FROM attendance a
-                LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-                GROUP BY a.fingerprint_id
-                ORDER BY count DESC
-                LIMIT 10
-                """
-            ).fetchall()
+        top_students = conn.execute(
+            """
+            SELECT COALESCE(s.student_name, 'Unknown') as name,
+                   COUNT(a.id) as count
+            FROM attendance a
+            LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+            GROUP BY a.fingerprint_id
+            ORDER BY count DESC
+            LIMIT 10
+            """
+        ).fetchall()
 
-            grade_stats = conn.execute(
-                "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
-            ).fetchall()
+        grade_stats = conn.execute(
+            "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
+        ).fetchall()
 
         report_lines = [
             "=" * 70,
@@ -565,6 +648,8 @@ def generate_statistics_report() -> str:
     except Exception as exc:
         log.error(f"Report generation failed: {exc}")
         return f"Error generating report: {exc}"
+    finally:
+        conn.close()
 
 
 def _save_chart(fig: Any, filename: str) -> Optional[str]:

@@ -1,7 +1,14 @@
 pyserial==3.5
 customtkinter==6.0.0
 openpyxl==3.1.5
-# Optional: install matplotlib separately if chart reports are needed on your machine.
-Pillow==10.1.0
+# Matplotlib is used by the reporting/chart functions in `python/core/database.py`.
+matplotlib>=3.6
+PySide6>=6.5
+Pillow>=9.0,<11
 pytest==7.4.0
-pyinstaller==6.11.1
+pyinstaller>=6.15
+
+# Notes:
+# - `PySide6` is required for the Qt GUI under `python/gui_qt/`.
+# - `customtkinter` is used by the legacy `python/gui/` UI.
+# - If you only need one GUI (Qt or legacy), you can omit the other GUI dependency.

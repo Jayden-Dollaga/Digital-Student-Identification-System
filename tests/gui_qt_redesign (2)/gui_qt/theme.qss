@@ -29,11 +29,11 @@ QLabel#sidebarTitle {
 
 QPushButton#navButton {
     background-color: transparent;
-    border: 1px solid transparent;
+    border: none;
     text-align: left;
-    padding: 10px 14px;
-    border-radius: 10px;
-    margin: 2px 2px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin: 2px 8px;
     color: #AEB4BD;
     font-weight: 500;
 }
@@ -41,7 +41,6 @@ QPushButton#navButton {
 QPushButton#navButton:hover {
     background-color: #24282F;
     color: #F2F3F5;
-    border: 1px solid #2D3340;
 }
 
 QPushButton#navButton:checked {
@@ -49,34 +48,6 @@ QPushButton#navButton:checked {
     color: #4C8DFF;
     font-weight: 600;
     border-left: 3px solid #4C8DFF;
-}
-
-QLineEdit, QComboBox, QTextEdit, QPlainTextEdit {
-    background-color: #171A20;
-    border: 1px solid #2A3038;
-    border-radius: 8px;
-    padding: 8px 10px;
-    color: #F2F3F5;
-}
-
-QComboBox::drop-down {
-    border: none;
-}
-
-QCheckBox {
-    color: #D8DEE9;
-}
-
-QProgressBar {
-    border: 1px solid #2A3038;
-    border-radius: 8px;
-    text-align: center;
-    background-color: #171A20;
-}
-
-QProgressBar::chunk {
-    background-color: #4C8DFF;
-    border-radius: 7px;
 }
 
 /* ---------------- Header bar ---------------- */
@@ -162,19 +133,6 @@ QPushButton#dangerButton {
 
 QPushButton#dangerButton:hover {
     background-color: #991B1B;
-}
-
-QPushButton#secondaryButton {
-    background-color: #2A3038;
-    color: #E6E8EB;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-weight: 600;
-}
-
-QPushButton#secondaryButton:hover {
-    background-color: #343C47;
 }
 
 /* ---------------- Table ---------------- */

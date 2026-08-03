@@ -2,34 +2,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLabel, QComboBox, QCheckBox,
     QPushButton, QFrame, QMessageBox
 )
-from PySide6.QtCore import QThread, Signal
+import threading
 
 from config import get_config
 from settings_store import load_settings, save_settings
 from core.firmware_helper import discover_firmware_candidates, find_firmware_binary, upload_firmware_with_progress
 
 CONFIG = get_config()
-
-
-def format_firmware_status(binary_path=None, candidates=None):
-    if binary_path is not None:
-        return f"Firmware ready: {binary_path.name}"
-    if candidates:
-        return f"Firmware source found (not a .bin): {candidates[0].name}"
-    return "No bundled firmware detected."
-
-
-class FirmwareUploadWorker(QThread):
-    progress = Signal(str)
-    finished = Signal(bool, str)
-
-    def __init__(self, port: str, parent=None):
-        super().__init__(parent)
-        self.port = port
-
-    def run(self):
-        ok, msg = upload_firmware_with_progress(port=self.port, progress_callback=self.progress.emit)
-        self.finished.emit(ok, msg)
 
 
 class SettingsPage(QWidget):
@@ -112,8 +91,6 @@ class SettingsPage(QWidget):
         upload_btn.setObjectName("primaryButton")
         upload_btn.clicked.connect(self.on_upload_firmware)
         self._upload_btn = upload_btn
-        self._upload_worker = None
-        self._upload_in_progress = False
 
         fw_layout.addWidget(fw_label)
         fw_layout.addWidget(self.fw_status)
@@ -141,40 +118,34 @@ class SettingsPage(QWidget):
     def _refresh_firmware_status(self):
         candidates = discover_firmware_candidates()
         binary = find_firmware_binary()
-        status_text = format_firmware_status(binary, candidates)
-        self.fw_status.setText(status_text)
-        self._upload_btn.setEnabled(binary is not None)
+        if binary is not None:
+            self.fw_status.setText(f"Firmware ready: {binary.name}")
+            self._upload_btn.setEnabled(True)
+        elif candidates:
+            self.fw_status.setText(f"Firmware source found (not a .bin): {candidates[0].name}")
+            self._upload_btn.setEnabled(False)
+        else:
+            self.fw_status.setText("No bundled firmware detected.")
+            self._upload_btn.setEnabled(False)
 
     def on_upload_firmware(self):
-        if self._upload_in_progress:
-            QMessageBox.information(self, "Firmware Upload", "An upload is already in progress.")
-            return
-
         port = self.port_combo.currentText().strip()
         if not port:
             QMessageBox.warning(self, "Firmware Upload", "Select a COM port first.")
             return
 
-        self._upload_in_progress = True
         self._upload_btn.setEnabled(False)
         self.fw_progress.setText("Starting upload...")
 
-        self._upload_worker = FirmwareUploadWorker(port, self)
-        self._upload_worker.progress.connect(self._update_upload_progress)
-        self._upload_worker.finished.connect(self._finish_upload)
-        self._upload_worker.start()
+        def progress(line: str):
+            self.fw_progress.setText(line)
 
-    def _update_upload_progress(self, line: str):
-        self.fw_progress.setText(line)
+        def run_upload():
+            ok, msg = upload_firmware_with_progress(port=port, progress_callback=progress)
+            self._upload_btn.setEnabled(True)
+            self.fw_progress.setText(msg)
 
-    def _finish_upload(self, ok: bool, msg: str):
-        self._upload_in_progress = False
-        self._upload_btn.setEnabled(True)
-        self.fw_progress.setText(msg)
-        if ok:
-            self.fw_status.setText("Firmware upload completed successfully.")
-        else:
-            self.fw_status.setText("Firmware upload failed. Check the log output above.")
+        threading.Thread(target=run_upload, daemon=True).start()
 
     def on_save(self):
         new_port = self.port_combo.currentText().strip()
@@ -188,7 +159,6 @@ class SettingsPage(QWidget):
             "theme": self.theme_combo.currentText().lower(),
             "auto_reconnect": self.auto_reconnect.isChecked(),
         })
-        self.settings.setdefault("theme", "dark")
         save_settings(self.settings)
 
         if self.on_connection_settings_changed:

@@ -137,7 +137,11 @@ def main():
     print("  AS608 Fingerprint Attendance System - Phase 2")
     print("=" * 55)
 
-    conn = sqlite3.connect(DB_FILE)
+    # Use the project's DB connection helper so PRAGMA and cleanup are consistent.
+    import os
+    os.environ["FINGERPRINT_DB_PATH"] = DB_FILE
+    from core.database import get_connection
+    conn = get_connection()
     init_database(conn)
     add_sample_students(conn)
 

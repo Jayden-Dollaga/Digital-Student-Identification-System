@@ -1,4 +1,3 @@
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QLabel, QHeaderView, QPushButton, QComboBox
@@ -43,15 +42,7 @@ class AttendancePage(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setAlternatingRowColors(True)
         outer.addWidget(self.table)
-
-        self.empty_label = QLabel("No attendance records yet.")
-        self.empty_label.setAlignment(Qt.AlignCenter)
-        self.empty_label.setWordWrap(True)
-        self.empty_label.setVisible(False)
-        self.empty_label.setStyleSheet("color: #7D8798; padding: 24px;")
-        outer.addWidget(self.empty_label)
 
         self.refresh()
 
@@ -68,8 +59,6 @@ class AttendancePage(QWidget):
 
     def _populate(self, rows):
         self.table.setRowCount(0)
-        self.empty_label.setVisible(not rows)
-        self.table.setVisible(bool(rows))
         for row in rows:
             r = self.table.rowCount()
             self.table.insertRow(r)
@@ -86,9 +75,6 @@ class AttendancePage(QWidget):
 
     def on_scan_event(self, event: dict):
         """Prepend a new row live when SerialWorker emits scan_event, without a full refresh."""
-        if self.table.rowCount() == 0:
-            self.table.setVisible(True)
-            self.empty_label.setVisible(False)
         self.table.insertRow(0)
         values = [
             event.get("time", ""),

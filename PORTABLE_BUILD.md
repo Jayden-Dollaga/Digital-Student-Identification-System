@@ -9,7 +9,8 @@ Build a portable Windows deployment that can run on another computer without req
 1. Use PyInstaller to package the GUI entry point.
 2. Bundle the application files and data folders into a single folder.
 3. Keep a bootstrap script for machines that still need dependencies.
-4. Test the build from a USB drive on a clean Windows machine.
+4. Prefer the Qt launcher at the repository root for modern testing workflows.
+5. Test the build from a USB drive on a clean Windows machine.
 
 ## Planned steps
 
@@ -24,5 +25,6 @@ Build a portable Windows deployment that can run on another computer without req
 
 1. Open a command prompt.
 2. Run `tools\build_portable.bat`.
-3. After a successful build, launch the app from `dist\FingerprintAttendanceSystem`.
-4. Test on another PC without a Python installation.
+3. After a successful build, launch the app from `dist\portable\FingerprintAttendanceSystem`.
+4. For a quick local smoke test, use `python run_qt_gui.py` from the repository root before packaging.
+5. Test on another PC without a Python installation.
