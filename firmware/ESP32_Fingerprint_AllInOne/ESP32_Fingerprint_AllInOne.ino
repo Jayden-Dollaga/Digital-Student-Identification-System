@@ -81,7 +81,10 @@ enum LedState {
   LED_ENROLL,
   LED_FIRMWARE,
   LED_ERROR,
+  LED_DB_ERROR,
   LED_COMMUNICATION_ERROR,
+  LED_HOST_CONNECTED,
+  LED_HOST_DISCONNECTED,
   LED_SLEEP
 };
 
@@ -92,38 +95,121 @@ const char DEVICE_SENSOR[] = "AS608";
 const int DEVICE_PROTOCOL = 1;
 
 LedState currentLedState = LED_BOOTING;
-LedState restoreLedState = LED_READY;
+LedState currentRestoreState = LED_READY;
 unsigned long ledStateStart = 0;
+int currentPriority = 1;
+int restorePriority = 2;
 
 void setLedBrightness(uint8_t brightness) {
   ledcWrite(LED_PWM_CHANNEL, brightness);
 }
 
-void setLedState(LedState state, LedState nextState = LED_READY) {
-  if (state == LED_SUCCESS || state == LED_ERROR) {
-    restoreLedState = nextState;
+int getPriorityForState(LedState state) {
+  switch (state) {
+    case LED_ERROR: return 8;
+    case LED_COMMUNICATION_ERROR: return 7;
+    case LED_SUCCESS: return 6;
+    case LED_DB_ERROR: return 6;
+    case LED_ENROLL: return 5;
+    case LED_FIRMWARE: return 4;
+    case LED_SCAN: return 3;
+    case LED_HOST_CONNECTED: return 2;
+    case LED_READY: return 2;
+    case LED_BOOTING: return 1;
+    case LED_HOST_DISCONNECTED: return 0;
+    case LED_SLEEP: return 0;
+    default: return 0;
   }
+}
+
+bool requestLedState(LedState state, bool temporary = false) {
+  int priority = getPriorityForState(state);
+  if (state == currentLedState) {
+    return true;
+  }
+
+  if (currentPriority > priority && temporary) {
+    return false;
+  }
+
+  if (temporary) {
+    currentRestoreState = currentLedState;
+    restorePriority = currentPriority;
+  }
+
   currentLedState = state;
+  currentPriority = priority;
   ledStateStart = millis();
-  if (state == LED_BOOTING || state == LED_ERROR || state == LED_COMMUNICATION_ERROR) {
-    // ensure the LED begins from an off state for clean pulsing/blinking
+  if (state == LED_BOOTING || state == LED_ERROR || state == LED_COMMUNICATION_ERROR || state == LED_DB_ERROR) {
     setLedBrightness(0);
   }
+  return true;
 }
 
-void triggerMatchPulse(LedState restoreState = LED_READY) {
-  setLedState(LED_SUCCESS, restoreState);
+void restoreLedStateIfNeeded() {
+  int nowPriority = getPriorityForState(currentRestoreState);
+  currentLedState = currentRestoreState;
+  currentPriority = restorePriority;
+  restorePriority = nowPriority;
+  ledStateStart = millis();
 }
 
-void triggerErrorFlash(LedState restoreState = LED_READY) {
-  setLedState(LED_ERROR, restoreState);
+void handleHostStatus(const String &status) {
+  if (status == "HOST_CONNECTED") {
+    requestLedState(LED_HOST_CONNECTED);
+  } else if (status == "HOST_DISCONNECTED") {
+    requestLedState(LED_HOST_DISCONNECTED);
+  } else if (status == "DB_ERROR") {
+    requestLedState(LED_DB_ERROR, true);
+  } else if (status == "FIRMWARE") {
+    requestLedState(LED_FIRMWARE);
+  } else if (status == "READY") {
+    requestLedState(LED_READY);
+  }
 }
 
-void initLED() {
+void beginLedManager() {
   pinMode(LED_PIN, OUTPUT);
   ledcSetup(LED_PWM_CHANNEL, LED_PWM_FREQUENCY, LED_PWM_RESOLUTION);
   ledcAttachPin(LED_PIN, LED_PWM_CHANNEL);
-  setLedState(LED_BOOTING);
+  currentPriority = getPriorityForState(LED_BOOTING);
+  requestLedState(LED_BOOTING);
+}
+
+void ledReady() {
+  requestLedState(LED_READY);
+}
+
+void ledScan() {
+  requestLedState(LED_SCAN);
+}
+
+void ledEnroll() {
+  requestLedState(LED_ENROLL);
+}
+
+void ledSuccess() {
+  requestLedState(LED_SUCCESS, true);
+}
+
+void ledError() {
+  requestLedState(LED_ERROR, true);
+}
+
+void ledSleep() {
+  requestLedState(LED_SLEEP);
+}
+
+void ledFirmware() {
+  requestLedState(LED_FIRMWARE);
+}
+
+void ledHostConnected() {
+  requestLedState(LED_HOST_CONNECTED);
+}
+
+void ledHostDisconnected() {
+  requestLedState(LED_HOST_DISCONNECTED);
 }
 
 uint8_t computeBootBrightness(unsigned long elapsed) {
@@ -144,7 +230,8 @@ void updateLed() {
       setLedBrightness(computeBootBrightness(elapsed));
       break;
     }
-    case LED_READY: {
+    case LED_READY:
+    case LED_HOST_CONNECTED: {
       unsigned long phase = elapsed % READY_PERIOD_MS;
       setLedBrightness(phase < READY_ON_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
@@ -156,7 +243,7 @@ void updateLed() {
     }
     case LED_SUCCESS: {
       if (elapsed >= SUCCESS_TOTAL_MS) {
-        setLedState(restoreLedState);
+        restoreLedStateIfNeeded();
         break;
       }
       setLedBrightness(LED_MAX_BRIGHTNESS);
@@ -178,9 +265,10 @@ void updateLed() {
       setLedBrightness(phase < FIRMWARE_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
-    case LED_ERROR: {
+    case LED_ERROR:
+    case LED_DB_ERROR: {
       if (elapsed >= ERROR_TOTAL_MS) {
-        setLedState(restoreLedState);
+        restoreLedStateIfNeeded();
         break;
       }
       unsigned long phase = elapsed % (ERROR_BLINK_MS * 2);
@@ -192,6 +280,7 @@ void updateLed() {
       setLedBrightness(phase < COMM_ERROR_ON_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
+    case LED_HOST_DISCONNECTED:
     case LED_SLEEP: {
       setLedBrightness(0);
       break;
@@ -213,7 +302,7 @@ String pendingCommand = "";
 // ==============================================================================
 
 void setup() {
-  initLED();
+  beginLedManager();
 
   Serial.begin(115200);
   unsigned long bootStart = millis();
@@ -244,10 +333,10 @@ void setup() {
 
   if (finger.verifyPassword()) {
     Serial.println("Sensor found!");
-    setLedState(LED_READY);
+    ledReady();
   } else {
     Serial.println("ERROR: Sensor not found. Check wiring.");
-    triggerErrorFlash();
+    ledError();
     while (1) {
       updateLed();
       delay(1);
@@ -320,7 +409,7 @@ void handleCommand(String input) {
   // ── SCAN ──────────────────────────────────────────────────────
   if (input == "SCAN") {
     scanMode = true;
-    setLedState(LED_SCAN);
+    ledScan();
     Serial.println("\n>> Switched to SCAN MODE");
     Serial.println("   Place finger on sensor to log attendance.");
     Serial.println("   Type STOP to return to command mode.");
@@ -331,7 +420,7 @@ void handleCommand(String input) {
   // ── STOP ──────────────────────────────────────────────────────
   if (input == "STOP") {
     scanMode = false;
-    setLedState(LED_READY);
+    ledReady();
     Serial.println("\n>> Switched to COMMAND MODE");
     printHelp();
     Serial.println("CMD_MODE");
@@ -341,7 +430,7 @@ void handleCommand(String input) {
   // ── LIST ──────────────────────────────────────────────────────
   if (input == "LIST") {
     scanMode = false;
-    setLedState(LED_READY);
+    ledReady();
     finger.getTemplateCount();
     Serial.print("\n>> Stored fingerprints: ");
     Serial.println(finger.templateCount);
@@ -352,7 +441,7 @@ void handleCommand(String input) {
   // ── WIPE ──────────────────────────────────────────────────────
   if (input == "WIPE") {
     scanMode = false;
-    setLedState(LED_READY);
+    ledReady();
     Serial.println("\n>> Wiping ALL fingerprints...");
     if (finger.emptyDatabase() == FINGERPRINT_OK) {
       Serial.println("   SUCCESS - All fingerprints deleted.");
@@ -368,10 +457,10 @@ void handleCommand(String input) {
     int id = findNextAvailableId();
     if (id <= 0) {
       Serial.println("ERROR: No free fingerprint slots available. Delete one first.");
-      setLedState(LED_READY);
+      ledReady();
       return;
     }
-    setLedState(LED_ENROLL);
+    ledEnroll();
     scanMode = false; // pause scanning during enrollment
     enrollFinger(id);
     return;
@@ -381,10 +470,10 @@ void handleCommand(String input) {
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: ENROLL:5");
-      setLedState(LED_READY);
+      ledReady();
       return;
     }
-    setLedState(LED_ENROLL);
+    ledEnroll();
     scanMode = false; // pause scanning during enrollment
     enrollFinger(id);
     return;
@@ -392,7 +481,7 @@ void handleCommand(String input) {
 
   // ── DELETE:ID ─────────────────────────────────────────────────
   if (input.startsWith("DELETE:")) {
-    setLedState(LED_READY);
+    ledReady();
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: DELETE:5");
@@ -410,6 +499,13 @@ void handleCommand(String input) {
       Serial.print(id);
       Serial.println(" (may not exist)");
     }
+    return;
+  }
+
+  if (input.startsWith("STATUS:")) {
+    String state = input.substring(7);
+    state.trim();
+    handleHostStatus(state);
     return;
   }
 
@@ -448,7 +544,7 @@ bool checkEnrollmentCancel() {
   input.toUpperCase();
 
   if (input == "STOP") {
-    setLedState(LED_READY);
+    ledReady();
     Serial.println("\n>> Enrollment cancelled.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -457,7 +553,7 @@ bool checkEnrollmentCancel() {
 
   if (input.startsWith("DELETE:") || input.startsWith("ENROLL") || input == "WIPE" || input == "LIST" || input == "SCAN") {
     pendingCommand = input;
-    setLedState(LED_READY);
+    ledReady();
     Serial.println("\n>> Enrollment cancelled due to a new command.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -475,7 +571,7 @@ bool checkEnrollmentCancel() {
 // ==============================================================================
 
 void enrollFinger(int id) {
-  setLedState(LED_ENROLL);
+  ledEnroll();
   Serial.println();
   Serial.println("----------------------------------------");
   Serial.print("  ENROLLING FINGER AS ID #");
@@ -547,7 +643,7 @@ void enrollFinger(int id) {
   // ── CREATE MODEL ──────────────────────────────────────────────
   p = finger.createModel();
   if (p == FINGERPRINT_ENROLLMISMATCH) {
-    triggerErrorFlash(LED_READY);
+    ledError();
     Serial.println("  ERROR: Fingerprints did not match.");
     Serial.println("  Tip: Use the SAME finger, same position, both times.");
     Serial.print("  Type ENROLL:");
@@ -556,7 +652,7 @@ void enrollFinger(int id) {
     return;
   }
   if (p != FINGERPRINT_OK) {
-    triggerErrorFlash(LED_READY);
+    ledError();
     Serial.println("  ERROR: Could not create model.");
     return;
   }
@@ -564,7 +660,7 @@ void enrollFinger(int id) {
   // ── STORE ─────────────────────────────────────────────────────
   p = finger.storeModel(id);
   if (p == FINGERPRINT_OK) {
-    triggerMatchPulse(LED_READY);
+    ledSuccess();
     Serial.println("----------------------------------------");
     Serial.print("  SUCCESS! Finger saved as ID #");
     Serial.println(id);
@@ -574,7 +670,7 @@ void enrollFinger(int id) {
     Serial.println(finger.templateCount);
     Serial.println();
   } else {
-    triggerErrorFlash(LED_READY);
+    ledError();
     Serial.println("  ERROR: Could not store fingerprint.");
   }
 }
@@ -595,7 +691,7 @@ void scanFinger() {
   p = finger.fingerSearch();
   if (p == FINGERPRINT_OK) {
     if (finger.confidence >= MIN_CONFIDENCE) {
-      triggerMatchPulse(LED_SCAN);
+      ledSuccess();
       Serial.print("ID:");
       Serial.println(finger.fingerID);
       Serial.print("CONFIDENCE:");

@@ -15,7 +15,7 @@ level workflow logic.
 
 import time
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     import serial
@@ -46,7 +46,7 @@ def list_serial_ports() -> List[str]:
 def build_common_port_candidates(existing_ports: Optional[List[str]] = None) -> List[str]:
     """Return a list of common COM ports to try, with detected ports last."""
     ports = list(existing_ports or list_serial_ports())
-    seen = set()
+    seen: Set[str] = set()
     ordered: List[str] = []
     common = [
         "COM1", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
@@ -65,7 +65,7 @@ def build_common_port_candidates(existing_ports: Optional[List[str]] = None) -> 
 
 class SerialHandler:
     def __init__(self) -> None:
-        self.esp32: Optional[object] = None
+        self.esp32: Any = None
         self.connected = False
         self.reconnect_count = 0
         self.reconnect_port: Optional[str] = None
@@ -184,6 +184,10 @@ class SerialHandler:
             self._join_reconnect_thread()
 
             if self.esp32 is not None and getattr(self.esp32, "is_open", False):
+                try:
+                    self.esp32.write(("STATUS:HOST_DISCONNECTED\n").encode("utf-8"))
+                except Exception:
+                    pass
                 try:
                     self.esp32.write(("STOP\n").encode("utf-8"))
                 except Exception:
@@ -369,6 +373,11 @@ class SerialHandler:
             self.reconnect_baud = baud
             self.reconnect_count = 0
             log.success("Connected to ESP32", port=port, baud=baud)
+            try:
+                if self.esp32 is not None and getattr(self.esp32, "is_open", False):
+                    self.esp32.write(("STATUS:HOST_CONNECTED\n").encode("utf-8"))
+            except Exception:
+                pass
             return True, "OK"
         except Exception as exc:
             self.connected = False
