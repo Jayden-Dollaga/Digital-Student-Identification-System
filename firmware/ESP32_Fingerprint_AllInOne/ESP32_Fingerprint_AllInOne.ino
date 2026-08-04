@@ -45,26 +45,44 @@
 #include <Adafruit_Fingerprint.h>
 #include <HardwareSerial.h>
 
-#define FINGERPRINT_RX   14    // orange wire (sensor TX) connects here
-#define FINGERPRINT_TX   27    // white wire  (sensor RX) connects here
-#define LED_PIN          2     // onboard D2 LED on ESP32
-#define MIN_CONFIDENCE   50    // minimum confidence to accept a match
-#define SCAN_COOLDOWN    2000  // ms to wait after a scan before scanning again
+#define FINGERPRINT_RX        14    // orange wire (sensor TX) connects here
+#define FINGERPRINT_TX        27    // white wire  (sensor RX) connects here
+#define LED_PIN               2     // onboard D2 LED on ESP32
+#define LED_PWM_CHANNEL       0
+#define LED_PWM_FREQUENCY     5000
+#define LED_PWM_RESOLUTION    8
+#define LED_MAX_BRIGHTNESS    255
+#define MIN_CONFIDENCE        50    // minimum confidence to accept a match
+#define SCAN_COOLDOWN         2000  // ms to wait after a scan before scanning again
 
-const uint16_t MATCH_TIME = 2500;   // solid ON for successful match/store
-const uint16_t ERROR_TIME = 5000;   // rapid flash for error conditions
-const uint16_t READY_PERIOD = 2000; // slow blink for idle/ready state
-const uint16_t ENROLL_PERIOD = 400; // fast blink for enrollment state
+const unsigned long BOOT_PULSE_PERIOD_MS = 2000;
+const unsigned long SUCCESS_TOTAL_MS = 2500;
+const unsigned long ERROR_BLINK_MS = 70;
+const unsigned long ERROR_TOTAL_MS = 5000;
+const unsigned long READY_ON_MS = 500;
+const unsigned long READY_PERIOD_MS = 2000;
+const unsigned long SCAN_PULSE_MS = 100;
+const unsigned long ENROLL_ON_MS = 100;
+const unsigned long ENROLL_OFF_MS = 100;
+const unsigned long ENROLL_COUNT = 5;
+const unsigned long ENROLL_END_OFF_MS = 700;
+const unsigned long FIRMWARE_BLINK_MS = 500;
+const unsigned long COMM_ERROR_ON_MS = 700;
+const unsigned long COMM_ERROR_OFF_MS = 200;
 
 HardwareSerial mySerial(2);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
-enum LedMode {
-  LED_MODE_READY,
-  LED_MODE_SCAN,
-  LED_MODE_ENROLL,
-  LED_MODE_ERROR,
-  LED_MODE_MATCH
+enum LedState {
+  LED_BOOTING,
+  LED_READY,
+  LED_SCAN,
+  LED_SUCCESS,
+  LED_ENROLL,
+  LED_FIRMWARE,
+  LED_ERROR,
+  LED_COMMUNICATION_ERROR,
+  LED_SLEEP
 };
 
 const char DEVICE_IDENTIFIER[] = "Fingerprint Attendance";
@@ -73,86 +91,110 @@ const char DEVICE_FIRMWARE[] = "1.0";
 const char DEVICE_SENSOR[] = "AS608";
 const int DEVICE_PROTOCOL = 1;
 
-LedMode currentLedMode = LED_MODE_READY;
-LedMode returnLedMode = LED_MODE_READY;
-unsigned long patternStart = 0;
-bool ledState = false;
+LedState currentLedState = LED_BOOTING;
+LedState restoreLedState = LED_READY;
+unsigned long ledStateStart = 0;
 
-void setLedMode(LedMode mode) {
-  currentLedMode = mode;
-  patternStart = millis();
-  ledState = false;
-  digitalWrite(LED_PIN, LOW);
+void setLedBrightness(uint8_t brightness) {
+  ledcWrite(LED_PWM_CHANNEL, brightness);
 }
 
-void triggerMatchPulse() {
-  returnLedMode = currentLedMode;
-  currentLedMode = LED_MODE_MATCH;
-  patternStart = millis();
-  ledState = true;
-  digitalWrite(LED_PIN, HIGH);
+void setLedState(LedState state, LedState nextState = LED_READY) {
+  if (state == LED_SUCCESS || state == LED_ERROR) {
+    restoreLedState = nextState;
+  }
+  currentLedState = state;
+  ledStateStart = millis();
+  if (state == LED_BOOTING || state == LED_ERROR || state == LED_COMMUNICATION_ERROR) {
+    // ensure the LED begins from an off state for clean pulsing/blinking
+    setLedBrightness(0);
+  }
 }
 
-void triggerErrorFlash() {
-  returnLedMode = currentLedMode;
-  currentLedMode = LED_MODE_ERROR;
-  patternStart = millis();
-  ledState = false;
-  digitalWrite(LED_PIN, LOW);
+void triggerMatchPulse(LedState restoreState = LED_READY) {
+  setLedState(LED_SUCCESS, restoreState);
+}
+
+void triggerErrorFlash(LedState restoreState = LED_READY) {
+  setLedState(LED_ERROR, restoreState);
+}
+
+void initLED() {
+  pinMode(LED_PIN, OUTPUT);
+  ledcSetup(LED_PWM_CHANNEL, LED_PWM_FREQUENCY, LED_PWM_RESOLUTION);
+  ledcAttachPin(LED_PIN, LED_PWM_CHANNEL);
+  setLedState(LED_BOOTING);
+}
+
+uint8_t computeBootBrightness(unsigned long elapsed) {
+  unsigned long phase = elapsed % BOOT_PULSE_PERIOD_MS;
+  unsigned long half = BOOT_PULSE_PERIOD_MS / 2;
+  if (phase < half) {
+    return (uint8_t) map(phase, 0, half, 0, LED_MAX_BRIGHTNESS);
+  }
+  return (uint8_t) map(phase, half, BOOT_PULSE_PERIOD_MS, LED_MAX_BRIGHTNESS, 0);
 }
 
 void updateLed() {
   unsigned long now = millis();
+  unsigned long elapsed = now - ledStateStart;
 
-  if (currentLedMode == LED_MODE_MATCH) {
-    if (now - patternStart >= MATCH_TIME) {
-      setLedMode(returnLedMode);
-      return;
+  switch (currentLedState) {
+    case LED_BOOTING: {
+      setLedBrightness(computeBootBrightness(elapsed));
+      break;
     }
-    digitalWrite(LED_PIN, HIGH);
-    return;
-  }
-
-  if (currentLedMode == LED_MODE_ERROR) {
-    if (now - patternStart >= ERROR_TIME) {
-      setLedMode(returnLedMode);
-      return;
+    case LED_READY: {
+      unsigned long phase = elapsed % READY_PERIOD_MS;
+      setLedBrightness(phase < READY_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
     }
-
-    if ((now - patternStart) % 200 < 100) {
-      digitalWrite(LED_PIN, HIGH);
-    } else {
-      digitalWrite(LED_PIN, LOW);
+    case LED_SCAN: {
+      unsigned long phase = elapsed % (SCAN_PULSE_MS * 2);
+      setLedBrightness(phase < SCAN_PULSE_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
     }
-    return;
-  }
-
-  unsigned long elapsed = now - patternStart;
-
-  if (currentLedMode == LED_MODE_READY) {
-    if (elapsed % READY_PERIOD < READY_PERIOD / 2) {
-      digitalWrite(LED_PIN, HIGH);
-    } else {
-      digitalWrite(LED_PIN, LOW);
+    case LED_SUCCESS: {
+      if (elapsed >= SUCCESS_TOTAL_MS) {
+        setLedState(restoreLedState);
+        break;
+      }
+      setLedBrightness(LED_MAX_BRIGHTNESS);
+      break;
     }
-    return;
-  }
-
-  if (currentLedMode == LED_MODE_SCAN) {
-    unsigned long phase = elapsed % 2000;
-    if (phase < 200 || (phase >= 300 && phase < 500)) {
-      digitalWrite(LED_PIN, HIGH);
-    } else {
-      digitalWrite(LED_PIN, LOW);
+    case LED_ENROLL: {
+      unsigned long cycleTime = ENROLL_COUNT * (ENROLL_ON_MS + ENROLL_OFF_MS) + ENROLL_END_OFF_MS;
+      unsigned long phase = elapsed % cycleTime;
+      if (phase < ENROLL_COUNT * (ENROLL_ON_MS + ENROLL_OFF_MS)) {
+        unsigned long phaseInPulse = phase % (ENROLL_ON_MS + ENROLL_OFF_MS);
+        setLedBrightness(phaseInPulse < ENROLL_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      } else {
+        setLedBrightness(0);
+      }
+      break;
     }
-    return;
-  }
-
-  if (currentLedMode == LED_MODE_ENROLL) {
-    if ((elapsed % ENROLL_PERIOD) < ENROLL_PERIOD / 2) {
-      digitalWrite(LED_PIN, HIGH);
-    } else {
-      digitalWrite(LED_PIN, LOW);
+    case LED_FIRMWARE: {
+      unsigned long phase = elapsed % (FIRMWARE_BLINK_MS * 2);
+      setLedBrightness(phase < FIRMWARE_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_ERROR: {
+      if (elapsed >= ERROR_TOTAL_MS) {
+        setLedState(restoreLedState);
+        break;
+      }
+      unsigned long phase = elapsed % (ERROR_BLINK_MS * 2);
+      setLedBrightness(phase < ERROR_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_COMMUNICATION_ERROR: {
+      unsigned long phase = elapsed % (COMM_ERROR_ON_MS + COMM_ERROR_OFF_MS);
+      setLedBrightness(phase < COMM_ERROR_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_SLEEP: {
+      setLedBrightness(0);
+      break;
     }
   }
 }
@@ -171,11 +213,14 @@ String pendingCommand = "";
 // ==============================================================================
 
 void setup() {
-  pinMode(LED_PIN, OUTPUT);
-  setLedMode(LED_MODE_READY);
+  initLED();
 
   Serial.begin(115200);
-  delay(1000);
+  unsigned long bootStart = millis();
+  while (millis() - bootStart < 1000) {
+    updateLed();
+    delay(10);
+  }
 
   Serial.println("\n========================================");
   Serial.println("  AS608 All-in-One Fingerprint System");
@@ -199,7 +244,7 @@ void setup() {
 
   if (finger.verifyPassword()) {
     Serial.println("Sensor found!");
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
   } else {
     Serial.println("ERROR: Sensor not found. Check wiring.");
     triggerErrorFlash();
@@ -275,7 +320,7 @@ void handleCommand(String input) {
   // ── SCAN ──────────────────────────────────────────────────────
   if (input == "SCAN") {
     scanMode = true;
-    setLedMode(LED_MODE_SCAN);
+    setLedState(LED_SCAN);
     Serial.println("\n>> Switched to SCAN MODE");
     Serial.println("   Place finger on sensor to log attendance.");
     Serial.println("   Type STOP to return to command mode.");
@@ -286,7 +331,7 @@ void handleCommand(String input) {
   // ── STOP ──────────────────────────────────────────────────────
   if (input == "STOP") {
     scanMode = false;
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     Serial.println("\n>> Switched to COMMAND MODE");
     printHelp();
     Serial.println("CMD_MODE");
@@ -296,7 +341,7 @@ void handleCommand(String input) {
   // ── LIST ──────────────────────────────────────────────────────
   if (input == "LIST") {
     scanMode = false;
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     finger.getTemplateCount();
     Serial.print("\n>> Stored fingerprints: ");
     Serial.println(finger.templateCount);
@@ -307,7 +352,7 @@ void handleCommand(String input) {
   // ── WIPE ──────────────────────────────────────────────────────
   if (input == "WIPE") {
     scanMode = false;
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     Serial.println("\n>> Wiping ALL fingerprints...");
     if (finger.emptyDatabase() == FINGERPRINT_OK) {
       Serial.println("   SUCCESS - All fingerprints deleted.");
@@ -320,24 +365,26 @@ void handleCommand(String input) {
 
   // ── ENROLL / ENROLL:ID ──────────────────────────────────────
   if (input == "ENROLL") {
-    setLedMode(LED_MODE_ENROLL);
     int id = findNextAvailableId();
     if (id <= 0) {
       Serial.println("ERROR: No free fingerprint slots available. Delete one first.");
+      setLedState(LED_READY);
       return;
     }
+    setLedState(LED_ENROLL);
     scanMode = false; // pause scanning during enrollment
     enrollFinger(id);
     return;
   }
 
   if (input.startsWith("ENROLL:")) {
-    setLedMode(LED_MODE_ENROLL);
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: ENROLL:5");
+      setLedState(LED_READY);
       return;
     }
+    setLedState(LED_ENROLL);
     scanMode = false; // pause scanning during enrollment
     enrollFinger(id);
     return;
@@ -345,7 +392,7 @@ void handleCommand(String input) {
 
   // ── DELETE:ID ─────────────────────────────────────────────────
   if (input.startsWith("DELETE:")) {
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     int id = input.substring(7).toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: DELETE:5");
@@ -401,7 +448,7 @@ bool checkEnrollmentCancel() {
   input.toUpperCase();
 
   if (input == "STOP") {
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     Serial.println("\n>> Enrollment cancelled.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -410,7 +457,7 @@ bool checkEnrollmentCancel() {
 
   if (input.startsWith("DELETE:") || input.startsWith("ENROLL") || input == "WIPE" || input == "LIST" || input == "SCAN") {
     pendingCommand = input;
-    setLedMode(LED_MODE_READY);
+    setLedState(LED_READY);
     Serial.println("\n>> Enrollment cancelled due to a new command.");
     Serial.println("ENROLLMENT cancelled.");
     Serial.println("CMD_MODE");
@@ -428,7 +475,7 @@ bool checkEnrollmentCancel() {
 // ==============================================================================
 
 void enrollFinger(int id) {
-  setLedMode(LED_MODE_ENROLL);
+  setLedState(LED_ENROLL);
   Serial.println();
   Serial.println("----------------------------------------");
   Serial.print("  ENROLLING FINGER AS ID #");
@@ -500,7 +547,7 @@ void enrollFinger(int id) {
   // ── CREATE MODEL ──────────────────────────────────────────────
   p = finger.createModel();
   if (p == FINGERPRINT_ENROLLMISMATCH) {
-    triggerErrorFlash();
+    triggerErrorFlash(LED_READY);
     Serial.println("  ERROR: Fingerprints did not match.");
     Serial.println("  Tip: Use the SAME finger, same position, both times.");
     Serial.print("  Type ENROLL:");
@@ -509,7 +556,7 @@ void enrollFinger(int id) {
     return;
   }
   if (p != FINGERPRINT_OK) {
-    triggerErrorFlash();
+    triggerErrorFlash(LED_READY);
     Serial.println("  ERROR: Could not create model.");
     return;
   }
@@ -517,7 +564,7 @@ void enrollFinger(int id) {
   // ── STORE ─────────────────────────────────────────────────────
   p = finger.storeModel(id);
   if (p == FINGERPRINT_OK) {
-    triggerMatchPulse();
+    triggerMatchPulse(LED_READY);
     Serial.println("----------------------------------------");
     Serial.print("  SUCCESS! Finger saved as ID #");
     Serial.println(id);
@@ -527,11 +574,9 @@ void enrollFinger(int id) {
     Serial.println(finger.templateCount);
     Serial.println();
   } else {
-    triggerErrorFlash();
+    triggerErrorFlash(LED_READY);
     Serial.println("  ERROR: Could not store fingerprint.");
   }
-
-  setLedMode(LED_MODE_READY);
 }
 
 
@@ -550,7 +595,7 @@ void scanFinger() {
   p = finger.fingerSearch();
   if (p == FINGERPRINT_OK) {
     if (finger.confidence >= MIN_CONFIDENCE) {
-      triggerMatchPulse();
+      triggerMatchPulse(LED_SCAN);
       Serial.print("ID:");
       Serial.println(finger.fingerID);
       Serial.print("CONFIDENCE:");
