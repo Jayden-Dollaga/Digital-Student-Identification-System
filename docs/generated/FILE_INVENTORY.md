@@ -1,0 +1,337 @@
+# File Inventory
+This file lists repository files and key folders for the documentation audit.
+- .gitattributes
+- .gitignore
+- .vscode/settings.json
+- data/attendance.db
+- data/backups/attendance_20260704_231236.db
+- data/backups/attendance_20260704_231628.db
+- data/backups/attendance_20260704_231812.db
+- data/backups/attendance_20260704_232824.db
+- data/backups/attendance_20260704_233316.db
+- data/backups/attendance_20260704_234147.db
+- data/backups/attendance_20260705_034043.db
+- data/backups/attendance_20260705_175923.db
+- data/backups/attendance_20260705_191845.db
+- data/backups/attendance_20260707_023512.db
+- data/backups/attendance_20260707_111800.db
+- data/backups/attendance_20260707_115041.db
+- data/backups/attendance_20260709_111900.db
+- data/backups/attendance_20260709_112423.db
+- data/backups/attendance_20260709_114032.db
+- data/backups/attendance_20260709_114109.db
+- data/backups/attendance_20260709_120016.db
+- data/backups/attendance_20260709_121906.db
+- data/backups/attendance_20260710_213837.db
+- data/backups/attendance_20260710_214404.db
+- data/backups/attendance_20260711_154901.db
+- data/backups/attendance_20260716_001254.db
+- data/charts/attendance_timeline.png
+- data/charts/grade_chart.png
+- data/charts/section_chart.png
+- data/logs/2026-07-04.log
+- data/logs/2026-07-05.log
+- data/logs/2026-07-06.log
+- data/logs/2026-07-07.log
+- data/logs/2026-07-08.log
+- data/logs/2026-07-09.log
+- data/logs/2026-07-10.log
+- data/logs/2026-07-11.log
+- data/logs/2026-07-12.log
+- data/logs/2026-07-15.log
+- data/logs/2026-07-16.log
+- data/logs/2026-07-17.log
+- data/logs/fingerprint_attendance.log
+- data/logs/fingerprint_attendance.log.2026-07-17
+- data/logs/fingerprint_attendance.log.2026-07-28
+- data/logs/fingerprint_attendance.log.2026-08-03
+- data/settings.json
+- docs/Architecture/architecture.md
+- docs/Architecture/database-schema.md
+- docs/Architecture/software-flow.md
+- docs/Architecture/system-architecture.md
+- docs/Development/change-log.md
+- docs/Development/database-integration-summary.md
+- docs/Development/database-updates.md
+- docs/Development/FILES_DETAILED.md
+- docs/Development/FILES_OVERVIEW.md
+- docs/Development/fix_report.md
+- docs/Development/implementation-summary.md
+- docs/Development/logger_usage.md
+- docs/Development/logging-guide.md
+- docs/Development/logging-quick-reference.md
+- docs/Development/logging-summary.md
+- docs/Development/migration-example.md
+- docs/Development/notes.txt
+- docs/Development/polish-phase-complete.md
+- docs/Development/polish-phase-roadmap.md
+- docs/Development/structure.txt
+- docs/Development/todo.md
+- docs/generated/ARCHITECTURE.md
+- docs/generated/DATABASE.md
+- docs/generated/FIRMWARE.md
+- docs/generated/GUI.md
+- docs/generated/PROJECT_OVERVIEW.md
+- docs/generated/REPOSITORY_AUDIT.md
+- docs/generated/SERIAL_PROTOCOL.md
+- docs/generated/TESTING.md
+- docs/Hardware/hardware-connections.md
+- docs/Hardware/images/IMG20260630233940.jpg
+- docs/Hardware/images/IMG20260630233946.jpg
+- docs/Hardware/images/IMG20260630233949.jpg
+- docs/Hardware/images/IMG20260630235111.jpg
+- docs/Hardware/images/IMG20260630235113.jpg
+- docs/Hardware/images/IMG20260630235115.jpg
+- docs/Hardware/images/IMG20260630235122.jpg
+- docs/Hardware/images/IMG20260630235124.jpg
+- docs/Hardware/images/IMG20260630235318.jpg
+- docs/Hardware/images/IMG20260701000304.jpg
+- docs/Hardware/images/IMG20260701000309.jpg
+- docs/Hardware/images/IMG20260701000315.jpg
+- docs/Hardware/images/IMG20260701000319.jpg
+- docs/Hardware/images/IMG20260701000326.jpg
+- docs/Hardware/images/IMG20260701000328.jpg
+- docs/Hardware/images/IMG20260701010721.jpg
+- docs/Hardware/images/IMG20260701010726.jpg
+- docs/Hardware/images/IMG20260701010735.jpg
+- docs/Hardware/wiring.md
+- docs/INDEX.md
+- docs/notes.txt
+- docs/UserGuide/images/Screenshot 2026-06-27 182256.png
+- docs/UserGuide/images/Screenshot 2026-06-29 232644.png
+- docs/UserGuide/images/Screenshot 2026-06-29 233641.png
+- docs/UserGuide/images/Screenshot 2026-06-30 115359.png
+- docs/UserGuide/images/Screenshot 2026-06-30 115404.png
+- docs/UserGuide/images/Screenshot 2026-06-30 190312.png
+- docs/UserGuide/images/Screenshot 2026-06-30 193423.png
+- docs/UserGuide/images/Screenshot 2026-06-30 193928.png
+- docs/UserGuide/images/Screenshot 2026-06-30 194343.png
+- docs/UserGuide/images/Screenshot 2026-06-30 194530.png
+- docs/UserGuide/images/Screenshot 2026-06-30 195210.png
+- docs/UserGuide/images/Screenshot 2026-06-30 200710.png
+- docs/UserGuide/images/Screenshot 2026-06-30 201634.png
+- docs/UserGuide/images/Screenshot 2026-06-30 204935.png
+- docs/UserGuide/images/Screenshot 2026-06-30 205811.png
+- docs/UserGuide/images/Screenshot 2026-06-30 205826.png
+- docs/UserGuide/images/Screenshot 2026-06-30 212105.png
+- docs/UserGuide/images/Screenshot 2026-06-30 213207.png
+- docs/UserGuide/images/Screenshot 2026-06-30 214250.png
+- docs/UserGuide/images/Screenshot 2026-06-30 223351.png
+- docs/UserGuide/images/Screenshot 2026-06-30 230553.png
+- docs/UserGuide/images/Screenshot 2026-06-30 230614.png
+- docs/UserGuide/images/Screenshot 2026-06-30 231636.png
+- docs/UserGuide/images/Screenshot 2026-06-30 234700.png
+- docs/UserGuide/images/Screenshot 2026-07-01 215932.png
+- docs/UserGuide/images/Screenshot 2026-07-01 220522.png
+- docs/UserGuide/images/Screenshot 2026-07-01 220725.png
+- docs/UserGuide/images/Screenshot 2026-07-01 222527.png
+- docs/UserGuide/images/Screenshot 2026-07-01 222624.png
+- docs/UserGuide/images/Screenshot 2026-07-01 223020.png
+- docs/UserGuide/images/Screenshot 2026-07-02 000130.png
+- docs/UserGuide/images/Screenshot 2026-07-02 213944.png
+- docs/UserGuide/images/Screenshot 2026-07-02 215347.png
+- docs/UserGuide/images/Screenshot 2026-07-02 215354.png
+- docs/UserGuide/images/Screenshot 2026-07-03 122804.png
+- docs/UserGuide/images/Screenshot 2026-07-04 010505.png
+- docs/UserGuide/images/Screenshot 2026-07-04 025719.png
+- docs/UserGuide/images/Screenshot 2026-07-04 025743.png
+- docs/UserGuide/images/Screenshot 2026-07-04 025834.png
+- docs/UserGuide/images/Screenshot 2026-07-04 030024.png
+- docs/UserGuide/images/Screenshot 2026-07-04 030032.png
+- docs/UserGuide/images/Screenshot 2026-07-04 030115.png
+- docs/UserGuide/images/Screenshot 2026-07-04 031323.png
+- docs/UserGuide/images/Screenshot 2026-07-04 031534.png
+- docs/UserGuide/images/Screenshot 2026-07-04 035208.png
+- docs/UserGuide/images/Screenshot 2026-07-04 221654.png
+- docs/UserGuide/images/Screenshot 2026-07-04 221905.png
+- docs/UserGuide/images/Screenshot 2026-07-04 222938.png
+- docs/UserGuide/images/Screenshot 2026-07-04 230533.png
+- docs/UserGuide/images/Screenshot 2026-07-05 172750.png
+- docs/UserGuide/images/Screenshot 2026-07-05 172808.png
+- docs/UserGuide/images/Screenshot 2026-07-05 172824.png
+- docs/UserGuide/images/Screenshot 2026-07-05 181406.png
+- docs/UserGuide/images/Screenshot 2026-07-05 181409.png
+- docs/UserGuide/images/Screenshot 2026-07-05 181414.png
+- docs/UserGuide/images/Screenshot 2026-07-05 182045.png
+- docs/UserGuide/images/Screenshot 2026-07-05 191105.png
+- docs/UserGuide/images/Screenshot 2026-07-05 201039.png
+- docs/UserGuide/images/Screenshot 2026-07-06 215013.png
+- docs/UserGuide/images/Screenshot 2026-07-06 220200.png
+- docs/UserGuide/images/Screenshot 2026-07-06 220415.png
+- docs/UserGuide/images/Screenshot 2026-07-06 220426.png
+- docs/UserGuide/installation-guide.md
+- docs/UserGuide/project-overview.md
+- docs/UserGuide/testing-results.md
+- firmware/attendance/attendance.ino
+- firmware/delete/delete.ino
+- firmware/enroll/enroll.ino
+- firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino
+- firmware/prebuilt/attendance_v1.0.bin
+- firmware/test/fingerprint_check/fingerprint_check.ino
+- install_requirements.bat
+- INSTALLATION.md
+- LICENSE
+- list.txt
+- list_files.bat
+- PORTABLE_BUILD.md
+- pytest.ini
+- python/__init__.py
+- python/config.py
+- python/core/__init__.py
+- python/core/attendance.py
+- python/core/commands.py
+- python/core/database.py
+- python/core/device_discovery.py
+- python/core/firmware_helper.py
+- python/core/logger.py
+- python/core/serial_handler.py
+- python/core/utils.py
+- python/customtkinter.py
+- python/gui/__init__.py
+- python/gui/app.py
+- python/gui/attendance_page.py
+- python/gui/dashboard.py
+- python/gui/dialogs.py
+- python/gui/layout_utils.py
+- python/gui/legacy/bfeas_app2.py
+- python/gui/legacy/reports_table_page.py
+- python/gui/log_page.py
+- python/gui/perf_profiler.py
+- python/gui/reports_page.py
+- python/gui/serial_troubleshooting.py
+- python/gui/settings_dialog.py
+- python/gui/settings_page.py
+- python/gui/sidebar.py
+- python/gui/statistics_page.py
+- python/gui/students_page.py
+- python/gui/theme.py
+- python/gui_qt/__init__.py
+- python/gui_qt/main_qt.py
+- python/gui_qt/main_window.py
+- python/gui_qt/pages/__init__.py
+- python/gui_qt/pages/attendance_page.py
+- python/gui_qt/pages/dashboard_page.py
+- python/gui_qt/pages/logs_page.py
+- python/gui_qt/pages/reports_page.py
+- python/gui_qt/pages/settings_page.py
+- python/gui_qt/pages/students_page.py
+- python/gui_qt/theme.qss
+- python/gui_qt/theme_light.qss
+- python/gui_qt/widgets/__init__.py
+- python/gui_qt/widgets/sidebar.py
+- python/gui_qt/widgets/stat_card.py
+- python/gui_qt/workers/__init__.py
+- python/gui_qt/workers/serial_worker.py
+- python/list.txt
+- python/main.py
+- python/non_workflow/fix_emoji.py
+- python/non_workflow/main_window.py
+- python/non_workflow/serial.py
+- python/non_workflow/widgets.py
+- python/services/__init__.py
+- python/services/attendance_service.py
+- python/services/student_service.py
+- python/settings_store.py
+- python/testing_area/core/database_addition_snippet.py
+- python/testing_area/gui/legacy/app_test.py
+- python/testing_area/gui/legacy/app_test1.py
+- python/testing_area/gui/legacy/bfeas_app.py
+- python/testing_area/gui/legacy/bfeas_app2.py
+- python/testing_area/gui/legacy/reports_table_page.py
+- python/testing_area/README.txt
+- python/testing_area/services/backup.py
+- python/testing_area/services/excel_export.py
+- README.md
+- requirements.txt
+- run_app.bat
+- run_qt_gui.bat
+- run_qt_gui.py
+- tests/app_test.py
+- tests/comprehensive_test.py
+- tests/ENHANCED_GUI_GUIDE.txt
+- tests/ESP32 R307 Finger print Sensor/ESP32_enroll_R307_finger_Print/ESP32_enroll_R307_finger_Print.ino
+- tests/ESP32 R307 Finger print Sensor/esp32_fingerprint_check_R307/esp32_fingerprint_check_R307.ino
+- tests/ESP32 R307 Finger print Sensor.zip
+- tests/gui_qt_redesign/gui_qt/__init__.py
+- tests/gui_qt_redesign/gui_qt/main_qt.py
+- tests/gui_qt_redesign/gui_qt/main_window.py
+- tests/gui_qt_redesign/gui_qt/pages/__init__.py
+- tests/gui_qt_redesign/gui_qt/pages/attendance_page.py
+- tests/gui_qt_redesign/gui_qt/pages/dashboard_page.py
+- tests/gui_qt_redesign/gui_qt/pages/logs_page.py
+- tests/gui_qt_redesign/gui_qt/pages/reports_page.py
+- tests/gui_qt_redesign/gui_qt/pages/settings_page.py
+- tests/gui_qt_redesign/gui_qt/pages/students_page.py
+- tests/gui_qt_redesign/gui_qt/theme.qss
+- tests/gui_qt_redesign/gui_qt/widgets/__init__.py
+- tests/gui_qt_redesign/gui_qt/widgets/sidebar.py
+- tests/gui_qt_redesign/gui_qt/widgets/stat_card.py
+- tests/gui_qt_redesign/gui_qt/workers/__init__.py
+- tests/gui_qt_redesign/gui_qt/workers/serial_worker.py
+- tests/gui_qt_redesign/README.md
+- tests/gui_qt_redesign (2)/gui_qt/__init__.py
+- tests/gui_qt_redesign (2)/gui_qt/main_qt.py
+- tests/gui_qt_redesign (2)/gui_qt/main_window.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/__init__.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/attendance_page.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/dashboard_page.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/logs_page.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/reports_page.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/settings_page.py
+- tests/gui_qt_redesign (2)/gui_qt/pages/students_page.py
+- tests/gui_qt_redesign (2)/gui_qt/theme.qss
+- tests/gui_qt_redesign (2)/gui_qt/widgets/__init__.py
+- tests/gui_qt_redesign (2)/gui_qt/widgets/sidebar.py
+- tests/gui_qt_redesign (2)/gui_qt/widgets/stat_card.py
+- tests/gui_qt_redesign (2)/gui_qt/workers/__init__.py
+- tests/gui_qt_redesign (2)/gui_qt/workers/serial_worker.py
+- tests/gui_qt_redesign (2)/README.md
+- tests/gui_qt_redesign.zip
+- tests/HOW_TO_RUN_TEST_GUI.txt
+- tests/legacy/phase2_databasev1.py
+- tests/legacy/phase2_databasev2.py
+- tests/legacy/phase2_databasev3.py
+- tests/legacy/phase2_databasev4.py
+- tests/legacy/phase2_serial_test.py
+- tests/legacy/raw_serial_diagnostic/raw_serial_diagnostic.ino
+- tests/QUICK_REFERENCE.txt
+- tests/README_TEST_GUI.txt
+- tests/test_attendance_parsing.py
+- tests/test_attendance_processor.py
+- tests/test_attendance_refresh.py
+- tests/test_attendance_ui_regressions.py
+- tests/test_attendance_ui_utils.py
+- tests/test_auto_port_probe.py
+- tests/test_bfeas_app2_import.py
+- tests/test_database_features.py
+- tests/test_database_reset.py
+- tests/test_dialog_handlers.py
+- tests/test_firmware_helper.py
+- tests/test_gui_demo.py
+- tests/TEST_GUI_README.md
+- tests/test_gui_settings_integration.py
+- tests/test_gui_shutdown.py
+- tests/test_mode_exclusivity.py
+- tests/test_project_structure.py
+- tests/test_qt_attendance_page.py
+- tests/test_qt_settings_logs.py
+- tests/test_qt_shell.py
+- tests/test_qt_students_page.py
+- tests/test_reports_page_import.py
+- tests/test_responsive_layout.py
+- tests/test_serial_troubleshooting.py
+- tests/test_settings_persistence.py
+- tests/test_settings_toggles.py
+- tests/test_theme_switching.py
+- tests/test_type_hints.py
+- tests/test_vidpid_normalization.py
+- tests/VISUAL_GUIDE.txt
+- tests/whs_dashboard.py
+- tools/_database_refactor.py
+- tools/archive_unused_python.py
+- tools/build_portable.bat
+- tools/debug_db_connections.py
+- tools/fingerprint_portable.spec
+- tools/list_files.bat
+- tools/portable_bootstrap.bat
+- tools/verify_gui_startup.py
