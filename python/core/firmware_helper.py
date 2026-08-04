@@ -59,7 +59,9 @@ def build_upload_command(port: str, firmware_path: Path, baud_rate: int = 115200
     elif shutil.which("esptool"):
         tool = "esptool"
     else:
+        # Fall back to invoking esptool as a module with the current Python
         tool = sys.executable
+        return [tool, "-m", "esptool", "--chip", "esp32", "--port", port, "--baud", str(baud_rate), "write_flash", "-z", "0x1000", str(firmware_path)]
     command = [tool, "--chip", "esp32", "--port", port, "--baud", str(baud_rate), "write_flash", "-z", "0x1000", str(firmware_path)]
     return command
 
@@ -115,7 +117,17 @@ def upload_firmware_with_progress(
                         progress_callback(line)
                     except Exception:
                         pass
-        proc.wait(timeout=timeout)
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            msg = "Firmware upload timed out and was terminated."
+            if progress_callback:
+                progress_callback(msg)
+            return False, msg
         out = "\n".join(output_lines).strip()
         if proc.returncode == 0:
             return True, out or "Firmware upload completed."

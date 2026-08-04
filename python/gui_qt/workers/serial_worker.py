@@ -30,6 +30,7 @@ RE_WIPE_SUCCESS = re.compile(r"SUCCESS\s*-\s*All fingerprints deleted", re.IGNOR
 
 class SerialWorker(QThread):
     connection_changed = Signal(str)   # "connected" | "disconnected" | "connecting"
+    mode_changed = Signal(str)         # "scan" | "command"
     scan_event = Signal(dict)          # processed + student-joined scan result
     log_line = Signal(str)             # raw ESP32 line, for the Logs page
     enroll_progress = Signal(dict)     # {"event": "enrolling"|"success"|"cancelled"|"error", "id": str|None}
@@ -78,9 +79,16 @@ class SerialWorker(QThread):
                 continue
 
             self.log_line.emit(f"ESP32: {line}")
+            self._parse_mode_line(line)
             self._process_line(line)
             self._parse_enroll_progress(line)
             self._parse_wipe_progress(line)
+
+    def _parse_mode_line(self, line: str):
+        if line == "SCAN_MODE":
+            self.mode_changed.emit("scan")
+        elif line == "CMD_MODE":
+            self.mode_changed.emit("command")
 
     def _process_line(self, line: str):
         """Mirrors app.py's _dispatch_attendance_message / _handle_scan_result."""

@@ -198,6 +198,18 @@ Fingerprint-Attendance-System/
 
 - [python/main.py](python/main.py) — legacy application entry point for serial communication and the console-style workflow.
 - [python/config.py](python/config.py) — central runtime configuration with environment overrides and portable path logic.
+
+## Recent maintenance changes
+
+The project includes several low-risk maintenance improvements to harden serial, database, and firmware upload behavior:
+
+- Normalized VID:PID formatting to zero-padded 4-digit hex for consistent device discovery and UI labeling.
+- Use the discovery-returned canonical serial port for opening connections to avoid casing/normalization mismatches.
+- Increased SQLite connection timeout to 30s to reduce transient 'database is locked' errors under concurrent access.
+- Improved firmware upload timeout handling: esptool subprocesses are killed on timeout and a clear error message is returned.
+- Added `tests/test_vidpid_normalization.py` to protect VID:PID normalization and scoring.
+
+These changes are low-risk and backwards-compatible; they improve reliability without changing public APIs.
 - [python/core/attendance.py](python/core/attendance.py) — parses ESP32 serial output into attendance events and applies cooldown logic.
 - [python/core/commands.py](python/core/commands.py) — wraps ESP32 commands like scan, stop, enroll, delete, wipe, and list.
 - [python/core/database.py](python/core/database.py) — SQLite persistence layer for students, attendance, backups, exports, and reset operations.

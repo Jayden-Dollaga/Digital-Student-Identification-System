@@ -209,7 +209,8 @@ def get_default_com_port(default_fallback: Optional[str] = None) -> str:
         combined = f"{device} {description}"
         vid = getattr(port, "vid", None)
         pid = getattr(port, "pid", None)
-        vid_pid = f"{vid:x}:{pid:x}" if vid is not None and pid is not None else ""
+        # Normalize VID:PID to zero-padded 4-digit hex (matches settings UI formatting)
+        vid_pid = f"{vid:04x}:{pid:04x}" if vid is not None and pid is not None else ""
         score = 0
         if vid_pid in known_vid_pids:
             score += known_vid_pids[vid_pid]

@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
         #      actual connect happens when the user clicks Connect, same as
         #      app.py's toggle_connection -> start_reader_thread flow) ----
         self.serial_worker.connection_changed.connect(self.on_connection_changed)
+        self.serial_worker.mode_changed.connect(self.on_scan_mode_changed)
         self.serial_worker.scan_event.connect(self.on_scan_event)
         self.serial_worker.log_line.connect(self.logs_page.append_line)
         self.serial_worker.error.connect(self.on_serial_error)
@@ -242,6 +243,13 @@ class MainWindow(QMainWindow):
 
     def on_serial_error(self, message: str):
         self.logs_page.append_line(f"[ERROR] {message}")
+
+    def on_scan_mode_changed(self, mode: str):
+        if mode == "scan":
+            self.scan_active = True
+        elif mode == "command":
+            self.scan_active = False
+        self._update_scan_toggle_button()
 
     def _update_scan_toggle_button(self):
         if self.scan_active:

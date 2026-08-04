@@ -101,7 +101,8 @@ def get_connection() -> ManagedConnection:
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
 
-    connection = sqlite3.connect(DB_PATH)
+    # Increase timeout to reduce chance of 'database is locked' errors
+    connection = sqlite3.connect(DB_PATH, timeout=30)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return ManagedConnection(connection)

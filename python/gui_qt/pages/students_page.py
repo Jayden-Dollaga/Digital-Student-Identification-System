@@ -134,7 +134,7 @@ class EnrollDialog(QDialog):
     def closeEvent(self, event):
         try:
             self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
-            self.serial_worker.log_line.disconnect(self.log_view.append)
+            self.serial_worker.log_line.disconnect(self._append_log_line)
         except (RuntimeError, TypeError):
             pass
         if self.serial_handler.is_connected():

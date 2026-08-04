@@ -61,7 +61,8 @@ def _score_port_info(port_info: Any) -> int:
 
     vid = getattr(port_info, "vid", None)
     pid = getattr(port_info, "pid", None)
-    vid_pid = f"{vid:x}:{pid:x}" if vid is not None and pid is not None else ""
+    # Use zero-padded 4-digit hex for consistent VID:PID formatting (matches other modules)
+    vid_pid = f"{vid:04x}:{pid:04x}" if vid is not None and pid is not None else ""
     if vid_pid in KNOWN_VID_PID_SCORES:
         score += KNOWN_VID_PID_SCORES[vid_pid]
 
@@ -90,9 +91,12 @@ def _ordered_candidate_ports(preferred_port: Optional[str] = None) -> List[str]:
         if not port:
             return
         normalized = port.strip()
-        if not normalized or normalized in seen:
+        if not normalized:
             return
-        seen.add(normalized)
+        key = normalized.upper()
+        if key in seen:
+            return
+        seen.add(key)
         ordered.append(normalized)
 
     add_port(preferred_port)
@@ -181,6 +185,7 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[Di
                     return True, metadata, "OK"
                 return False, None, f"handshake rejected: {reason}"
     except Exception as exc:
+        log.warning("Exception while probing port for handshake", port=port, error=str(exc))
         return False, None, str(exc)
 
     return False, None, "no handshake response"

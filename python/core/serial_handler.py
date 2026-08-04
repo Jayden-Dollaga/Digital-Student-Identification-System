@@ -118,9 +118,12 @@ class SerialHandler:
                 if self.auto_reconnect_enabled:
                     self._schedule_reconnect()
                 return False, f"ESP32 discovery failed on {port}: {discovery_error}"
-
-            result, message = self._attempt_connect(port, baud, wait_for_device=wait_for_device)
+            # Use the discovered canonical port when attempting to open the serial
+            # connection (discovery may normalize device names / casing).
+            result, message = self._attempt_connect(discovery_port, baud, wait_for_device=wait_for_device)
             if result:
+                # update reconnect_port to the actual opened port and attach metadata
+                self.reconnect_port = discovery_port
                 self.device_metadata = metadata
                 return True, message
             self.connected = False
@@ -243,12 +246,15 @@ class SerialHandler:
         if not raw:
             return None
 
-        self._read_buffer += raw
-        if b"\n" not in self._read_buffer:
-            return None
+        # Protect read buffer manipulation with the same lock to avoid races
+        # if read_line is called from multiple threads.
+        with self._lock:
+            self._read_buffer += raw
+            if b"\n" not in self._read_buffer:
+                return None
 
-        line_bytes, _, remainder = self._read_buffer.partition(b"\n")
-        self._read_buffer = remainder
+            line_bytes, _, remainder = self._read_buffer.partition(b"\n")
+            self._read_buffer = remainder
 
         try:
             line = line_bytes.decode("utf-8", errors="ignore")
