@@ -15,7 +15,7 @@ level workflow logic.
 
 import time
 import threading
-from typing import Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import serial
@@ -24,7 +24,8 @@ except ModuleNotFoundError:  # pragma: no cover
     serial = None
     list_ports = None
 
-from config import get_config
+from config import get_config, get_default_com_port
+from core.device_discovery import discover_device
 from core.logger import log
 
 CONFIG = get_config()
@@ -42,6 +43,26 @@ def list_serial_ports() -> List[str]:
         return []
 
 
+def build_common_port_candidates(existing_ports: Optional[List[str]] = None) -> List[str]:
+    """Return a list of common COM ports to try, with detected ports last."""
+    ports = list(existing_ports or list_serial_ports())
+    seen = set()
+    ordered: List[str] = []
+    common = [
+        "COM1", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "COM10", "COM11", "COM12",
+    ]
+    for port in common:
+        if port not in seen:
+            seen.add(port)
+            ordered.append(port)
+    for port in ports:
+        if port not in seen:
+            seen.add(port)
+            ordered.append(port)
+    return ordered
+
+
 class SerialHandler:
     def __init__(self) -> None:
         self.esp32: Optional[object] = None
@@ -49,11 +70,13 @@ class SerialHandler:
         self.reconnect_count = 0
         self.reconnect_port: Optional[str] = None
         self.reconnect_baud: Optional[int] = None
+        self.device_metadata: Optional[Dict[str, Any]] = None
         self.auto_reconnect_enabled = CONFIG.auto_reconnect
         self._pyserial_missing_warning_shown = False
         self._lock = threading.RLock()
         self._reconnect_thread: Optional[threading.Thread] = None
         self._reconnect_stop = threading.Event()
+        self._read_buffer = b""
 
     @property
     def pyserial_installed(self) -> bool:
@@ -62,7 +85,13 @@ class SerialHandler:
     def list_available_ports(self) -> List[str]:
         return list_serial_ports()
 
-    def connect(self, port: str = "", baud: int = 115200, wait_for_device: bool = False) -> Tuple[bool, str]:
+    def connect(
+        self,
+        port: str = "",
+        baud: int = 115200,
+        wait_for_device: bool = False,
+        auto_detect: bool = False,
+    ) -> Tuple[bool, str]:
         """
         Connect to ESP32 over serial.
         Returns (True, "OK") or (False, error message).
@@ -74,35 +103,76 @@ class SerialHandler:
                 self._pyserial_missing_warning_shown = True
             return False, "pyserial is not installed. Run: pip install -r requirements.txt"
 
-        port = port or CONFIG.com_port
+        port = port.strip() if port else ""
         baud = baud or CONFIG.baud_rate
-        self.reconnect_port = port
-        self.reconnect_baud = baud
         self._reconnect_stop.clear()
+        self.device_metadata = None
 
-        with self._lock:
-            if self.esp32 is not None and getattr(self.esp32, "is_open", False):
-                try:
-                    self.esp32.close()
-                except Exception:
-                    pass
-                self.esp32 = None
-
-            try:
-                self.esp32 = serial.Serial(port, baud, timeout=0)
-                if wait_for_device:
-                    time.sleep(2)
-                self.connected = True
-                self.reconnect_count = 0
-                log.success("Connected to ESP32", port=port, baud=baud)
-                return True, "OK"
-            except Exception as exc:
+        if port and not auto_detect:
+            self.reconnect_port = port
+            self.reconnect_baud = baud
+            discovery_port, metadata, discovery_error = discover_device(preferred_port=port, baud=baud, allow_search=False)
+            if discovery_port is None:
                 self.connected = False
                 self.esp32 = None
-                log.error("Serial connection failed", port=port, baud=baud, error=str(exc))
                 if self.auto_reconnect_enabled:
                     self._schedule_reconnect()
-                return False, str(exc)
+                return False, f"ESP32 discovery failed on {port}: {discovery_error}"
+
+            result, message = self._attempt_connect(port, baud, wait_for_device=wait_for_device)
+            if result:
+                self.device_metadata = metadata
+                return True, message
+            self.connected = False
+            self.esp32 = None
+            if self.auto_reconnect_enabled:
+                self._schedule_reconnect()
+            return False, message
+
+        if auto_detect:
+            preferred_port = port if port else None
+            candidate_port, metadata, error = discover_device(preferred_port=preferred_port, baud=baud)
+            if candidate_port:
+                self.reconnect_port = candidate_port
+                self.reconnect_baud = baud
+                result, message = self._attempt_connect(candidate_port, baud, wait_for_device=wait_for_device)
+                if result:
+                    self.device_metadata = metadata
+                    return True, message
+                log.warning(
+                    "ESP32 discovery succeeded but could not open port",
+                    port=candidate_port,
+                    baud=baud,
+                    error=message,
+                )
+                last_error = message
+            else:
+                last_error = error
+
+            self.connected = False
+            self.esp32 = None
+            if self.auto_reconnect_enabled:
+                self._schedule_reconnect()
+            return False, last_error
+
+        if not port:
+            port = get_default_com_port(CONFIG.com_port)
+
+        if port:
+            self.reconnect_port = port
+            self.reconnect_baud = baud
+            result, message = self._attempt_connect(port, baud, wait_for_device=wait_for_device)
+            if result:
+                return True, message
+            self.connected = False
+            self.esp32 = None
+            if self.auto_reconnect_enabled:
+                self._schedule_reconnect()
+            return False, message
+
+        self.connected = False
+        self.esp32 = None
+        return False, "No COM port specified"
 
     def disconnect(self) -> None:
         """Close serial connection cleanly and stop reconnect attempts."""
@@ -121,8 +191,14 @@ class SerialHandler:
                     pass
             self.esp32 = None
             self.connected = False
+            self.device_metadata = None
 
         log.info("Disconnected from ESP32", port=self.reconnect_port, baud=self.reconnect_baud)
+
+    def test_connection(self, port: str, baud: int) -> Tuple[bool, str]:
+        """Try a serial connection once without triggering reconnect logic."""
+        with self._lock:
+            return self._attempt_connect(port, baud)
 
     def send_command(self, cmd: str) -> bool:
         """
@@ -157,20 +233,38 @@ class SerialHandler:
                 return None
 
             try:
-                raw = self.esp32.readline()
+                raw = self.esp32.read(self.esp32.in_waiting or 1)
             except Exception as exc:
                 log.error("Serial read error", error=str(exc))
                 self.connected = False
                 self._schedule_reconnect()
                 return None
 
+        if not raw:
+            return None
+
+        self._read_buffer += raw
+        if b"\n" not in self._read_buffer:
+            return None
+
+        line_bytes, _, remainder = self._read_buffer.partition(b"\n")
+        self._read_buffer = remainder
+
         try:
-            return raw.decode("utf-8", errors="ignore").strip()
+            line = line_bytes.decode("utf-8", errors="ignore")
         except Exception:
             return None
 
+        line = line.rstrip("\r")
+        if not line.strip():
+            return None
+        return line
+
     def should_ignore(self, line: str) -> bool:
-        """Returns True for boot noise and ESP32 help text."""
+        """Returns True for boot noise, single-character status lines, and ESP32 help text."""
+        stripped = line.strip()
+        if stripped == ".":
+            return True
         for prefix in CONFIG.ignore_prefixes:
             if line.startswith(prefix):
                 return True
@@ -249,7 +343,12 @@ class SerialHandler:
                 max_attempts=CONFIG.reconnect_max_retries,
             )
 
-    def _attempt_connect(self, port: Optional[str], baud: Optional[int]) -> Tuple[bool, str]:
+    def _attempt_connect(
+        self,
+        port: Optional[str],
+        baud: Optional[int],
+        wait_for_device: bool = False,
+    ) -> Tuple[bool, str]:
         if serial is None or port is None or baud is None:
             return False, "serial unavailable"
 
@@ -257,7 +356,13 @@ class SerialHandler:
             if self.esp32 is not None and getattr(self.esp32, "is_open", False):
                 self.esp32.close()
             self.esp32 = serial.Serial(port, baud, timeout=0)
+            if wait_for_device:
+                time.sleep(2)
             self.connected = True
+            self.reconnect_port = port
+            self.reconnect_baud = baud
+            self.reconnect_count = 0
+            log.success("Connected to ESP32", port=port, baud=baud)
             return True, "OK"
         except Exception as exc:
             self.connected = False

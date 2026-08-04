@@ -99,17 +99,43 @@ This is the easiest way to start the app for everyday use.
 
 ### 2.2 Alternative: launch from the command line
 
-You can also open a terminal in the project root and run:
-
-```powershell
-python python/main.py
-```
-
-or, for the GUI:
+You can also open a terminal in the project root and run the legacy GUI:
 
 ```powershell
 python python/gui/app.py
 ```
+
+or the modern Qt UI:
+
+```powershell
+python .\run_qt_gui.py
+```
+
+### 2.2.1 Recommended Qt startup
+
+The Qt UI is recommended for newer installs because it avoids the `Pillow` dependency, supports theme switching, and includes an auto-discover option for ESP32 COM ports.
+
+```powershell
+run_qt_gui.bat
+```
+
+> Note: If `python -m pip install Pillow` fails on Python 3.14, use Python 3.13 for the legacy GUI or use the Qt UI with `python .\run_qt_gui.py` instead.
+
+### 2.2.1 Run it again
+
+When you want to start the app again, use the same commands from the project root:
+
+```powershell
+.\run_app.bat
+```
+
+Or run the Qt UI directly:
+
+```powershell
+python .\run_qt_gui.py
+```
+
+If you already installed dependencies once, you do not need to reinstall them before each launch.
 
 ### 2.3 Create a desktop shortcut
 

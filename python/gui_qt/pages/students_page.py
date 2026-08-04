@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QTableWidget, QTableWidgetItem,
     QLabel, QHeaderView, QPushButton, QDialog, QLineEdit, QMessageBox, QTextEdit
 )
+from PySide6.QtGui import QTextCursor
 from PySide6.QtCore import Qt
 
 from services.student_service import StudentService
@@ -52,6 +53,7 @@ class EnrollDialog(QDialog):
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumHeight(100)
+        self.log_view.setLineWrapMode(QTextEdit.NoWrap)
         outer.addWidget(self.log_view)
 
         button_row = QHBoxLayout()
@@ -70,7 +72,12 @@ class EnrollDialog(QDialog):
         outer.addLayout(button_row)
 
         self.serial_worker.enroll_progress.connect(self.on_enroll_progress)
-        self.serial_worker.log_line.connect(self.log_view.append)
+        self.serial_worker.log_line.connect(self._append_log_line)
+
+    def _append_log_line(self, line: str):
+        self.log_view.append(line)
+        self.log_view.moveCursor(QTextCursor.End)
+        self.log_view.ensureCursorVisible()
 
     def on_start(self):
         if not self.serial_handler.is_connected():

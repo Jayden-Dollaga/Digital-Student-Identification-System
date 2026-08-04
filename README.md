@@ -52,6 +52,28 @@ install_requirements.bat
 run_app.bat
 ```
 
+### Run it again
+
+After the first setup, start the app again with the same command:
+
+```bash
+run_app.bat
+```
+
+### Qt UI (recommended for modern Windows setups)
+
+The newer Qt-based interface has improved serial connect behavior, theme switching, and auto-discovery support.
+
+```bash
+run_qt_gui.bat
+```
+
+Or, if you prefer the command line:
+
+```bash
+python run_qt_gui.py
+```
+
 Command-line alternatives:
 
 ```bash
@@ -59,6 +81,8 @@ python -m pip install -r requirements.txt   # Optional
 python python/gui/app.py                    # Run GUI directly
 python python/main.py                       # Run console mode (serial CLI)
 ```
+
+> Note: If Pillow fails to install on Python 3.14, use Python 3.13 for the legacy GUI or install the Qt UI with `python run_qt_gui.py` instead.
 
 ---
 

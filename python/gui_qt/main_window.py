@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
 
+from core.commands import cmd_scan, cmd_stop
 from gui_qt.widgets.sidebar import Sidebar
 from gui_qt.pages.dashboard_page import DashboardPage
 from gui_qt.pages.attendance_page import AttendancePage
@@ -14,7 +15,10 @@ from gui_qt.workers.serial_worker import SerialWorker
 from core.database import init_database
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
+from config import get_default_com_port, get_config
 from settings_store import load_settings
+
+CONFIG = get_config()
 
 PAGE_TITLES = {
     "dashboard": "Dashboard",
@@ -37,7 +41,8 @@ class MainWindow(QMainWindow):
 
         self.settings = load_settings()
         self.serial_handler = SerialHandler()
-        self.serial_handler.auto_reconnect_enabled = self.settings.get("auto_reconnect", True)
+        self.serial_handler.auto_reconnect_enabled = bool(self.settings.get("auto_reconnect", True))
+        self.auto_detect_serial = bool(self.settings.get("auto_detect_serial", True))
         self.attendance_processor = AttendanceProcessor()
 
         central = QWidget()
@@ -71,14 +76,33 @@ class MainWindow(QMainWindow):
         self.connection_label.setObjectName("connectionStatus")
         self.connection_label.setProperty("state", "disconnected")
 
+        self.device_info_label = QLabel("No device metadata available")
+        self.device_info_label.setObjectName("deviceInfoLabel")
+        self.device_info_label.setStyleSheet("font-size: 11px; color: #AEB4BD;")
+
         self.connect_button = QPushButton("Connect")
         self.connect_button.setObjectName("primaryButton")
         self.connect_button.clicked.connect(self.on_connect_clicked)
 
+        self.scan_toggle_button = QPushButton("SCAN")
+        self.scan_toggle_button.setObjectName("secondaryButton")
+        self.scan_toggle_button.clicked.connect(self.on_scan_toggle_clicked)
+        self.scan_toggle_button.setEnabled(False)
+
+        self.scan_active = False
+
+        metadata_layout = QVBoxLayout()
+        metadata_layout.setContentsMargins(0, 0, 0, 0)
+        metadata_layout.setSpacing(4)
+        metadata_layout.addWidget(self.connection_label)
+        metadata_layout.addWidget(self.device_info_label)
+
         header_layout.addWidget(self.page_title)
         header_layout.addStretch()
-        header_layout.addWidget(self.connection_label)
+        header_layout.addLayout(metadata_layout)
         header_layout.addSpacing(12)
+        header_layout.addWidget(self.scan_toggle_button)
+        header_layout.addSpacing(8)
         header_layout.addWidget(self.connect_button)
 
         right.addWidget(header)
@@ -92,6 +116,7 @@ class MainWindow(QMainWindow):
         self.logs_page = LogsPage()
         self.settings_page = SettingsPage(
             serial_handler=self.serial_handler,
+            settings=self.settings,
             on_connection_settings_changed=self.on_connection_settings_changed,
         )
 
@@ -124,6 +149,9 @@ class MainWindow(QMainWindow):
         self.serial_worker.error.connect(self.on_serial_error)
         self.serial_worker.start()
 
+        if self.auto_detect_serial:
+            self._attempt_startup_connection()
+
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
         self.page_title.setText(PAGE_TITLES[key])
@@ -136,20 +164,55 @@ class MainWindow(QMainWindow):
         if self.serial_handler.is_connected():
             self.serial_handler.disconnect()
             self.connect_button.setText("Connect")
+            self.update_connection_metadata()
             return
 
-        port = self.settings.get("com_port") or ""
+        saved_port = self.settings.get("com_port") or ""
+        port = saved_port or get_default_com_port(CONFIG.com_port)
         baud = int(self.settings.get("baud_rate") or 115200)
-        ok, msg = self.serial_handler.connect(port, baud)
+        ok, msg = self.serial_handler.connect(port, baud, auto_detect=self.auto_detect_serial)
         if ok:
             self.connect_button.setText("Disconnect")
+            self.settings["com_port"] = self.serial_handler.reconnect_port or port
+            self.settings["baud_rate"] = baud
+            self.update_connection_metadata()
+            self.logs_page.append_line(
+                f"[INFO] Connected to {self.serial_handler.reconnect_port or port} at {baud} baud. "
+                f"Device: {self.device_info_label.text()}"
+            )
         else:
             self.logs_page.append_line(f"[ERROR] Connection failed: {msg}")
+            self.update_connection_metadata()
 
-    def on_connection_settings_changed(self, port: str, baud: int):
+    def _attempt_startup_connection(self):
+        saved_port = self.settings.get("com_port") or ""
+        port = saved_port or get_default_com_port(CONFIG.com_port)
+        baud = int(self.settings.get("baud_rate") or CONFIG.baud_rate)
+        ok, msg = self.serial_handler.connect(port, baud, auto_detect=self.auto_detect_serial)
+        if ok:
+            self.logs_page.append_line(
+                f"[INFO] Auto-connected to {self.serial_handler.reconnect_port or port} at {baud} baud. "
+                f"Device: {self.device_info_label.text()}"
+            )
+            self.settings["com_port"] = self.serial_handler.reconnect_port or port
+            self.update_connection_metadata()
+        else:
+            self.logs_page.append_line(f"[WARN] Auto-connect failed: {msg}")
+            self.update_connection_metadata()
+
+    def on_connection_settings_changed(self, port: str, baud: int, auto_reconnect: bool = None, auto_detect: bool = None, theme: str = None):
         """Called by SettingsPage after Save — reconnect with new values if already connected."""
         self.settings["com_port"] = port
         self.settings["baud_rate"] = baud
+        if auto_reconnect is not None:
+            self.serial_handler.auto_reconnect_enabled = bool(auto_reconnect)
+            self.settings["auto_reconnect"] = self.serial_handler.auto_reconnect_enabled
+        if auto_detect is not None:
+            self.auto_detect_serial = bool(auto_detect)
+            self.settings["auto_detect_serial"] = self.auto_detect_serial
+        if theme is not None:
+            self.settings["theme"] = theme
+
         if self.serial_handler.is_connected():
             self.serial_handler.disconnect()
             ok, msg = self.serial_handler.connect(port, baud)
@@ -166,7 +229,12 @@ class MainWindow(QMainWindow):
         self.connection_label.setProperty("state", state)
         self.connection_label.style().unpolish(self.connection_label)
         self.connection_label.style().polish(self.connection_label)
-        self.connect_button.setText("Disconnect" if state == "connected" else "Connect")
+        self.connect_button.setText("Disconnect" if state in {"connected", "connecting"} else "Connect")
+        self.scan_toggle_button.setEnabled(state == "connected")
+        if not state == "connected":
+            self.scan_active = False
+            self._update_scan_toggle_button()
+        self.update_connection_metadata()
 
     def on_scan_event(self, event: dict):
         self.dashboard_page.on_scan_event(event)
@@ -174,6 +242,53 @@ class MainWindow(QMainWindow):
 
     def on_serial_error(self, message: str):
         self.logs_page.append_line(f"[ERROR] {message}")
+
+    def _update_scan_toggle_button(self):
+        if self.scan_active:
+            self.scan_toggle_button.setText("STOP")
+            self.scan_toggle_button.setStyleSheet("background-color: #E74C3C; color: white;")
+        else:
+            self.scan_toggle_button.setText("SCAN")
+            self.scan_toggle_button.setStyleSheet("")
+
+    def on_scan_toggle_clicked(self):
+        if not self.serial_handler.is_connected():
+            self.logs_page.append_line("[WARN] Connect before sending SCAN.")
+            return
+
+        if self.scan_active:
+            if cmd_stop(self.serial_handler):
+                self.scan_active = False
+                self.logs_page.append_line("[INFO] Sent STOP command to ESP32.")
+                self._update_scan_toggle_button()
+            else:
+                self.logs_page.append_line("[ERROR] Failed to send STOP command to ESP32.")
+        else:
+            if cmd_scan(self.serial_handler):
+                self.scan_active = True
+                self.logs_page.append_line("[INFO] Sent SCAN command to ESP32.")
+                self._update_scan_toggle_button()
+            else:
+                self.logs_page.append_line("[ERROR] Failed to send SCAN command to ESP32.")
+
+    def update_connection_metadata(self):
+        metadata = self.serial_handler.device_metadata or {}
+        if metadata:
+            pieces = [f"{metadata.get('device', 'Unknown')}" ]
+            if metadata.get("board"):
+                pieces.append(str(metadata["board"]))
+            if metadata.get("firmware"):
+                pieces.append(str(metadata["firmware"]))
+            if metadata.get("protocol") is not None:
+                pieces.append(f"Protocol {metadata['protocol']}")
+            if metadata.get("sensor"):
+                pieces.append(str(metadata["sensor"]))
+            text = " · ".join(pieces)
+            if metadata.get("serial_number"):
+                text += f" (SN: {metadata['serial_number']})"
+            self.device_info_label.setText(text)
+        else:
+            self.device_info_label.setText("No device metadata available")
 
     def closeEvent(self, event):
         try:

@@ -11,17 +11,22 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from gui_qt.main_window import MainWindow
+from settings_store import load_settings
 
 
-def load_stylesheet(app: QApplication):
-    qss_path = Path(__file__).parent / "theme.qss"
+def load_stylesheet(app: QApplication, theme: str = "dark"):
+    theme_file = "theme_light.qss" if theme.lower() == "light" else "theme.qss"
+    qss_path = Path(__file__).parent / theme_file
     if qss_path.exists():
         app.setStyleSheet(qss_path.read_text())
+    elif theme.lower() == "light":
+        app.setStyleSheet("")
 
 
 def main():
     app = QApplication(sys.argv)
-    load_stylesheet(app)
+    settings = load_settings()
+    load_stylesheet(app, settings.get("theme", "dark"))
 
     window = MainWindow()
     window.show()

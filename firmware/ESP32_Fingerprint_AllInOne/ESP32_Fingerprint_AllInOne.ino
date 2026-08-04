@@ -67,6 +67,12 @@ enum LedMode {
   LED_MODE_MATCH
 };
 
+const char DEVICE_IDENTIFIER[] = "Fingerprint Attendance";
+const char DEVICE_BOARD[] = "ESP32";
+const char DEVICE_FIRMWARE[] = "1.0";
+const char DEVICE_SENSOR[] = "AS608";
+const int DEVICE_PROTOCOL = 1;
+
 LedMode currentLedMode = LED_MODE_READY;
 LedMode returnLedMode = LED_MODE_READY;
 unsigned long patternStart = 0;
@@ -174,6 +180,19 @@ void setup() {
   Serial.println("\n========================================");
   Serial.println("  AS608 All-in-One Fingerprint System");
   Serial.println("========================================");
+  Serial.print("{\"device\": \"");
+  Serial.print(DEVICE_IDENTIFIER);
+  Serial.print("\", \"board\": \"");
+  Serial.print(DEVICE_BOARD);
+  Serial.print("\", \"firmware\": \"");
+  Serial.print(DEVICE_FIRMWARE);
+  Serial.print("\", \"sensor\": \"");
+  Serial.print(DEVICE_SENSOR);
+  Serial.print("\", \"protocol\": ");
+  Serial.print(DEVICE_PROTOCOL);
+  Serial.print(", \"serial_number\": \"");
+  Serial.print(ESP.getEfuseMac());
+  Serial.println("\"}");
 
   mySerial.begin(57600, SERIAL_8N1, FINGERPRINT_RX, FINGERPRINT_TX);
   finger.begin(57600);
@@ -234,6 +253,24 @@ void loop() {
 
 void handleCommand(String input) {
   input.toUpperCase();
+
+  // ── IDENTIFY ───────────────────────────────────────────────────
+  if (input == "ID?") {
+    Serial.print("{\"device\": \"");
+    Serial.print(DEVICE_IDENTIFIER);
+    Serial.print("\", \"board\": \"");
+    Serial.print(DEVICE_BOARD);
+    Serial.print("\", \"firmware\": \"");
+    Serial.print(DEVICE_FIRMWARE);
+    Serial.print("\", \"sensor\": \"");
+    Serial.print(DEVICE_SENSOR);
+    Serial.print("\", \"protocol\": ");
+    Serial.print(DEVICE_PROTOCOL);
+    Serial.print(", \"serial_number\": \"");
+    Serial.print(ESP.getEfuseMac());
+    Serial.println("\"}");
+    return;
+  }
 
   // ── SCAN ──────────────────────────────────────────────────────
   if (input == "SCAN") {
@@ -407,7 +444,7 @@ void enrollFinger(int id) {
       return;
     }
     p = finger.getImage();
-    if (p == FINGERPRINT_NOFINGER) { Serial.print("."); continue; }
+    if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
     if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
     Serial.println("  Imaging error, try again.");
   }
@@ -448,7 +485,7 @@ void enrollFinger(int id) {
       return;
     }
     p = finger.getImage();
-    if (p == FINGERPRINT_NOFINGER) { Serial.print("."); continue; }
+    if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
     if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
     Serial.println("  Imaging error, try again.");
   }
