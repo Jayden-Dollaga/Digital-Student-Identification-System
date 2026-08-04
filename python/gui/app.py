@@ -49,7 +49,7 @@ from core.database import (
     clear_all_data,
     backup_database as backup_database_service,
 )
-from core.utils import format_attendance_display
+from core.utils import format_attendance_display, parse_json_line
 
 # ---- Palette -----------------------------------------------------------
 COLOR_CONNECTED = "#2ecc71"
@@ -642,6 +642,17 @@ class FingerprintApp(ctk.CTk):
     def _parse_connection_mode(self, message):
         if not isinstance(message, str):
             return
+
+        parsed = parse_json_line(message)
+        if parsed is not None and parsed.get("type") == "status":
+            state = parsed.get("state")
+            if state == "SCAN_MODE":
+                self._set_scan_mode_ui()
+                return
+            if state == "CMD_MODE":
+                self._set_command_mode_ui()
+                return
+
         if RE_SCAN_MODE.search(message):
             self._set_scan_mode_ui()
         elif RE_CMD_MODE.search(message):

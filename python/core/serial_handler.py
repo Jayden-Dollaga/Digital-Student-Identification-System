@@ -185,7 +185,7 @@ class SerialHandler:
 
             if self.esp32 is not None and getattr(self.esp32, "is_open", False):
                 try:
-                    self.esp32.write(("STATUS:HOST_DISCONNECTED\n").encode("utf-8"))
+                    self.esp32.write(("{\"type\":\"status\",\"state\":\"HOST_DISCONNECTED\"}\n").encode("utf-8"))
                 except Exception:
                     pass
                 try:
@@ -375,7 +375,7 @@ class SerialHandler:
             log.success("Connected to ESP32", port=port, baud=baud)
             try:
                 if self.esp32 is not None and getattr(self.esp32, "is_open", False):
-                    self.esp32.write(("STATUS:HOST_CONNECTED\n").encode("utf-8"))
+                    self.esp32.write(("{\"type\":\"status\",\"state\":\"HOST_CONNECTED\"}\n").encode("utf-8"))
             except Exception:
                 pass
             return True, "OK"

@@ -5,12 +5,27 @@
 #  Small helper functions used across modules.
 ###############################################################################
 
+import json
 import os
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from config import get_config
 
 CONFIG = get_config()
+
+
+def parse_json_line(line: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(line, str):
+        return None
+    line = line.strip()
+    if not line.startswith("{"):
+        return None
+    try:
+        parsed = json.loads(line)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def get_export_path(filename):
@@ -22,13 +37,6 @@ def get_export_path(filename):
     export_folder = CONFIG.export_folder
     export_folder.mkdir(parents=True, exist_ok=True)
     return str(export_folder / filename)
-    """
-    Build a full export file path inside the exports folder.
-    Creates the folder if it doesn't exist.
-    Example: get_export_path("attendance_today.xlsx")
-    """
-    os.makedirs(EXPORT_FOLDER, exist_ok=True)
-    return os.path.join(EXPORT_FOLDER, filename)
 
 
 def timestamp_filename(prefix, ext):

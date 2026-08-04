@@ -20,6 +20,7 @@ from PySide6.QtCore import QThread, Signal
 
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
+from core.utils import parse_json_line
 
 RE_ENROLLING_AS = re.compile(r"ENROLLING FINGER AS ID #(\d+)", re.IGNORECASE)
 RE_ENROLL_SUCCESS = re.compile(r"SUCCESS!?\s*Finger saved as ID #(\d+)", re.IGNORECASE)
@@ -85,6 +86,16 @@ class SerialWorker(QThread):
             self._parse_wipe_progress(line)
 
     def _parse_mode_line(self, line: str):
+        parsed = parse_json_line(line)
+        if parsed is not None and parsed.get("type") == "status":
+            state = parsed.get("state")
+            if state == "SCAN_MODE":
+                self.mode_changed.emit("scan")
+                return
+            if state == "CMD_MODE":
+                self.mode_changed.emit("command")
+                return
+
         if line == "SCAN_MODE":
             self.mode_changed.emit("scan")
         elif line == "CMD_MODE":

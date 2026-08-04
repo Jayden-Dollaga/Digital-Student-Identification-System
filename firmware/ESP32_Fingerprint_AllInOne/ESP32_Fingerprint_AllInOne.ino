@@ -40,6 +40,11 @@
  *    UNKNOWN         Finger not recognized
  *    SCAN_MODE       Entered scan mode
  *    CMD_MODE        Entered command mode
+ *
+ *  The firmware now also emits structured JSON payloads for status and
+ *  attendance events, e.g.:
+ *    {"type":"status","state":"SCAN_MODE"}
+ *    {"type":"attendance","event":"match","id":1,"confidence":223}
  ************************************************************************************/
 
 #include <Adafruit_Fingerprint.h>
@@ -166,6 +171,51 @@ void handleHostStatus(const String &status) {
   } else if (status == "READY") {
     requestLedState(LED_READY);
   }
+}
+
+String parseJsonStringField(const String &json, const String &field) {
+  String key = "\"" + field + "\"";
+  int keyIndex = json.indexOf(key);
+  if (keyIndex < 0) {
+    return "";
+  }
+  int colonIndex = json.indexOf(':', keyIndex + key.length());
+  if (colonIndex < 0) {
+    return "";
+  }
+  int startQuote = json.indexOf('"', colonIndex);
+  if (startQuote < 0) {
+    return "";
+  }
+  int endQuote = json.indexOf('"', startQuote + 1);
+  if (endQuote < 0) {
+    return "";
+  }
+  return json.substring(startQuote + 1, endQuote);
+}
+
+void emitJsonStatus(const String &state) {
+  Serial.print("{\"type\":\"status\",\"state\":\"");
+  Serial.print(state);
+  Serial.println("\"}");
+}
+
+void emitJsonAttendanceMatch(int id, int confidence) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"match\",\"id\":");
+  Serial.print(id);
+  Serial.print(",\"confidence\":");
+  Serial.print(confidence);
+  Serial.println("}");
+}
+
+void emitJsonAttendanceUnknown() {
+  Serial.println("{\"type\":\"attendance\",\"event\":\"unknown\"}");
+}
+
+void emitJsonAttendanceLowConfidence(int confidence) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"low_confidence\",\"confidence\":");
+  Serial.print(confidence);
+  Serial.println("}");
 }
 
 void beginLedManager() {
@@ -349,6 +399,7 @@ void setup() {
 
   printHelp();
   Serial.println("READY");
+  emitJsonStatus("READY");
 }
 
 
@@ -414,6 +465,7 @@ void handleCommand(String input) {
     Serial.println("   Place finger on sensor to log attendance.");
     Serial.println("   Type STOP to return to command mode.");
     Serial.println("SCAN_MODE");
+    emitJsonStatus("SCAN_MODE");
     return;
   }
 
@@ -424,6 +476,7 @@ void handleCommand(String input) {
     Serial.println("\n>> Switched to COMMAND MODE");
     printHelp();
     Serial.println("CMD_MODE");
+    emitJsonStatus("CMD_MODE");
     return;
   }
 
@@ -507,6 +560,17 @@ void handleCommand(String input) {
     state.trim();
     handleHostStatus(state);
     return;
+  }
+
+  if (input.startsWith("{")) {
+    String type = parseJsonStringField(input, "type");
+    if (type == "status") {
+      String state = parseJsonStringField(input, "state");
+      if (state.length() > 0) {
+        handleHostStatus(state);
+      }
+      return;
+    }
   }
 
   // ── UNKNOWN COMMAND ───────────────────────────────────────────
@@ -692,18 +756,13 @@ void scanFinger() {
   if (p == FINGERPRINT_OK) {
     if (finger.confidence >= MIN_CONFIDENCE) {
       ledSuccess();
-      Serial.print("ID:");
-      Serial.println(finger.fingerID);
-      Serial.print("CONFIDENCE:");
-      Serial.println(finger.confidence);
+      emitJsonAttendanceMatch(finger.fingerID, finger.confidence);
     } else {
-      Serial.println("UNKNOWN");
-      Serial.print("LOW_CONFIDENCE:");
-      Serial.println(finger.confidence);
+      emitJsonAttendanceLowConfidence(finger.confidence);
     }
     delay(SCAN_COOLDOWN);
   } else if (p == FINGERPRINT_NOTFOUND) {
-    Serial.println("UNKNOWN");
+    emitJsonAttendanceUnknown();
     delay(1000);
   }
 }

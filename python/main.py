@@ -47,6 +47,7 @@ CONFIG = get_config()
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
 from core.commands import cmd_scan, cmd_stop, cmd_enroll, cmd_delete, cmd_wipe, cmd_list
+from core.utils import parse_json_line
 
 try:
     from gui.app import main as gui_main
@@ -163,6 +164,25 @@ def main():
                 continue
 
             # ── Mode messages ─────────────────────────────────────
+            parsed_status = parse_json_line(line)
+            if parsed_status is not None and parsed_status.get("type") == "status":
+                state = parsed_status.get("state")
+                if state == "SCAN_MODE":
+                    in_scan_mode = True
+                    log.info("ESP32 entered scan mode")
+                    print("[STATUS]  : ESP32 in SCAN MODE — ready for attendance\n")
+                    continue
+                if state == "CMD_MODE":
+                    in_scan_mode = False
+                    processor.reset()
+                    log.info("ESP32 entered command mode")
+                    print("[STATUS]  : ESP32 in COMMAND MODE\n")
+                    continue
+                if state == "READY":
+                    log.info("ESP32 ready")
+                    print("[STATUS]  : ESP32 online and ready")
+                    continue
+
             if line == "SCAN_MODE":
                 in_scan_mode = True
                 log.info("ESP32 entered scan mode")

@@ -15,11 +15,12 @@ stable scan outcomes.
 
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, TypedDict
+from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 from config import get_config
 from core.database import get_all_students, get_student, log_attendance, StudentRow
 from core.logger import log
+from core.utils import parse_json_line
 
 CONFIG = get_config()
 COOLDOWN_SECONDS = CONFIG.cooldown_seconds
@@ -75,6 +76,24 @@ class AttendanceProcessor:
 
         line = line.strip()
         if not line:
+            return None
+
+        parsed_json = parse_json_line(line)
+        if parsed_json is not None:
+            if parsed_json.get("type") == "attendance":
+                event = parsed_json.get("event")
+                if event == "match":
+                    fingerprint_id = self._parse_json_int(parsed_json.get("id"))
+                    confidence = self._parse_json_int(parsed_json.get("confidence"))
+                    if fingerprint_id is None or confidence is None:
+                        return None
+                    return self._handle_json_match_scan(fingerprint_id, confidence)
+                if event == "unknown":
+                    self.current_id = None
+                    return self._handle_unknown_scan()
+                if event == "low_confidence":
+                    self.current_id = None
+                    return None
             return None
 
         if line.startswith("ID:"):
@@ -177,6 +196,51 @@ class AttendanceProcessor:
         except Exception as exc:
             log.error(f"Failed to log attendance for ID {fingerprint_id}: {exc}")
             return None
+
+    def _handle_json_match_scan(self, fingerprint_id: int, confidence: int) -> Optional[ScanResult]:
+        now = datetime.now()
+
+        if self._is_in_cooldown(fingerprint_id, now):
+            log.info(
+                "Scan skipped due to cooldown",
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                reason=self._cooldown_reason(fingerprint_id, now),
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status=None,
+                timestamp=now,
+                logged=False,
+                reason=self._cooldown_reason(fingerprint_id, now),
+            ).to_dict()
+
+        status = "GOOD MATCH" if confidence >= self.min_confidence else "WEAK MATCH"
+
+        try:
+            self._log_and_record(fingerprint_id, confidence, status, now)
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status=status,
+                timestamp=now,
+                logged=True,
+                reason=None,
+            ).to_dict()
+        except Exception as exc:
+            log.error(f"Failed to log attendance for ID {fingerprint_id}: {exc}")
+            return None
+
+    def _parse_json_int(self, value: Any) -> Optional[int]:
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value.strip())
+            except ValueError:
+                return None
+        return None
 
     def _parse_int_value(self, line: str, prefix: str) -> Optional[int]:
         try:
