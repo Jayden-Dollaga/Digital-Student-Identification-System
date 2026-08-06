@@ -260,6 +260,8 @@ pip install -r requirements.txt
 
 Open the Arduino sketch in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) and upload it to the ESP32 through the Arduino IDE.
 
+For a line-by-line firmware explanation, see [docs/Development/ESP32_Fingerprint_AllInOne_firmware_explanation.md](docs/Development/ESP32_Fingerprint_AllInOne_firmware_explanation.md).
+
 The firmware now uses the onboard ESP32 D2 LED as a simple status indicator:
 
 - slow blink (1 second ON / 1 second OFF): system ready / idle

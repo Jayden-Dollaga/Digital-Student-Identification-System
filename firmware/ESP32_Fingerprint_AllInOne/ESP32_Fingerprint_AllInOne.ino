@@ -47,6 +47,7 @@
  *    {"type":"attendance","event":"match","id":1,"confidence":223}
  ************************************************************************************/
 
+#include <Arduino.h>
 #include <Adafruit_Fingerprint.h>
 #include <HardwareSerial.h>
 
@@ -105,8 +106,16 @@ unsigned long ledStateStart = 0;
 int currentPriority = 1;
 int restorePriority = 2;
 
-void setLedBrightness(uint8_t brightness) {
-  ledcWrite(LED_PWM_CHANNEL, brightness);
+void ledBrightness(uint8_t value) {
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+  ledcWrite(LED_PIN, value);
+#else
+  digitalWrite(LED_PIN, value > 0 ? HIGH : LOW);
+#endif
+}
+
+void ledOff() {
+  ledBrightness(0);
 }
 
 int getPriorityForState(LedState state) {
@@ -146,7 +155,7 @@ bool requestLedState(LedState state, bool temporary = false) {
   currentPriority = priority;
   ledStateStart = millis();
   if (state == LED_BOOTING || state == LED_ERROR || state == LED_COMMUNICATION_ERROR || state == LED_DB_ERROR) {
-    setLedBrightness(0);
+    ledOff();
   }
   return true;
 }
@@ -220,8 +229,16 @@ void emitJsonAttendanceLowConfidence(int confidence) {
 
 void beginLedManager() {
   pinMode(LED_PIN, OUTPUT);
-  ledcSetup(LED_PWM_CHANNEL, LED_PWM_FREQUENCY, LED_PWM_RESOLUTION);
-  ledcAttachPin(LED_PIN, LED_PWM_CHANNEL);
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+  ledcAttach(
+      LED_PIN,
+      LED_PWM_FREQUENCY,
+      LED_PWM_RESOLUTION
+  );
+#else
+  // Fallback for other boards without ESP32 PWM API.
+  digitalWrite(LED_PIN, LOW);
+#endif
   currentPriority = getPriorityForState(LED_BOOTING);
   requestLedState(LED_BOOTING);
 }
@@ -277,18 +294,18 @@ void updateLed() {
 
   switch (currentLedState) {
     case LED_BOOTING: {
-      setLedBrightness(computeBootBrightness(elapsed));
+      ledBrightness(computeBootBrightness(elapsed));
       break;
     }
     case LED_READY:
     case LED_HOST_CONNECTED: {
       unsigned long phase = elapsed % READY_PERIOD_MS;
-      setLedBrightness(phase < READY_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      ledBrightness(phase < READY_ON_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
     case LED_SCAN: {
       unsigned long phase = elapsed % (SCAN_PULSE_MS * 2);
-      setLedBrightness(phase < SCAN_PULSE_MS ? LED_MAX_BRIGHTNESS : 0);
+      ledBrightness(phase < SCAN_PULSE_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
     case LED_SUCCESS: {
@@ -296,7 +313,7 @@ void updateLed() {
         restoreLedStateIfNeeded();
         break;
       }
-      setLedBrightness(LED_MAX_BRIGHTNESS);
+      ledBrightness(LED_MAX_BRIGHTNESS);
       break;
     }
     case LED_ENROLL: {
@@ -304,15 +321,15 @@ void updateLed() {
       unsigned long phase = elapsed % cycleTime;
       if (phase < ENROLL_COUNT * (ENROLL_ON_MS + ENROLL_OFF_MS)) {
         unsigned long phaseInPulse = phase % (ENROLL_ON_MS + ENROLL_OFF_MS);
-        setLedBrightness(phaseInPulse < ENROLL_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+        ledBrightness(phaseInPulse < ENROLL_ON_MS ? LED_MAX_BRIGHTNESS : 0);
       } else {
-        setLedBrightness(0);
+        ledOff();
       }
       break;
     }
     case LED_FIRMWARE: {
       unsigned long phase = elapsed % (FIRMWARE_BLINK_MS * 2);
-      setLedBrightness(phase < FIRMWARE_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      ledBrightness(phase < FIRMWARE_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
     case LED_ERROR:
@@ -322,17 +339,17 @@ void updateLed() {
         break;
       }
       unsigned long phase = elapsed % (ERROR_BLINK_MS * 2);
-      setLedBrightness(phase < ERROR_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      ledBrightness(phase < ERROR_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
     case LED_COMMUNICATION_ERROR: {
       unsigned long phase = elapsed % (COMM_ERROR_ON_MS + COMM_ERROR_OFF_MS);
-      setLedBrightness(phase < COMM_ERROR_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      ledBrightness(phase < COMM_ERROR_ON_MS ? LED_MAX_BRIGHTNESS : 0);
       break;
     }
     case LED_HOST_DISCONNECTED:
     case LED_SLEEP: {
-      setLedBrightness(0);
+      ledOff();
       break;
     }
   }

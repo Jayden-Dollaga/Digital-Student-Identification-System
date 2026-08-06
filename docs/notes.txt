@@ -737,3 +737,40 @@ pip install openpyxl
 pip install matplotlib
 pip install Pillow
 pip install pytest
+
+
+
+
+
+
+
+error::
+
+
+
+C:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System\firmware\ESP32_Fingerprint_AllInOne\ESP32_Fingerprint_AllInOne.ino: In function 'void beginLedManager()':
+C:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System\firmware\ESP32_Fingerprint_AllInOne\ESP32_Fingerprint_AllInOne.ino:223:3: error: 'ledcSetup' was not declared in this scope
+  223 |   ledcSetup(LED_PWM_CHANNEL, LED_PWM_FREQUENCY, LED_PWM_RESOLUTION);
+      |   ^~~~~~~~~
+C:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System\firmware\ESP32_Fingerprint_AllInOne\ESP32_Fingerprint_AllInOne.ino:224:3: error: 'ledcAttachPin' was not declared in this scope; did you mean 'ledcAttach'?
+  224 |   ledcAttachPin(LED_PIN, LED_PWM_CHANNEL);
+      |   ^~~~~~~~~~~~~
+      |   ledcAttach
+exit status 1
+
+Compilation error: 'ledcSetup' was not declared in this scope
+
+
+
+
+
+
+
+  Commands (line ending must be set to Newline):
+    ENROLL     Enroll finger using next free ID
+    ENROLL:1   Enroll finger as ID 1  (1-127)
+    DELETE:1   Delete finger ID 1
+    WIPE       Delete ALL fingerprints
+    LIST       Show stored fingerprint count
+    SCAN       Start attendance scan mode
+    STOP       Stop scanning, return to commands
