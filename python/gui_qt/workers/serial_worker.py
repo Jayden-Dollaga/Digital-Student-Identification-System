@@ -13,6 +13,7 @@ behavior matches exactly.
 """
 
 import re
+import threading
 import time
 from datetime import datetime
 
@@ -20,6 +21,7 @@ from PySide6.QtCore import QThread, Signal
 
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
+from core.logger import log
 from core.utils import parse_json_line
 
 RE_ENROLLING_AS = re.compile(r"ENROLLING FINGER AS ID #(\d+)", re.IGNORECASE)
@@ -33,7 +35,7 @@ class SerialWorker(QThread):
     connection_changed = Signal(str)   # "connected" | "disconnected" | "connecting"
     mode_changed = Signal(str)         # "scan" | "command"
     scan_event = Signal(dict)          # processed + student-joined scan result
-    log_line = Signal(str)             # raw ESP32 line, for the Logs page
+    raw_line = Signal(str)             # raw ESP32 serial output for diagnostics
     enroll_progress = Signal(dict)     # {"event": "enrolling"|"success"|"cancelled"|"error", "id": str|None}
     wipe_progress = Signal(dict)       # {"event": "start"|"success"|"error"}
     error = Signal(str)
@@ -47,43 +49,64 @@ class SerialWorker(QThread):
         self._last_reconnect_count = 0
 
     def run(self):
+        log.info(
+            "SerialWorker.run() entered",
+            thread_id=threading.get_ident(),
+            thread_name=threading.current_thread().name,
+        )
         self._running = True
         while self._running and not self.isInterruptionRequested():
-            connected = self.serial_handler.is_connected()
-
-            if connected != self._last_connected_state:
-                self._last_connected_state = connected
-                self.connection_changed.emit("connected" if connected else "disconnected")
-
-            if not connected:
-                if self.serial_handler.reconnect_count != self._last_reconnect_count:
-                    self._last_reconnect_count = self.serial_handler.reconnect_count
-                    if self.serial_handler.reconnect_count > 0:
-                        self.connection_changed.emit("connecting")
-                time.sleep(0.2)
-                continue
-
-            self._last_reconnect_count = 0
-
             try:
-                line = self.serial_handler.read_line()
+                connected = self.serial_handler.is_connected()
+
+                if connected != self._last_connected_state:
+                    self._last_connected_state = connected
+                    self.connection_changed.emit("connected" if connected else "disconnected")
+
+                if not connected:
+                    if self.serial_handler.reconnect_count != self._last_reconnect_count:
+                        self._last_reconnect_count = self.serial_handler.reconnect_count
+                        if self.serial_handler.reconnect_count > 0:
+                            self.connection_changed.emit("connecting")
+                    time.sleep(0.2)
+                    continue
+
+                self._last_reconnect_count = 0
+
+                try:
+                    line = self.serial_handler.read_line()
+                except Exception as exc:
+                    self.error.emit(str(exc))
+                    time.sleep(0.2)
+                    continue
+
+                if not line:
+                    time.sleep(0.05)
+                    continue
+
+                self.raw_line.emit(line)
+                if self.serial_handler.should_ignore(line):
+                    continue
+
+                self._parse_mode_line(line)
+                self._process_line(line)
+                self._parse_enroll_progress(line)
+                self._parse_wipe_progress(line)
             except Exception as exc:
                 self.error.emit(str(exc))
+                log.exception(
+                    "Unexpected exception in serial worker",
+                    error=str(exc),
+                    thread_id=threading.get_ident(),
+                    thread_name=threading.current_thread().name,
+                )
                 time.sleep(0.2)
-                continue
 
-            if not line:
-                time.sleep(0.05)
-                continue
-
-            if self.serial_handler.should_ignore(line):
-                continue
-
-            self.log_line.emit(f"ESP32: {line}")
-            self._parse_mode_line(line)
-            self._process_line(line)
-            self._parse_enroll_progress(line)
-            self._parse_wipe_progress(line)
+        log.info(
+            "SerialWorker.run() exiting",
+            thread_id=threading.get_ident(),
+            thread_name=threading.current_thread().name,
+        )
 
     def _parse_mode_line(self, line: str):
         parsed = parse_json_line(line)

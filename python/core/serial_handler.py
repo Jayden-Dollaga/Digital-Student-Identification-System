@@ -27,6 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover
 from config import get_config, get_default_com_port
 from core.device_discovery import discover_device
 from core.logger import log
+from settings_store import cleanup_stale_port
 
 CONFIG = get_config()
 
@@ -71,12 +72,20 @@ class SerialHandler:
         self.reconnect_port: Optional[str] = None
         self.reconnect_baud: Optional[int] = None
         self.device_metadata: Optional[Dict[str, Any]] = None
+        self._pending_raw_lines: List[str] = []
         self.auto_reconnect_enabled = CONFIG.auto_reconnect
+        self._auto_detect_requested = False
+        self._preferred_port: Optional[str] = None
         self._pyserial_missing_warning_shown = False
         self._lock = threading.RLock()
         self._reconnect_thread: Optional[threading.Thread] = None
         self._reconnect_stop = threading.Event()
         self._read_buffer = b""
+        log.info(
+            "SerialHandler initialized",
+            thread_id=threading.get_ident(),
+            thread_name=threading.current_thread().name,
+        )
 
     @property
     def pyserial_installed(self) -> bool:
@@ -105,77 +114,148 @@ class SerialHandler:
 
         port = port.strip() if port else ""
         baud = baud or CONFIG.baud_rate
-        self._reconnect_stop.clear()
-        self.device_metadata = None
 
-        if port and not auto_detect:
-            self.reconnect_port = port
-            self.reconnect_baud = baud
-            discovery_port, metadata, discovery_error = discover_device(preferred_port=port, baud=baud, allow_search=False)
-            if discovery_port is None:
+        log.info(
+            "SerialHandler.connect() entered",
+            port=port,
+            baud=baud,
+            wait_for_device=wait_for_device,
+            auto_detect=auto_detect,
+            thread_id=threading.get_ident(),
+            thread_name=threading.current_thread().name,
+        )
+
+        with self._lock:
+            self._reconnect_stop.clear()
+            self.device_metadata = None
+            self._preferred_port = None
+            self._auto_detect_requested = False
+
+            if port and not auto_detect:
+                self.reconnect_port = port
+                self.reconnect_baud = baud
+                self._auto_detect_requested = False
+                discovery_port, cable, metadata, discovery_error = discover_device(
+                    preferred_port=port,
+                    baud=baud,
+                    allow_search=False,
+                )
+                if discovery_port is None:
+                    self.connected = False
+                    self.esp32 = None
+                    if self.auto_reconnect_enabled:
+                        self._schedule_reconnect()
+                    log.warning(
+                        "SerialHandler.connect() exiting after explicit port discovery failure",
+                        port=port,
+                        error=discovery_error,
+                    )
+                    return False, f"ESP32 discovery failed on {port}: {discovery_error}"
+
+                log.info("Adopting discovered serial connection", port=discovery_port)
+                if self.esp32 is not None and getattr(self.esp32, "is_open", False):
+                    try:
+                        self.esp32.close()
+                    except Exception:
+                        pass
+                self.esp32 = cable
+                self.esp32.timeout = 0
+                try:
+                    self.esp32.reset_input_buffer()
+                except Exception:
+                    pass
+                try:
+                    self.esp32.reset_output_buffer()
+                except Exception:
+                    pass
+                self.connected = True
+                self.reconnect_port = discovery_port
+                self.reconnect_baud = baud
+                self.reconnect_count = 0
+                self.device_metadata = metadata
+                log.success("Connected to ESP32 via discovered serial", port=discovery_port, baud=baud)
+                return True, "OK"
+
+            if auto_detect:
+                preferred_port = port if port else None
+                self._preferred_port = preferred_port
+                self._auto_detect_requested = True
+                self.reconnect_port = preferred_port
+                self.reconnect_baud = baud
+                candidate_port, cable, metadata, error = discover_device(
+                    preferred_port=preferred_port,
+                    baud=baud,
+                )
+                if candidate_port:
+                    self.reconnect_port = candidate_port
+                    self.reconnect_baud = baud
+                    log.info("Adopting discovered serial connection", port=candidate_port)
+                    if self.esp32 is not None and getattr(self.esp32, "is_open", False):
+                        try:
+                            self.esp32.close()
+                        except Exception:
+                            pass
+                    self.esp32 = cable
+                    self.esp32.timeout = 0
+                    try:
+                        self.esp32.reset_input_buffer()
+                    except Exception:
+                        pass
+                    try:
+                        self.esp32.reset_output_buffer()
+                    except Exception:
+                        pass
+                    self.connected = True
+                    self.reconnect_count = 0
+                    self.device_metadata = metadata
+                    log.success("Connected to ESP32 via discovered serial", port=candidate_port, baud=baud)
+                    return True, "OK"
+                last_error = error
+
                 self.connected = False
                 self.esp32 = None
                 if self.auto_reconnect_enabled:
                     self._schedule_reconnect()
-                return False, f"ESP32 discovery failed on {port}: {discovery_error}"
-            # Use the discovered canonical port when attempting to open the serial
-            # connection (discovery may normalize device names / casing).
-            result, message = self._attempt_connect(discovery_port, baud, wait_for_device=wait_for_device)
-            if result:
-                # update reconnect_port to the actual opened port and attach metadata
-                self.reconnect_port = discovery_port
-                self.device_metadata = metadata
-                return True, message
-            self.connected = False
-            self.esp32 = None
-            if self.auto_reconnect_enabled:
-                self._schedule_reconnect()
-            return False, message
-
-        if auto_detect:
-            preferred_port = port if port else None
-            candidate_port, metadata, error = discover_device(preferred_port=preferred_port, baud=baud)
-            if candidate_port:
-                self.reconnect_port = candidate_port
-                self.reconnect_baud = baud
-                result, message = self._attempt_connect(candidate_port, baud, wait_for_device=wait_for_device)
-                if result:
-                    self.device_metadata = metadata
-                    return True, message
                 log.warning(
-                    "ESP32 discovery succeeded but could not open port",
-                    port=candidate_port,
-                    baud=baud,
+                    "SerialHandler.connect() exiting after auto-detect failure",
+                    error=last_error,
+                )
+                return False, last_error
+
+            self._preferred_port = None
+            if not port:
+                port = get_default_com_port(CONFIG.com_port)
+                # Check if the stored port is stale and clear it if needed
+                if port:
+                    available = list_serial_ports()
+                    cleaned_port = cleanup_stale_port(port, available)
+                    port = cleaned_port if cleaned_port else ""
+
+            if port:
+                self.reconnect_port = port
+                self.reconnect_baud = baud
+                result, message = self._attempt_connect(
+                    port,
+                    baud,
+                    wait_for_device=wait_for_device,
+                )
+                if result:
+                    return True, message
+
+                self.connected = False
+                self.esp32 = None
+                if self.auto_reconnect_enabled:
+                    self._schedule_reconnect()
+                log.warning(
+                    "SerialHandler.connect() exiting after explicit port failure",
+                    port=port,
                     error=message,
                 )
-                last_error = message
-            else:
-                last_error = error
+                return False, message
 
             self.connected = False
             self.esp32 = None
-            if self.auto_reconnect_enabled:
-                self._schedule_reconnect()
-            return False, last_error
-
-        if not port:
-            port = get_default_com_port(CONFIG.com_port)
-
-        if port:
-            self.reconnect_port = port
-            self.reconnect_baud = baud
-            result, message = self._attempt_connect(port, baud, wait_for_device=wait_for_device)
-            if result:
-                return True, message
-            self.connected = False
-            self.esp32 = None
-            if self.auto_reconnect_enabled:
-                self._schedule_reconnect()
-            return False, message
-
-        self.connected = False
-        self.esp32 = None
-        return False, "No COM port specified"
+            return False, "No COM port specified"
 
     def disconnect(self) -> None:
         """Close serial connection cleanly and stop reconnect attempts."""
@@ -289,21 +369,37 @@ class SerialHandler:
         Trigger a background reconnect attempt.
         Returns True when a reconnect worker is already running or scheduled.
         """
-        if not self.auto_reconnect_enabled or not self.reconnect_port:
+        if not self.auto_reconnect_enabled or (not self.reconnect_port and not self._auto_detect_requested):
             return False
         self._schedule_reconnect()
         return True
 
     def _schedule_reconnect(self) -> None:
         with self._lock:
-            if not self.auto_reconnect_enabled or not self.reconnect_port:
+            if not self.auto_reconnect_enabled or (not self.reconnect_port and not self._auto_detect_requested):
+                log.info(
+                    "Reconnect not scheduled",
+                    auto_reconnect_enabled=self.auto_reconnect_enabled,
+                    reconnect_port=self.reconnect_port,
+                    auto_detect_requested=self._auto_detect_requested,
+                )
                 return
 
             if self._reconnect_thread is not None and self._reconnect_thread.is_alive():
+                log.info(
+                    "Reconnect worker already running",
+                    thread_name=self._reconnect_thread.name,
+                    reconnect_count=self.reconnect_count,
+                )
                 return
 
             self._reconnect_stop.clear()
-            self._reconnect_thread = threading.Thread(target=self._reconnect_worker, daemon=True)
+            self._reconnect_thread = threading.Thread(
+                target=self._reconnect_worker,
+                daemon=True,
+                name="SerialHandlerReconnect",
+            )
+            log.info("Starting reconnect worker", thread_name=self._reconnect_thread.name)
             self._reconnect_thread.start()
 
     def _join_reconnect_thread(self) -> None:
@@ -315,42 +411,119 @@ class SerialHandler:
         self._reconnect_thread = None
 
     def _reconnect_worker(self) -> None:
-        while not self._reconnect_stop.is_set() and self.reconnect_count < CONFIG.reconnect_max_retries:
-            delay = min(CONFIG.reconnect_base_delay * (2 ** self.reconnect_count), RECONNECT_MAX_DELAY)
-            self.reconnect_count += 1
-            log.warning(
-                "Attempting reconnect",
-                attempt=self.reconnect_count,
-                max_attempts=CONFIG.reconnect_max_retries,
-                delay_seconds=delay,
-                port=self.reconnect_port,
-                baud=self.reconnect_baud,
-            )
+        log.info(
+            "Reconnect worker entered",
+            thread_id=threading.get_ident(),
+            thread_name=threading.current_thread().name,
+            reconnect_port=self.reconnect_port,
+            reconnect_baud=self.reconnect_baud,
+            auto_detect=self._auto_detect_requested,
+        )
+        try:
+            while not self._reconnect_stop.is_set() and self.reconnect_count < CONFIG.reconnect_max_retries:
+                delay = min(CONFIG.reconnect_base_delay * (2 ** self.reconnect_count), RECONNECT_MAX_DELAY)
+                self.reconnect_count += 1
+                log.warning(
+                    "Attempting reconnect",
+                    attempt=self.reconnect_count,
+                    max_attempts=CONFIG.reconnect_max_retries,
+                    delay_seconds=delay,
+                    port=self.reconnect_port,
+                    baud=self.reconnect_baud,
+                    auto_detect=self._auto_detect_requested,
+                )
 
-            if self._reconnect_stop.wait(delay):
-                return
-
-            with self._lock:
-                if self._reconnect_stop.is_set():
+                if self._reconnect_stop.wait(delay):
                     return
-                success, msg = self._attempt_connect(self.reconnect_port, self.reconnect_baud)
 
-            if success:
-                log.success("Auto-reconnect successful", port=self.reconnect_port, baud=self.reconnect_baud)
-                return
+                with self._lock:
+                    if self._reconnect_stop.is_set():
+                        return
 
-            log.warning(
-                "Auto-reconnect attempt failed",
-                attempt=self.reconnect_count,
-                max_attempts=CONFIG.reconnect_max_retries,
-                reason=msg,
+                    if self._auto_detect_requested:
+                        # Auto-detect mode: refresh port enumeration each retry
+                        candidate_port, cable, metadata, error = discover_device(
+                            preferred_port=self._preferred_port,
+                            baud=self.reconnect_baud or CONFIG.baud_rate,
+                        )
+                        if candidate_port:
+                            self.reconnect_port = candidate_port
+                            self.device_metadata = metadata
+                            self.esp32 = cable
+                            self.esp32.timeout = 0
+                            try:
+                                self.esp32.reset_input_buffer()
+                            except Exception:
+                                pass
+                            try:
+                                self.esp32.reset_output_buffer()
+                            except Exception:
+                                pass
+                            self.connected = True
+                            self.reconnect_count = 0
+                            success, msg = True, "OK"
+                        else:
+                            success = False
+                            msg = error
+                    else:
+                        # Explicit port mode: check if port still exists; if not and this is a stale port, suggest auto-detect
+                        available_ports = list_serial_ports()
+                        if self.reconnect_port and self.reconnect_port not in available_ports:
+                            if self.reconnect_count > 2:
+                                # After a few attempts, suggest switching to auto-detect
+                                log.warning(
+                                    "Reconnect port no longer available; suggest auto-detect",
+                                    port=self.reconnect_port,
+                                    available_ports=available_ports,
+                                    attempt=self.reconnect_count,
+                                )
+                                success = False
+                                msg = f"Port {self.reconnect_port} not found. Available ports: {available_ports}. Try using auto-detect."
+                            else:
+                                success = False
+                                msg = f"Port {self.reconnect_port} not currently available"
+                        else:
+                            success, msg = self._attempt_connect(self.reconnect_port, self.reconnect_baud)
+
+                if success:
+                    log.success(
+                        "Auto-reconnect successful",
+                        port=self.reconnect_port,
+                        baud=self.reconnect_baud,
+                        auto_detect=self._auto_detect_requested,
+                    )
+                    return
+
+                log.warning(
+                    "Auto-reconnect attempt failed",
+                    attempt=self.reconnect_count,
+                    max_attempts=CONFIG.reconnect_max_retries,
+                    reason=msg,
+                )
+
+            if not self.is_connected():
+                log.error(
+                    "Auto-reconnect failed",
+                    attempts=self.reconnect_count,
+                    max_attempts=CONFIG.reconnect_max_retries,
+                )
+        except Exception as exc:
+            log.exception(
+                "Unexpected exception in reconnect worker",
+                error=str(exc),
+                thread_id=threading.get_ident(),
+                thread_name=threading.current_thread().name,
             )
-
-        if not self.is_connected():
-            log.error(
-                "Auto-reconnect failed",
-                attempts=self.reconnect_count,
-                max_attempts=CONFIG.reconnect_max_retries,
+            self.connected = False
+            self.esp32 = None
+            self._reconnect_stop.set()
+        finally:
+            log.info(
+                "Reconnect worker exiting",
+                thread_id=threading.get_ident(),
+                thread_name=threading.current_thread().name,
+                reconnect_count=self.reconnect_count,
+                connected=self.connected,
             )
 
     def _attempt_connect(
@@ -365,7 +538,21 @@ class SerialHandler:
         try:
             if self.esp32 is not None and getattr(self.esp32, "is_open", False):
                 self.esp32.close()
-            self.esp32 = serial.Serial(port, baud, timeout=0)
+            self.esp32 = serial.Serial(
+                port,
+                baud,
+                timeout=0,
+                dsrdtr=False,
+                rtscts=False,
+                xonxoff=False,
+            )
+            try:
+                self.esp32.dtr = False
+                self.esp32.rts = False
+                self.esp32.reset_input_buffer()
+                self.esp32.reset_output_buffer()
+            except Exception:
+                pass
             if wait_for_device:
                 time.sleep(2)
             self.connected = True
@@ -380,6 +567,14 @@ class SerialHandler:
                 pass
             return True, "OK"
         except Exception as exc:
+            log.warning(
+                "SerialHandler._attempt_connect() failed",
+                port=port,
+                baud=baud,
+                error=str(exc),
+                thread_id=threading.get_ident(),
+                thread_name=threading.current_thread().name,
+            )
             self.connected = False
             self.esp32 = None
             return False, str(exc)

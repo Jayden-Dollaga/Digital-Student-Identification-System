@@ -9,6 +9,7 @@
 
 import logging
 import logging.handlers
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -30,10 +31,22 @@ else:
 class AppFormatter(logging.Formatter):
     """Formatter supporting simple structured message payloads."""
 
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+        if datefmt and "%f" in datefmt:
+            timestamp = time.localtime(record.created)
+            microsecond = int(record.msecs * 1000)
+            fmt = datefmt.replace("%f", "{microsecond:06d}")
+            return time.strftime(fmt, timestamp).format(microsecond=microsecond)
+        return super().formatTime(record, datefmt)
+
     def format(self, record: logging.LogRecord) -> str:
         original_msg = record.msg
         original_args = record.args
+        original_source = getattr(record, "source", None)
         try:
+            if original_source is None:
+                record.source = self._derive_source(record)
+
             if isinstance(record.msg, dict):
                 record.msg = self._format_structured(record.msg)
                 record.args = ()
@@ -46,6 +59,31 @@ class AppFormatter(logging.Formatter):
         finally:
             record.msg = original_msg
             record.args = original_args
+            if original_source is None:
+                try:
+                    delattr(record, "source")
+                except Exception:
+                    pass
+            else:
+                record.source = original_source
+
+    def _derive_source(self, record: logging.LogRecord) -> str:
+        module = (getattr(record, "module", "") or "").lower()
+        if module.startswith("serial_handler") or module.startswith("device_discovery"):
+            return "SERIAL"
+        if module.startswith("attendance"):
+            return "ATTENDANCE"
+        if module.startswith("database"):
+            return "DATABASE"
+        if module.startswith("gui_qt") or module.startswith("main_window") or module.startswith("serial_worker"):
+            return "GUI"
+        if module.startswith("logger"):
+            return "SYSTEM"
+        if module.startswith("main"):
+            return "SYSTEM"
+        if module:
+            return module.upper()
+        return "SYSTEM"
 
     def _format_structured(self, payload: Dict[str, Any]) -> str:
         return " | ".join(f"{key}={value}" for key, value in payload.items())
@@ -60,7 +98,7 @@ def _configure_logger() -> logging.Logger:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(LOG_LEVEL)
     console_handler.setFormatter(
-        AppFormatter("%(asctime)s [%(levelname)-8s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f")
     )
     logger.addHandler(console_handler)
 
@@ -75,7 +113,7 @@ def _configure_logger() -> logging.Logger:
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(
-            AppFormatter("%(asctime)s [%(levelname)-8s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+            AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f")
         )
         logger.addHandler(file_handler)
 

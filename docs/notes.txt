@@ -774,3 +774,41 @@ Compilation error: 'ledcSetup' was not declared in this scope
     LIST       Show stored fingerprint count
     SCAN       Start attendance scan mode
     STOP       Stop scanning, return to commands
+
+
+
+
+
+```
+  Serial.println("\n========================================");
+  Serial.println("  AS608 All-in-One Fingerprint System");
+  Serial.println("========================================");
+  Serial.print("{\"device\": \"");
+  Serial.print(DEVICE_IDENTIFIER);
+  Serial.print("\", \"board\": \"");
+  Serial.print(DEVICE_BOARD);
+  Serial.print("\", \"firmware\": \"");
+  Serial.print(DEVICE_FIRMWARE);
+  Serial.print("\", \"sensor\": \"");
+  Serial.print(DEVICE_SENSOR);
+  Serial.print("\", \"protocol\": ");
+  Serial.print(DEVICE_PROTOCOL);
+  Serial.print(", \"serial_number\": \"");
+  Serial.print(ESP.getEfuseMac());
+  Serial.println("\"}");
+```
+
+```
+void printHelp() {
+  Serial.println();
+  Serial.println("  Commands (line ending must be set to Newline):");
+  Serial.println("    ENROLL     Enroll finger using next free ID");
+  Serial.println("    ENROLL:1   Enroll finger as ID 1  (1-127)");
+  Serial.println("    DELETE:1   Delete finger ID 1");
+  Serial.println("    WIPE       Delete ALL fingerprints");
+  Serial.println("    LIST       Show stored fingerprint count");
+  Serial.println("    SCAN       Start attendance scan mode");
+  Serial.println("    STOP       Stop scanning, return to commands");
+  Serial.println();
+}
+```

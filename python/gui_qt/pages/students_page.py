@@ -72,7 +72,7 @@ class EnrollDialog(QDialog):
         outer.addLayout(button_row)
 
         self.serial_worker.enroll_progress.connect(self.on_enroll_progress)
-        self.serial_worker.log_line.connect(self._append_log_line)
+        self.serial_worker.raw_line.connect(self._append_log_line)
 
     def _append_log_line(self, line: str):
         self.log_view.append(line)
@@ -134,7 +134,7 @@ class EnrollDialog(QDialog):
     def closeEvent(self, event):
         try:
             self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
-            self.serial_worker.log_line.disconnect(self._append_log_line)
+            self.serial_worker.raw_line.disconnect(self._append_log_line)
         except (RuntimeError, TypeError):
             pass
         if self.serial_handler.is_connected():

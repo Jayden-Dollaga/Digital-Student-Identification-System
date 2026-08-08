@@ -1,8 +1,12 @@
+import logging
+
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
 
+import threading
 from core.commands import cmd_scan, cmd_stop
+from core.logger import AppFormatter, LOG, log
 from gui_qt.widgets.sidebar import Sidebar
 from gui_qt.pages.dashboard_page import DashboardPage
 from gui_qt.pages.attendance_page import AttendancePage
@@ -33,6 +37,7 @@ PAGE_TITLES = {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        LOG.info("MainWindow initialization started")
         self.setWindowTitle("Fingerprint Attendance System")
         self.resize(1180, 720)
         self.setMinimumSize(860, 560)
@@ -113,7 +118,7 @@ class MainWindow(QMainWindow):
         self.serial_worker = SerialWorker(self.serial_handler, self.attendance_processor)
         self.students_page = StudentsPage(serial_handler=self.serial_handler, serial_worker=self.serial_worker)
         self.reports_page = ReportsPage()
-        self.logs_page = LogsPage()
+        self.logs_page = LogsPage(serial_handler=self.serial_handler)
         self.settings_page = SettingsPage(
             serial_handler=self.serial_handler,
             settings=self.settings,
@@ -146,9 +151,19 @@ class MainWindow(QMainWindow):
         self.serial_worker.connection_changed.connect(self.on_connection_changed)
         self.serial_worker.mode_changed.connect(self.on_scan_mode_changed)
         self.serial_worker.scan_event.connect(self.on_scan_event)
-        self.serial_worker.log_line.connect(self.logs_page.append_line)
+        self.serial_worker.raw_line.connect(self.logs_page.append_line)
         self.serial_worker.error.connect(self.on_serial_error)
+
+        self._log_handler = self._create_log_handler()
+        LOG.addHandler(self._log_handler)
+        thread_name = (
+            self.serial_worker.currentThread().objectName()
+            if self.serial_worker.currentThread()
+            else "unknown"
+        )
+        LOG.info("Starting SerialWorker | thread_name=%s", thread_name)
         self.serial_worker.start()
+        LOG.info("SerialWorker started | thread_name=%s", thread_name)
 
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
@@ -163,6 +178,7 @@ class MainWindow(QMainWindow):
             self.serial_handler.disconnect()
             self.connect_button.setText("Connect")
             self.update_connection_metadata()
+            self.logs_page.set_connection_state("disconnected")
             return
 
         saved_port = self.settings.get("com_port") or ""
@@ -174,13 +190,18 @@ class MainWindow(QMainWindow):
             self.settings["com_port"] = self.serial_handler.reconnect_port or port
             self.settings["baud_rate"] = baud
             self.update_connection_metadata()
-            self.logs_page.append_line(
-                f"[INFO] Connected to {self.serial_handler.reconnect_port or port} at {baud} baud. "
-                f"Device: {self.device_info_label.text()}"
+            self.logs_page.set_connection_info(self.serial_handler.reconnect_port or port, baud)
+            self.logs_page.set_connection_state("connected")
+            LOG.info(
+                "Connected to %s at %s baud. Device: %s",
+                self.serial_handler.reconnect_port or port,
+                baud,
+                self.device_info_label.text(),
             )
         else:
-            self.logs_page.append_line(f"[ERROR] Connection failed: {msg}")
+            LOG.error("Connection failed: %s", msg)
             self.update_connection_metadata()
+            self.logs_page.set_connection_state("disconnected")
 
     def _attempt_startup_connection(self):
         saved_port = self.settings.get("com_port") or ""
@@ -188,14 +209,16 @@ class MainWindow(QMainWindow):
         baud = int(self.settings.get("baud_rate") or CONFIG.baud_rate)
         ok, msg = self.serial_handler.connect(port, baud, auto_detect=self.auto_detect_serial)
         if ok:
-            self.logs_page.append_line(
-                f"[INFO] Auto-connected to {self.serial_handler.reconnect_port or port} at {baud} baud. "
-                f"Device: {self.device_info_label.text()}"
+            LOG.info(
+                "Auto-connected to %s at %s baud. Device: %s",
+                self.serial_handler.reconnect_port or port,
+                baud,
+                self.device_info_label.text(),
             )
             self.settings["com_port"] = self.serial_handler.reconnect_port or port
             self.update_connection_metadata()
         else:
-            self.logs_page.append_line(f"[WARN] Auto-connect failed: {msg}")
+            LOG.warning("Auto-connect failed: %s", msg)
             self.update_connection_metadata()
 
     def on_connection_settings_changed(self, port: str, baud: int, auto_reconnect: bool = None, auto_detect: bool = None, theme: str = None):
@@ -215,7 +238,24 @@ class MainWindow(QMainWindow):
             self.serial_handler.disconnect()
             ok, msg = self.serial_handler.connect(port, baud)
             if not ok:
-                self.logs_page.append_line(f"[ERROR] Reconnect failed: {msg}")
+                LOG.error("Reconnect failed: %s", msg)
+
+    class _QtLogHandler(logging.Handler):
+        def __init__(self, log_page):
+            super().__init__()
+            self.log_page = log_page
+            self.setFormatter(AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f"))
+
+        def emit(self, record):
+            try:
+                self.log_page.append_record(record)
+            except Exception:
+                pass
+
+    def _create_log_handler(self):
+        handler = self._QtLogHandler(self.logs_page)
+        handler.setLevel(getattr(logging, CONFIG.log_level.upper(), logging.INFO))
+        return handler
 
     def on_connection_changed(self, state: str):
         labels = {
@@ -232,6 +272,9 @@ class MainWindow(QMainWindow):
         if not state == "connected":
             self.scan_active = False
             self._update_scan_toggle_button()
+        self.logs_page.set_connection_state(state)
+        if state == "connected":
+            self.logs_page.set_connection_info(self.serial_handler.reconnect_port or "N/A", self.serial_handler.reconnect_baud or 0)
         self.update_connection_metadata()
 
     def on_scan_event(self, event: dict):
@@ -239,7 +282,7 @@ class MainWindow(QMainWindow):
         self.attendance_page.on_scan_event(event)
 
     def on_serial_error(self, message: str):
-        self.logs_page.append_line(f"[ERROR] {message}")
+        LOG.error("Serial error: %s", message)
 
     def on_scan_mode_changed(self, mode: str):
         if mode == "scan":
@@ -258,23 +301,23 @@ class MainWindow(QMainWindow):
 
     def on_scan_toggle_clicked(self):
         if not self.serial_handler.is_connected():
-            self.logs_page.append_line("[WARN] Connect before sending SCAN.")
+            LOG.warning("Connect before sending SCAN.")
             return
 
         if self.scan_active:
             if cmd_stop(self.serial_handler):
                 self.scan_active = False
-                self.logs_page.append_line("[INFO] Sent STOP command to ESP32.")
+                LOG.info("Sent STOP command to ESP32.")
                 self._update_scan_toggle_button()
             else:
-                self.logs_page.append_line("[ERROR] Failed to send STOP command to ESP32.")
+                LOG.error("Failed to send STOP command to ESP32.")
         else:
             if cmd_scan(self.serial_handler):
                 self.scan_active = True
-                self.logs_page.append_line("[INFO] Sent SCAN command to ESP32.")
+                LOG.info("Sent SCAN command to ESP32.")
                 self._update_scan_toggle_button()
             else:
-                self.logs_page.append_line("[ERROR] Failed to send SCAN command to ESP32.")
+                LOG.error("Failed to send SCAN command to ESP32.")
 
     def update_connection_metadata(self):
         metadata = self.serial_handler.device_metadata or {}
@@ -296,13 +339,14 @@ class MainWindow(QMainWindow):
             self.device_info_label.setText("No device metadata available")
 
     def closeEvent(self, event):
+        LOG.info("MainWindow.closeEvent", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
         try:
             self.serial_worker.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            LOG.exception("Exception during SerialWorker.stop()", error=str(exc))
         try:
             if self.serial_handler.is_connected():
                 self.serial_handler.disconnect()
-        except Exception:
-            pass
+        except Exception as exc:
+            LOG.exception("Exception during SerialHandler.disconnect()", error=str(exc))
         super().closeEvent(event)

@@ -1,11 +1,16 @@
 import json
+import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from config import get_config
 
 CONFIG = get_config()
 SETTINGS_FILE = CONFIG.data_dir / "settings.json"
+
+# Track stale port detection to avoid spam
+_stale_port_last_checked: Dict[str, float] = {}
+_STALE_PORT_CHECK_INTERVAL = 300  # Only check once every 5 minutes per port
 
 
 def default_settings() -> Dict[str, Any]:
@@ -48,3 +53,37 @@ def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> P
     with settings_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
     return settings_path
+
+
+def cleanup_stale_port(port: str, available_ports: list[str]) -> Optional[str]:
+    """Check if stored port still exists; return None (clear) if stale, port if still valid.
+    
+    Args:
+        port: COM port to validate
+        available_ports: List of currently available ports
+    
+    Returns:
+        port if it exists in available_ports, None if stale
+    """
+    if not port or port in available_ports:
+        return port
+    
+    # Port is stale (not in enumeration)
+    key = f"stale_{port}"
+    now = time.time()
+    last_checked = _stale_port_last_checked.get(key, 0)
+    
+    if now - last_checked >= _STALE_PORT_CHECK_INTERVAL:
+        _stale_port_last_checked[key] = now
+        # Only log once every 5 minutes to reduce spam
+        try:
+            from core.logger import log
+            log.info(
+                "Stored COM port no longer available; will clear on next connection attempt",
+                stored_port=port,
+                available_ports=available_ports,
+            )
+        except ImportError:
+            pass  # Logger not available during early init
+    
+    return None
