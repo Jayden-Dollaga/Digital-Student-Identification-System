@@ -18,7 +18,7 @@ def load_stylesheet(app: QApplication, theme: str = "dark"):
     theme_file = "theme_light.qss" if theme.lower() == "light" else "theme.qss"
     qss_path = Path(__file__).parent / theme_file
     if qss_path.exists():
-        app.setStyleSheet(qss_path.read_text())
+        app.setStyleSheet(qss_path.read_text(encoding="utf-8", errors="replace"))
     elif theme.lower() == "light":
         app.setStyleSheet("")
 

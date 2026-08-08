@@ -165,7 +165,7 @@ class SettingsPage(QWidget):
             return
         qss_file = self._get_theme_path(theme)
         if qss_file.exists():
-            app.setStyleSheet(qss_file.read_text())
+            app.setStyleSheet(qss_file.read_text(encoding="utf-8", errors="replace"))
         else:
             app.setStyleSheet("")
 
