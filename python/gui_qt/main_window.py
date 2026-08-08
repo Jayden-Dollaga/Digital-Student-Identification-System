@@ -150,9 +150,6 @@ class MainWindow(QMainWindow):
         self.serial_worker.error.connect(self.on_serial_error)
         self.serial_worker.start()
 
-        if self.auto_detect_serial:
-            self._attempt_startup_connection()
-
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
         self.page_title.setText(PAGE_TITLES[key])
