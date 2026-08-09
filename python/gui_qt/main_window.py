@@ -339,14 +339,26 @@ class MainWindow(QMainWindow):
             self.device_info_label.setText("No device metadata available")
 
     def closeEvent(self, event):
-        LOG.info("MainWindow.closeEvent", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+        LOG.info(
+            "MainWindow.closeEvent | thread_id=%s | thread_name=%s",
+            threading.get_ident(),
+            threading.current_thread().name,
+        )
         try:
             self.serial_worker.stop()
         except Exception as exc:
-            LOG.exception("Exception during SerialWorker.stop()", error=str(exc))
+            LOG.exception("Exception during SerialWorker.stop(): %s", str(exc))
+        try:
+            self.serial_worker.quit()
+        except Exception as exc:
+            LOG.exception("Exception during SerialWorker.quit(): %s", str(exc))
+        try:
+            self.serial_worker.wait(2000)
+        except Exception as exc:
+            LOG.exception("Exception during SerialWorker.wait(): %s", str(exc))
         try:
             if self.serial_handler.is_connected():
                 self.serial_handler.disconnect()
         except Exception as exc:
-            LOG.exception("Exception during SerialHandler.disconnect()", error=str(exc))
+            LOG.exception("Exception during SerialHandler.disconnect(): %s", str(exc))
         super().closeEvent(event)

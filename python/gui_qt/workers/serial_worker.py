@@ -47,6 +47,7 @@ class SerialWorker(QThread):
         self._running = False
         self._last_connected_state = None
         self._last_reconnect_count = 0
+        self._pending_enroll_status = None
 
     def run(self):
         log.info(
@@ -157,6 +158,10 @@ class SerialWorker(QThread):
     def _parse_enroll_progress(self, message: str):
         """Mirrors app.py's _parse_enroll_progress — emitted regardless of whether
         an enroll dialog is open; the dialog decides whether it cares."""
+        message = message.strip()
+        if not message:
+            return
+
         match = RE_ENROLLING_AS.search(message)
         if match:
             self.enroll_progress.emit({"event": "enrolling", "id": match.group(1)})

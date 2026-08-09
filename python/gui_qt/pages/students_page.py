@@ -83,6 +83,10 @@ class EnrollDialog(QDialog):
         if not self.serial_handler.is_connected():
             QMessageBox.warning(self, "Not connected", "Connect to the ESP32 first.")
             return
+        self.assigned_id = None
+        self.ready_to_save = False
+        self.id_label.setText("Assigned ID: Pending")
+        self.save_btn.setEnabled(False)
         cmd_stop(self.serial_handler)  # stop any active scan mode first, same as app.py's enroll_sample()
         if cmd_enroll(self.serial_handler):
             self.status_label.setText("Sent ENROLL command. Follow the prompts on the sensor.")
