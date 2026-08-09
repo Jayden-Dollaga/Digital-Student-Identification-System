@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
@@ -221,7 +222,14 @@ class MainWindow(QMainWindow):
             LOG.warning("Auto-connect failed: %s", msg)
             self.update_connection_metadata()
 
-    def on_connection_settings_changed(self, port: str, baud: int, auto_reconnect: bool = None, auto_detect: bool = None, theme: str = None):
+    def on_connection_settings_changed(
+        self,
+        port: str,
+        baud: int,
+        auto_reconnect: Optional[bool] = None,
+        auto_detect: Optional[bool] = None,
+        theme: Optional[str] = None,
+    ):
         """Called by SettingsPage after Save — reconnect with new values if already connected."""
         self.settings["com_port"] = port
         self.settings["baud_rate"] = baud

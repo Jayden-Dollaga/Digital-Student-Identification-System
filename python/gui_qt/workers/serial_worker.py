@@ -16,6 +16,7 @@ import re
 import threading
 import time
 from datetime import datetime
+from typing import Optional
 
 from PySide6.QtCore import QThread, Signal
 
@@ -40,7 +41,7 @@ class SerialWorker(QThread):
     wipe_progress = Signal(dict)       # {"event": "start"|"success"|"error"}
     error = Signal(str)
 
-    def __init__(self, serial_handler: SerialHandler, attendance_processor: AttendanceProcessor, parent=None):
+    def __init__(self, serial_handler: SerialHandler, attendance_processor: AttendanceProcessor, parent: Optional[object] = None):
         super().__init__(parent)
         self.serial_handler = serial_handler
         self.attendance_processor = attendance_processor

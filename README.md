@@ -170,6 +170,7 @@ The exact GPIO mapping may vary depending on the firmware and hardware layout. T
 
 ```text
 Fingerprint-Attendance-System/
+├── archive/                      # Experimental, diagnostic, and legacy UI artifacts preserved for reference
 ├── firmware/                     # ESP32 Arduino sketches and firmware sources
 │   ├── attendance/
 │   ├── enroll/
@@ -181,12 +182,12 @@ Fingerprint-Attendance-System/
 │   ├── config.py                 # Environment-aware runtime configuration
 │   ├── core/                     # Core services: DB, serial, attendance, logging, firmware helper
 │   ├── gui/                      # Original CustomTkinter desktop UI
-│   ├── gui_qt/                   # Modern PySide6 desktop UI prototype / replacement shell
+│   ├── gui_qt/                   # Modern PySide6 desktop UI and worker integration
 │   ├── services/                 # Backup and export helpers
 │   └── settings_store.py         # JSON-based settings persistence for GUI preferences
 ├── data/                         # Local database, backups, logs, exports, runtime state
 ├── docs/                         # Documentation and status notes
-├── tests/                        # Regression tests and GUI exploration harnesses
+├── tests/                        # Regression tests and GUI coverage
 ├── tools/                        # Portable build, bootstrap, and packaging helpers
 ├── requirements.txt              # Python dependencies
 ├── run_app.bat                   # Launcher for the legacy GUI
@@ -210,6 +211,7 @@ The project includes several low-risk maintenance improvements to harden serial,
 - Added `tests/test_vidpid_normalization.py` to protect VID:PID normalization and scoring.
 
 These changes are low-risk and backwards-compatible; they improve reliability without changing public APIs.
+
 - [python/core/attendance.py](python/core/attendance.py) — parses ESP32 serial output into attendance events and applies cooldown logic.
 - [python/core/commands.py](python/core/commands.py) — wraps ESP32 commands like scan, stop, enroll, delete, wipe, and list.
 - [python/core/database.py](python/core/database.py) — SQLite persistence layer for students, attendance, backups, exports, and reset operations.

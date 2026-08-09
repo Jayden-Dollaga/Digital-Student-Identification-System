@@ -31,10 +31,19 @@ def _handle_uncaught_exception(exc_type: type[BaseException], exc_value: BaseExc
 
 
 def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
+    thread = getattr(args, "thread", None)
+    if thread is None:
+        log.exception(
+            "Uncaught exception in thread",
+            error=str(args.exc_value),
+            traceback="".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)),
+        )
+        return
+
     log.exception(
         "Uncaught exception in thread",
-        thread_name=args.thread.name,
-        thread_id=args.thread.ident,
+        thread_name=getattr(thread, "name", "unknown"),
+        thread_id=getattr(thread, "ident", None),
         error=str(args.exc_value),
         traceback="".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)),
     )
