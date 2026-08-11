@@ -49,15 +49,17 @@ install_requirements.bat
 1. Launch the desktop GUI:
 
 ```bash
-run_app.bat
+run_qt_gui.bat
 ```
+
+If you need the older CustomTkinter UI for compatibility, use `run_app.bat` instead.
 
 ### Run it again
 
 After the first setup, start the app again with the same command:
 
 ```bash
-run_app.bat
+run_qt_gui.bat
 ```
 
 ### Qt UI (recommended for modern Windows setups)
@@ -282,12 +284,14 @@ Double-click [install_requirements.bat](install_requirements.bat) to install the
 
 ### 5. Run the GUI application
 
-Double-click [run_app.bat](run_app.bat) to launch the desktop GUI.
+Double-click [run_qt_gui.bat](run_qt_gui.bat) to launch the desktop GUI.
+
+If you need the legacy CustomTkinter interface, use `run_app.bat` instead.
 
 If you prefer the command line, you can also run:
 
 ```bash
-python python/gui/app.py
+python run_qt_gui.py
 ```
 
 > The GUI now opens larger by default so more of the interface fits on the screen.

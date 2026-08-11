@@ -7,7 +7,7 @@ Top-level files
 - README.md: Project readme and quickstart.
 - INSTALLATION.md: Installation notes and platform tips.
 - requirements.txt: Python dependencies (updated to include PySide6 and matplotlib).
-- run_qt_gui.py / run_app.bat: Convenience launchers for the app.
+- run_qt_gui.py / run_qt_gui.bat: Convenience launchers for the Qt app. The legacy `run_app.bat` launcher remains available for compatibility.
 - LICENSE: Project license.
 - pytest.ini: Pytest configuration for running tests.
 - tools/: Utility scripts used for development, debugging, and building a portable executable.

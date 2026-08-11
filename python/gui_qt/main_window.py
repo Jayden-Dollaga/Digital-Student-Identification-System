@@ -307,6 +307,32 @@ class MainWindow(QMainWindow):
             self.scan_toggle_button.setText("SCAN")
             self.scan_toggle_button.setStyleSheet("")
 
+    def _set_scan_block_reason(self, reason: Optional[str]):
+        self._scan_block_reason = reason
+
+    def _clear_scan_block_reason(self):
+        self._scan_block_reason = None
+
+    def _scan_command_blocked_reason(self) -> Optional[str]:
+        scan_active = getattr(self, "scan_active", False)
+        if scan_active:
+            return None
+
+        if getattr(self, "_scan_block_reason", None):
+            return self._scan_block_reason
+        if getattr(self, "_scan_blocked", False):
+            return "A fingerprint enrollment is currently active. Finish or cancel it before scanning."
+
+        serial_handler = getattr(self, "serial_handler", None)
+        if serial_handler is None:
+            return "Connect to the ESP32 before starting scan mode."
+        if not getattr(serial_handler, "is_connected", lambda: False)():
+            return "Connect to the ESP32 before starting scan mode."
+        return None
+
+    def _can_start_scan(self) -> bool:
+        return self._scan_command_blocked_reason() is None
+
     def on_scan_toggle_clicked(self):
         if not self.serial_handler.is_connected():
             LOG.warning("Connect before sending SCAN.")
@@ -319,13 +345,19 @@ class MainWindow(QMainWindow):
                 self._update_scan_toggle_button()
             else:
                 LOG.error("Failed to send STOP command to ESP32.")
+            return
+
+        reason = self._scan_command_blocked_reason()
+        if reason is not None:
+            LOG.warning(reason)
+            return
+
+        if cmd_scan(self.serial_handler):
+            self.scan_active = True
+            LOG.info("Sent SCAN command to ESP32.")
+            self._update_scan_toggle_button()
         else:
-            if cmd_scan(self.serial_handler):
-                self.scan_active = True
-                LOG.info("Sent SCAN command to ESP32.")
-                self._update_scan_toggle_button()
-            else:
-                LOG.error("Failed to send SCAN command to ESP32.")
+            LOG.error("Failed to send SCAN command to ESP32.")
 
     def update_connection_metadata(self):
         metadata = self.serial_handler.device_metadata or {}

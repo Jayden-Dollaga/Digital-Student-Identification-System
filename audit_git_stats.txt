@@ -1,0 +1,159 @@
+commit bb23ffbfb14793d38ed5498fd30a908d4a1b87c9
+Author: Jayden Police44 <jaydendollaga4@gmail.com>
+Date:   Sun Aug 9 19:20:05 2026 +0800
+
+    feat: Add Reports Page for attendance tracking with filtering, sorting, and pagination
+    
+    - Implemented ReportsPage class to recreate the BFEAS web "Reports" screen using CustomTkinter.
+    - Added functionality for filtering attendance records by date range and searching by student details.
+    - Included pagination controls to navigate through attendance records.
+    - Integrated manual attendance record addition feature with validation.
+    - Styled the table view for better user experience.
+    
+    feat: Implement simple database backup functionality
+    
+    - Created backup.py to handle database backups by copying the .db file to a designated backups folder.
+    - Implemented error handling to return success or failure messages.
+    
+    feat: Export attendance records to Excel
+    
+    - Developed excel_export.py to export attendance records to .xlsx format using openpyxl.
+    - Added functions to export today's records, all records, and records by specific date with proper styling.
+    
+    docs: Create Project Organizational Audit documentation
+    
+    - Documented the current state of the project, including folder structure, current problems, and proposed improvements.
+    - Classified files into active and archived categories for better organization.
+    
+    test: Add unit test for Qt thread exception handling
+    
+    - Implemented a test to verify the handling of thread exceptions in the Qt application.
+    - Used monkeypatching to simulate exception logging and validate error capture.
+
+ README.md                                          |   6 +-
+ archive/README.md                                  |   8 ++
+ .../diagnostics/discovery_handshake_probe.py       |   0
+ .../diagnostics/serial_monitor_test.py             |   0
+ .../diagnostics/serial_pipeline_tester.py          |   0
+ .../diagnostics/temp_serial_port_info.py           |   0
+ .../diagnostics/tmp_serial_dtr_test.py             |   0
+ .../diagnostics/tmp_serial_handler_probe.py        |   0
+ .../diagnostics/tmp_serial_probe.py                |   0
+ .../legacy-ui}/gui_qt_redesign/README.md           |   0
+ .../legacy-ui/gui_qt_redesign}/gui_qt/__init__.py  |   0
+ .../legacy-ui/gui_qt_redesign}/gui_qt/main_qt.py   |   0
+ .../gui_qt_redesign/gui_qt/main_window.py          |   0
+ .../gui_qt_redesign}/gui_qt/pages/__init__.py      |   0
+ .../gui_qt/pages/attendance_page.py                |   0
+ .../gui_qt_redesign/gui_qt/pages/dashboard_page.py |   0
+ .../gui_qt_redesign/gui_qt/pages/logs_page.py      |   0
+ .../gui_qt_redesign/gui_qt/pages/reports_page.py   |   0
+ .../gui_qt_redesign/gui_qt/pages/settings_page.py  |   0
+ .../gui_qt_redesign/gui_qt/pages/students_page.py  |   0
+ .../legacy-ui/gui_qt_redesign}/gui_qt/theme.qss    |   0
+ .../gui_qt_redesign}/gui_qt/widgets/__init__.py    |   0
+ .../gui_qt_redesign}/gui_qt/widgets/sidebar.py     |   0
+ .../gui_qt_redesign}/gui_qt/widgets/stat_card.py   |   0
+ .../gui_qt_redesign}/gui_qt/workers/__init__.py    |   0
+ .../gui_qt/workers/serial_worker.py                |   0
+ .../legacy-ui/gui_qt_redesign_2}/README.md         |   0
+ .../gui_qt_redesign_2}/gui_qt/__init__.py          |   0
+ .../legacy-ui/gui_qt_redesign_2}/gui_qt/main_qt.py |   0
+ .../gui_qt_redesign_2}/gui_qt/main_window.py       |   0
+ .../gui_qt_redesign_2}/gui_qt/pages/__init__.py    |   0
+ .../gui_qt/pages/attendance_page.py                |   0
+ .../gui_qt/pages/dashboard_page.py                 |   0
+ .../gui_qt_redesign_2}/gui_qt/pages/logs_page.py   |   0
+ .../gui_qt/pages/reports_page.py                   |   0
+ .../gui_qt/pages/settings_page.py                  |   0
+ .../gui_qt/pages/students_page.py                  |   0
+ .../legacy-ui/gui_qt_redesign_2}/gui_qt/theme.qss  |   0
+ .../gui_qt_redesign_2}/gui_qt/widgets/__init__.py  |   0
+ .../gui_qt_redesign_2}/gui_qt/widgets/sidebar.py   |   0
+ .../gui_qt_redesign_2}/gui_qt/widgets/stat_card.py |   0
+ .../gui_qt_redesign_2}/gui_qt/workers/__init__.py  |   0
+ .../gui_qt/workers/serial_worker.py                |   0
+ .../legacy-ui}/testing_area/README.txt             |   0
+ .../testing_area/core/database_addition_snippet.py |   0
+ .../legacy-ui}/testing_area/gui/legacy/app_test.py |   0
+ .../testing_area/gui/legacy/app_test1.py           |   0
+ .../testing_area/gui/legacy/bfeas_app.py           |   0
+ .../testing_area/gui/legacy/bfeas_app2.py          |   0
+ .../testing_area/gui/legacy/reports_table_page.py  |   0
+ .../legacy-ui}/testing_area/services/backup.py     |   0
+ .../testing_area/services/excel_export.py          |   0
+ docs/maintenance/PROJECT_ORGANIZATIONAL_AUDIT.md   | 150 +++++++++++++++++++++
+ python/gui_qt/main_qt.py                           |  13 +-
+ python/gui_qt/main_window.py                       |  10 +-
+ python/gui_qt/workers/serial_worker.py             |   3 +-
+ tests/test_qt_thread_exception_handling.py         |  32 +++++
+ 57 files changed, 216 insertions(+), 6 deletions(-)
+
+commit 72fbf91621bbf5055f3a7c77be1a127b72575b29
+Author: Jayden Police44 <jaydendollaga4@gmail.com>
+Date:   Sun Aug 9 18:47:06 2026 +0800
+
+    Add comprehensive forensic audit report for the fingerprint attendance system
+    
+    This commit introduces a detailed forensic audit report that analyzes the current state of the repository, highlighting architectural issues, firmware analysis, serial protocol inconsistencies, and known bugs. The report provides insights into the system's design, risks, and recommendations for improvement, aiming to stabilize the project and enhance its reliability.
+
+ generated/PROJECT_FORENSIC_AUDIT.md | 906 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 906 insertions(+)
+
+commit dc22456faf3b53fdb52a17fcbdc5d6fe3404f45b
+Author: Jayden Police44 <jaydendollaga4@gmail.com>
+Date:   Sun Aug 9 18:19:43 2026 +0800
+
+    fix: Improve logging and error handling in closeEvent and serial worker methods
+
+ python/gui_qt/main_window.py           | 18 +++++++++++++++---
+ python/gui_qt/pages/students_page.py   |  4 ++++
+ python/gui_qt/workers/serial_worker.py |  5 +++++
+ 3 files changed, 24 insertions(+), 3 deletions(-)
+
+commit 0412cb787508da4b5d604141eb8fd52c251299e0
+Author: Jayden Police44 <jaydendollaga4@gmail.com>
+Date:   Sun Aug 9 03:39:11 2026 +0800
+
+    feat: Enhance serial port handling and diagnostics for fingerprint attendance system
+    
+    - Implemented stale port detection in settings_store.py to reduce log spam and improve connection reliability.
+    - Added a comprehensive troubleshooting guide (TROUBLESHOOTING.md) for common COM port issues and resolutions.
+    - Created a standalone diagnostic probe (discovery_handshake_probe.py) for testing ESP32 discovery handshake.
+    - Developed a serial monitor (serial_monitor_test.py) for real-time monitoring and command sending to the ESP32.
+    - Introduced a serial pipeline tester (serial_pipeline_tester.py) for capturing and replaying serial data.
+    - Added temporary scripts for testing serial port behavior and DTR control (temp_serial_port_info.py, tmp_serial_dtr_test.py, tmp_serial_handler_probe.py, tmp_serial_probe.py).
+    - Enhanced serial handler connection probing with detailed logging and error handling (tools/serial_handler_connect_probe.py, tools/serial_worker_probe.py).
+
+ TROUBLESHOOTING.md                     | 191 +++++++++++++++++
+ discovery_handshake_probe.py           | 186 ++++++++++++++++
+ docs/notes.txt                         |  40 +++-
+ python/config.py                       |   6 -
+ python/core/device_discovery.py        | 219 +++++++++++++------
+ python/core/logger.py                  |  42 +++-
+ python/core/serial_handler.py          | 377 +++++++++++++++++++++++++--------
+ python/gui_qt/main_qt.py               |  50 ++++-
+ python/gui_qt/main_window.py           |  86 ++++++--
+ python/gui_qt/pages/logs_page.py       | 236 ++++++++++++++++++---
+ python/gui_qt/pages/students_page.py   |   4 +-
+ python/gui_qt/workers/serial_worker.py |  85 +++++---
+ python/settings_store.py               |  41 +++-
+ serial_monitor_test.py                 | 286 +++++++++++++++++++++++++
+ serial_pipeline_tester.py              | 100 +++++++++
+ temp_serial_port_info.py               |  13 ++
+ tmp_serial_dtr_test.py                 |  46 ++++
+ tmp_serial_handler_probe.py            |  50 +++++
+ tmp_serial_probe.py                    |  20 ++
+ tools/serial_handler_connect_probe.py  |  24 +++
+ tools/serial_pipeline_tester.py        | 194 +++++++++++++++++
+ tools/serial_worker_probe.py           |  78 +++++++
+ 22 files changed, 2131 insertions(+), 243 deletions(-)
+
+commit 235de9e2298e7c8238314535007253080e446af9
+Author: Jayden Police44 <jaydendollaga4@gmail.com>
+Date:   Sat Aug 8 23:02:06 2026 +0800
+
+    fix: Remove auto-detect serial connection attempt during startup
+
+ python/gui_qt/main_window.py | 3 ---
+ 1 file changed, 3 deletions(-)

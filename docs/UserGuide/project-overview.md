@@ -145,7 +145,8 @@ The current system includes:
 1. Install the Python dependencies with [install_requirements.bat](../install_requirements.bat) or pip.
 2. Upload the firmware to the ESP32.
 3. Connect the hardware.
-4. Launch the GUI with [run_app.bat](../run_app.bat) or python [python/gui/app.py](../python/gui/app.py).
+4. Launch the GUI using the newer Qt interface with [run_qt_gui.bat](../run_qt_gui.bat) or `python run_qt_gui.py`.
+   - The legacy CustomTkinter GUI remains available for compatibility at `run_app.bat` or `python python/gui/app.py`, but the Qt stack is the preferred modern path.
 5. Enroll students and begin scanning.
 
 > The GUI now opens larger by default so more of the user interface is visible on start.

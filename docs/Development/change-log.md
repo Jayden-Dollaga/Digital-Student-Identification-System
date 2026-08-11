@@ -5,6 +5,9 @@ v2.4 — 2026-07-17
 -----------------
 
 - Refactor: reworked the Python architecture around clearer separation of concerns between database, serial communication, attendance processing, and the GUI.
+- Fix: the Qt attendance UI now blocks scan mode while enrollment and wipe dialogs are active, preventing accidental re-enrollment from the start-scan action.
+- Fix: live attendance rows now appear in a newest-first order so repeated scans and newly recognized fingerprints are surfaced consistently.
+- Test: added regression coverage for Qt scan blocking and attendance page refresh behavior.
 - Improve: centralized scan handling in `AttendanceProcessor` so parsing, cooldown protection, and structured outcomes are easier to test and maintain.
 - Improve: hardened serial communication and reconnect handling for more reliable background operation during temporary disconnects.
 - Improve: reduced direct database coupling in the GUI while preserving the existing attendance and enrollment workflow.

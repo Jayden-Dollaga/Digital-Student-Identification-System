@@ -46,7 +46,8 @@ This document records the recent implementation work performed across the projec
 - `show_statistics_report()` and `export_statistics_report()` call `has_permission("export")` before enabling export functionality.
 
 ## Testing and verification steps
-1. Run the GUI launcher: `python/main.py` (or double-click `run_app.bat` on Windows).
+1. Run the preferred Qt GUI launcher: `python run_qt_gui.py` or double-click `run_qt_gui.bat` on Windows.
+   - The legacy CustomTkinter workflow is still available via `run_app.bat` or `python/main.py` for compatibility.
 2. Connect the ESP32 and start Scan mode on the device.
 3. Scan a registered fingerprint: a green card should appear and a DB record written to `data/attendance.db`.
 4. Scan an unregistered fingerprint: a red/unknown card should appear and a DB record with `fingerprint_id=0` should be added (check `attendance` table).

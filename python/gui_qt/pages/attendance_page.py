@@ -100,3 +100,5 @@ class AttendancePage(QWidget):
         ]
         for c, value in enumerate(values):
             self.table.setItem(0, c, QTableWidgetItem(str(value)))
+        if self.table.rowCount() > 1:
+            self.table.sortItems(0, Qt.DescendingOrder)

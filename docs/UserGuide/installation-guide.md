@@ -7,7 +7,7 @@ This guide is written for beginners and covers the full workflow for using the F
 The main idea is simple:
 
 1. **Upload the ESP32 firmware once** using Arduino IDE.
-2. **Run the Python app daily** using [run_app.bat](run_app.bat) or the command line.
+2. **Run the Python app daily** using [run_qt_gui.bat](../run_qt_gui.bat) or the command line.
 3. **Keep the Arduino Serial Monitor closed** while the app is running so the COM port is available.
 
 ---
@@ -93,9 +93,11 @@ After the upload completes:
 
 ### 2.1 Launch the app with the provided batch file
 
-From the project root, double-click [run_app.bat](run_app.bat).
+From the project root, double-click [run_qt_gui.bat](../run_qt_gui.bat).
 
 This is the easiest way to start the app for everyday use.
+
+If you need the legacy CustomTkinter interface, use [run_app.bat](run_app.bat) instead.
 
 ### 2.2 Alternative: launch from the command line
 
@@ -126,7 +128,7 @@ run_qt_gui.bat
 When you want to start the app again, use the same commands from the project root:
 
 ```powershell
-.\run_app.bat
+.\run_qt_gui.bat
 ```
 
 Or run the Qt UI directly:
@@ -139,9 +141,9 @@ If you already installed dependencies once, you do not need to reinstall them be
 
 ### 2.3 Create a desktop shortcut
 
-For daily convenience, create a shortcut to [run_app.bat](run_app.bat):
+For daily convenience, create a shortcut to [run_qt_gui.bat](../run_qt_gui.bat):
 
-1. Right-click [run_app.bat](run_app.bat).
+1. Right-click [run_qt_gui.bat](../run_qt_gui.bat).
 2. Choose **Create shortcut**.
 3. Move the shortcut to your Desktop.
 4. Double-click it whenever you want to start the system.
@@ -336,7 +338,7 @@ If the Serial Monitor is open, the Python app may fail to access the COM port.
 For daily use:
 
 1. **Upload the firmware once** using [firmware/attendance/attendance.ino](firmware/attendance/attendance.ino).
-2. **Use [run_app.bat](run_app.bat)** to launch the app.
+2. **Use [run_qt_gui.bat](../run_qt_gui.bat)** to launch the app.
 3. **Keep the Serial Monitor closed**.
 4. **Use the correct COM port and 115200 baud rate**.
 5. **Restart the app if the sensor stops responding**.

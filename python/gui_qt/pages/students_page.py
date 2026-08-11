@@ -337,12 +337,19 @@ class StudentsPage(QWidget):
         return ok, msg
 
     def on_enroll_clicked(self):
+        window = self.window()
+        if hasattr(window, "_set_scan_block_reason"):
+            window._set_scan_block_reason("A fingerprint enrollment is currently active. Finish or cancel it before scanning.")
         dialog = EnrollDialog(self.serial_handler, self.serial_worker, parent=self)
-        if dialog.exec():
-            values = dialog.get_values()
-            ok, msg = self.save_student_details(values["fingerprint_id"], values)
-            if not ok:
-                QMessageBox.critical(self, "Save failed", msg)
+        try:
+            if dialog.exec():
+                values = dialog.get_values()
+                ok, msg = self.save_student_details(values["fingerprint_id"], values)
+                if not ok:
+                    QMessageBox.critical(self, "Save failed", msg)
+        finally:
+            if hasattr(window, "_clear_scan_block_reason"):
+                window._clear_scan_block_reason()
 
     def on_delete_clicked(self):
         row = self.table.currentRow()
@@ -377,5 +384,12 @@ class StudentsPage(QWidget):
                 QMessageBox.critical(self, "Save failed", msg)
 
     def on_wipe_clicked(self):
+        window = self.window()
+        if hasattr(window, "_set_scan_block_reason"):
+            window._set_scan_block_reason("A wipe operation is currently active. Finish it before scanning.")
         dialog = WipeDialog(self.serial_handler, self.serial_worker, on_wiped=self.refresh, parent=self)
-        dialog.exec()
+        try:
+            dialog.exec()
+        finally:
+            if hasattr(window, "_clear_scan_block_reason"):
+                window._clear_scan_block_reason()

@@ -6,10 +6,10 @@
 2. Open a command prompt in the repository root.
 3. Run the bootstrap script:
    - `tools\portable_bootstrap.bat`
-4. Launch the legacy desktop GUI with:
-   - `python python/gui/app.py`
-5. Launch the newer Qt interface from the repository root with:
+4. Launch the newer Qt interface from the repository root with:
    - `python run_qt_gui.py`
+5. If you need the legacy CustomTkinter desktop GUI, use:
+   - `python python/gui/app.py`
 
 If `python` is not on PATH, use the Windows launcher:
 

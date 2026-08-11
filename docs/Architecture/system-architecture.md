@@ -29,7 +29,7 @@ The Python side is organized around a small set of focused responsibilities:
 - [python/core/serial_handler.py](../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
 - [python/core/attendance.py](../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
 - [python/core/database.py](../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
-- [python/gui/app.py](../python/gui/app.py) acts as the application shell and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
+- [python/gui_qt/main_qt.py](../python/gui_qt/main_qt.py) is the primary modern Qt entry point and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
 
 This keeps the GUI thinner, improves testability, and makes it easier to evolve the system over time.
 
@@ -41,7 +41,7 @@ This keeps the GUI thinner, improves testability, and makes it easier to evolve 
 | Communication | Opens the serial port and parses responses | python/core/serial_handler.py, python/core/commands.py |
 | Application logic | Processes scan results and coordinates attendance behavior | python/core/attendance.py, python/core/utils.py |
 | Data layer | Stores students, attendance records, and backup snapshots | python/core/database.py |
-| Presentation | Displays the GUI and exposes actions to the operator | python/gui/app.py and related GUI modules |
+| Presentation | Displays the GUI and exposes actions to the operator | python/gui_qt/main_qt.py and related Qt GUI modules (legacy `python/gui/` remains available for compatibility) |
 | Configuration | Stores defaults for serial settings and permissions | python/config.py, data/settings.json |
 
 ## Core components
