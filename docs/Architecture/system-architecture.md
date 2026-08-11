@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Fingerprint Attendance System is a layered application that combines embedded firmware, a desktop GUI, serial communication, and a local database to support attendance tracking with fingerprint biometrics.
+The Digital Student Identification System (DSIS) is a layered application that combines embedded firmware, a desktop GUI, serial communication, and a local database to support attendance tracking with fingerprint biometrics.
 
 The design separates concerns so that each part can be maintained independently, and the recent Python refactor strengthens that separation further. Raw serial data is handled in the communication layer, converted into structured scan outcomes in the attendance processor, persisted through the database layer, and presented through the GUI without overloading the interface with core workflow logic.
 

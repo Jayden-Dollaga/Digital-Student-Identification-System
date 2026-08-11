@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide is written for beginners and covers the full workflow for using the Fingerprint Attendance System on a Windows PC without opening Arduino IDE every day.
+This guide is written for beginners and covers the full workflow for using the Digital Student Identification System (DSIS) on a Windows PC without opening Arduino IDE every day.
 
 The main idea is simple:
 

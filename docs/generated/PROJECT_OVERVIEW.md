@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Fingerprint Attendance System is a hybrid hardware/software platform for biometric attendance tracking. It couples an ESP32-based fingerprint sensor controller with a Python desktop application, a local SQLite database, and user-facing GUI tools for enrollment, attendance logging, reporting, and device management.
+Digital Student Identification System (DSIS) is a hybrid hardware/software platform for biometric attendance tracking. It couples an ESP32-based fingerprint sensor controller with a Python desktop application, a local SQLite database, and user-facing GUI tools for enrollment, attendance logging, reporting, and device management.
 
 ## Why it exists
 

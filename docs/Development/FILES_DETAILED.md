@@ -10,7 +10,7 @@ adding a one-line purpose summary. It is intended as a developer reference.
 1) python/config.py
 --------------------
 Doc excerpt:
-"""Configuration helpers for the fingerprint attendance system.
+"""Configuration helpers for the Digital Student Identification System (DSIS).
 
 The module now exposes a small config dataclass and environment-aware helpers
 without doing expensive serial discovery during import time.
@@ -51,7 +51,7 @@ Purpose: Centralized application logging (console + timed rotating file handlers
 --------------------------
 Doc excerpt: """Persistence layer for students, attendance events, reports, and backup helpers.
 
-This module centralizes SQLite access for the fingerprint attendance system and
+This module centralizes SQLite access for the Digital Student Identification System (DSIS) and
 keeps the rest of the application focused on workflow logic instead of raw SQL.
 """
 

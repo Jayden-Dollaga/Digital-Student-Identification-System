@@ -2,7 +2,7 @@
 
 ## Overview
 
-The fingerprint attendance system uses an ESP32 board and an AS608 optical fingerprint sensor. The ESP32 acts as the controller and serial bridge, while the AS608 provides scanning and matching functionality.
+The Digital Student Identification System (DSIS) uses an ESP32 board and an AS608 optical fingerprint sensor. The ESP32 acts as the controller and serial bridge, while the AS608 provides scanning and matching functionality.
 
 ## Recommended hardware
 

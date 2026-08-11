@@ -1,12 +1,12 @@
-Fingerprint Attendance System — Project Structure, Status, and Development Roadmap
+Digital Student Identification System (DSIS) — Project Structure, Status, and Development Roadmap
 =================================================================================
 
-This document is the live project tracker and architecture guide for the Fingerprint Attendance System. It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work. It also explains the purpose of the major files and folders so a new developer or UI designer can understand the codebase quickly.
+This document is the live project tracker and architecture guide for the Digital Student Identification System (DSIS). It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work. It also explains the purpose of the major files and folders so a new developer or UI designer can understand the codebase quickly.
 
 1. Project summary
 ------------------
 
-The project is a Windows-based fingerprint attendance system that combines:
+The project is a Windows-based digital student identification system that combines:
 - ESP32 firmware for fingerprint scanning and command handling
 - Python desktop software for enrollment, attendance logging, backup/restore, and reporting
 - SQLite storage for student and attendance data

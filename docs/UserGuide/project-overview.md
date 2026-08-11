@@ -2,7 +2,7 @@
 
 ## Project name
 
-Fingerprint Attendance System
+Digital Student Identification System (DSIS)
 
 ## Status
 
@@ -58,7 +58,7 @@ The system supports the full attendance lifecycle:
 ## Repository structure
 
 ```text
-Fingerprint Attendance System/
+Digital Student Identification System (DSIS)/
 ├── firmware/                  # ESP32 sketches
 ├── python/                    # Python backend and GUI
 ├── data/                      # SQLite database, logs, exports, backups
