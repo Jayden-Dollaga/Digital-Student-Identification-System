@@ -4,8 +4,9 @@ example
 /docsync — synchronize the entire DSIS repository with the current implementation.
 
 
+DSIS 
 
-
+"Digital Student Identification System"
 
 
 
