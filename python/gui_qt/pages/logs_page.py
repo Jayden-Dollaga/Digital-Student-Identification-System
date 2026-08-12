@@ -140,6 +140,18 @@ class LogsPage(QWidget):
         splitter.setStretchFactor(1, 6)
         outer.addWidget(splitter)
 
+    @property
+    def console(self):
+        return self.app_console
+
+    @property
+    def monitor(self):
+        return self.monitor_console
+
+    def clear(self):
+        self.clear_app_log()
+        self.clear_monitor()
+
     def append_line(self, line: str):
         self.append_serial_line(line)
 
@@ -225,3 +237,4 @@ class LogsPage(QWidget):
         self.monitor_console.appendPlainText(text)
         if self._auto_scroll and auto_scroll:
             scrollbar.setValue(scrollbar.maximum())
+        self.monitor_console.repaint()

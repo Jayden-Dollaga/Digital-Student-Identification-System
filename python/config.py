@@ -31,25 +31,8 @@ DEFAULT_COM_PORT = "COM5"
 DEFAULT_BAUD_RATE = 115200
 DEFAULT_BAUD_RATES: Tuple[int, ...] = (9600, 19200, 38400, 57600, 115200)
 DEFAULT_THEME_MODES: Tuple[str, ...] = ("Dark", "Light")
-DEFAULT_IGNORE_PREFIXES: Tuple[str, ...] = (
-    "rst:",
-    "load:",
-    "entry",
-    "configsip",
-    "mode:",
-    "ho ",
-    "clk_",
-    "========",
-    "Commands",
-    "Place finger",
-    "Enroll finger",
-    "Delete finger",
-    "Delete ALL",
-    "Show stored",
-    "Start attendance",
-    "Stop scanning",
-    "line ending",
-)
+DEFAULT_IGNORE_PREFIXES: Tuple[str, ...] = ()
+
 DEFAULT_USER_ROLES: Dict[str, Dict[str, Any]] = {
     "admin": {
         "name": "Administrator",
@@ -198,9 +181,10 @@ def get_default_com_port(default_fallback: Optional[str] = None) -> str:
     }
     scored_ports = []
     for port in ports:
-        device = (getattr(port, "device", "") or "").lower()
+        raw_device = getattr(port, "device", "") or ""
+        device = raw_device
         description = (getattr(port, "description", "") or "").lower()
-        combined = f"{device} {description}"
+        combined = f"{device} {description}".lower()
         vid = getattr(port, "vid", None)
         pid = getattr(port, "pid", None)
         # Normalize VID:PID to zero-padded 4-digit hex (matches settings UI formatting)
@@ -212,11 +196,11 @@ def get_default_com_port(default_fallback: Optional[str] = None) -> str:
             score += 80
         if "bluetooth" in combined or "bt" in combined:
             score -= 100
-        if "com" in device:
+        if "com" in device.lower():
             score += 10
         if "usb" in combined:
             score += 10
-        scored_ports.append((score, device, getattr(port, "description", "")))
+        scored_ports.append((score, raw_device, getattr(port, "description", "")))
 
     scored_ports.sort(key=lambda item: item[0], reverse=True)
     best_port = None

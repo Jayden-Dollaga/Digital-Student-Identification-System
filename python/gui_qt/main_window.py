@@ -199,6 +199,9 @@ class MainWindow(QMainWindow):
                 baud,
                 self.device_info_label.text(),
             )
+            # Probe device state after connect so the log/serial monitor shows an
+            # immediate firmware response instead of waiting for the next user command.
+            self.serial_handler.send_command("ID?")
         else:
             LOG.error("Connection failed: %s", msg)
             self.update_connection_metadata()
@@ -218,6 +221,7 @@ class MainWindow(QMainWindow):
             )
             self.settings["com_port"] = self.serial_handler.reconnect_port or port
             self.update_connection_metadata()
+            self.serial_handler.send_command("ID?")
         else:
             LOG.warning("Auto-connect failed: %s", msg)
             self.update_connection_metadata()
@@ -384,10 +388,33 @@ class MainWindow(QMainWindow):
             threading.get_ident(),
             threading.current_thread().name,
         )
+        # Disconnect SerialWorker signals from UI slots before shutdown to
+        # avoid delivering signals to widgets that are being destroyed.
         try:
+            try:
+                self.serial_worker.connection_changed.disconnect(self.on_connection_changed)
+            except Exception:
+                pass
+            try:
+                self.serial_worker.mode_changed.disconnect(self.on_scan_mode_changed)
+            except Exception:
+                pass
+            try:
+                self.serial_worker.scan_event.disconnect(self.on_scan_event)
+            except Exception:
+                pass
+            try:
+                self.serial_worker.raw_line.disconnect(self.logs_page.append_line)
+            except Exception:
+                pass
+            try:
+                self.serial_worker.error.disconnect(self.on_serial_error)
+            except Exception:
+                pass
+
             self.serial_worker.stop()
         except Exception as exc:
-            LOG.exception("Exception during SerialWorker.stop(): %s", str(exc))
+            LOG.exception("Exception during SerialWorker shutdown: %s", str(exc))
         try:
             self.serial_worker.quit()
         except Exception as exc:

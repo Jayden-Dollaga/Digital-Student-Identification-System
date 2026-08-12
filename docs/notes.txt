@@ -11,6 +11,547 @@ DSIS
 
 
 
+
+
+
+
+
+
+
+
+
+# DSIS — ESP32 Diagnostic LED System Plan
+
+## Goal
+
+Add **4 physical diagnostic LEDs** to the DSIS ESP32 hardware.
+
+The LEDs will work similarly to a PC motherboard's diagnostic indicators, but the diagnostic categories will be adapted specifically for the ESP32 + AS608 + DSIS system.
+
+### Diagnostic LEDs
+
+| LED           | Diagnostic Area  | Purpose                                          |
+| ------------- | ---------------- | ------------------------------------------------ |
+| 🟢 **CORE**   | ESP32 / Firmware | ESP32 boot and firmware initialization           |
+| 🟡 **MEM**    | Runtime Memory   | Memory/resource initialization and runtime state |
+| 🔵 **SENSOR** | AS608            | Fingerprint sensor detection and communication   |
+| ⚪ **HOST**    | DSIS GUI         | Serial connection and GUI handshake              |
+
+---
+
+# 1. Boot Diagnostic Sequence
+
+When the ESP32 powers on:
+
+```text
+POWER ON
+   ↓
+CORE diagnostic
+   ↓
+MEM diagnostic
+   ↓
+SENSOR diagnostic
+   ↓
+HOST diagnostic
+   ↓
+DSIS READY
+```
+
+Each stage should only pass when its corresponding subsystem has successfully initialized.
+
+---
+
+# 2. CORE LED
+
+### Purpose
+
+Indicates that the ESP32 and firmware have successfully started.
+
+### Startup
+
+```text
+ESP32 POWER ON
+      ↓
+CORE LED ON
+      ↓
+Initialize firmware
+      ↓
+Initialize GPIO
+      ↓
+Initialize serial
+      ↓
+CORE PASS
+```
+
+### Failure
+
+If the firmware cannot reach the required initialization stage:
+
+```text
+CORE LED → ERROR PATTERN
+```
+
+The ESP32 should remain in a safe diagnostic state rather than pretending that startup succeeded.
+
+---
+
+# 3. MEM LED
+
+### Purpose
+
+Represents successful initialization of the resources required by the firmware.
+
+This should **not** pretend to be desktop-style DRAM diagnostics.
+
+Possible checks:
+
+* required runtime objects
+* buffers
+* internal state
+* configuration loading
+* required memory allocation
+* other firmware resources
+
+### Startup
+
+```text
+CORE PASS
+   ↓
+MEM LED ON
+   ↓
+Initialize runtime resources
+   ↓
+MEM PASS
+```
+
+### Failure
+
+```text
+MEM LED → ERROR PATTERN
+```
+
+The failure should also be logged through serial diagnostics.
+
+---
+
+# 4. SENSOR LED
+
+### Purpose
+
+Indicates the status of the **AS608 fingerprint sensor**.
+
+### Startup
+
+```text
+MEM PASS
+   ↓
+SENSOR LED ON
+   ↓
+Initialize AS608
+   ↓
+Verify communication
+   ↓
+Detect sensor
+   ↓
+SENSOR PASS
+```
+
+### Failure
+
+Examples:
+
+* AS608 not connected
+* incorrect UART configuration
+* sensor communication failure
+* invalid response
+* sensor initialization failure
+
+```text
+SENSOR LED → ERROR PATTERN
+```
+
+This is especially useful because it immediately tells you:
+
+> **ESP32 is alive, but the fingerprint subsystem has a problem.**
+
+---
+
+# 5. HOST LED
+
+### Purpose
+
+Indicates communication between the ESP32 and the **DSIS GUI**.
+
+This is the most important LED for the current connection problem.
+
+### Startup
+
+```text
+SENSOR PASS
+   ↓
+HOST LED ON
+   ↓
+Wait for DSIS GUI
+   ↓
+Receive handshake
+   ↓
+Validate protocol
+   ↓
+Send device metadata
+   ↓
+HOST PASS
+```
+
+### If GUI is not detected
+
+Use the existing fast-blink behavior:
+
+```text
+HOST LED
+⚡ FAST BLINK
+⚡ FAST BLINK
+⚡ FAST BLINK
+...
+```
+
+The ESP32 continues attempting to establish the connection.
+
+### If GUI connects
+
+```text
+HOST LED → NORMAL / CONNECTED STATE
+```
+
+---
+
+# 6. Runtime Error Pattern
+
+After successful startup, the LEDs should continue representing subsystem health.
+
+Example:
+
+```text
+CORE   → NORMAL
+MEM    → NORMAL
+SENSOR → NORMAL
+HOST   → NORMAL
+```
+
+If a subsystem develops a problem:
+
+```text
+CORE   → NORMAL
+MEM    → NORMAL
+SENSOR → ERROR
+HOST   → NORMAL
+```
+
+Only the affected diagnostic LED should display the error pattern.
+
+For example:
+
+### SENSOR failure
+
+```text
+SENSOR
+● ● ●
+(wait)
+● ● ●
+(wait)
+...
+```
+
+### HOST connection failure
+
+```text
+HOST
+⚡⚡⚡⚡⚡⚡⚡
+continuous fast blink
+```
+
+---
+
+# 7. Important Design Rule
+
+**LEDs should display system state.**
+
+They should NOT be responsible for determining system state.
+
+Architecture:
+
+```text
+        ESP32
+          │
+ ┌────────┼─────────┐
+ │        │         │
+Firmware Sensor   Host
+ │        │         │
+ └────────┼─────────┘
+          ↓
+    SYSTEM STATE
+          ↓
+    LED MANAGER
+          ↓
+ ┌────┬────┬──────┬────┐
+CORE MEM SENSOR  HOST
+```
+
+This keeps the diagnostic system separate from the actual hardware logic.
+
+---
+
+# 8. Implementation Order
+
+**Do NOT rewrite the entire firmware first.**
+
+Implement this incrementally:
+
+### Phase 1 — Define states
+
+Create a clear state model:
+
+```text
+BOOTING
+CORE_OK
+MEM_OK
+SENSOR_OK
+WAITING_FOR_HOST
+CONNECTED
+ERROR
+```
+
+### Phase 2 — LED controller
+
+Create a dedicated LED/status module.
+
+Example concept:
+
+```text
+LEDManager
+├── core()
+├── memory()
+├── sensor()
+├── host()
+├── error()
+└── update()
+```
+
+### Phase 3 — Test with built-in LED
+
+Before physically wiring four LEDs, test the logic using the ESP32's existing LED if available.
+
+### Phase 4 — Add four physical LEDs
+
+Wire:
+
+```text
+ESP32 GPIO
+   ↓
+resistor
+   ↓
+LED
+   ↓
+GND
+```
+
+Use appropriate current-limiting resistors and verify the chosen GPIO pins don't conflict with the AS608 UART or boot-sensitive pins.
+
+### Phase 5 — Integrate AS608 diagnostics
+
+Make the SENSOR LED respond to the **actual sensor initialization result**.
+
+### Phase 6 — Integrate GUI handshake
+
+Make HOST LED respond to the **actual serial protocol state**.
+
+### Phase 7 — Runtime monitoring
+
+Detect when:
+
+* sensor disconnects
+* serial connection disappears
+* protocol communication fails
+* critical firmware subsystem fails
+
+Then update the corresponding LED.
+
+---
+
+# 9. Testing Plan
+
+Test each failure independently.
+
+### Test 1 — Normal boot
+
+```text
+CORE ✓
+MEM ✓
+SENSOR ✓
+HOST ✓
+→ READY
+```
+
+### Test 2 — Disconnect AS608
+
+Expected:
+
+```text
+CORE ✓
+MEM ✓
+SENSOR ❌
+HOST not yet ready
+```
+
+### Test 3 — Start ESP32 without GUI
+
+Expected:
+
+```text
+CORE ✓
+MEM ✓
+SENSOR ✓
+HOST ⚡ FAST BLINK
+```
+
+### Test 4 — Start GUI
+
+Expected:
+
+```text
+HOST → CONNECTED
+```
+
+### Test 5 — Disconnect GUI after connection
+
+Expected:
+
+```text
+HOST → CONNECTION LOST / RECONNECTING
+```
+
+### Test 6 — Sensor failure after GUI connection
+
+Expected:
+
+```text
+SENSOR → ERROR
+HOST → remains connected
+```
+
+This is important because it proves the diagnostic LEDs aren't just showing **startup progress**; they're actually showing **subsystem health**.
+
+---
+
+# 10. Documentation
+
+When implemented, document it in:
+
+```text
+docs/
+├── firmware/
+│   └── DIAGNOSTIC_LEDS.md
+├── architecture/
+│   └── ARCHITECTURE.md
+└── hardware/
+    └── HARDWARE.md
+```
+
+Document:
+
+* LED names
+* GPIO assignments
+* resistor values
+* states
+* blink patterns
+* startup sequence
+* runtime behavior
+* failure conditions
+* troubleshooting procedure
+
+Also update the **firmware documentation and serial/architecture documentation** if the diagnostic state becomes part of the firmware's externally observable behavior.
+
+---
+
+## Final Target
+
+The finished DSIS should behave roughly like:
+
+```text
+              DSIS ESP32
+                  │
+        ┌─────────┴─────────┐
+        │ Diagnostic LEDs   │
+        │                   │
+        │ CORE   ●          │
+        │ MEM    ●          │
+        │ SENSOR ●          │
+        │ HOST   ●          │
+        └───────────────────┘
+                  │
+                AS608
+                  │
+              Fingerprint
+                  │
+                DSIS GUI
+```
+
+**Core idea:** if something goes wrong, you should be able to look at the four LEDs and immediately narrow the problem down to **ESP32 → runtime → AS608 → GUI connection** instead of playing the classic *“why the fuck is it blinking?”* game. 😭🗿
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 git init 
 git remote add origin
 git pull https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git

@@ -87,7 +87,9 @@ class EnrollDialog(QDialog):
         self.ready_to_save = False
         self.id_label.setText("Assigned ID: Pending")
         self.save_btn.setEnabled(False)
-        cmd_stop(self.serial_handler)  # stop any active scan mode first, same as app.py's enroll_sample()
+        window = self.window()
+        if getattr(window, "scan_active", False):
+            cmd_stop(self.serial_handler)
         if cmd_enroll(self.serial_handler):
             self.status_label.setText("Sent ENROLL command. Follow the prompts on the sensor.")
             self.start_btn.setEnabled(False)

@@ -298,6 +298,10 @@ class SerialHandler:
                 return False
             try:
                 self.esp32.write((cmd.strip().upper() + "\n").encode("utf-8"))
+                try:
+                    self.esp32.flush()
+                except Exception:
+                    pass
                 return True
             except Exception as exc:
                 log.error("Failed to send command to ESP32", command=cmd.strip().upper(), error=str(exc))
