@@ -80,19 +80,41 @@ class EnrollDialog(QDialog):
         self.serial_worker.enroll_progress.connect(self.on_enroll_progress)
         self.serial_worker.raw_line.connect(self._append_log_line)
 
+    # Exact line prefixes the firmware prints during ENROLL, taken straight
+    # from enrollFinger()/printHelp() in ESP32_Fingerprint_AllInOne.ino.
+    # Matching prefixes (not "contains this word anywhere") is what keeps
+    # this from also catching printHelp()'s static command menu, since STOP
+    # (sent right before ENROLL to cancel any active scan) makes the
+    # firmware reprint that whole menu and several of its lines happen to
+    # contain words like "finger"/"enroll" too (e.g. "Delete finger ID 1").
+    _ENROLL_PROGRESS_PREFIXES = (
+        "ENROLLING FINGER AS ID",
+        "STEP 1:", "STEP 2:", "STEP 3:",
+        "IMAGE TAKEN!", "IMAGE CONVERTED.",
+        "FINGER REMOVED.",
+        "IMAGING ERROR",
+        "SUCCESS! FINGER SAVED AS ID",
+        "TOTAL STORED:",
+        "ERROR:", "TIP:",
+        "ENROLLMENT CANCELLED",
+        ">> ENROLLMENT CANCELLED",
+        "TYPE ENROLL:",
+    )
+
     def _append_log_line(self, line: str):
         # Only append enrollment-specific log lines
         if not self._enrollment_started:
             return
-        
-        line_upper = line.upper()
-        
-        # Filter to only show enrollment-related output
-        enrollment_keywords = ["STEP", "IMAGING", "FINGER", "SUCCESS", "FAIL", "ERROR", "CANCEL", "COMPLETE", "ENROLL", "PLACE", "REMOVE"]
-        is_enrollment_line = any(keyword in line_upper for keyword in enrollment_keywords)
-        
-        # Also include lines that look like progress indicators (dashes, etc) if they follow an enrollment line
-        if line.strip() and (is_enrollment_line or line.startswith("-")):
+
+        stripped = line.strip()
+        if not stripped:
+            return
+
+        # Pure separator lines ("----------------------------------------")
+        is_separator = set(stripped) == {"-"}
+        is_progress_line = stripped.upper().startswith(self._ENROLL_PROGRESS_PREFIXES)
+
+        if is_separator or is_progress_line:
             self.log_view.append(line)
             self.log_view.moveCursor(QTextCursor.End)
             self.log_view.ensureCursorVisible()

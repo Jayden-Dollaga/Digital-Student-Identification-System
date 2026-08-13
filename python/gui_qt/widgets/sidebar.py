@@ -1,5 +1,7 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QButtonGroup
-from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QButtonGroup, QFrame
+)
+from PySide6.QtCore import Signal, Qt
 
 
 NAV_ITEMS = [
@@ -21,16 +23,38 @@ class Sidebar(QWidget):
         self.setFixedWidth(200)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(12, 16, 12, 12)
         layout.setSpacing(6)
 
-        title = QLabel("Fingerprint")
+        # ---- Brand header: logo mark + "DSIS" + full-name caption ----
+        header_row = QHBoxLayout()
+        header_row.setSpacing(10)
+
+        brand_mark = QLabel("DS")
+        brand_mark.setObjectName("brandMark")
+        brand_mark.setFixedSize(36, 36)
+        brand_mark.setAlignment(Qt.AlignCenter)
+        header_row.addWidget(brand_mark)
+
+        title = QLabel("DSIS")
         title.setObjectName("sidebarTitle")
-        subtitle = QLabel("Attendance System")
-        subtitle.setObjectName("cardLabel")
-        subtitle.setStyleSheet("padding: 0 4px 10px 4px; color: #8A909C;")
-        layout.addWidget(title)
+        header_row.addWidget(title)
+        header_row.addStretch()
+
+        layout.addLayout(header_row)
+
+        subtitle = QLabel("Digital Student Identification System")
+        subtitle.setObjectName("sidebarSubtitle")
+        subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
+
+        divider = QFrame()
+        divider.setObjectName("sidebarDivider")
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFixedHeight(1)
+        layout.addSpacing(10)
+        layout.addWidget(divider)
+        layout.addSpacing(6)
 
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)

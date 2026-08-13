@@ -337,35 +337,43 @@ class SerialHandler:
                 line = self._pending_raw_lines.pop(0)
                 log.debug("Returning pending line from probe", line=line[:60] if len(line) > 60 else line)
                 return line
-            
-            if not self.is_connected():
-                if self.auto_reconnect_enabled and self.reconnect_port:
+
+            # Drain any already-buffered line(s) BEFORE touching the wire again.
+            # A single serial burst often contains multiple '\n'-terminated
+            # lines; only the first was returned last call and the rest were
+            # left in _read_buffer. If we gate on in_waiting first, those
+            # remaining lines get stuck until unrelated new traffic happens
+            # to arrive, which is why the GUI log used to lag/drop lines
+            # compared to the Arduino IDE Serial Monitor.
+            if b"\n" in self._read_buffer:
+                line_bytes, _, remainder = self._read_buffer.partition(b"\n")
+                self._read_buffer = remainder
+            else:
+                if not self.is_connected():
+                    if self.auto_reconnect_enabled and self.reconnect_port:
+                        self._schedule_reconnect()
+                    return None
+
+                if self.esp32.in_waiting == 0:
+                    return None
+
+                try:
+                    raw = self.esp32.read(self.esp32.in_waiting or 1)
+                except Exception as exc:
+                    log.error("Serial read error", error=str(exc))
+                    self.connected = False
                     self._schedule_reconnect()
-                return None
+                    return None
 
-            if self.esp32.in_waiting == 0:
-                return None
+                if not raw:
+                    return None
 
-            try:
-                raw = self.esp32.read(self.esp32.in_waiting or 1)
-            except Exception as exc:
-                log.error("Serial read error", error=str(exc))
-                self.connected = False
-                self._schedule_reconnect()
-                return None
+                self._read_buffer += raw
+                if b"\n" not in self._read_buffer:
+                    return None
 
-        if not raw:
-            return None
-
-        # Protect read buffer manipulation with the same lock to avoid races
-        # if read_line is called from multiple threads.
-        with self._lock:
-            self._read_buffer += raw
-            if b"\n" not in self._read_buffer:
-                return None
-
-            line_bytes, _, remainder = self._read_buffer.partition(b"\n")
-            self._read_buffer = remainder
+                line_bytes, _, remainder = self._read_buffer.partition(b"\n")
+                self._read_buffer = remainder
 
         try:
             line = line_bytes.decode("utf-8", errors="ignore")
