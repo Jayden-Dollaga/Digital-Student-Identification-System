@@ -16,6 +16,7 @@ from gui_qt.pages.reports_page import ReportsPage
 from gui_qt.pages.logs_page import LogsPage
 from gui_qt.pages.settings_page import SettingsPage
 from gui_qt.workers.serial_worker import SerialWorker
+from gui_qt.workers.connection_worker import ConnectionWorker
 
 from core.database import init_database
 from core.serial_handler import SerialHandler
@@ -117,6 +118,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page = DashboardPage()
         self.attendance_page = AttendancePage()
         self.serial_worker = SerialWorker(self.serial_handler, self.attendance_processor)
+        self.connection_worker = ConnectionWorker(self.serial_handler)
         self.students_page = StudentsPage(serial_handler=self.serial_handler, serial_worker=self.serial_worker)
         self.reports_page = ReportsPage()
         self.logs_page = LogsPage(serial_handler=self.serial_handler)
@@ -144,6 +146,12 @@ class MainWindow(QMainWindow):
         root.addWidget(right_container)
 
         self._page_order = list(self._pages.keys())
+
+        # ---- connection worker (handles non-blocking serial connect/disconnect) ----
+        self.connection_worker.connect_result.connect(self.on_connect_result)
+        self.connection_worker.connection_state_changed.connect(self.on_connection_changed)
+        self.connection_worker.start()
+        LOG.info("Starting ConnectionWorker")
 
         # ---- serial worker (created earlier so StudentsPage's enroll/wipe
         #      dialogs can subscribe to its signals; starts polling now —
@@ -175,37 +183,56 @@ class MainWindow(QMainWindow):
             page.refresh()
 
     def on_connect_clicked(self):
+        """Handle Connect/Disconnect button click using background worker."""
         if self.serial_handler.is_connected():
-            self.serial_handler.disconnect()
-            self.connect_button.setText("Connect")
-            self.update_connection_metadata()
-            self.logs_page.set_connection_state("disconnected")
+            # Queue disconnection on background thread
+            self.connect_button.setEnabled(False)
+            self.connection_worker.disconnect_from_device()
             return
 
         saved_port = self.settings.get("com_port") or ""
         port = saved_port or get_default_com_port(CONFIG.com_port)
         baud = int(self.settings.get("baud_rate") or 115200)
-        ok, msg = self.serial_handler.connect(port, baud, auto_detect=self.auto_detect_serial)
-        if ok:
-            self.connect_button.setText("Disconnect")
-            self.settings["com_port"] = self.serial_handler.reconnect_port or port
-            self.settings["baud_rate"] = baud
-            self.update_connection_metadata()
-            self.logs_page.set_connection_info(self.serial_handler.reconnect_port or port, baud)
-            self.logs_page.set_connection_state("connected")
-            LOG.info(
-                "Connected to %s at %s baud. Device: %s",
-                self.serial_handler.reconnect_port or port,
-                baud,
-                self.device_info_label.text(),
-            )
-            # Probe device state after connect so the log/serial monitor shows an
-            # immediate firmware response instead of waiting for the next user command.
-            self.serial_handler.send_command("ID?")
-        else:
-            LOG.error("Connection failed: %s", msg)
-            self.update_connection_metadata()
-            self.logs_page.set_connection_state("disconnected")
+        
+        # Queue connection on background thread (won't block the UI)
+        self.connect_button.setEnabled(False)
+        self.connection_worker.connect_to_device(port, baud, auto_detect=self.auto_detect_serial)
+
+    def on_connect_result(self, success: bool, message: str):
+        """Handle connection result from ConnectionWorker."""
+        try:
+            self.connect_button.setEnabled(True)
+            
+            if success:
+                saved_port = self.settings.get("com_port") or ""
+                port = saved_port or get_default_com_port(CONFIG.com_port)
+                baud = int(self.settings.get("baud_rate") or 115200)
+                
+                self.connect_button.setText("Disconnect")
+                self.settings["com_port"] = self.serial_handler.reconnect_port or port
+                self.settings["baud_rate"] = baud
+                self.update_connection_metadata()
+                self.logs_page.set_connection_info(self.serial_handler.reconnect_port or port, baud)
+                self.logs_page.set_connection_state("connected")
+                LOG.info(
+                    "Connected to %s at %s baud. Device: %s",
+                    self.serial_handler.reconnect_port or port,
+                    baud,
+                    self.device_info_label.text(),
+                )
+            else:
+                LOG.error("Connection failed: %s", message)
+                self.connect_button.setText("Connect")
+                self.update_connection_metadata()
+                self.logs_page.set_connection_state("disconnected")
+        except Exception as exc:
+            LOG.exception("Exception in on_connect_result", error=str(exc))
+            self.connect_button.setEnabled(True)
+            self.connect_button.setText("Connect")
+            try:
+                self.update_connection_metadata()
+            except Exception:
+                pass
 
     def _attempt_startup_connection(self):
         saved_port = self.settings.get("com_port") or ""
@@ -388,6 +415,20 @@ class MainWindow(QMainWindow):
             threading.get_ident(),
             threading.current_thread().name,
         )
+        # Stop ConnectionWorker before SerialWorker
+        try:
+            try:
+                self.connection_worker.connect_result.disconnect(self.on_connect_result)
+            except Exception:
+                pass
+            try:
+                self.connection_worker.connection_state_changed.disconnect(self.on_connection_changed)
+            except Exception:
+                pass
+            self.connection_worker.stop()
+        except Exception as exc:
+            LOG.exception("Exception during ConnectionWorker shutdown: %s", str(exc))
+
         # Disconnect SerialWorker signals from UI slots before shutdown to
         # avoid delivering signals to widgets that are being destroyed.
         try:

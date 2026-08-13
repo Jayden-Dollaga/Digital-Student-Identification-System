@@ -56,9 +56,9 @@ class LogsPage(QWidget):
 
         self.app_console = QPlainTextEdit()
         self.app_console.setReadOnly(True)
-        self.app_console.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.app_console.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         self.app_console.setCenterOnScroll(False)
-        self.app_console.setWordWrapMode(QTextOption.NoWrap)
+        self.app_console.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.app_console.setStyleSheet(
             "background-color: #0F1114; border: 1px solid #262A31; "
             "border-radius: 8px; font-family: 'Consolas', monospace; font-size: 12px; color: #9AA4B2;"
@@ -97,9 +97,9 @@ class LogsPage(QWidget):
 
         self.monitor_console = QPlainTextEdit()
         self.monitor_console.setReadOnly(True)
-        self.monitor_console.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.monitor_console.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         self.monitor_console.setCenterOnScroll(False)
-        self.monitor_console.setWordWrapMode(QTextOption.NoWrap)
+        self.monitor_console.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.monitor_console.setStyleSheet(
             "background-color: #050607; border: 1px solid #1E2228; "
             "border-radius: 8px; font-family: 'Consolas', monospace; font-size: 12px; color: #E6E8EB;"
@@ -237,4 +237,3 @@ class LogsPage(QWidget):
         self.monitor_console.appendPlainText(text)
         if self._auto_scroll and auto_scroll:
             scrollbar.setValue(scrollbar.maximum())
-        self.monitor_console.repaint()

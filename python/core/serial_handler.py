@@ -77,6 +77,7 @@ class SerialHandler:
         self._auto_detect_requested = False
         self._preferred_port: Optional[str] = None
         self._pyserial_missing_warning_shown = False
+        self._has_ever_connected = False  # Track if we've had a successful connection
         self._lock = threading.RLock()
         self._reconnect_thread: Optional[threading.Thread] = None
         self._reconnect_stop = threading.Event()
@@ -143,7 +144,7 @@ class SerialHandler:
                 if discovery_port is None:
                     self.connected = False
                     self.esp32 = None
-                    if self.auto_reconnect_enabled:
+                    if self.auto_reconnect_enabled and self._has_ever_connected:
                         self._schedule_reconnect()
                     log.warning(
                         "SerialHandler.connect() exiting after explicit port discovery failure",
@@ -159,6 +160,15 @@ class SerialHandler:
                     except Exception:
                         pass
                 self.esp32 = cable
+                
+                # Extract buffered boot lines from the probe before resetting buffer
+                if hasattr(cable, '_probe_buffered_lines'):
+                    self._pending_raw_lines.extend(cable._probe_buffered_lines)
+                    log.info(
+                        "Restored buffered lines from probe",
+                        count=len(cable._probe_buffered_lines),
+                    )
+                
                 self.esp32.timeout = 0
                 try:
                     self.esp32.reset_input_buffer()
@@ -169,6 +179,7 @@ class SerialHandler:
                 except Exception:
                     pass
                 self.connected = True
+                self._has_ever_connected = True
                 self.reconnect_port = discovery_port
                 self.reconnect_baud = baud
                 self.reconnect_count = 0
@@ -196,6 +207,15 @@ class SerialHandler:
                         except Exception:
                             pass
                     self.esp32 = cable
+                    
+                    # Extract buffered boot lines from the probe before resetting buffer
+                    if hasattr(cable, '_probe_buffered_lines'):
+                        self._pending_raw_lines.extend(cable._probe_buffered_lines)
+                        log.info(
+                            "Restored buffered lines from probe",
+                            count=len(cable._probe_buffered_lines),
+                        )
+                    
                     self.esp32.timeout = 0
                     try:
                         self.esp32.reset_input_buffer()
@@ -206,6 +226,7 @@ class SerialHandler:
                     except Exception:
                         pass
                     self.connected = True
+                    self._has_ever_connected = True
                     self.reconnect_count = 0
                     self.device_metadata = metadata
                     log.success("Connected to ESP32 via discovered serial", port=candidate_port, baud=baud)
@@ -214,7 +235,7 @@ class SerialHandler:
 
                 self.connected = False
                 self.esp32 = None
-                if self.auto_reconnect_enabled:
+                if self.auto_reconnect_enabled and self._has_ever_connected:
                     self._schedule_reconnect()
                 log.warning(
                     "SerialHandler.connect() exiting after auto-detect failure",
@@ -298,10 +319,6 @@ class SerialHandler:
                 return False
             try:
                 self.esp32.write((cmd.strip().upper() + "\n").encode("utf-8"))
-                try:
-                    self.esp32.flush()
-                except Exception:
-                    pass
                 return True
             except Exception as exc:
                 log.error("Failed to send command to ESP32", command=cmd.strip().upper(), error=str(exc))
@@ -315,6 +332,12 @@ class SerialHandler:
         Returns decoded text or None if no complete line is available.
         """
         with self._lock:
+            # First, return any buffered lines from the probe (boot messages)
+            if self._pending_raw_lines:
+                line = self._pending_raw_lines.pop(0)
+                log.debug("Returning pending line from probe", line=line[:60] if len(line) > 60 else line)
+                return line
+            
             if not self.is_connected():
                 if self.auto_reconnect_enabled and self.reconnect_port:
                     self._schedule_reconnect()

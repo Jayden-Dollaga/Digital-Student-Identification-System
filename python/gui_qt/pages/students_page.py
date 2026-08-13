@@ -26,6 +26,7 @@ class EnrollDialog(QDialog):
         self.serial_worker = serial_worker
         self.assigned_id = None
         self.ready_to_save = False
+        self._enrollment_started = False  # Track if enrollment has been signaled to start
 
         self.setWindowTitle("Enroll Fingerprint")
         self.setMinimumWidth(420)
@@ -52,8 +53,13 @@ class EnrollDialog(QDialog):
 
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        self.log_view.setMaximumHeight(100)
-        self.log_view.setLineWrapMode(QTextEdit.NoWrap)
+        self.log_view.setMinimumHeight(120)
+        self.log_view.setMaximumHeight(180)
+        self.log_view.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.log_view.setStyleSheet(
+            "background-color: #0F1114; border: 1px solid #262A31; "
+            "border-radius: 4px; font-family: 'Consolas', monospace; font-size: 11px; color: #9AA4B2;"
+        )
         outer.addWidget(self.log_view)
 
         button_row = QHBoxLayout()
@@ -75,9 +81,21 @@ class EnrollDialog(QDialog):
         self.serial_worker.raw_line.connect(self._append_log_line)
 
     def _append_log_line(self, line: str):
-        self.log_view.append(line)
-        self.log_view.moveCursor(QTextCursor.End)
-        self.log_view.ensureCursorVisible()
+        # Only append enrollment-specific log lines
+        if not self._enrollment_started:
+            return
+        
+        line_upper = line.upper()
+        
+        # Filter to only show enrollment-related output
+        enrollment_keywords = ["STEP", "IMAGING", "FINGER", "SUCCESS", "FAIL", "ERROR", "CANCEL", "COMPLETE", "ENROLL", "PLACE", "REMOVE"]
+        is_enrollment_line = any(keyword in line_upper for keyword in enrollment_keywords)
+        
+        # Also include lines that look like progress indicators (dashes, etc) if they follow an enrollment line
+        if line.strip() and (is_enrollment_line or line.startswith("-")):
+            self.log_view.append(line)
+            self.log_view.moveCursor(QTextCursor.End)
+            self.log_view.ensureCursorVisible()
 
     def on_start(self):
         if not self.serial_handler.is_connected():
@@ -87,13 +105,14 @@ class EnrollDialog(QDialog):
         self.ready_to_save = False
         self.id_label.setText("Assigned ID: Pending")
         self.save_btn.setEnabled(False)
-        window = self.window()
-        if getattr(window, "scan_active", False):
-            cmd_stop(self.serial_handler)
+        self.log_view.clear()  # Clear previous logs
+        self._enrollment_started = True  # Start capturing enrollment-specific lines
+        cmd_stop(self.serial_handler)  # stop any active scan mode first, same as app.py's enroll_sample()
         if cmd_enroll(self.serial_handler):
             self.status_label.setText("Sent ENROLL command. Follow the prompts on the sensor.")
             self.start_btn.setEnabled(False)
         else:
+            self._enrollment_started = False  # Stop capturing if command failed
             QMessageBox.critical(self, "Failed", "Could not send ENROLL command to the ESP32.")
 
     def on_enroll_progress(self, progress: dict):
@@ -105,17 +124,20 @@ class EnrollDialog(QDialog):
             self.id_label.setText(f"Assigned ID: {self.assigned_id}")
             self.status_label.setText("Enrolling — follow the prompts on the sensor. Save is disabled until enrollment completes.")
         elif event == "success":
+            self._enrollment_started = False  # Stop capturing logs
             self.assigned_id = progress.get("id")
             self.ready_to_save = True
             self.save_btn.setEnabled(True)
             self.id_label.setText(f"Assigned ID: {self.assigned_id}")
             self.status_label.setText(f"Fingerprint saved as ID {self.assigned_id}. Fill in the student's details and Save.")
         elif event == "cancelled":
+            self._enrollment_started = False  # Stop capturing logs
             self.ready_to_save = False
             self.save_btn.setEnabled(False)
             self.status_label.setText("Enrollment cancelled. Start a new enrollment to try again.")
             self.start_btn.setEnabled(True)
         elif event == "error":
+            self._enrollment_started = False  # Stop capturing logs
             self.status_label.setText("Sensor reported an error — check the log below.")
 
     def accept(self):
@@ -138,6 +160,7 @@ class EnrollDialog(QDialog):
         }
 
     def closeEvent(self, event):
+        self._enrollment_started = False  # Stop capturing logs
         try:
             self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
             self.serial_worker.raw_line.disconnect(self._append_log_line)

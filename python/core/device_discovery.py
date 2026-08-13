@@ -193,6 +193,7 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
     log.info("Probing port for handshake", port=port, baud=baud, timeout=timeout)
     cable = None
     keep_open = False
+    buffered_lines = []  # Store non-JSON lines encountered during probe
 
     try:
         cable = serial.Serial(port, baud, timeout=timeout, dsrdtr=False, rtscts=False, xonxoff=False)
@@ -201,22 +202,53 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
             cable.rts = False
         except Exception:
             pass
+        
+        # Wait for device to finish booting and outputting all initial messages
+        # This includes bootloader output (rst, boot, load, entry) plus application startup.
+        # Using 1.0s as a balance between capturing boot messages and connection responsiveness.
         try:
-            cable.reset_input_buffer()
-        except Exception:
-            pass
+            time.sleep(1.0)
+        except Exception as sleep_exc:
+            log.warning("Exception during boot wait sleep", error=str(sleep_exc))
+        
+        # Read any boot-time data without clearing the buffer
+        # This allows us to see what the device outputs on startup
+        try:
+            while cable.in_waiting > 0:
+                try:
+                    raw = cable.readline()
+                    if raw:
+                        line = raw.decode("utf-8", errors="ignore").strip()
+                        if line:
+                            buffered_lines.append(line)
+                            log.debug("Probe: captured boot line", line=line[:60])
+                except Exception as read_exc:
+                    log.debug("Exception reading boot line", error=str(read_exc))
+                    break
+        except Exception as boot_read_exc:
+            log.debug("Exception in boot data read loop", error=str(boot_read_exc))
+        
         try:
             cable.reset_output_buffer()
         except Exception:
             pass
 
-        time.sleep(0.5)
-        cable.write((HANDSHAKE_COMMAND + "\n").encode("utf-8"))
-        cable.flush()
+        # Now send handshake probe
+        try:
+            cable.write((HANDSHAKE_COMMAND + "\n").encode("utf-8"))
+            cable.flush()
+        except Exception as write_exc:
+            log.warning("Exception writing handshake", error=str(write_exc))
+            return False, None, None, f"failed to write handshake: {str(write_exc)}"
 
         deadline = time.time() + timeout
         while time.time() < deadline:
-            raw = cable.readline()
+            try:
+                raw = cable.readline()
+            except Exception as read_exc:
+                log.debug("Exception reading handshake response", error=str(read_exc))
+                continue
+                
             if not raw:
                 continue
             try:
@@ -225,12 +257,22 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
                 continue
             if not line:
                 continue
+            
+            # Check if this is JSON (handshake response)
             metadata = _parse_json_line(line)
             if metadata is None:
+                # Not JSON, store it with the other boot lines
+                buffered_lines.append(line)
+                log.debug("Probe: captured response line", line=line[:60])
                 continue
+            
+            # Found handshake JSON
             valid, reason = _validate_handshake(metadata)
             if valid:
                 keep_open = True
+                
+                # Attach buffered lines to the cable object so SerialHandler can retrieve them
+                cable._probe_buffered_lines = buffered_lines
                 return True, cable, metadata, "OK"
             return False, None, None, f"handshake rejected: {reason}"
 
