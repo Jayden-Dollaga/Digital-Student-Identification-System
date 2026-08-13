@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.utils import parse_json_line
+from core.commands import cmd_list
 
 
 class LogsPage(QWidget):
@@ -114,12 +115,16 @@ class LogsPage(QWidget):
         self.resume_btn = QPushButton("Resume")
         self.resume_btn.clicked.connect(self.resume_monitor)
         self.resume_btn.setEnabled(False)
+        self.list_btn = QPushButton("List")
+        self.list_btn.setToolTip("Send LIST — ask the ESP32 how many fingerprints are stored.")
+        self.list_btn.clicked.connect(self.send_list_command)
         self.auto_scroll_checkbox = QCheckBox("Auto-scroll")
         self.auto_scroll_checkbox.setChecked(True)
         self.auto_scroll_checkbox.stateChanged.connect(self._set_auto_scroll)
         controls_row.addWidget(self.clear_monitor_btn)
         controls_row.addWidget(self.pause_btn)
         controls_row.addWidget(self.resume_btn)
+        controls_row.addWidget(self.list_btn)
         controls_row.addSpacing(12)
         controls_row.addWidget(self.auto_scroll_checkbox)
         controls_row.addStretch()
@@ -223,6 +228,12 @@ class LogsPage(QWidget):
             return
         self.serial_handler.send_command(command)
         self.command_input.clear()
+
+    def send_list_command(self):
+        if self.serial_handler is None or not self.serial_handler.is_connected():
+            self._append_app_text("[UI] Connect to the ESP32 before requesting LIST.")
+            return
+        cmd_list(self.serial_handler)
 
     def _append_app_text(self, text: str):
         scrollbar = self.app_console.verticalScrollBar()

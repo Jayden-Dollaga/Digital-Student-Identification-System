@@ -196,12 +196,25 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
     buffered_lines = []  # Store non-JSON lines encountered during probe
 
     try:
-        cable = serial.Serial(port, baud, timeout=timeout, dsrdtr=False, rtscts=False, xonxoff=False)
+        # IMPORTANT: pyserial defaults dtr/rts to True and asserts them the
+        # moment the port opens. On ESP32 boards that edge triggers the
+        # auto-reset circuit on the EN pin, so constructing serial.Serial()
+        # with a port (which auto-opens) resets the device before dtr/rts
+        # can be cleared. Build the object closed, set dtr/rts first, then
+        # open() explicitly so no reset pulse is ever sent.
+        cable = serial.Serial()
+        cable.port = port
+        cable.baudrate = baud
+        cable.timeout = timeout
+        cable.dsrdtr = False
+        cable.rtscts = False
+        cable.xonxoff = False
         try:
             cable.dtr = False
             cable.rts = False
         except Exception:
             pass
+        cable.open()
         
         # Wait for device to finish booting and outputting all initial messages
         # This includes bootloader output (rst, boot, load, entry) plus application startup.

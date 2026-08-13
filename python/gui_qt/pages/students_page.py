@@ -404,15 +404,24 @@ class StudentsPage(QWidget):
             QMessageBox.information(self, "No selection", "Select a student row first.")
             return
         fingerprint_id = int(self.table.item(row, 0).text())
-        confirm = QMessageBox.question(
-            self, "Confirm delete",
-            f"Delete student with fingerprint ID {fingerprint_id}? "
-            "This does NOT remove the fingerprint from the device — use 'Delete' on the device separately if needed."
-        )
+        device_connected = self.serial_handler is not None and self.serial_handler.is_connected()
+        if device_connected:
+            confirm_text = (
+                f"Delete student with fingerprint ID {fingerprint_id}? "
+                "This will also remove the fingerprint from the connected device."
+            )
+        else:
+            confirm_text = (
+                f"Delete student with fingerprint ID {fingerprint_id}? "
+                "The device is not connected, so the fingerprint template will remain stored on "
+                "the sensor until you connect and delete it separately (ID collisions are possible "
+                "if this ID gets reused during enrollment)."
+            )
+        confirm = QMessageBox.question(self, "Confirm delete", confirm_text)
         if confirm != QMessageBox.Yes:
             return
         self.service.delete_student(fingerprint_id)
-        if self.serial_handler is not None and self.serial_handler.is_connected():
+        if device_connected:
             cmd_delete(self.serial_handler, fingerprint_id)
         self.refresh()
 

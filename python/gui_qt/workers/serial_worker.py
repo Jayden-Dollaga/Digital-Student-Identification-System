@@ -30,6 +30,7 @@ RE_ENROLL_SUCCESS = re.compile(r"SUCCESS!?\s*Finger saved as ID #(\d+)", re.IGNO
 RE_ENROLL_CANCEL = re.compile(r"ENROLLMENT cancelled|Enrollment cancelled|ENROLL_CANCELLED", re.IGNORECASE)
 RE_WIPE_START = re.compile(r"Wiping ALL fingerprints", re.IGNORECASE)
 RE_WIPE_SUCCESS = re.compile(r"SUCCESS\s*-\s*All fingerprints deleted", re.IGNORECASE)
+RE_STORED_COUNT = re.compile(r"Stored fingerprints:\s*(\d+)", re.IGNORECASE)
 
 
 class SerialWorker(QThread):
@@ -39,6 +40,7 @@ class SerialWorker(QThread):
     raw_line = Signal(str)             # raw ESP32 serial output for diagnostics
     enroll_progress = Signal(dict)     # {"event": "enrolling"|"success"|"cancelled"|"error", "id": str|None}
     wipe_progress = Signal(dict)       # {"event": "start"|"success"|"error"}
+    fingerprint_count = Signal(int)    # response to the LIST command
     error = Signal(str)
 
     def __init__(self, serial_handler: SerialHandler, attendance_processor: AttendanceProcessor, parent: Optional[object] = None):
@@ -94,6 +96,7 @@ class SerialWorker(QThread):
                 self._process_line(line)
                 self._parse_enroll_progress(line)
                 self._parse_wipe_progress(line)
+                self._parse_fingerprint_count(line)
             except Exception as exc:
                 self.error.emit(str(exc))
                 log.exception(
@@ -194,6 +197,13 @@ class SerialWorker(QThread):
         upper = message.upper()
         if "ERROR" in upper or "FAIL" in upper:
             self.wipe_progress.emit({"event": "error"})
+
+    def _parse_fingerprint_count(self, line: str):
+        """Response to the LIST command (also printed once at boot):
+        '>> Stored fingerprints: N' or 'Stored fingerprints: N'."""
+        match = RE_STORED_COUNT.search(line)
+        if match:
+            self.fingerprint_count.emit(int(match.group(1)))
 
     def stop(self):
         self._running = False

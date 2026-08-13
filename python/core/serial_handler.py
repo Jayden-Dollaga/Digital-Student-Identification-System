@@ -573,17 +573,27 @@ class SerialHandler:
         try:
             if self.esp32 is not None and getattr(self.esp32, "is_open", False):
                 self.esp32.close()
-            self.esp32 = serial.Serial(
-                port,
-                baud,
-                timeout=0,
-                dsrdtr=False,
-                rtscts=False,
-                xonxoff=False,
-            )
+            # IMPORTANT: pyserial defaults dtr/rts to True and asserts them
+            # the moment the port opens. On ESP32 boards that edge triggers
+            # a hardware reset via the EN pin auto-reset circuit, so every
+            # reconnect was silently rebooting the device (which also drops
+            # scan mode, since scanMode resets to false on boot). Build the
+            # Serial object closed, set dtr/rts first, then open() explicitly
+            # so reconnecting no longer resets the ESP32.
+            self.esp32 = serial.Serial()
+            self.esp32.port = port
+            self.esp32.baudrate = baud
+            self.esp32.timeout = 0
+            self.esp32.dsrdtr = False
+            self.esp32.rtscts = False
+            self.esp32.xonxoff = False
             try:
                 self.esp32.dtr = False
                 self.esp32.rts = False
+            except Exception:
+                pass
+            self.esp32.open()
+            try:
                 self.esp32.reset_input_buffer()
                 self.esp32.reset_output_buffer()
             except Exception:
