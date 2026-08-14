@@ -162,7 +162,7 @@ This file lists repository files and key folders for the documentation audit.
 - docs/UserGuide/installation-guide.md
 - docs/UserGuide/project-overview.md
 - docs/UserGuide/testing-results.md
-- firmware/attendance/attendance.ino
+- firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino
 - firmware/delete/delete.ino
 - firmware/enroll/enroll.ino
 - firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino

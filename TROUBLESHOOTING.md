@@ -1,4 +1,4 @@
-# Troubleshooting Guide - Fingerprint Attendance System
+# Troubleshooting Guide - Digital Student Identification System (DSIS)
 
 ## Issue: "PermissionError(13): Access is denied" on COM Port
 
@@ -24,7 +24,7 @@ Check for any of these running and close them:
 - Serial Monitor applications
 - PuTTY, TeraTerm, or other serial terminals
 - Python scripts using `python -c "import serial; s=serial.Serial('COM4')"`
-- Other fingerprint attendance system instances
+- Other DSIS instances
 
 **Windows Task Manager Check:**
 ```

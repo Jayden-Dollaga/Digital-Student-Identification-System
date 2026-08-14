@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         LOG.info("MainWindow initialization started")
-        self.setWindowTitle("Fingerprint Attendance System")
+        self.setWindowTitle("Digital Student Identification System (DSIS)")
         self.resize(1180, 720)
         self.setMinimumSize(860, 560)
 

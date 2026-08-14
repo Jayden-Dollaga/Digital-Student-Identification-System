@@ -1,5 +1,5 @@
 ================================================================================
-TEST GUI INSTRUCTIONS - Fingerprint Attendance System
+TEST GUI INSTRUCTIONS - Digital Student Identification System (DSIS)
 ================================================================================
 
 QUICK START

@@ -1,4 +1,4 @@
-"""Legacy entry point for the fingerprint attendance system.
+"""Legacy entry point for the Digital Student Identification System (DSIS).
 
 This module wires the console/serial workflow together for the original
 application flow. It initializes the database, connects to the ESP32,

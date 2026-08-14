@@ -1,6 +1,6 @@
 """Persistence layer for students, attendance events, reports, and backup helpers.
 
-This module centralizes SQLite access for the fingerprint attendance system and
+This module centralizes SQLite access for the Digital Student Identification System (DSIS) and
 keeps the rest of the application focused on workflow logic instead of raw SQL.
 """
 

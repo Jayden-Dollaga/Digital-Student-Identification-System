@@ -15,7 +15,7 @@ The Python application handles both styles for backward compatibility.
 - Command: `ID?` (sent by Python during automatic or user-triggered serial discovery).
 - Expected response: JSON with device metadata.
 - Validation checks include:
-  - `device` equals `Fingerprint Attendance`
+  - `device` equals `Digital Student Identification System`
   - `protocol` version is present and >= 1
 
 ### Metadata fields

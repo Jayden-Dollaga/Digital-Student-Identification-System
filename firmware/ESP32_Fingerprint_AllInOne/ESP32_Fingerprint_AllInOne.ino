@@ -94,7 +94,7 @@ enum LedState {
   LED_SLEEP
 };
 
-const char DEVICE_IDENTIFIER[] = "Fingerprint Attendance";
+const char DEVICE_IDENTIFIER[] = "Digital Student Identification System";
 const char DEVICE_BOARD[] = "ESP32";
 const char DEVICE_FIRMWARE[] = "1.0";
 const char DEVICE_SENSOR[] = "AS608";

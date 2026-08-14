@@ -79,7 +79,7 @@ RE_CMD_MODE = re.compile(r"CMD_MODE", re.IGNORECASE)
 class FingerprintApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Fingerprint Attendance System")
+        self.title("Digital Student Identification System (DSIS)")
         # Load settings early so we can respect the user's choice about automatic scaling
         self.settings = load_settings()
 

@@ -40,7 +40,7 @@
 
 The firmware responds to `ID?` with JSON metadata including:
 
-- `device`: `Fingerprint Attendance`
+- `device`: `Digital Student Identification System`
 - `board`: hardware platform identifier
 - `firmware`: firmware version
 - `protocol`: protocol version number

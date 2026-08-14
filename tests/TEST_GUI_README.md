@@ -1,7 +1,7 @@
-# Test GUI Demo - Fingerprint Attendance System
+# Test GUI Demo - Digital Student Identification System (DSIS)
 
 ## Overview
-This is a test GUI that demonstrates the settings toggles working in your attendance system. You can toggle settings on/off and see them save and persist.
+This is a test GUI that demonstrates the settings toggles working in the DSIS system. You can toggle settings on/off and see them save and persist.
 
 ## How to Run
 

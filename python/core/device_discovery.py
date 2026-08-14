@@ -21,7 +21,7 @@ from core.logger import log
 
 CONFIG = get_config()
 
-SUPPORTED_DEVICE_IDENTIFIER = "Fingerprint Attendance"
+SUPPORTED_DEVICE_IDENTIFIER = "Digital Student Identification System"
 MIN_PROTOCOL_VERSION = 1
 HANDSHAKE_COMMAND = "ID?"
 HANDSHAKE_TIMEOUT_SECONDS = 2.0

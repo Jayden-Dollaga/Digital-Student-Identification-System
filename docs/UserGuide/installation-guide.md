@@ -25,9 +25,9 @@ Before uploading firmware, make sure:
 
 ### 1.2 Open the correct firmware file
 
-Open the file [firmware/attendance/attendance.ino](firmware/attendance/attendance.ino) in Arduino IDE.
+Open the file [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) in Arduino IDE.
 
-This is the main attendance sketch used for normal daily scanning.
+This is the all-in-one firmware sketch used for enrollment, scanning, and all operations.
 
 If you are using the desktop app and want a quick first-time check, open the Settings dialog and use the ESP32 Firmware Helper section. It will show whether a bundled firmware binary was detected and, when esptool is available, can attempt an upload using the selected COM port.
 
@@ -206,7 +206,7 @@ The fingerprint sensor should be wired so that:
 - **GND** goes to ground,
 - **TX** and **RX** are cross-connected properly.
 
-The project’s main firmware in [firmware/attendance/attendance.ino](firmware/attendance/attendance.ino) expects the sensor and ESP32 to be connected in the correct serial arrangement.
+The project's main firmware in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) expects the sensor and ESP32 to be connected in the correct serial arrangement.
 
 ### 4.3 Power requirements
 
@@ -337,7 +337,7 @@ If the Serial Monitor is open, the Python app may fail to access the COM port.
 
 For daily use:
 
-1. **Upload the firmware once** using [firmware/attendance/attendance.ino](firmware/attendance/attendance.ino).
+1. **Upload the firmware once** using [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino).
 2. **Use [run_qt_gui.bat](../run_qt_gui.bat)** to launch the app.
 3. **Keep the Serial Monitor closed**.
 4. **Use the correct COM port and 115200 baud rate**.

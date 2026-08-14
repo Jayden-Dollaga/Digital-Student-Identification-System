@@ -1,5 +1,5 @@
 """
-Test GUI for Fingerprint Attendance System
+Test GUI for Digital Student Identification System (DSIS)
 Enhanced version with professional design and realistic data.
 """
 import sys
@@ -21,7 +21,7 @@ from gui.theme import get_theme_colors, apply_appearance_mode
 class AttendanceTestGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Fingerprint Attendance System - Professional Test GUI")
+        self.title("Digital Student Identification System (DSIS) - Professional Test GUI")
         self.geometry("1400x900")
         self.minsize(1000, 700)
         

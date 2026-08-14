@@ -1,4 +1,4 @@
-"""Configuration helpers for the fingerprint attendance system.
+"""Configuration helpers for the Digital Student Identification System (DSIS).
 
 The module now exposes a small config dataclass and environment-aware helpers
 without doing expensive serial discovery during import time.

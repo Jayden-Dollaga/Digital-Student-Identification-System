@@ -554,11 +554,11 @@ The finished DSIS should behave roughly like:
 
 git init 
 git remote add origin
-git pull https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git pull https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 
 Quick setup — if you’ve done this kind of thing before
 or	https
-https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 
 Get started by creating a new file or uploading an existing file. We recommend every repository include a README, LICENSE, and .gitignore.
 
@@ -569,13 +569,13 @@ git init
 git add README.md
 git commit -m "first commit"
 git branch -M main
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git remote add origin https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 git push -u origin main
 
 
 …or push an existing repository from the command line
 
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git remote add origin https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 git branch -M main
 git push -u origin main
 
@@ -627,7 +627,7 @@ Update the documentation of what we are doing from the start, including all the 
 
 
 
-Fingerprint-Attendance-System/
+Digital Student Identification System (DSIS)/
 │
 ├── README.md
 ├── LICENSE
@@ -711,7 +711,7 @@ and
 
 
 
-Fingerprint-Attendance-System/
+Digital Student Identification System (DSIS)/
 │
 ├── README.md
 ├── LICENSE
@@ -895,11 +895,11 @@ Update the documentation of what we are doing from the start, including all the 
 
 git init 
 git remote add origin
-git pull https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git pull https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 
 Quick setup — if you’ve done this kind of thing before
 or	https
-https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 
 Get started by creating a new file or uploading an existing file. We recommend every repository include a README, LICENSE, and .gitignore.
 
@@ -910,13 +910,13 @@ git init
 git add README.md
 git commit -m "first commit"
 git branch -M main
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git remote add origin https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 git push -u origin main
 
 
 …or push an existing repository from the command line
 
-git remote add origin https://github.com/Jayden-Dollaga/Fingerprint-Attendance-System.git
+git remote add origin https://github.com/Jayden-Dollaga/Digital-Student-Identification-System.git
 git branch -M main
 git push -u origin main
 
@@ -983,7 +983,7 @@ tkinter and xvfb
 
 
 
-Fingerprint-Attendance-System/
+Digital Student Identification System (DSIS)/
 │
 ├── README.md
 ├── LICENSE
@@ -1067,7 +1067,7 @@ and
 
 
 
-Fingerprint-Attendance-System/
+Digital Student Identification System (DSIS)/
 │
 ├── README.md
 ├── LICENSE
@@ -1136,15 +1136,15 @@ Fingerprint-Attendance-System/
 
 
 
-Fingerprint Attendance System — Project Status and Development Roadmap
+Digital Student Identification System (DSIS) — Project Status and Development Roadmap
 =================================================================
 
-This document is the live project tracker for the Fingerprint Attendance System. It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work.
+This document is the live project tracker for the Digital Student Identification System (DSIS). It records the project history, current issues discovered during real-world testing, the implementation plan, and the to-do list that will guide future work.
 
 1. Project summary
 ------------------
 
-The project is a Windows-based fingerprint attendance system that combines:
+The project is a Windows-based DSIS that combines:
 - ESP32 firmware for fingerprint scanning and command handling
 - Python desktop software for enrollment, attendance logging, backup/restore, and reporting
 - SQLite storage for student and attendance data
