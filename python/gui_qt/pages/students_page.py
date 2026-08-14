@@ -65,16 +65,43 @@ class EnrollDialog(QDialog):
         self.student_name = QLineEdit()
         self.grade = QLineEdit()
         self.section = QLineEdit()
+        self.field_feedback_labels = {}
+        self.validation_status = QLabel("")
+        self.validation_status.setWordWrap(True)
+        self.validation_status.setVisible(False)
+        self.validation_status.setStyleSheet(
+            "color: #F0B429; font-size: 11px; font-weight: 600; margin-top: 4px;"
+        )
+        
+        field_containers = {
+            "student_no": ("Student No.", self.student_no),
+            "student_name": ("Full Name", self.student_name),
+            "grade": ("Grade", self.grade),
+            "section": ("Section", self.section),
+        }
+        for field_name, (label_text, field) in field_containers.items():
+            widget = QWidget()
+            layout = QVBoxLayout(widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(4)
+            layout.addWidget(field)
+            feedback = QLabel("")
+            feedback.setWordWrap(True)
+            feedback.setVisible(False)
+            feedback.setStyleSheet(
+                "color: #F0B429; font-size: 11px; font-weight: 600;"
+            )
+            layout.addWidget(feedback)
+            self.field_feedback_labels[field_name] = feedback
+            form.addRow(label_text, widget)
         
         # Connect text change signals to validate form live
         for field in (self.student_no, self.student_name, self.grade, self.section):
             field.textChanged.connect(self._on_form_changed)
         
-        form.addRow("Student No.", self.student_no)
-        form.addRow("Full Name", self.student_name)
-        form.addRow("Grade", self.grade)
-        form.addRow("Section", self.section)
         outer.addLayout(form)
+        outer.addWidget(self.validation_status)
+        self._show_field_validation_feedback()
 
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
@@ -109,6 +136,45 @@ class EnrollDialog(QDialog):
         self.serial_worker.enroll_progress.connect(self.on_enroll_progress)
         self.serial_worker.raw_line.connect(self._append_log_line)
     
+    def _show_field_validation_feedback(self):
+        """Show live validation feedback under each field and a summary status."""
+        from core.database import get_student_field_feedback
+
+        feedback = get_student_field_feedback(
+            1,
+            self.student_no.text(),
+            self.student_name.text(),
+            self.grade.text(),
+            self.section.text(),
+        )
+
+        for field_name, label in self.field_feedback_labels.items():
+            result = feedback.get(field_name)
+            if result is None or result.valid:
+                label.setText("✓ Valid")
+                label.setStyleSheet("color: #5EE6A9; font-size: 11px; font-weight: 600;")
+                label.setVisible(True)
+            else:
+                label.setText(f"⚠ {result.message}")
+                label.setStyleSheet("color: #F0B429; font-size: 11px; font-weight: 600;")
+                label.setVisible(True)
+
+        valid_fields = all(result.valid for result in feedback.values())
+        if valid_fields:
+            self.validation_status.setText("✓ Student information is valid")
+            self.validation_status.setStyleSheet("color: #5EE6A9; font-size: 11px; font-weight: 600; margin-top: 4px;")
+            self.validation_status.setVisible(True)
+            return
+
+        for field_name in ("student_no", "student_name", "grade", "section"):
+            result = feedback.get(field_name)
+            if result is not None and not result.valid:
+                self.validation_status.setText(f"⚠ {result.message}")
+                self.validation_status.setStyleSheet("color: #F0B429; font-size: 11px; font-weight: 600; margin-top: 4px;")
+                self.validation_status.setVisible(True)
+                return
+        self.validation_status.setVisible(False)
+
     def _is_form_valid(self) -> bool:
         """Check if student form has valid data using the existing validation function."""
         # We don't have a fingerprint ID yet, so use a temporary valid ID for validation
@@ -126,6 +192,7 @@ class EnrollDialog(QDialog):
     
     def _on_form_changed(self):
         """Called when any form field changes. Update button enable state if in INITIAL state."""
+        self._show_field_validation_feedback()
         if self.state == EnrollmentState.INITIAL:
             self.primary_btn.setEnabled(self._is_form_valid())
     

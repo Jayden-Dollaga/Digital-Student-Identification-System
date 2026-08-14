@@ -5,9 +5,12 @@ keeps the rest of the application focused on workflow logic instead of raw SQL.
 """
 
 import os
+import re
 import shutil
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypedDict
 
@@ -28,6 +31,47 @@ except ImportError:
 
 
 RowDict = Dict[str, Any]
+
+
+class ValidationState(str, Enum):
+    VALID = "valid"
+    MISSING = "missing"
+    INVALID_FORMAT = "invalid_format"
+    UNSUPPORTED_CHARACTER = "unsupported_character"
+    TOO_LONG = "too_long"
+    INVALID_RANGE = "invalid_range"
+
+
+@dataclass
+class FieldValidationResult:
+    field: str
+    state: ValidationState
+    message: str
+    valid: bool = False
+
+
+STUDENT_NO_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+STUDENT_NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ ,.'-]+$")
+GRADE_SECTION_PATTERN = re.compile(r"^[A-Za-z0-9 /-]+$")
+
+
+def _collect_unsupported_characters(value: str, allowed_chars: Iterable[str]) -> List[str]:
+    allowed = set(allowed_chars)
+    chars: List[str] = []
+    for ch in value:
+        if ch in allowed:
+            continue
+        if ch not in chars:
+            chars.append(ch)
+    return chars
+
+
+def _format_unsupported_characters(chars: List[str]) -> str:
+    if not chars:
+        return ""
+    if len(chars) == 1:
+        return chars[0]
+    return ", ".join(chars)
 
 
 class ManagedConnection:
@@ -227,8 +271,6 @@ def validate_student_input(
     Returns:
         Tuple of (is_valid, error_message)
     """
-    import re
-    
     # Fingerprint ID validation (AS608 sensor uses 1-127)
     if not isinstance(fingerprint_id, int) or fingerprint_id < 1 or fingerprint_id > 127:
         return False, "Fingerprint ID must be between 1 and 127"
@@ -241,8 +283,7 @@ def validate_student_input(
     if len(student_no_stripped) < 1 or len(student_no_stripped) > 50:
         return False, "Student number must be 1-50 characters"
     
-    # Allow alphanumeric, hyphens, underscores, and dots
-    if not re.match(r"^[a-zA-Z0-9._-]+$", student_no_stripped):
+    if not STUDENT_NO_PATTERN.fullmatch(student_no_stripped):
         return False, "Student number contains invalid characters. Use letters, numbers, dots, hyphens, or underscores."
     
     # Student name validation
@@ -253,8 +294,7 @@ def validate_student_input(
     if len(student_name_stripped) < 1 or len(student_name_stripped) > 100:
         return False, "Student name must be 1-100 characters"
     
-    # Allow letters, spaces, hyphens, and apostrophes
-    if not re.match(r"^[a-zA-Z\s\-']+$", student_name_stripped):
+    if not STUDENT_NAME_PATTERN.fullmatch(student_name_stripped):
         return False, "Student name contains invalid characters"
     
     # Grade validation
@@ -265,7 +305,7 @@ def validate_student_input(
     if len(grade_stripped) < 1 or len(grade_stripped) > 50:
         return False, "Grade must be 1-50 characters"
     
-    if not re.match(r"^[a-zA-Z0-9\s\-/]+$", grade_stripped):
+    if not GRADE_SECTION_PATTERN.fullmatch(grade_stripped):
         return False, "Grade contains invalid characters"
     
     # Section validation
@@ -276,10 +316,84 @@ def validate_student_input(
     if len(section_stripped) < 1 or len(section_stripped) > 50:
         return False, "Section must be 1-50 characters"
     
-    if not re.match(r"^[a-zA-Z0-9\s\-/]+$", section_stripped):
+    if not GRADE_SECTION_PATTERN.fullmatch(section_stripped):
         return False, "Section contains invalid characters"
     
     return True, ""
+
+
+def get_student_field_feedback(
+    fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Dict[str, FieldValidationResult]:
+    """Return human-friendly validation feedback for each student field.
+
+    This reuses the centralized validation rules in validate_student_input() while
+    exposing per-field, user-friendly state and messaging for live UI feedback.
+    """
+    feedback: Dict[str, FieldValidationResult] = {}
+
+    def add_feedback(field_name: str, state: ValidationState, message: str):
+        feedback[field_name] = FieldValidationResult(field_name, state, message, state == ValidationState.VALID)
+
+    def check_name(value: str, field_name: str, max_length: int):
+        if value is None:
+            value = ""
+        value = str(value).strip()
+        if value == "":
+            add_feedback(field_name, ValidationState.MISSING, "Required field")
+            return
+        if len(value) > max_length:
+            add_feedback(field_name, ValidationState.TOO_LONG, f"Too many characters ({len(value)}/{max_length})")
+            return
+        if not STUDENT_NAME_PATTERN.fullmatch(value):
+            unsupported = _collect_unsupported_characters(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZà-ÿ .,'-")
+            if unsupported:
+                add_feedback(field_name, ValidationState.UNSUPPORTED_CHARACTER, f"Unsupported character: {_format_unsupported_characters(unsupported)}")
+            else:
+                add_feedback(field_name, ValidationState.INVALID_FORMAT, "Invalid full name format")
+            return
+        add_feedback(field_name, ValidationState.VALID, "Valid")
+
+    def check_token(value: str, field_name: str, max_length: int, allowed_chars: str, invalid_message: str, pattern: str):
+        if value is None:
+            value = ""
+        value = str(value).strip()
+        if value == "":
+            add_feedback(field_name, ValidationState.MISSING, "Required field")
+            return
+        if len(value) > max_length:
+            add_feedback(field_name, ValidationState.TOO_LONG, f"Too many characters ({len(value)}/{max_length})")
+            return
+        if not re.fullmatch(pattern, value):
+            unsupported = _collect_unsupported_characters(value, allowed_chars)
+            if unsupported:
+                add_feedback(field_name, ValidationState.UNSUPPORTED_CHARACTER, f"Unsupported character: {_format_unsupported_characters(unsupported)}")
+            else:
+                add_feedback(field_name, ValidationState.INVALID_FORMAT, invalid_message)
+            return
+        add_feedback(field_name, ValidationState.VALID, "Valid")
+
+    student_no_value = student_no if student_no is not None else ""
+    student_name_value = student_name if student_name is not None else ""
+    grade_value = grade if grade is not None else ""
+    section_value = section if section is not None else ""
+
+    check_token(student_no_value, "student_no", 50, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-", "Invalid student number format", r"[A-Za-z0-9._-]+")
+    check_name(student_name_value, "student_name", 100)
+    check_token(grade_value, "grade", 50, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/- ", "Invalid grade format. Example: 12", r"[A-Za-z0-9 /-]+")
+    check_token(section_value, "section", 50, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/- ", "Section format is invalid. Example: CSS-12-1", r"[A-Za-z0-9 /-]+")
+
+    all_valid, _ = validate_student_input(fingerprint_id, student_no_value, student_name_value, grade_value, section_value)
+    if all_valid:
+        for field_name, result in feedback.items():
+            result.valid = True
+            result.state = ValidationState.VALID
+            result.message = "Valid"
+    return feedback
 
 
 def add_student(
