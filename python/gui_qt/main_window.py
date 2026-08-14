@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         LOG.info("MainWindow initialization started")
-        self.setWindowTitle("Digital Student Identification System (DSIS)")
+        self.setWindowTitle("Fingerprint Attendance System")
         self.resize(1180, 720)
         self.setMinimumSize(860, 560)
 
@@ -125,6 +125,7 @@ class MainWindow(QMainWindow):
         self.settings_page = SettingsPage(
             serial_handler=self.serial_handler,
             settings=self.settings,
+            attendance_processor=self.attendance_processor,
             on_connection_settings_changed=self.on_connection_settings_changed,
         )
 
@@ -146,6 +147,10 @@ class MainWindow(QMainWindow):
         root.addWidget(right_container)
 
         self._page_order = list(self._pages.keys())
+
+        # ---- apply persisted appearance / role settings ----
+        self.sidebar.set_compact(bool(self.settings.get("compact_sidebar", False)))
+        self._apply_role_permissions(self.settings.get("current_role", CONFIG.default_user_role))
 
         # ---- connection worker (handles non-blocking serial connect/disconnect) ----
         self.connection_worker.connect_result.connect(self.on_connect_result)
@@ -181,6 +186,31 @@ class MainWindow(QMainWindow):
         page = self._pages[key]
         if hasattr(page, "refresh"):
             page.refresh()
+
+    def _apply_role_permissions(self, role_key: str) -> None:
+        """Gate destructive/admin pages and actions based on the active role's
+        permission list from config.USER_ROLES. Informational only until a real
+        login system exists — anyone can still change the role in Settings."""
+        role = CONFIG.user_roles.get(role_key, {})
+        permissions = set(role.get("permissions", []))
+
+        allowed = {"dashboard", "attendance", "logs", "settings"}
+        if "enroll" in permissions or "delete" in permissions or "wipe" in permissions:
+            allowed.add("students")
+        if "export" in permissions or "backup" in permissions:
+            allowed.add("reports")
+        self.sidebar.set_enabled_pages(allowed)
+
+        # if the currently-visible page just became restricted, bounce to Dashboard
+        current_key = next(
+            (k for k, p in self._pages.items() if p is self.stack.currentWidget()), None
+        )
+        if current_key is not None and current_key not in allowed:
+            self.switch_page("dashboard")
+            self.sidebar._group.buttons()[self._page_order.index("dashboard")].setChecked(True)
+
+        if hasattr(self.settings_page, "set_admin_mode"):
+            self.settings_page.set_admin_mode(bool(role.get("can_manage_users", False)))
 
     def on_connect_clicked(self):
         """Handle Connect/Disconnect button click using background worker."""
@@ -260,6 +290,8 @@ class MainWindow(QMainWindow):
         auto_reconnect: Optional[bool] = None,
         auto_detect: Optional[bool] = None,
         theme: Optional[str] = None,
+        compact_sidebar: Optional[bool] = None,
+        current_role: Optional[str] = None,
     ):
         """Called by SettingsPage after Save — reconnect with new values if already connected."""
         self.settings["com_port"] = port
@@ -272,6 +304,12 @@ class MainWindow(QMainWindow):
             self.settings["auto_detect_serial"] = self.auto_detect_serial
         if theme is not None:
             self.settings["theme"] = theme
+        if compact_sidebar is not None:
+            self.settings["compact_sidebar"] = bool(compact_sidebar)
+            self.sidebar.set_compact(bool(compact_sidebar))
+        if current_role is not None:
+            self.settings["current_role"] = current_role
+            self._apply_role_permissions(current_role)
 
         if self.serial_handler.is_connected():
             self.serial_handler.disconnect()

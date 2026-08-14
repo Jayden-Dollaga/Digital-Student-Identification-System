@@ -132,6 +132,28 @@ QLabel#connectionStatus[state="connecting"] {
     color: #FBBF24;
 }
 
+QLabel#scanToast {
+    padding: 10px 24px;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 1px solid #262A31;
+}
+
+QLabel#scanToast[kind="success"] {
+    background-color: #16532233;
+    color: #4ADE80;
+}
+
+QLabel#scanToast[kind="fail"] {
+    background-color: #7F1D1D33;
+    color: #F87171;
+}
+
+QLabel#scanToast[kind="duplicate"] {
+    background-color: #1E3A8A33;
+    color: #60A5FA;
+}
+
 /* ---------------- Cards ---------------- */
 QFrame#card {
     background-color: #1B1E24;

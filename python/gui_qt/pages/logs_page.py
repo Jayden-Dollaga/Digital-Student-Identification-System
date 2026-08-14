@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QSplitter,
+    QMessageBox,
 )
 
 from core.utils import parse_json_line
@@ -118,6 +119,12 @@ class LogsPage(QWidget):
         self.list_btn = QPushButton("List")
         self.list_btn.setToolTip("Send LIST — ask the ESP32 how many fingerprints are stored.")
         self.list_btn.clicked.connect(self.send_list_command)
+        self.reset_device_btn = QPushButton("Reset Device")
+        self.reset_device_btn.setToolTip(
+            "Reboot the ESP32 to see the full startup banner again. "
+            "This interrupts scanning/enrolling if either is in progress."
+        )
+        self.reset_device_btn.clicked.connect(self.reset_device)
         self.auto_scroll_checkbox = QCheckBox("Auto-scroll")
         self.auto_scroll_checkbox.setChecked(True)
         self.auto_scroll_checkbox.stateChanged.connect(self._set_auto_scroll)
@@ -125,6 +132,7 @@ class LogsPage(QWidget):
         controls_row.addWidget(self.pause_btn)
         controls_row.addWidget(self.resume_btn)
         controls_row.addWidget(self.list_btn)
+        controls_row.addWidget(self.reset_device_btn)
         controls_row.addSpacing(12)
         controls_row.addWidget(self.auto_scroll_checkbox)
         controls_row.addStretch()
@@ -234,6 +242,22 @@ class LogsPage(QWidget):
             self._append_app_text("[UI] Connect to the ESP32 before requesting LIST.")
             return
         cmd_list(self.serial_handler)
+
+    def reset_device(self):
+        if self.serial_handler is None or not self.serial_handler.is_connected():
+            self._append_app_text("[UI] Connect to the ESP32 before resetting it.")
+            return
+        confirm = QMessageBox.question(
+            self, "Reset device",
+            "This will reboot the ESP32 now. Any active scanning or enrollment "
+            "in progress will be interrupted. Continue?"
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        if self.serial_handler.reset_device():
+            self._append_app_text("[UI] Reset pulse sent — watch the monitor for the new boot banner.")
+        else:
+            self._append_app_text("[UI] Failed to reset device.")
 
     def _append_app_text(self, text: str):
         scrollbar = self.app_console.verticalScrollBar()

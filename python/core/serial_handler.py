@@ -326,6 +326,28 @@ class SerialHandler:
                 self._schedule_reconnect()
                 return False
 
+    def reset_device(self) -> bool:
+        """
+        Deliberately reboot the ESP32 by pulsing DTR low->high->low.
+        This is the ONLY place that intentionally resets the device via DTR;
+        connect()/reconnect() are careful to avoid doing this accidentally
+        (see the dtr-before-open pattern in _attempt_connect / _probe_port).
+        Use this when the user explicitly wants to see the fresh boot banner
+        (e.g. a "Reset Device" button), not as part of any automatic flow.
+        Returns True if the pulse was sent, False if not connected.
+        """
+        with self._lock:
+            if not self.is_connected():
+                return False
+            try:
+                self.esp32.dtr = True
+                time.sleep(0.1)
+                self.esp32.dtr = False
+                return True
+            except Exception as exc:
+                log.error("Failed to reset ESP32 via DTR pulse", error=str(exc))
+                return False
+
     def read_line(self) -> Optional[str]:
         """
         Read a single line from ESP32.

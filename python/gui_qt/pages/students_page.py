@@ -71,7 +71,10 @@ class EnrollDialog(QDialog):
         self.save_btn.setEnabled(False)
         self.save_btn.clicked.connect(self.accept)
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
+        cancel_btn.setObjectName("secondaryButton")
+        cancel_btn.clicked.connect(self.on_cancel)
+        for btn in (self.start_btn, cancel_btn, self.save_btn):
+            btn.setMinimumWidth(140)
         button_row.addWidget(self.start_btn)
         button_row.addWidget(cancel_btn)
         button_row.addWidget(self.save_btn)
@@ -162,6 +165,23 @@ class EnrollDialog(QDialog):
             self._enrollment_started = False  # Stop capturing logs
             self.status_label.setText("Sensor reported an error — check the log below.")
 
+    def _cleanup_before_close(self):
+        """Shared teardown for both Cancel and the window's X button: stop
+        the device if an enrollment might still be in progress, and detach
+        signal handlers so this dialog stops reacting after it's gone."""
+        self._enrollment_started = False
+        try:
+            self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
+            self.serial_worker.raw_line.disconnect(self._append_log_line)
+        except (RuntimeError, TypeError):
+            pass
+        if self.serial_handler.is_connected():
+            cmd_stop(self.serial_handler)
+
+    def on_cancel(self):
+        self._cleanup_before_close()
+        self.reject()
+
     def accept(self):
         if not self.ready_to_save or not self.assigned_id:
             QMessageBox.warning(self, "Missing fingerprint", "The fingerprint has not been enrolled yet.")
@@ -170,6 +190,11 @@ class EnrollDialog(QDialog):
                     self.grade.text().strip(), self.section.text().strip()]):
             QMessageBox.warning(self, "Incomplete details", "Please fill in student number, name, grade, and section.")
             return
+        try:
+            self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
+            self.serial_worker.raw_line.disconnect(self._append_log_line)
+        except (RuntimeError, TypeError):
+            pass
         super().accept()
 
     def get_values(self):
@@ -182,14 +207,7 @@ class EnrollDialog(QDialog):
         }
 
     def closeEvent(self, event):
-        self._enrollment_started = False  # Stop capturing logs
-        try:
-            self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
-            self.serial_worker.raw_line.disconnect(self._append_log_line)
-        except (RuntimeError, TypeError):
-            pass
-        if self.serial_handler.is_connected():
-            cmd_stop(self.serial_handler)
+        self._cleanup_before_close()
         super().closeEvent(event)
 
 

@@ -23,8 +23,16 @@ def default_settings() -> Dict[str, Any]:
         "auto_detect_serial": True,
         # compact sidebar (icons-only) to save vertical space
         "compact_sidebar": False,
-            # enable lightweight UI profiler (records timing of key UI events)
-            "enable_profiler": False,
+        # enable lightweight UI profiler (records timing of key UI events)
+        "enable_profiler": False,
+        # minimum AS608 confidence score (0-255) required to count a scan as a match
+        "min_confidence": CONFIG.min_confidence,
+        # write log output to a rotating file on disk in addition to console
+        "log_to_file": CONFIG.log_to_file,
+        # verbose DEBUG-level logging (noisier, useful for troubleshooting)
+        "enable_debug_logging": CONFIG.enable_debug_logging,
+        # active user role: gates access to destructive/admin-only actions in the UI
+        "current_role": CONFIG.default_user_role,
     }
 
 

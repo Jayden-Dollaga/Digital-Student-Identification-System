@@ -130,11 +130,19 @@ class SerialWorker(QThread):
             self.mode_changed.emit("command")
 
     def _process_line(self, line: str):
-        """Mirrors app.py's _dispatch_attendance_message / _handle_scan_result."""
+        """Mirrors app.py's _dispatch_attendance_message / _handle_scan_result.
+
+        Cooldown-skipped (duplicate) scans are NOT written to the attendance
+        database (that's still correct - we don't want double time-in rows),
+        but they ARE still emitted as a scan_event so the UI can show the
+        operator that a scan was received and why it wasn't logged, instead
+        of it looking like nothing happened at all.
+        """
         result = self.attendance_processor.process_line(line)
-        if result is None or not result.get("logged"):
+        if result is None:
             return
 
+        logged = bool(result.get("logged"))
         fingerprint_id = int(result.get("fingerprint_id", 0) or 0)
         confidence = int(result.get("confidence", 0) or 0)
         raw_status = result.get("status") or "UNKNOWN"
@@ -143,6 +151,11 @@ class SerialWorker(QThread):
         student = None
         if fingerprint_id != 0:
             student = self.attendance_processor.lookup_student(fingerprint_id)
+
+        if logged:
+            status = "UNKNOWN" if fingerprint_id == 0 else "Present"
+        else:
+            status = "Duplicate"
 
         event = {
             "fingerprint_id": fingerprint_id,
@@ -154,8 +167,10 @@ class SerialWorker(QThread):
             "date": timestamp.strftime("%Y-%m-%d"),
             "time": timestamp.strftime("%H:%M:%S"),
             "confidence": confidence,
-            "status": "UNKNOWN" if fingerprint_id == 0 else "Present",
+            "status": status,
             "raw_status": raw_status,
+            "logged": logged,
+            "cooldown_reason": result.get("reason") if not logged else None,
         }
         self.scan_event.emit(event)
 
