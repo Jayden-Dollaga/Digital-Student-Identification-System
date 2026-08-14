@@ -507,4 +507,19 @@ class MainWindow(QMainWindow):
                 self.serial_handler.disconnect()
         except Exception as exc:
             LOG.exception("Exception during SerialHandler.disconnect(): %s", str(exc))
+
+        # Detach the per-window Qt log handler from the shared, process-wide
+        # LOG logger. Without this, every MainWindow instantiation leaks a
+        # handler that holds a reference to this window's (now-destroyed)
+        # logs_page. Any subsequent LOG call — including ones from other
+        # still-running windows or background threads — walks *all*
+        # registered handlers and invokes emit() on the stale ones too,
+        # touching a deleted Qt/C++ widget. That's a plausible root cause of
+        # the intermittent native shutdown crash described in
+        # docs/Development/SHUTDOWN_CRASH.md.
+        try:
+            LOG.removeHandler(self._log_handler)
+        except Exception as exc:
+            LOG.exception("Exception removing Qt log handler: %s", str(exc))
+
         super().closeEvent(event)

@@ -120,6 +120,13 @@ class FingerprintApp(ctk.CTk):
         self.wipe_log_text = None
         self.wipe_status_var = None
         self.wipe_confirm_button = None
+        # True only after Confirm Wipe has actually sent WIPE this session.
+        # Guards _parse_wipe_progress so a stale "SUCCESS - All fingerprints
+        # deleted" line left over from a previous run (e.g. app closed/crashed
+        # after sending WIPE but before the confirmation line arrived) can't
+        # silently wipe the local database just because the dialog happens to
+        # be open again.
+        self.wipe_requested = False
 
         # Student roster popup state (opened from "List")
         self.students_dialog = None
@@ -963,6 +970,8 @@ class FingerprintApp(ctk.CTk):
         if self.wipe_dialog is None or not self.wipe_dialog.winfo_exists():
             return
         if self.wipe_status_var is None:
+            return
+        if not self.wipe_requested:
             return
 
         if RE_WIPE_START.search(message):

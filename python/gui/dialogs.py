@@ -166,6 +166,7 @@ def open_wipe_dialog(app):
     app.wipe_dialog = dialog
     app.wipe_status_var = StringVar(value="This will erase stored fingerprints and clear related database records.")
     app.wipe_log_text = None
+    app.wipe_requested = False
 
     content = ctk.CTkFrame(dialog, fg_color="transparent")
     content.pack(fill="both", expand=True, padx=18, pady=18)
@@ -225,6 +226,7 @@ def confirm_wipe(app):
     app.log_message("Sent WIPE command to ESP32. Waiting for confirmation...")
     success = cmd_wipe(app.serial_handler)
     if success:
+        app.wipe_requested = True
         if getattr(app, "wipe_status_var", None) is not None:
             app.wipe_status_var.set("Wipe command sent. Waiting for the ESP32 to confirm completion.")
         return True
@@ -244,6 +246,7 @@ def close_wipe_dialog(app):
     app.wipe_confirm_button = None
     app.wipe_status_var = None
     app.wipe_log_text = None
+    app.wipe_requested = False
     return True
 
 

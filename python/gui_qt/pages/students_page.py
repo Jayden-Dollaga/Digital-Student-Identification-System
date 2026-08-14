@@ -264,6 +264,16 @@ class WipeDialog(QDialog):
         self.serial_handler = serial_handler
         self.serial_worker = serial_worker
         self.on_wiped = on_wiped
+        # Mirrors EnrollDialog's _enrollment_started guard: only treat a
+        # "wipe succeeded" line from the ESP32 as real once *this* dialog
+        # has actually sent WIPE. Without this, wipe_progress is connected
+        # the moment the dialog opens, so any stray success line arriving
+        # late from a previous session (e.g. WIPE was sent, then the app
+        # closed/crashed before the confirmation line arrived, then the
+        # user reopens this dialog on the next run) would silently trigger
+        # clear_all_data() and erase every student/attendance record with
+        # no confirmation click in the current session.
+        self._wipe_requested = False
 
         self.setWindowTitle("Confirm Wipe")
         self.setMinimumWidth(420)
@@ -298,11 +308,15 @@ class WipeDialog(QDialog):
             return
         self.confirm_btn.setEnabled(False)
         self.status_label.setText("Sending wipe command to the ESP32. Please wait for confirmation.")
-        if not cmd_wipe(self.serial_handler):
+        if cmd_wipe(self.serial_handler):
+            self._wipe_requested = True
+        else:
             self.confirm_btn.setEnabled(True)
             self.status_label.setText("Failed to send the wipe command. Check the serial connection and try again.")
 
     def on_wipe_progress(self, progress: dict):
+        if not self._wipe_requested:
+            return
         event = progress.get("event")
         if event == "start":
             self.status_label.setText("Wiping… please wait.")

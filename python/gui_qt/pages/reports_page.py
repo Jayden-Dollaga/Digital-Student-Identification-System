@@ -10,6 +10,28 @@ from core.database import (
     generate_statistics_report, export_attendance_range, backup_database, restore_database,
 )
 
+# Leading characters that spreadsheet apps (Excel, LibreOffice, Google
+# Sheets) treat as the start of a formula when a CSV cell is opened.
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_csv_cell(value):
+    """Neutralize CSV/formula-injection payloads (CWE-1236) before writing.
+
+    student_no / student_name / grade / section are free-text fields typed
+    into the Add/Edit Student forms with no restriction on leading
+    characters. If a value starts with '=', '+', '-', or '@', Excel and
+    similar tools interpret the cell as a formula when the exported file is
+    opened — which can range from a junk calculation to (on older Excel
+    versions, via DDE) code execution. Prefixing such values with a single
+    quote forces spreadsheet apps to treat them as plain text while leaving
+    the value visually unchanged for anyone reading the CSV as text.
+    """
+    text = "" if value is None else str(value)
+    if text.startswith(_FORMULA_TRIGGER_CHARS):
+        return "'" + text
+    return text
+
 
 class ReportsPage(QWidget):
     def __init__(self, parent=None):
@@ -86,7 +108,8 @@ class ReportsPage(QWidget):
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             writer.writeheader()
-            writer.writerows(rows)
+            for row in rows:
+                writer.writerow({key: _sanitize_csv_cell(value) for key, value in row.items()})
 
         QMessageBox.information(self, "Export complete", f"Saved {len(rows)} records to {path}")
 
