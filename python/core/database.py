@@ -167,6 +167,80 @@ def init_database() -> None:
 # -----------------------------------------------------------------------------
 
 
+def validate_student_input(
+    fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Tuple[bool, str]:
+    """Validate student input fields.
+    
+    Args:
+        fingerprint_id: AS608 template ID (1-127)
+        student_no: Student ID number
+        student_name: Student's full name
+        grade: Grade/class level
+        section: Section/class section
+    
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    import re
+    
+    # Fingerprint ID validation (AS608 sensor uses 1-127)
+    if not isinstance(fingerprint_id, int) or fingerprint_id < 1 or fingerprint_id > 127:
+        return False, "Fingerprint ID must be between 1 and 127"
+    
+    # Student number validation
+    if not student_no or not isinstance(student_no, str):
+        return False, "Student number is required"
+    
+    student_no_stripped = student_no.strip()
+    if len(student_no_stripped) < 1 or len(student_no_stripped) > 50:
+        return False, "Student number must be 1-50 characters"
+    
+    # Allow alphanumeric, hyphens, underscores, and dots
+    if not re.match(r"^[a-zA-Z0-9._-]+$", student_no_stripped):
+        return False, "Student number contains invalid characters. Use letters, numbers, dots, hyphens, or underscores."
+    
+    # Student name validation
+    if not student_name or not isinstance(student_name, str):
+        return False, "Student name is required"
+    
+    student_name_stripped = student_name.strip()
+    if len(student_name_stripped) < 1 or len(student_name_stripped) > 100:
+        return False, "Student name must be 1-100 characters"
+    
+    # Allow letters, spaces, hyphens, and apostrophes
+    if not re.match(r"^[a-zA-Z\s\-']+$", student_name_stripped):
+        return False, "Student name contains invalid characters"
+    
+    # Grade validation
+    if not grade or not isinstance(grade, str):
+        return False, "Grade is required"
+    
+    grade_stripped = grade.strip()
+    if len(grade_stripped) < 1 or len(grade_stripped) > 50:
+        return False, "Grade must be 1-50 characters"
+    
+    if not re.match(r"^[a-zA-Z0-9\s\-/]+$", grade_stripped):
+        return False, "Grade contains invalid characters"
+    
+    # Section validation
+    if not section or not isinstance(section, str):
+        return False, "Section is required"
+    
+    section_stripped = section.strip()
+    if len(section_stripped) < 1 or len(section_stripped) > 50:
+        return False, "Section must be 1-50 characters"
+    
+    if not re.match(r"^[a-zA-Z0-9\s\-/]+$", section_stripped):
+        return False, "Section contains invalid characters"
+    
+    return True, ""
+
+
 def add_student(
     fingerprint_id: int,
     student_no: str,
@@ -174,8 +248,12 @@ def add_student(
     grade: str,
     section: str,
 ) -> Tuple[bool, str]:
-    if fingerprint_id <= 0:
-        return False, "Fingerprint ID must be a positive integer."
+    # Validate input before attempting to insert
+    is_valid, error_msg = validate_student_input(
+        fingerprint_id, student_no, student_name, grade, section
+    )
+    if not is_valid:
+        return False, error_msg
 
     now = datetime.now().isoformat()
     conn = get_connection()
@@ -208,6 +286,13 @@ def update_student(
     grade: str,
     section: str,
 ) -> Tuple[bool, str]:
+    # Validate input before attempting to update
+    is_valid, error_msg = validate_student_input(
+        fingerprint_id, student_no, student_name, grade, section
+    )
+    if not is_valid:
+        return False, error_msg
+
     now = datetime.now().isoformat()
     conn = get_connection()
     try:
@@ -805,16 +890,37 @@ def backup_database() -> Tuple[bool, str, Optional[str]]:
 
 
 def restore_database(backup_path: str) -> Tuple[bool, str]:
+    """Restore database from a backup file.
+    
+    Args:
+        backup_path: Path to the backup file. Must be within the backups directory.
+    
+    Returns:
+        Tuple of (success, message)
+    """
     try:
-        if not Path(backup_path).exists():
+        backup_file = Path(backup_path).resolve()
+        backup_dir = (Path(DB_PATH).parent / 'backups').resolve()
+        
+        # SECURITY: Ensure the backup file is within the backups directory
+        # This prevents path traversal attacks
+        if not str(backup_file).startswith(str(backup_dir)):
+            log.error(f"Restore attempted from outside backups directory: {backup_path}")
+            return False, 'Invalid backup file location. Backups must be in the backups directory.'
+        
+        if not backup_file.exists():
             return False, 'Backup file not found'
-
-        shutil.copy2(backup_path, DB_PATH)
-        log.success(f"Database restored from {backup_path}")
+        
+        # Verify file is a SQLite database before restoring
+        if not backup_file.suffix == '.db':
+            return False, 'Invalid file type. Only .db backup files are supported.'
+        
+        shutil.copy2(backup_file, DB_PATH)
+        log.success(f"Database restored from {backup_file.name}")
         return True, 'Database restored successfully'
     except Exception as exc:
         log.error(f"Database restore failed: {exc}")
-        return False, f"Restore failed: {exc}"
+        return False, 'Restore failed. Please try again.'
 
 
 def list_backups() -> List[RowDict]:

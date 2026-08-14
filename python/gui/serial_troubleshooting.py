@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 import os
-import subprocess
 import sys
 from typing import List
 
@@ -47,4 +46,6 @@ def open_device_manager() -> None:
 def open_driver_help() -> None:
     """Open the ESP32 driver help page in the default browser."""
     if sys.platform.startswith("win"):
-        subprocess.Popen(["start", "", "https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers"], shell=True)
+        # Use webbrowser module instead of shell command to avoid shell injection risk
+        import webbrowser
+        webbrowser.open("https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers")
