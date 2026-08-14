@@ -7,6 +7,7 @@
 ###############################################################################
 
 from core.logger import log
+from core.permissions import require_permission
 
 
 def cmd_scan(handler):
@@ -28,18 +29,24 @@ def build_enroll_command(fingerprint_id=None):
 
 def cmd_enroll(handler, fingerprint_id=None):
     """Tell ESP32 to enroll a new finger, using the next free ID when no ID is supplied."""
+    if not require_permission("enroll"):
+        return False
     if fingerprint_id is not None and (fingerprint_id < 1 or fingerprint_id > 127):
         return False
     return handler.send_command(build_enroll_command(fingerprint_id))
 
 def cmd_delete(handler, fingerprint_id):
     """Tell ESP32 to delete a stored finger by ID."""
+    if not require_permission("delete"):
+        return False
     if fingerprint_id < 1 or fingerprint_id > 127:
         return False
     return handler.send_command(f"DELETE:{fingerprint_id}")
 
 def cmd_wipe(handler):
     """Tell ESP32 to wipe ALL stored fingerprints."""
+    if not require_permission("wipe"):
+        return False
     return handler.send_command("WIPE")
 
 def cmd_list(handler):

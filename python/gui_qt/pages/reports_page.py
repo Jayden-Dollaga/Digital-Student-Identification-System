@@ -1,11 +1,13 @@
 import csv
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QFileDialog, QMessageBox
 )
 
+from config import DB_PATH
 from core.database import (
     generate_statistics_report, export_attendance_range, backup_database, restore_database,
 )
@@ -121,7 +123,14 @@ class ReportsPage(QWidget):
             QMessageBox.critical(self, "Backup failed", msg)
 
     def on_restore_clicked(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select backup file", "", "Database Files (*.db)")
+        # Restores are only accepted from the backups directory (see
+        # restore_database's path-containment check), so start the picker
+        # there instead of leaving the user to stumble onto a rejected file.
+        backups_dir = Path(DB_PATH).parent / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select backup file", str(backups_dir), "Database Files (*.db)"
+        )
         if not path:
             return
         confirm = QMessageBox.question(

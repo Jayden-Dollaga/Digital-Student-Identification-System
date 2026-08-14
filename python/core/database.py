@@ -66,6 +66,7 @@ class AttendanceRow(TypedDict, total=False):
     time: str
     confidence: int
     status: str
+    event_type: str
 
 
 class StudentRow(TypedDict, total=False):
@@ -89,7 +90,8 @@ ATTENDANCE_JOIN_QUERY = """
         a.date,
         a.time,
         a.confidence,
-        a.status
+        a.status,
+        a.event_type
     FROM attendance a
     LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
 """
@@ -144,6 +146,7 @@ def init_database() -> None:
                 confidence      INTEGER NOT NULL,
                 status          TEXT    NOT NULL,
                 timestamp       TEXT    NOT NULL,
+                event_type      TEXT,
                 FOREIGN KEY (fingerprint_id) REFERENCES students(fingerprint_id)
             )
             """
@@ -154,12 +157,50 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_timestamp ON attendance(timestamp)")
 
+        _migrate_attendance_event_type(cursor)
+
         conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
         conn.commit()
     finally:
         conn.close()
 
     log.success(f"Database ready at {os.path.abspath(DB_PATH)}")
+
+
+def _migrate_attendance_event_type(cursor: sqlite3.Cursor) -> None:
+    """Add and backfill the `event_type` column for databases created before it existed.
+
+    Older rows have no event_type, so Time-In/Time-Out was only ever inferred
+    later (in get_daily_attendance_summary) from scan order within a day.
+    That's fragile - it breaks if scans are ever reordered or two students
+    scan in the same second. This tags each row explicitly, once, so future
+    reads don't have to guess:
+      - the first scan of a (fingerprint_id, date) is 'time_in'
+      - every later scan that same day is 'time_out'
+    """
+    cursor.execute("PRAGMA table_info(attendance)")
+    columns = {row[1] for row in cursor.fetchall()}
+    if "event_type" not in columns:
+        cursor.execute("ALTER TABLE attendance ADD COLUMN event_type TEXT")
+
+    cursor.execute(
+        "SELECT id, fingerprint_id, date FROM attendance "
+        "WHERE event_type IS NULL OR event_type = '' "
+        "ORDER BY fingerprint_id, date, time ASC, id ASC"
+    )
+    rows_to_backfill = cursor.fetchall()
+    if not rows_to_backfill:
+        return
+
+    seen_today: set = set()
+    for row_id, fingerprint_id, date_str in rows_to_backfill:
+        key = (fingerprint_id, date_str)
+        event_type = "time_in" if key not in seen_today else "time_out"
+        seen_today.add(key)
+        cursor.execute(
+            "UPDATE attendance SET event_type = ? WHERE id = ?",
+            (event_type, row_id),
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -413,24 +454,54 @@ def log_attendance(
     time_str = now.strftime("%H:%M:%S")
 
     with get_connection() as conn:
+        # Tag Time-In/Time-Out at the moment of the scan instead of leaving
+        # it to be inferred later from row order: the first scan for this
+        # fingerprint today is 'time_in', any later scan that day is
+        # 'time_out'.
+        already_scanned_today = conn.execute(
+            "SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ? LIMIT 1",
+            (fingerprint_id, date_str),
+        ).fetchone()
+        event_type = "time_out" if already_scanned_today else "time_in"
+
         conn.execute(
             """
-            INSERT INTO attendance (fingerprint_id, date, time, confidence, status, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO attendance (fingerprint_id, date, time, confidence, status, timestamp, event_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (fingerprint_id, date_str, time_str, confidence, status, timestamp),
+            (fingerprint_id, date_str, time_str, confidence, status, timestamp, event_type),
         )
         conn.commit()
 
 
 def get_attendance_today() -> List[AttendanceRow]:
+    """Return today's attendance rows (kept for backward compatibility).
+
+    NOTE: this silently falls back to the most recent 25 records from *any*
+    date when today has none - callers that need to know whether that
+    happened (to label the UI accordingly) should use
+    get_today_attendance_info() instead.
+    """
+    return get_today_attendance_info()["rows"]
+
+
+def get_today_attendance_info() -> Dict[str, Any]:
+    """Return today's attendance rows plus whether a fallback was used.
+
+    Returns:
+        {"rows": [...], "is_fallback": bool}
+        is_fallback is True when there were no records for today's date and
+        the result is instead the most recent 25 records overall - useful so
+        the UI can say "showing recent activity" instead of implying these
+        rows are from today.
+    """
     today = datetime.now().strftime("%Y-%m-%d")
     query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date = ? ORDER BY a.timestamp DESC, a.id DESC"
     conn = get_connection()
     try:
         rows = conn.execute(query, (today,)).fetchall()
         if rows:
-            return _row_dicts(rows)
+            return {"rows": _row_dicts(rows), "is_fallback": False}
 
         # Some databases contain historical or imported entries. If the live
         # date has no records, fall back to the newest attendance records so the
@@ -438,7 +509,7 @@ def get_attendance_today() -> List[AttendanceRow]:
         # on empty "today" buckets.
         fallback_query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC, a.id DESC LIMIT 25"
         rows = conn.execute(fallback_query).fetchall()
-        return _row_dicts(rows)
+        return {"rows": _row_dicts(rows), "is_fallback": bool(rows)}
     finally:
         conn.close()
 
@@ -512,7 +583,19 @@ def get_daily_attendance_summary(
                 "status": row_dict["status"],
             },
         )
-        entry["time_out"] = row_dict["time"]
+
+        # Prefer the event_type tagged at scan time. Rows written before the
+        # event_type migration (or ones that somehow slipped through without
+        # one) fall back to the old "last scan seen = time_out" behavior so
+        # nothing breaks for older data.
+        event_type = row_dict.get("event_type")
+        if event_type == "time_in":
+            entry["time_in"] = row_dict["time"]
+        elif event_type == "time_out":
+            entry["time_out"] = row_dict["time"]
+        else:
+            entry["time_out"] = row_dict["time"]
+
         if str(row_dict["status"]).lower() in {"present", "logged", "ok"}:
             entry["status"] = row_dict["status"]
 

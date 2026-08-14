@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QGridLayout, QVBoxLayout, QLabel, QFrame
 
 from gui_qt.widgets.stat_card import StatCard
-from core.database import get_student_count, get_attendance_count_today, get_attendance_today
+from core.database import get_student_count, get_attendance_count_today, get_today_attendance_info
 
 
 class DashboardPage(QWidget):
@@ -55,14 +55,21 @@ class DashboardPage(QWidget):
             self.card_present.set_value(str(get_attendance_count_today()))
             self.card_total.set_value(str(get_student_count()))
 
-            today_rows = get_attendance_today()
+            info = get_today_attendance_info()
+            today_rows = info["rows"]
             if today_rows:
                 latest = today_rows[0]  # already ordered DESC by timestamp
                 name = latest.get("student_name") or "Unregistered"
                 self.card_last_scan.set_value(f"{name} · {latest.get('time', '')}")
-                self.activity_summary.setText(
-                    f"Latest record: {name} at {latest.get('time', '')} with {latest.get('confidence', 0)}% confidence."
-                )
+                if info["is_fallback"]:
+                    self.activity_summary.setText(
+                        f"No scans today yet. Most recent: {name} on {latest.get('date', '')} "
+                        f"at {latest.get('time', '')} with {latest.get('confidence', 0)}% confidence."
+                    )
+                else:
+                    self.activity_summary.setText(
+                        f"Latest record: {name} at {latest.get('time', '')} with {latest.get('confidence', 0)}% confidence."
+                    )
             else:
                 self.card_last_scan.set_value("No scans yet")
                 self.activity_summary.setText("No attendance activity has been recorded today yet.")

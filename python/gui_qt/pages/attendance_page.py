@@ -4,9 +4,9 @@ from PySide6.QtWidgets import (
     QLabel, QHeaderView, QPushButton, QComboBox
 )
 
-from core.database import get_attendance_today, get_attendance_paginated
+from core.database import get_today_attendance_info, get_attendance_paginated
 
-COLUMNS = ["Time", "Student No.", "Name", "Grade/Section", "Confidence", "Status"]
+COLUMNS = ["Date", "Time", "Student No.", "Name", "Grade/Section", "Confidence", "Status"]
 PAGE_SIZE = 100
 
 
@@ -14,6 +14,7 @@ class AttendancePage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._offset = 0
+        self._last_page_row_count = 0
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 24, 24, 24)
@@ -25,7 +26,12 @@ class AttendancePage(QWidget):
 
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Today", "Recent"])
-        self.mode_combo.currentTextChanged.connect(lambda _: self.refresh())
+        self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
+
+        self.prev_btn = QPushButton("◀ Prev")
+        self.prev_btn.clicked.connect(self.on_prev_clicked)
+        self.next_btn = QPushButton("Next ▶")
+        self.next_btn.clicked.connect(self.on_next_clicked)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primaryButton")
@@ -34,8 +40,21 @@ class AttendancePage(QWidget):
         header_row.addWidget(title)
         header_row.addStretch()
         header_row.addWidget(self.mode_combo)
+        header_row.addWidget(self.prev_btn)
+        header_row.addWidget(self.next_btn)
         header_row.addWidget(refresh_btn)
         outer.addLayout(header_row)
+
+        self.fallback_banner = QLabel(
+            "No attendance recorded today yet — showing the most recent activity instead."
+        )
+        self.fallback_banner.setWordWrap(True)
+        self.fallback_banner.setStyleSheet(
+            "color: #F5B942; background-color: #2A2410; border: 1px solid #4A3F1A; "
+            "border-radius: 6px; padding: 6px 10px;"
+        )
+        self.fallback_banner.setVisible(False)
+        outer.addWidget(self.fallback_banner)
 
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
@@ -55,16 +74,49 @@ class AttendancePage(QWidget):
 
         self.refresh()
 
+    def _on_mode_changed(self, _text):
+        self._offset = 0
+        self.refresh()
+
+    def _is_recent_mode(self) -> bool:
+        return self.mode_combo.currentText() != "Today"
+
     def refresh(self):
         try:
-            if self.mode_combo.currentText() == "Today":
-                rows = get_attendance_today()
+            if not self._is_recent_mode():
+                info = get_today_attendance_info()
+                rows = info["rows"]
+                self.fallback_banner.setVisible(info["is_fallback"])
             else:
-                self._offset = 0
+                self.fallback_banner.setVisible(False)
                 rows = get_attendance_paginated(limit=PAGE_SIZE, offset=self._offset)
         except Exception:
             rows = []
+            self.fallback_banner.setVisible(False)
+        self._last_page_row_count = len(rows)
         self._populate(rows)
+        self._update_pagination_controls()
+
+    def _update_pagination_controls(self):
+        recent = self._is_recent_mode()
+        self.prev_btn.setVisible(recent)
+        self.next_btn.setVisible(recent)
+        if not recent:
+            return
+        self.prev_btn.setEnabled(self._offset > 0)
+        self.next_btn.setEnabled(self._last_page_row_count == PAGE_SIZE)
+
+    def on_prev_clicked(self):
+        if self._offset <= 0:
+            return
+        self._offset = max(0, self._offset - PAGE_SIZE)
+        self.refresh()
+
+    def on_next_clicked(self):
+        if self._last_page_row_count < PAGE_SIZE:
+            return
+        self._offset += PAGE_SIZE
+        self.refresh()
 
     def _populate(self, rows):
         self.table.setRowCount(0)
@@ -74,6 +126,7 @@ class AttendancePage(QWidget):
             r = self.table.rowCount()
             self.table.insertRow(r)
             values = [
+                row.get("date", ""),
                 row.get("time", ""),
                 row.get("student_no", "N/A"),
                 row.get("student_name", "Unknown"),
@@ -86,11 +139,16 @@ class AttendancePage(QWidget):
 
     def on_scan_event(self, event: dict):
         """Prepend a new row live when SerialWorker emits scan_event, without a full refresh."""
+        if self._is_recent_mode() and self._offset != 0:
+            # Not viewing the first page - a live scan shouldn't reshuffle
+            # rows the user is currently paging through.
+            return
         if self.table.rowCount() == 0:
             self.table.setVisible(True)
             self.empty_label.setVisible(False)
         self.table.insertRow(0)
         values = [
+            event.get("date", ""),
             event.get("time", ""),
             event.get("student_no", "N/A"),
             event.get("student_name", "Unknown"),
@@ -101,4 +159,4 @@ class AttendancePage(QWidget):
         for c, value in enumerate(values):
             self.table.setItem(0, c, QTableWidgetItem(str(value)))
         if self.table.rowCount() > 1:
-            self.table.sortItems(0, Qt.DescendingOrder)
+            self.table.sortItems(1, Qt.DescendingOrder)
