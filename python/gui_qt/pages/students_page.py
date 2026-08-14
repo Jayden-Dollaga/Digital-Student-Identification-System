@@ -4,12 +4,22 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QTextCursor
 from PySide6.QtCore import Qt
+from enum import Enum
 
 from services.student_service import StudentService
 from core.commands import cmd_enroll, cmd_delete, cmd_wipe, cmd_stop
-from core.database import clear_all_data
+from core.database import clear_all_data, validate_student_input
+from core.logger import log
 
 COLUMNS = ["Fingerprint ID", "Student No.", "Name", "Grade", "Section"]
+
+
+class EnrollmentState(Enum):
+    """Explicit state machine for enrollment dialog."""
+    INITIAL = "initial"  # Initial state, waiting for user to fill form and click Start
+    ENROLLING = "enrolling"  # Enrollment in progress on the hardware
+    ENROLLMENT_SUCCESS = "success"  # Fingerprint enrolled, ready to save student record
+    SAVING = "saving"  # Saving student record to database
 
 
 class EnrollDialog(QDialog):
@@ -17,17 +27,27 @@ class EnrollDialog(QDialog):
     Matches the real enrollment flow from gui/dialogs.py: the fingerprint ID
     is assigned by the ESP32 itself (not typed in), reported via serial as
     "ENROLLING FINGER AS ID #N" then "SUCCESS! Finger saved as ID #N".
-    Save stays disabled until that success line arrives.
+    
+    Uses a single primary action button that changes label and behavior based on state:
+    - INITIAL: "Start Enrollment" (enabled when form is valid)
+    - ENROLLING: "Enrolling..." (disabled)
+    - ENROLLMENT_SUCCESS: "Save Student" (enabled)
+    - SAVING: "Saving..." (disabled)
     """
 
     def __init__(self, serial_handler, serial_worker, parent=None):
         super().__init__(parent)
         self.serial_handler = serial_handler
         self.serial_worker = serial_worker
+        
+        # State machine
+        self.state = EnrollmentState.INITIAL
+        
+        # Data
         self.assigned_id = None
-        self.ready_to_save = False
         self._enrollment_started = False  # Track if enrollment has been signaled to start
-
+        self._saving_in_progress = False  # Prevent duplicate save submissions
+        
         self.setWindowTitle("Enroll Fingerprint")
         self.setMinimumWidth(420)
 
@@ -45,6 +65,11 @@ class EnrollDialog(QDialog):
         self.student_name = QLineEdit()
         self.grade = QLineEdit()
         self.section = QLineEdit()
+        
+        # Connect text change signals to validate form live
+        for field in (self.student_no, self.student_name, self.grade, self.section):
+            field.textChanged.connect(self._on_form_changed)
+        
         form.addRow("Student No.", self.student_no)
         form.addRow("Full Name", self.student_name)
         form.addRow("Grade", self.grade)
@@ -62,26 +87,166 @@ class EnrollDialog(QDialog):
         )
         outer.addWidget(self.log_view)
 
+        # Single primary action button that changes based on state
         button_row = QHBoxLayout()
-        self.start_btn = QPushButton("Start Enrollment")
-        self.start_btn.setObjectName("primaryButton")
-        self.start_btn.clicked.connect(self.on_start)
-        self.save_btn = QPushButton("Save Student")
-        self.save_btn.setObjectName("primaryButton")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self.accept)
+        self.primary_btn = QPushButton("Start Enrollment")
+        self.primary_btn.setObjectName("primaryButton")
+        self.primary_btn.setEnabled(False)  # Disabled until form is valid
+        self.primary_btn.setMinimumWidth(140)
+        self.primary_btn.clicked.connect(self._on_primary_action)
+        
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("secondaryButton")
+        cancel_btn.setMinimumWidth(140)
         cancel_btn.clicked.connect(self.on_cancel)
-        for btn in (self.start_btn, cancel_btn, self.save_btn):
-            btn.setMinimumWidth(140)
-        button_row.addWidget(self.start_btn)
+        
         button_row.addWidget(cancel_btn)
-        button_row.addWidget(self.save_btn)
+        button_row.addStretch()
+        button_row.addWidget(self.primary_btn)
         outer.addLayout(button_row)
 
+        # Connect signals
         self.serial_worker.enroll_progress.connect(self.on_enroll_progress)
         self.serial_worker.raw_line.connect(self._append_log_line)
+    
+    def _is_form_valid(self) -> bool:
+        """Check if student form has valid data using the existing validation function."""
+        # We don't have a fingerprint ID yet, so use a temporary valid ID for validation
+        # The actual ID will come from the ESP32 after enrollment
+        temp_id = 1  # Placeholder for validation purposes
+        
+        is_valid, _ = validate_student_input(
+            temp_id,
+            self.student_no.text(),
+            self.student_name.text(),
+            self.grade.text(),
+            self.section.text()
+        )
+        return is_valid
+    
+    def _on_form_changed(self):
+        """Called when any form field changes. Update button enable state if in INITIAL state."""
+        if self.state == EnrollmentState.INITIAL:
+            self.primary_btn.setEnabled(self._is_form_valid())
+    
+    def _set_state(self, new_state: EnrollmentState):
+        """Change the internal state and update UI accordingly."""
+        self.state = new_state
+        
+        if new_state == EnrollmentState.INITIAL:
+            self.primary_btn.setText("Start Enrollment")
+            self.primary_btn.setEnabled(self._is_form_valid())
+        
+        elif new_state == EnrollmentState.ENROLLING:
+            self.primary_btn.setText("Enrolling...")
+            self.primary_btn.setEnabled(False)
+        
+        elif new_state == EnrollmentState.ENROLLMENT_SUCCESS:
+            self.primary_btn.setText("Save Student")
+            self.primary_btn.setEnabled(True)
+        
+        elif new_state == EnrollmentState.SAVING:
+            self.primary_btn.setText("Saving...")
+            self.primary_btn.setEnabled(False)
+    
+    def _on_primary_action(self):
+        """Handle primary action button click. Action depends on current state."""
+        log.debug("EnrollDialog: _on_primary_action() called", current_state=str(self.state))
+        
+        if self.state == EnrollmentState.INITIAL:
+            log.debug("EnrollDialog: Dispatching to _start_enrollment()")
+            self._start_enrollment()
+        elif self.state == EnrollmentState.ENROLLMENT_SUCCESS:
+            log.debug("EnrollDialog: Dispatching to _save_student()")
+            self._save_student()
+    
+    def _start_enrollment(self):
+        """Start the fingerprint enrollment process."""
+        log.debug("EnrollDialog: _start_enrollment() called", state=str(self.state))
+        
+        try:
+            if not self.serial_handler.is_connected():
+                log.warning("EnrollDialog: Serial handler not connected")
+                QMessageBox.warning(self, "Not connected", "Connect to the ESP32 first.")
+                return
+            
+            # Final validation before starting enrollment
+            form_valid = self._is_form_valid()
+            if not form_valid:
+                log.warning("EnrollDialog: Form validation failed")
+                QMessageBox.warning(self, "Invalid input", "Please fill in all student fields with valid data.")
+                return
+            
+            log.info("EnrollDialog: Resetting enrollment state variables")
+            self.assigned_id = None
+            self.id_label.setText("Assigned ID: Pending")
+            self.log_view.clear()
+            self._enrollment_started = True
+            
+            # Start enrollment
+            log.info("EnrollDialog: Transitioning to ENROLLING state")
+            self._set_state(EnrollmentState.ENROLLING)
+            
+            log.info("EnrollDialog: Calling cmd_stop()")
+            cmd_stop(self.serial_handler)  # Stop any active scan first
+            
+            log.info("EnrollDialog: Calling cmd_enroll()")
+            enroll_result = cmd_enroll(self.serial_handler)
+            log.info(f"EnrollDialog: cmd_enroll() returned {enroll_result}")
+            
+            if enroll_result:
+                log.info("EnrollDialog: cmd_enroll succeeded, updating status label")
+                self.status_label.setText("Sent ENROLL command. Follow the prompts on the sensor.")
+            else:
+                log.error("EnrollDialog: cmd_enroll() returned False")
+                self._enrollment_started = False
+                self._set_state(EnrollmentState.INITIAL)
+                QMessageBox.critical(self, "Failed", "Could not send ENROLL command to the ESP32.")
+        except Exception as e:
+            log.error(f"EnrollDialog: Exception in _start_enrollment: {type(e).__name__}: {e}", exc_info=True)
+            self._enrollment_started = False
+            self._set_state(EnrollmentState.INITIAL)
+            QMessageBox.critical(self, "Error", f"An error occurred during enrollment startup: {str(e)}")
+    
+    def _save_student(self):
+        """Save the student record to the database after successful enrollment."""
+        if self._saving_in_progress:
+            return  # Prevent duplicate submissions
+        
+        if not self.assigned_id:
+            QMessageBox.warning(self, "Missing fingerprint", "The fingerprint has not been enrolled yet.")
+            return
+        
+        # Final validation before saving
+        if not self._is_form_valid():
+            QMessageBox.warning(self, "Invalid input", "Please fill in all student fields with valid data.")
+            return
+        
+        self._saving_in_progress = True
+        self._set_state(EnrollmentState.SAVING)
+        
+        try:
+            from services.student_service import StudentService
+            service = StudentService()
+            ok, msg = service.save_student(
+                int(self.assigned_id),
+                self.student_no.text().strip(),
+                self.student_name.text().strip(),
+                self.grade.text().strip(),
+                self.section.text().strip()
+            )
+            
+            if ok:
+                self._cleanup_before_close()
+                self.accept()
+            else:
+                self._saving_in_progress = False
+                self._set_state(EnrollmentState.ENROLLMENT_SUCCESS)
+                QMessageBox.critical(self, "Save failed", f"Could not save student: {msg}")
+        except Exception as e:
+            self._saving_in_progress = False
+            self._set_state(EnrollmentState.ENROLLMENT_SUCCESS)
+            QMessageBox.critical(self, "Error", f"An error occurred while saving: {str(e)}")
 
     # Exact line prefixes the firmware prints during ENROLL, taken straight
     # from enrollFinger()/printHelp() in ESP32_Fingerprint_AllInOne.ino.
@@ -122,48 +287,36 @@ class EnrollDialog(QDialog):
             self.log_view.moveCursor(QTextCursor.End)
             self.log_view.ensureCursorVisible()
 
-    def on_start(self):
-        if not self.serial_handler.is_connected():
-            QMessageBox.warning(self, "Not connected", "Connect to the ESP32 first.")
-            return
-        self.assigned_id = None
-        self.ready_to_save = False
-        self.id_label.setText("Assigned ID: Pending")
-        self.save_btn.setEnabled(False)
-        self.log_view.clear()  # Clear previous logs
-        self._enrollment_started = True  # Start capturing enrollment-specific lines
-        cmd_stop(self.serial_handler)  # stop any active scan mode first, same as app.py's enroll_sample()
-        if cmd_enroll(self.serial_handler):
-            self.status_label.setText("Sent ENROLL command. Follow the prompts on the sensor.")
-            self.start_btn.setEnabled(False)
-        else:
-            self._enrollment_started = False  # Stop capturing if command failed
-            QMessageBox.critical(self, "Failed", "Could not send ENROLL command to the ESP32.")
-
     def on_enroll_progress(self, progress: dict):
+        """Handle progress events from the fingerprint sensor."""
         event = progress.get("event")
+        
         if event == "enrolling":
+            # Enrollment started on the hardware
             self.assigned_id = progress.get("id")
-            self.ready_to_save = False
-            self.save_btn.setEnabled(False)
             self.id_label.setText(f"Assigned ID: {self.assigned_id}")
-            self.status_label.setText("Enrolling — follow the prompts on the sensor. Save is disabled until enrollment completes.")
+            self.status_label.setText("Enrolling — follow the prompts on the sensor.")
+            # Already in ENROLLING state from _start_enrollment
+        
         elif event == "success":
+            # Fingerprint successfully enrolled, now ready to save student record
             self._enrollment_started = False  # Stop capturing logs
             self.assigned_id = progress.get("id")
-            self.ready_to_save = True
-            self.save_btn.setEnabled(True)
             self.id_label.setText(f"Assigned ID: {self.assigned_id}")
             self.status_label.setText(f"Fingerprint saved as ID {self.assigned_id}. Fill in the student's details and Save.")
+            self._set_state(EnrollmentState.ENROLLMENT_SUCCESS)
+        
         elif event == "cancelled":
+            # User cancelled the enrollment process
             self._enrollment_started = False  # Stop capturing logs
-            self.ready_to_save = False
-            self.save_btn.setEnabled(False)
             self.status_label.setText("Enrollment cancelled. Start a new enrollment to try again.")
-            self.start_btn.setEnabled(True)
+            self._set_state(EnrollmentState.INITIAL)
+        
         elif event == "error":
+            # Sensor reported an error
             self._enrollment_started = False  # Stop capturing logs
             self.status_label.setText("Sensor reported an error — check the log below.")
+            self._set_state(EnrollmentState.INITIAL)
 
     def _cleanup_before_close(self):
         """Shared teardown for both Cancel and the window's X button: stop
@@ -181,21 +334,6 @@ class EnrollDialog(QDialog):
     def on_cancel(self):
         self._cleanup_before_close()
         self.reject()
-
-    def accept(self):
-        if not self.ready_to_save or not self.assigned_id:
-            QMessageBox.warning(self, "Missing fingerprint", "The fingerprint has not been enrolled yet.")
-            return
-        if not all([self.student_no.text().strip(), self.student_name.text().strip(),
-                    self.grade.text().strip(), self.section.text().strip()]):
-            QMessageBox.warning(self, "Incomplete details", "Please fill in student number, name, grade, and section.")
-            return
-        try:
-            self.serial_worker.enroll_progress.disconnect(self.on_enroll_progress)
-            self.serial_worker.raw_line.disconnect(self._append_log_line)
-        except (RuntimeError, TypeError):
-            pass
-        super().accept()
 
     def get_values(self):
         return {

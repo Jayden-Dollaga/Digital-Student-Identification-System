@@ -183,20 +183,26 @@ class SerialWorker(QThread):
 
         match = RE_ENROLLING_AS.search(message)
         if match:
-            self.enroll_progress.emit({"event": "enrolling", "id": match.group(1)})
+            enrollment_id = match.group(1)
+            log.debug(f"SerialWorker: Enrollment started with ID {enrollment_id}", raw_message=message)
+            self.enroll_progress.emit({"event": "enrolling", "id": enrollment_id})
             return
 
         match = RE_ENROLL_SUCCESS.search(message)
         if match:
-            self.enroll_progress.emit({"event": "success", "id": match.group(1)})
+            enrollment_id = match.group(1)
+            log.debug(f"SerialWorker: Enrollment succeeded for ID {enrollment_id}", raw_message=message)
+            self.enroll_progress.emit({"event": "success", "id": enrollment_id})
             return
 
         if RE_ENROLL_CANCEL.search(message):
+            log.debug("SerialWorker: Enrollment cancelled", raw_message=message)
             self.enroll_progress.emit({"event": "cancelled", "id": None})
             return
 
         upper = message.upper()
         if "ERROR" in upper or "FAIL" in upper:
+            log.debug("SerialWorker: Enrollment error detected", raw_message=message)
             self.enroll_progress.emit({"event": "error", "id": None})
 
     def _parse_wipe_progress(self, message: str):
