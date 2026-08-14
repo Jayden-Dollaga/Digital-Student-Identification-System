@@ -19,6 +19,13 @@ def parse_json_line(line: str) -> Optional[Dict[str, Any]]:
     if not isinstance(line, str):
         return None
     line = line.strip()
+    if not line:
+        return None
+    # Some serial adapters / FTDI bridges leave a UTF-8 BOM or stray whitespace
+    # in front of JSON payloads. Strip the BOM and any surrounding whitespace
+    # before parsing so a valid ESP32 match event still reaches the attendance
+    # processor in the Qt pipeline.
+    line = line.lstrip("\ufeff\t\r\n ")
     if not line.startswith("{"):
         return None
     try:

@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -51,8 +52,38 @@ class FieldValidationResult:
 
 
 STUDENT_NO_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
-STUDENT_NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ ,.'-]+$")
+STUDENT_NAME_PATTERN = re.compile(r"^[\w ,.'-]+$", re.UNICODE)
 GRADE_SECTION_PATTERN = re.compile(r"^[A-Za-z0-9 /-]+$")
+
+_ALLOWED_NAME_PUNCTUATION = set(" ,.'-")
+
+
+def _is_valid_name_character(ch: str) -> bool:
+    """Allow Unicode letters while still rejecting control characters and unsafe symbols.
+
+    This keeps the validation locale-independent: Python sees Unicode codepoints
+    directly, so names like José, Müller, Sørensen, Łukasz, and Chloë remain
+    intact without needing any OS locale changes.
+    """
+    if ch in _ALLOWED_NAME_PUNCTUATION:
+        return True
+    if ch.isspace():
+        return True
+    if unicodedata.category(ch).startswith("M"):
+        return True
+    if ch.isalpha():
+        return True
+    return False
+
+
+def _is_valid_student_name(value: str) -> bool:
+    if not value:
+        return False
+    if any(ch in {"\x00", "\n", "\r", "\t"} for ch in value):
+        return False
+    if not any(ch.isalpha() for ch in value):
+        return False
+    return all(_is_valid_name_character(ch) for ch in value)
 
 
 def _collect_unsupported_characters(value: str, allowed_chars: Iterable[str]) -> List[str]:
@@ -60,6 +91,16 @@ def _collect_unsupported_characters(value: str, allowed_chars: Iterable[str]) ->
     chars: List[str] = []
     for ch in value:
         if ch in allowed:
+            continue
+        if ch not in chars:
+            chars.append(ch)
+    return chars
+
+
+def _collect_unsupported_name_characters(value: str) -> List[str]:
+    chars: List[str] = []
+    for ch in value:
+        if _is_valid_name_character(ch):
             continue
         if ch not in chars:
             chars.append(ch)
@@ -294,7 +335,7 @@ def validate_student_input(
     if len(student_name_stripped) < 1 or len(student_name_stripped) > 100:
         return False, "Student name must be 1-100 characters"
     
-    if not STUDENT_NAME_PATTERN.fullmatch(student_name_stripped):
+    if not _is_valid_student_name(student_name_stripped):
         return False, "Student name contains invalid characters"
     
     # Grade validation
@@ -349,8 +390,8 @@ def get_student_field_feedback(
         if len(value) > max_length:
             add_feedback(field_name, ValidationState.TOO_LONG, f"Too many characters ({len(value)}/{max_length})")
             return
-        if not STUDENT_NAME_PATTERN.fullmatch(value):
-            unsupported = _collect_unsupported_characters(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZà-ÿ .,'-")
+        if not _is_valid_student_name(value):
+            unsupported = _collect_unsupported_name_characters(value)
             if unsupported:
                 add_feedback(field_name, ValidationState.UNSUPPORTED_CHARACTER, f"Unsupported character: {_format_unsupported_characters(unsupported)}")
             else:
@@ -883,6 +924,10 @@ def generate_statistics_report() -> str:
             "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
         ).fetchall()
 
+        enrolled_students = conn.execute(
+            "SELECT student_name, student_no, grade, section FROM students ORDER BY student_name COLLATE NOCASE, fingerprint_id ASC"
+        ).fetchall()
+
         report_lines = [
             "=" * 70,
             "ATTENDANCE STATISTICS REPORT",
@@ -919,6 +964,23 @@ def generate_statistics_report() -> str:
             for row in grade_stats:
                 grade_label = row["grade"] or "Unspecified"
                 report_lines.append(f"{grade_label:<20s} {row['count']:4d} students")
+        else:
+            report_lines.append("No students registered.")
+
+        report_lines.extend([
+            "",
+            "─" * 70,
+            "ENROLLED STUDENTS",
+            "─" * 70,
+        ])
+
+        if enrolled_students:
+            for row in enrolled_students:
+                name = row["student_name"] or "Unknown Student"
+                student_no = row["student_no"] or "N/A"
+                grade = row["grade"] or "N/A"
+                section = row["section"] or "N/A"
+                report_lines.append(f"{name:<30s} | {student_no:<12s} | Grade {grade} | {section}")
         else:
             report_lines.append("No students registered.")
 

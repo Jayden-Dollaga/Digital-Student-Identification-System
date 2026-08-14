@@ -75,6 +75,24 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertTrue(result["logged"])
         self.assertEqual(len(logged), 1)
 
+    def test_process_json_attendance_match_with_bom_and_whitespace(self):
+        logged = []
+
+        def fake_log_attendance(fingerprint_id, confidence, status, now):
+            logged.append((fingerprint_id, confidence, status, now))
+
+        processor = AttendanceProcessor(cooldown_seconds=1, min_confidence=200, log_attendance_fn=fake_log_attendance)
+
+        line = '\ufeff  {"type":"attendance","event":"match","id":7,"confidence":240}  \r\n'
+        result = processor.process_line(line)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["fingerprint_id"], 7)
+        self.assertEqual(result["confidence"], 240)
+        self.assertEqual(result["status"], "GOOD MATCH")
+        self.assertTrue(result["logged"])
+        self.assertEqual(len(logged), 1)
+
     def test_reset_clears_state(self):
         logged = []
 

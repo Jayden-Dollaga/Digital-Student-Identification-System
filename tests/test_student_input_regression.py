@@ -52,14 +52,41 @@ class TestStudentInputValidationRegressions:
     
     def test_name_with_unicode_letters(self):
         """Names with Unicode letters should be accepted."""
-        is_valid, error_msg = validate_student_input(
-            fingerprint_id=4,
-            student_no="2024004",
-            student_name="José Santos",
-            grade="9",
-            section="GEN-9-3"
-        )
-        assert is_valid, f"Should accept name with Unicode letters. Error: {error_msg}"
+        names = [
+            "José Santos",
+            "García López",
+            "François Dubois",
+            "Müller Schmidt",
+            "Søren Jensen",
+            "Łukasz Nowak",
+            "Chloë Martin",
+        ]
+        for index, name in enumerate(names, start=4):
+            is_valid, error_msg = validate_student_input(
+                fingerprint_id=index,
+                student_no=f"202400{index}",
+                student_name=name,
+                grade="9",
+                section="GEN-9-3"
+            )
+            assert is_valid, f"Should accept Unicode name '{name}'. Error: {error_msg}"
+
+    def test_unicode_names_round_trip_in_validation_feedback(self):
+        """Unicode names should remain unchanged in validation feedback as well as in storage."""
+        names = [
+            "José Santos",
+            "García López",
+            "François Dubois",
+            "Müller Schmidt",
+            "Søren Jensen",
+            "Łukasz Nowak",
+            "Chloë Martin",
+        ]
+        for name in names:
+            feedback = get_student_field_feedback(1, "2024001", name, "12", "CSS-12-1")
+            result = feedback["student_name"]
+            assert result.valid, f"{name} should be valid: {result.message}"
+            assert name == name.strip(), f"{name} should not be silently altered"
     
     def test_section_with_hyphens(self):
         """Section IDs with hyphens should be accepted."""
