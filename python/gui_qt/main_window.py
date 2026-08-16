@@ -1,7 +1,6 @@
 import logging
 from typing import Optional
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
@@ -180,29 +179,11 @@ class MainWindow(QMainWindow):
         self.serial_worker.start()
         LOG.info("SerialWorker started | thread_name=%s", thread_name)
 
-        # ---- auto-connect on startup ----
-        # BUG FIX: the "Auto-discover ESP32 on startup" checkbox in Settings
-        # (self.auto_detect_serial / settings["auto_detect_serial"]) saved
-        # correctly, but nothing ever actually read it at launch - the only
-        # method that would have used it (_attempt_startup_connection) was
-        # never called from anywhere. So the checkbox looked like it should
-        # auto-connect the app on open, but in practice you always had to
-        # click "Connect" yourself no matter what it was set to. Wire it up
-        # for real, routed through ConnectionWorker so it can't block the UI
-        # while the window is still finishing layout.
-        QTimer.singleShot(400, self._auto_connect_on_startup)
-
-    def _auto_connect_on_startup(self):
-        if not self.auto_detect_serial:
-            return
-        if self.serial_handler.is_connected():
-            return
-        saved_port = self.settings.get("com_port") or ""
-        port = saved_port or get_default_com_port(CONFIG.com_port)
-        baud = int(self.settings.get("baud_rate") or CONFIG.baud_rate)
-        LOG.info("Auto-discovering ESP32 on startup | port=%s baud=%s", port, baud)
-        self.connect_button.setEnabled(False)
-        self.connection_worker.connect_to_device(port, baud, auto_detect=True)
+        # NOTE: connecting is manual-only by design - the app opens
+        # disconnected and waits for you to click "Connect". The
+        # "Auto-discover ESP32 on startup" checkbox only controls whether
+        # that manual Connect click searches all ports (auto_detect=True)
+        # or sticks to the saved port, same as before.
 
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
@@ -302,29 +283,6 @@ class MainWindow(QMainWindow):
                 self.update_connection_metadata()
             except Exception:
                 pass
-
-    # NOTE: startup auto-connect now lives in _auto_connect_on_startup()
-    # above, routed through ConnectionWorker so it never blocks the UI
-    # thread. This blocking version is kept only for reference/tests that
-    # may still call it directly outside the Qt event loop.
-    def _attempt_startup_connection(self):
-        saved_port = self.settings.get("com_port") or ""
-        port = saved_port or get_default_com_port(CONFIG.com_port)
-        baud = int(self.settings.get("baud_rate") or CONFIG.baud_rate)
-        ok, msg = self.serial_handler.connect(port, baud, auto_detect=self.auto_detect_serial)
-        if ok:
-            LOG.info(
-                "Auto-connected to %s at %s baud. Device: %s",
-                self.serial_handler.reconnect_port or port,
-                baud,
-                self.device_info_label.text(),
-            )
-            self.settings["com_port"] = self.serial_handler.reconnect_port or port
-            self.update_connection_metadata()
-            self.serial_handler.send_command("ID?")
-        else:
-            LOG.warning("Auto-connect failed: %s", msg)
-            self.update_connection_metadata()
 
     def on_connection_settings_changed(
         self,
@@ -489,6 +447,13 @@ class MainWindow(QMainWindow):
             self.device_info_label.setText(text)
         else:
             self.device_info_label.setText("No device metadata available")
+
+        # Keep the Settings page's "Connected Device" panel in sync with the
+        # top bar - it mirrors this same info in full detail, live, instead
+        # of the old static "COM8 (saved)" field that never reflected what
+        # was actually connected.
+        if hasattr(self, "settings_page") and hasattr(self.settings_page, "refresh_connection_status"):
+            self.settings_page.refresh_connection_status()
 
     def closeEvent(self, event):
         LOG.info(

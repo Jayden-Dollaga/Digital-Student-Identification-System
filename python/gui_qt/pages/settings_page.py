@@ -84,11 +84,45 @@ class SettingsPage(QWidget):
         title.setStyleSheet("font-size: 15px; font-weight: 600; color: #AEB4BD;")
         outer.addWidget(title)
 
-        # ---- connection settings card ----
+        # ---- connection card (device info + manual override, merged into one box) ----
+        # This replaces the old "ESP32 Device (VID:PID)" field that just
+        # showed whatever port was last saved (e.g. "COM8 (saved)") even
+        # when nothing was actually connected, or a different device was.
+        # Combined into a single card per the layout: one big detail block
+        # up top, then the override controls as compact rows below it,
+        # instead of two separate boxes with a gap between them.
         conn_card = QFrame()
         conn_card.setObjectName("card")
-        conn_form = QFormLayout(conn_card)
-        conn_form.setContentsMargins(16, 16, 16, 16)
+        conn_layout = QVBoxLayout(conn_card)
+        conn_layout.setContentsMargins(16, 16, 16, 16)
+        conn_layout.setSpacing(10)
+
+        device_header = QHBoxLayout()
+        device_title = QLabel("Connected Device")
+        device_title.setObjectName("cardLabel")
+        self.device_status_label = QLabel("● Disconnected")
+        self.device_status_label.setStyleSheet("color: #E5484D; font-weight: 600;")
+        device_header.addWidget(device_title)
+        device_header.addStretch()
+        device_header.addWidget(self.device_status_label)
+        conn_layout.addLayout(device_header)
+
+        self.device_detail_label = QLabel("No device connected yet.")
+        self.device_detail_label.setWordWrap(True)
+        self.device_detail_label.setStyleSheet("color: #AEB4BD; font-size: 12px;")
+        conn_layout.addWidget(self.device_detail_label)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setStyleSheet("color: #2A2E36; background-color: #2A2E36;")
+        divider.setFixedHeight(1)
+        conn_layout.addWidget(divider)
+
+        override_title = QLabel("Manual Port Override (optional)")
+        override_title.setStyleSheet("color: #8A909C; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
+        conn_layout.addWidget(override_title)
+
+        override_form = QFormLayout()
 
         self.port_combo = QComboBox()
         self.port_combo.setEditable(True)
@@ -120,11 +154,22 @@ class SettingsPage(QWidget):
         port_controls.addStretch()
         port_controls.addWidget(self.auto_detect_btn)
 
-        conn_form.addRow("ESP32 Device (VID:PID)", self.port_combo)
-        conn_form.addRow(port_controls)
-        conn_form.addRow("Baud Rate", self.baud_combo)
-        conn_form.addRow("", self.auto_reconnect)
-        conn_form.addRow("", self.auto_detect_serial)
+        override_hint = QLabel(
+            "Only needed if auto-discovery can't find your device, or to pick a specific "
+            "port for firmware upload. Otherwise leave this alone — the app finds the ESP32 "
+            "on its own and the panel above will show it once connected."
+        )
+        override_hint.setWordWrap(True)
+        override_hint.setStyleSheet("color: #8A909C; font-size: 11px;")
+
+        override_form.addRow("Port override", self.port_combo)
+        override_form.addRow(port_controls)
+        override_form.addRow("Baud Rate", self.baud_combo)
+        override_form.addRow("", self.auto_reconnect)
+        override_form.addRow("", self.auto_detect_serial)
+        override_form.addRow("", override_hint)
+        conn_layout.addLayout(override_form)
+
         outer.addWidget(self._section_label("Connection"))
         outer.addWidget(conn_card)
 
@@ -275,11 +320,73 @@ class SettingsPage(QWidget):
         self._refresh_firmware_status()
         self._apply_theme(self.settings.get("theme", "dark"))
         self.set_admin_mode(CONFIG.user_roles.get(saved_role, {}).get("can_manage_users", False))
+        self.refresh_connection_status()
 
     def _section_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setStyleSheet("color: #8A909C; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
         return label
+
+    def refresh(self):
+        """Called automatically by MainWindow.switch_page() every time the
+        user navigates to Settings, so the port list and connection panel
+        are rescanned live instead of only reflecting whatever was true
+        when the app first started (or the last time this page happened
+        to be rebuilt)."""
+        self._populate_ports()
+        self.refresh_connection_status()
+
+    def refresh_connection_status(self):
+        """Update the live 'Connected Device' panel from the shared SerialHandler.
+
+        Called on init and again by MainWindow.update_connection_metadata()
+        every time the connection state or device metadata changes, so this
+        panel always reflects what's actually plugged in - full detail,
+        same source of truth as the top bar - instead of a static saved
+        port string that could easily be stale or wrong.
+        """
+        handler = self.serial_handler
+        is_connected = bool(handler and handler.is_connected())
+
+        if is_connected:
+            self.device_status_label.setText("● Connected")
+            self.device_status_label.setStyleSheet("color: #3FB950; font-weight: 600;")
+        else:
+            self.device_status_label.setText("● Disconnected")
+            self.device_status_label.setStyleSheet("color: #E5484D; font-weight: 600;")
+
+        metadata = (getattr(handler, "device_metadata", None) or {}) if handler else {}
+        port = getattr(handler, "reconnect_port", None) if handler else None
+        baud = getattr(handler, "reconnect_baud", None) if handler else None
+
+        if not is_connected or not metadata:
+            self.device_detail_label.setText(
+                "No device connected yet. Connect from the top bar - this panel "
+                "will fill in automatically once a device responds."
+            )
+            return
+
+        lines = []
+        if port:
+            lines.append(f"Port: {port}")
+        if baud:
+            lines.append(f"Baud: {baud}")
+        if metadata.get("device"):
+            lines.append(f"Device: {metadata['device']}")
+        if metadata.get("board"):
+            lines.append(f"Board: {metadata['board']}")
+        if metadata.get("firmware"):
+            lines.append(f"Firmware: {metadata['firmware']}")
+        if metadata.get("protocol") is not None:
+            lines.append(f"Protocol: {metadata['protocol']}")
+        if metadata.get("sensor"):
+            lines.append(f"Sensor: {metadata['sensor']}")
+        if metadata.get("serial_number"):
+            lines.append(f"Serial Number: {metadata['serial_number']}")
+
+        self.device_detail_label.setText(
+            "\n".join(lines) if lines else "Connected, but the device hasn't reported its metadata yet."
+        )
 
     def _update_permissions_label(self):
         key = self.role_combo.currentData()
@@ -325,7 +432,6 @@ class SettingsPage(QWidget):
     def _populate_ports(self):
         self.port_combo.clear()
         saved_port = self.settings.get("com_port", "") if hasattr(self, "settings") else ""
-        default_port = get_default_com_port(CONFIG.com_port)
         found_devices = {}
 
         if self.serial_handler:
@@ -353,23 +459,29 @@ class SettingsPage(QWidget):
                     self.port_combo.addItem(device, device)
                     found_devices[device] = device
 
-        if saved_port and saved_port not in found_devices:
-            self.port_combo.insertItem(0, f"{saved_port} (saved)", saved_port)
-            found_devices[saved_port] = saved_port
-        elif not found_devices and default_port:
-            self.port_combo.insertItem(0, default_port, default_port)
-            found_devices[default_port] = default_port
-
-        if default_port and default_port not in found_devices:
-            self.port_combo.insertItem(0, f"{default_port} (default)", default_port)
-            found_devices[default_port] = default_port
-
+        # Previously, a saved port that wasn't actually plugged in anymore
+        # still got inserted as "<port> (saved)" and pre-selected - so on a
+        # fresh launch (or after unplugging the device) this field looked
+        # like it had already found something, when really it was just
+        # replaying a stale value. Now: only pre-select the saved port if
+        # it's genuinely present in this live scan. Otherwise leave the
+        # field on its placeholder, same idea as the "Connected Device"
+        # panel saying "No device connected yet" instead of guessing.
         if saved_port and self.port_combo.findData(saved_port) != -1:
             self.port_combo.setCurrentIndex(self.port_combo.findData(saved_port))
-        elif default_port and self.port_combo.findData(default_port) != -1:
-            self.port_combo.setCurrentIndex(self.port_combo.findData(default_port))
+        else:
+            self.port_combo.setCurrentIndex(-1)
+            line_edit = self.port_combo.lineEdit()
+            if line_edit is not None:
+                line_edit.clear()
 
-        self.port_count_label.setText(f"Devices found: {self.port_combo.count()}")
+        line_edit = self.port_combo.lineEdit()
+        if line_edit is not None:
+            line_edit.setPlaceholderText(
+                "Select a detected port…" if found_devices else "No device metadata — click Refresh"
+            )
+
+        self.port_count_label.setText(f"Devices found: {len(found_devices)}")
 
     def _refresh_firmware_status(self):
         candidates = discover_firmware_candidates()

@@ -297,7 +297,38 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
             valid, reason = _validate_handshake(metadata)
             if valid:
                 keep_open = True
-                
+
+                # BUG FIX: this used to return the instant valid JSON was
+                # seen. But this firmware prints its identity JSON *first*,
+                # then "Sensor found!", "Stored fingerprints: N", the full
+                # command list, and finally "READY" - all of that trailing
+                # boot text was getting thrown away because the function
+                # returned before it ever arrived, which is why the Serial
+                # Monitor only ever showed a partial banner. Keep draining
+                # for a short grace window (or until we see the READY
+                # status, whichever comes first) so the rest gets captured
+                # into buffered_lines too.
+                trailing_deadline = time.time() + 1.5
+                while time.time() < trailing_deadline:
+                    try:
+                        trailing_raw = cable.readline()
+                    except Exception as trailing_exc:
+                        log.debug("Exception reading trailing boot line", error=str(trailing_exc))
+                        break
+                    if not trailing_raw:
+                        continue
+                    try:
+                        trailing_line = trailing_raw.decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        continue
+                    if not trailing_line:
+                        continue
+                    buffered_lines.append(trailing_line)
+                    log.debug("Probe: captured trailing boot line", line=trailing_line[:60])
+                    trailing_meta = _parse_json_line(trailing_line)
+                    if trailing_meta and str(trailing_meta.get("state", "")).upper() == "READY":
+                        break
+
                 # Attach buffered lines to the cable object so SerialHandler can retrieve them
                 cable._probe_buffered_lines = buffered_lines
                 return True, cable, metadata, "OK"
