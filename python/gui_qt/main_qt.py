@@ -67,28 +67,52 @@ def load_stylesheet(app: QApplication, theme: str = "dark"):
 
 
 def main():
-    print("[DIAG] run_qt_gui.py -> main() entered")
     sys.excepthook = _handle_uncaught_exception
     threading.excepthook = _handle_thread_exception
     atexit.register(_on_process_exit)
 
     log.info("main() entered", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
-    app = QApplication(sys.argv)
-    log.info("QApplication created", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
-    app.aboutToQuit.connect(_on_app_about_to_quit)
 
-    settings = load_settings()
-    load_stylesheet(app, settings.get("theme", "dark"))
+    try:
+        app = QApplication(sys.argv)
+        log.info("QApplication created", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+        app.aboutToQuit.connect(_on_app_about_to_quit)
 
-    window = MainWindow()
-    log.info("MainWindow created", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
-    window.show()
-    log.info("MainWindow shown", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+        settings = load_settings()
+        load_stylesheet(app, settings.get("theme", "dark"))
 
-    result = app.exec()
-    log.info("QApplication.exec() returned", result=result)
-    log.info("main() returning", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
-    sys.exit(result)
+        window = MainWindow()
+        log.info("MainWindow created", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+        window.show()
+        log.info("MainWindow shown", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+
+        result = app.exec()
+        log.info("QApplication.exec() returned", result=result)
+        log.info("main() returning", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
+        sys.exit(result)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        # Previously, any exception raised before app.exec() started (a bad
+        # setting, a locked file, a widget failing to construct, etc.) just
+        # crashed the process with nothing but a console traceback - which
+        # looks exactly like "the app closes immediately" if there's no
+        # console window attached (e.g. launched by double-click). Now it's
+        # logged AND shown to the user instead of vanishing silently.
+        log.exception("Fatal error during startup", error=str(exc))
+        try:
+            from PySide6.QtWidgets import QMessageBox
+            app = QApplication.instance() or QApplication(sys.argv)
+            QMessageBox.critical(
+                None,
+                "Startup Error",
+                "The application failed to start:\n\n"
+                f"{exc}\n\n"
+                "Details were written to data/logs/ - check the latest log file.",
+            )
+        except Exception:
+            print(f"[FATAL] Application failed to start: {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

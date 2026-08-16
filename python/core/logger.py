@@ -22,8 +22,14 @@ LOG_NAME = "FingerprintAttendance"
 
 if CONFIG.log_to_file:
     log_dir = Path(CONFIG.log_folder)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    LOG_FILE = log_dir / CONFIG.log_file_name
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        LOG_FILE = log_dir / CONFIG.log_file_name
+    except Exception:
+        # If the log directory can't even be created (permissions, a weird
+        # path, etc.) fall back to console-only rather than crashing the
+        # whole app before the window can show.
+        LOG_FILE = None
 else:
     LOG_FILE = None
 
@@ -103,19 +109,29 @@ def _configure_logger() -> logging.Logger:
     logger.addHandler(console_handler)
 
     if LOG_FILE is not None:
-        file_handler = logging.handlers.TimedRotatingFileHandler(
-            filename=str(LOG_FILE),
-            when=CONFIG.log_rotation_when,
-            interval=CONFIG.log_rotation_interval,
-            backupCount=CONFIG.log_rotation_backup_count,
-            encoding="utf-8",
-            utc=False,
-        )
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(
-            AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f")
-        )
-        logger.addHandler(file_handler)
+        try:
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                filename=str(LOG_FILE),
+                when=CONFIG.log_rotation_when,
+                interval=CONFIG.log_rotation_interval,
+                backupCount=CONFIG.log_rotation_backup_count,
+                encoding="utf-8",
+                utc=False,
+            )
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(
+                AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f")
+            )
+            logger.addHandler(file_handler)
+        except Exception as exc:
+            # This used to crash the entire app at import time (before
+            # sys.excepthook was even installed) whenever the log file was
+            # transiently locked - e.g. an antivirus scan grabbing the
+            # freshly-created file, or a previous instance of this app not
+            # having fully released its handle yet. That produced exactly
+            # the "closes immediately, works the 2nd time" behavior. Now we
+            # just fall back to console-only logging instead of dying.
+            logger.warning(f"File logging unavailable, continuing with console-only logging: {exc}")
 
     return logger
 

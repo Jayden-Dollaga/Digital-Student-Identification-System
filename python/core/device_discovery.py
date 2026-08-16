@@ -24,7 +24,7 @@ CONFIG = get_config()
 SUPPORTED_DEVICE_IDENTIFIER = "Digital Student Identification System"
 MIN_PROTOCOL_VERSION = 1
 HANDSHAKE_COMMAND = "ID?"
-HANDSHAKE_TIMEOUT_SECONDS = 2.0
+HANDSHAKE_TIMEOUT_SECONDS = 3.0
 STATIC_PORT_CANDIDATES = [
     "COM1", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
     "COM10", "COM11", "COM12",
@@ -254,6 +254,20 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
             log.warning("Exception writing handshake", error=str(write_exc))
             return False, None, None, f"failed to write handshake: {str(write_exc)}"
 
+        # BUG FIX: cable.timeout was left at the full probe `timeout` (e.g.
+        # 2s), and each cable.readline() call blocks for up to that entire
+        # value waiting for a line. Combined with an outer `deadline` of
+        # `now + timeout`, a single readline() call that times out with no
+        # data could burn the *entire* deadline budget in one shot, leaving
+        # no time for further attempts even though more data (like the
+        # actual handshake JSON, arriving just after some boot noise) was
+        # about to show up. That's what caused "Connect" to intermittently
+        # fail even with a healthy device attached - the probe effectively
+        # only got one real read attempt instead of repeatedly polling
+        # within the deadline window. Lower the per-call read timeout to a
+        # short polling interval so readline() returns frequently and the
+        # outer while loop actually gets multiple chances within `timeout`.
+        cable.timeout = 0.2
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:

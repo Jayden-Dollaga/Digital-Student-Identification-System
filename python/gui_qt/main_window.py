@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
@@ -179,6 +180,30 @@ class MainWindow(QMainWindow):
         self.serial_worker.start()
         LOG.info("SerialWorker started | thread_name=%s", thread_name)
 
+        # ---- auto-connect on startup ----
+        # BUG FIX: the "Auto-discover ESP32 on startup" checkbox in Settings
+        # (self.auto_detect_serial / settings["auto_detect_serial"]) saved
+        # correctly, but nothing ever actually read it at launch - the only
+        # method that would have used it (_attempt_startup_connection) was
+        # never called from anywhere. So the checkbox looked like it should
+        # auto-connect the app on open, but in practice you always had to
+        # click "Connect" yourself no matter what it was set to. Wire it up
+        # for real, routed through ConnectionWorker so it can't block the UI
+        # while the window is still finishing layout.
+        QTimer.singleShot(400, self._auto_connect_on_startup)
+
+    def _auto_connect_on_startup(self):
+        if not self.auto_detect_serial:
+            return
+        if self.serial_handler.is_connected():
+            return
+        saved_port = self.settings.get("com_port") or ""
+        port = saved_port or get_default_com_port(CONFIG.com_port)
+        baud = int(self.settings.get("baud_rate") or CONFIG.baud_rate)
+        LOG.info("Auto-discovering ESP32 on startup | port=%s baud=%s", port, baud)
+        self.connect_button.setEnabled(False)
+        self.connection_worker.connect_to_device(port, baud, auto_detect=True)
+
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
         self.page_title.setText(PAGE_TITLES[key])
@@ -250,6 +275,20 @@ class MainWindow(QMainWindow):
                     baud,
                     self.device_info_label.text(),
                 )
+                # The app deliberately avoids resetting the ESP32 on connect
+                # (a DTR/RTS reset would drop active scan mode), unlike the
+                # Arduino IDE Serial Monitor, which always resets on open and
+                # so always shows a fresh boot banner. That means if the
+                # device was already sitting idle, the monitor can look
+                # "frozen" here even though it's working correctly - nothing
+                # new prints until you send a command. Say so explicitly so
+                # it doesn't look broken.
+                self.logs_page.append_line(
+                    "--- Connected. If no boot banner appeared above, the device was "
+                    "already running (connecting here never resets it, to protect an "
+                    "active scan). Send a command below, or use 'Reset Device' to see "
+                    "the full boot banner. ---"
+                )
             else:
                 LOG.error("Connection failed: %s", message)
                 self.connect_button.setText("Connect")
@@ -264,6 +303,10 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    # NOTE: startup auto-connect now lives in _auto_connect_on_startup()
+    # above, routed through ConnectionWorker so it never blocks the UI
+    # thread. This blocking version is kept only for reference/tests that
+    # may still call it directly outside the Qt event loop.
     def _attempt_startup_connection(self):
         saved_port = self.settings.get("com_port") or ""
         port = saved_port or get_default_com_port(CONFIG.com_port)
