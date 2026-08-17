@@ -51,6 +51,8 @@ class SerialWorker(QThread):
         self._last_connected_state = None
         self._last_reconnect_count = 0
         self._pending_enroll_status = None
+        self._last_heartbeat_log = 0.0
+        self._lines_since_heartbeat = 0
 
     def run(self):
         log.info(
@@ -77,6 +79,21 @@ class SerialWorker(QThread):
 
                 self._last_reconnect_count = 0
 
+                # Rate-limited proof-of-life: if the "monitor doesn't update"
+                # symptom happens again, this tells us within seconds whether
+                # this thread is actually alive and iterating at all, versus
+                # stuck/blocked somewhere - which the Application Log entries
+                # alone couldn't distinguish before.
+                now = time.time()
+                if now - self._last_heartbeat_log > 5.0:
+                    log.debug(
+                        "SerialWorker heartbeat: loop alive",
+                        lines_emitted_since_last_heartbeat=self._lines_since_heartbeat,
+                        thread_id=threading.get_ident(),
+                    )
+                    self._last_heartbeat_log = now
+                    self._lines_since_heartbeat = 0
+
                 try:
                     line = self.serial_handler.read_line()
                 except Exception as exc:
@@ -88,6 +105,7 @@ class SerialWorker(QThread):
                     time.sleep(0.05)
                     continue
 
+                self._lines_since_heartbeat += 1
                 self.raw_line.emit(line)
                 if self.serial_handler.should_ignore(line):
                     continue

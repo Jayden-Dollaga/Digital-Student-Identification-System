@@ -4,6 +4,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
+from PySide6.QtCore import QObject, Signal
 
 import threading
 from core.commands import cmd_scan, cmd_stop
@@ -318,15 +319,34 @@ class MainWindow(QMainWindow):
             if not ok:
                 LOG.error("Reconnect failed: %s", msg)
 
+    class _LogBridge(QObject):
+        """Carries log records from whatever thread logged them onto the GUI
+        thread via a proper Qt signal.
+
+        _QtLogHandler.emit() used to call self.log_page.append_record(record)
+        directly - a plain Python method call from whatever thread the log
+        line originated on (ConnectionWorker, SerialWorker, a reconnect
+        thread, etc.), touching a QPlainTextEdit outside the GUI thread.
+        That's undefined behavior in Qt: it can appear to work most of the
+        time (posted paint events often still get picked up), but it isn't
+        guaranteed to, and appeared to be part of why the Application Log
+        sometimes updated live while other GUI state didn't. raw_line
+        already did this correctly via Signal/Slot; this makes the log
+        bridge do the same instead of being the odd one out.
+        """
+        record_ready = Signal(object)
+
     class _QtLogHandler(logging.Handler):
         def __init__(self, log_page):
             super().__init__()
             self.log_page = log_page
             self.setFormatter(AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f"))
+            self._bridge = MainWindow._LogBridge()
+            self._bridge.record_ready.connect(self.log_page.append_record)
 
         def emit(self, record):
             try:
-                self.log_page.append_record(record)
+                self._bridge.record_ready.emit(record)
             except Exception:
                 pass
 

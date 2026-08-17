@@ -82,6 +82,7 @@ class SerialHandler:
         self._reconnect_thread: Optional[threading.Thread] = None
         self._reconnect_stop = threading.Event()
         self._read_buffer = b""
+        self._last_read_idle_log = 0.0
         log.info(
             "SerialHandler initialized",
             thread_id=threading.get_ident(),
@@ -340,9 +341,23 @@ class SerialHandler:
             if not self.is_connected():
                 return False
             try:
+                log.info("Pulsing DTR to reset ESP32", port=self.reconnect_port)
                 self.esp32.dtr = True
                 time.sleep(0.1)
                 self.esp32.dtr = False
+                # A DTR pulse can inject a stray partial byte or two into the
+                # line right as the device resets. If that leftover sits in
+                # _read_buffer with no newline yet, every subsequent real
+                # boot-text byte gets appended onto it and read_line() won't
+                # treat any of it as a complete line until a '\n' eventually
+                # shows up - which should happen fast once real text starts,
+                # but there's no reason to carry stale bytes into the fresh
+                # boot sequence at all. Start clean.
+                self._read_buffer = b""
+                log.info(
+                    "DTR reset pulse complete, read buffer cleared - watching for fresh boot output",
+                    port=self.reconnect_port,
+                )
                 return True
             except Exception as exc:
                 log.error("Failed to reset ESP32 via DTR pulse", error=str(exc))
@@ -377,6 +392,22 @@ class SerialHandler:
                     return None
 
                 if self.esp32.in_waiting == 0:
+                    # Diagnostic breadcrumb for the "monitor doesn't update
+                    # until I send a command" reports - rate-limited so it
+                    # doesn't spam the Application Log, but frequent enough
+                    # that if this happens again, the log will show exactly
+                    # whether the port is genuinely silent (in_waiting stuck
+                    # at 0 the whole time) versus data arriving but getting
+                    # lost somewhere else in the pipeline.
+                    now = time.time()
+                    if now - self._last_read_idle_log > 3.0:
+                        self._last_read_idle_log = now
+                        log.debug(
+                            "Serial read idle: in_waiting is 0",
+                            port=self.reconnect_port,
+                            pending_buffered_lines=len(self._pending_raw_lines),
+                            unterminated_buffer_bytes=len(self._read_buffer),
+                        )
                     return None
 
                 try:
