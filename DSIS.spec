@@ -15,8 +15,6 @@ a = Analysis(
     pathex=[str(ROOT / "python")],
     binaries=[],
     datas=[
-        (str(ROOT / "data"), "data"),
-        (str(ROOT / "assets"), "assets"),
         (str(ROOT / "python" / "gui_qt" / "theme.qss"), "python/gui_qt"),
         (str(ROOT / "python" / "gui_qt" / "theme_light.qss"), "python/gui_qt"),
     ],

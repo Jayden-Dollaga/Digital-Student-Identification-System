@@ -11,6 +11,7 @@ from config import DB_PATH
 from core.database import (
     generate_statistics_report, export_attendance_range, backup_database, restore_database,
 )
+from core.logger import log
 
 # Leading characters that spreadsheet apps (Excel, LibreOffice, Google
 # Sheets) treat as the start of a formula when a CSV cell is opened.
@@ -84,7 +85,8 @@ class ReportsPage(QWidget):
         try:
             report_text = generate_statistics_report()
         except Exception as exc:
-            report_text = f"Could not generate report: {exc}"
+            log.error(f"Could not generate statistics report: {exc}")
+            report_text = "Unable to generate the report. Please check the application logs for more information."
         self.report_view.setPlainText(report_text)
 
     def refresh_report(self):
@@ -96,7 +98,12 @@ class ReportsPage(QWidget):
         try:
             rows = export_attendance_range(start, end)
         except Exception as exc:
-            QMessageBox.critical(self, "Export failed", str(exc))
+            log.error(f"Could not export attendance range ({start} to {end}): {exc}")
+            QMessageBox.critical(
+                self,
+                "Export failed",
+                "Unable to export the report. Please check the application logs for more information.",
+            )
             return
 
         if not rows:

@@ -8,6 +8,7 @@ from core.database import (
     generate_section_chart,
     generate_grade_chart,
 )
+from core.logger import log
 
 
 def show_statistics_report(app):
@@ -44,7 +45,17 @@ def show_statistics_report(app):
 
         app.log_message("Statistics report generated")
     except Exception as exc:
-        messagebox.showerror("Report Error", f"Could not generate report: {exc}", parent=app)
+        # SECURITY FIX: user-facing error used to include the raw exception
+        # text (f"Could not generate report: {exc}"), which can leak
+        # filesystem paths, database paths, or other internal details. The
+        # detailed exception still goes to the log; the user only sees a
+        # safe, generic message.
+        log.error(f"Could not generate statistics report: {exc}")
+        messagebox.showerror(
+            "Report Error",
+            "Unable to generate the report. Please check the application logs for more information.",
+            parent=app,
+        )
 
 
 def export_statistics_report(app):
@@ -69,7 +80,12 @@ def export_statistics_report(app):
         app.log_message(f"Report exported to {file_path}")
         messagebox.showinfo("Export Successful", f"Report saved to:\n{file_path}", parent=app)
     except Exception as exc:
-        messagebox.showerror("Export Error", f"Could not export report: {exc}", parent=app)
+        log.error(f"Could not export statistics report: {exc}")
+        messagebox.showerror(
+            "Export Error",
+            "Unable to export the report. Please check the application logs for more information.",
+            parent=app,
+        )
 
 
 def show_statistics_charts(app):
@@ -86,7 +102,12 @@ def show_statistics_charts(app):
         section_chart = generate_section_chart()
         grade_chart = generate_grade_chart()
     except Exception as exc:
-        messagebox.showerror("Chart Error", f"Could not generate charts: {exc}", parent=app)
+        log.error(f"Could not generate statistics charts: {exc}")
+        messagebox.showerror(
+            "Chart Error",
+            "Unable to generate the charts. Please check the application logs for more information.",
+            parent=app,
+        )
         return
 
     if not any([attendance_chart, section_chart, grade_chart]):
@@ -134,7 +155,8 @@ def _display_chart_in_tab(tab, image_path):
         label.image = photo
         label.pack(padx=12, pady=12, fill="both", expand=True)
     except Exception as exc:
-        ctk.CTkLabel(tab, text=f"Could not load chart: {exc}", text_color="red").pack(padx=12, pady=12)
+        log.error(f"Could not load chart image: {exc}")
+        ctk.CTkLabel(tab, text="Could not load chart. Check the application logs for more information.", text_color="red").pack(padx=12, pady=12)
 
 
 def _copy_to_clipboard(app, text):
@@ -144,4 +166,9 @@ def _copy_to_clipboard(app, text):
         app.update()
         app.log_message("Report copied to clipboard")
     except Exception as exc:
-        messagebox.showerror("Clipboard Error", f"Could not copy: {exc}", parent=app)
+        log.error(f"Could not copy report to clipboard: {exc}")
+        messagebox.showerror(
+            "Clipboard Error",
+            "Unable to copy the report. Please check the application logs for more information.",
+            parent=app,
+        )

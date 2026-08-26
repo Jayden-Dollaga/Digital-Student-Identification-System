@@ -194,7 +194,15 @@ class StudentsPage:
                 return False
             self.app.log_message(f"Sent DELETE:{fingerprint_id} command to ESP32.")
 
-        self.service.delete_student(fingerprint_id)
+        try:
+            self.service.delete_student(fingerprint_id)
+        except PermissionError:
+            messagebox.showerror(
+                "Not allowed",
+                "Your current role does not have permission to delete students.",
+                parent=parent,
+            )
+            return False
         self.refresh()
         self.app.refresh_statistics()
         self.app.refresh_attendance_view()

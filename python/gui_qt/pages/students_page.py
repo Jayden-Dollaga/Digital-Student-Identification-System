@@ -657,7 +657,15 @@ class StudentsPage(QWidget):
         confirm = QMessageBox.question(self, "Confirm delete", confirm_text)
         if confirm != QMessageBox.Yes:
             return
-        self.service.delete_student(fingerprint_id)
+        try:
+            self.service.delete_student(fingerprint_id)
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Not allowed",
+                "Your current role does not have permission to delete students.",
+            )
+            return
         if device_connected:
             cmd_delete(self.serial_handler, fingerprint_id)
         self.refresh()

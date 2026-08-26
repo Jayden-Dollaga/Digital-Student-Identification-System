@@ -17,6 +17,7 @@ from PySide6.QtCore import QThread, Signal
 from config import get_config, get_default_com_port
 from settings_store import load_settings, save_settings
 from core.firmware_helper import discover_firmware_candidates, find_firmware_binary, upload_firmware_with_progress
+from core.logger import log
 
 CONFIG = get_config()
 
@@ -413,7 +414,12 @@ class SettingsPage(QWidget):
             else:
                 subprocess.Popen(["xdg-open", path])
         except Exception as exc:
-            QMessageBox.warning(self, "Open Log Folder", f"Could not open folder: {exc}")
+            log.error(f"Could not open folder '{path}': {exc}")
+            QMessageBox.warning(
+                self,
+                "Open Log Folder",
+                "Unable to open the folder. Please check the application logs for more information.",
+            )
 
     def _get_theme_path(self, theme: str) -> Path:
         theme_file = "theme_light.qss" if theme.lower() == "light" else "theme.qss"
