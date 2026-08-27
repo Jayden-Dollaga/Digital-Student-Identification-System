@@ -303,6 +303,58 @@ QPlainTextEdit#reportView {
     font-family: 'Consolas', 'Courier New', monospace;
 }
 
+/* ---------------- Dialogs & message boxes ---------------- */
+/* QDialog/QMessageBox previously had no rules here at all, so they fell
+   through to the native platform style (e.g. "windowsvista" on Windows),
+   which paints its own white/native background regardless of our dark
+   theme - while the universal `color:` rule above still applied, leaving
+   near-invisible light-grey text on a white box ("No selection",
+   "Confirm Wipe", the Enroll Fingerprint form, etc. in the screenshots).
+   Pairing these rules with Fusion (forced in main_qt.py) makes every
+   dialog and message box match the app regardless of the host PC's own
+   OS theme. */
+QDialog {
+    background-color: #14161A;
+}
+
+QMessageBox {
+    background-color: #1B1E24;
+}
+
+QDialog QLabel,
+QMessageBox QLabel {
+    background-color: transparent;
+    color: #E6E8EB;
+}
+
+/* Default (unnamed) buttons - covers QMessageBox's OK/Yes/No/Cancel
+   buttons and any QDialog button that didn't opt into primaryButton /
+   dangerButton / secondaryButton. Those named buttons keep their own
+   look because an ID selector is more specific than this bare type
+   selector. */
+QPushButton {
+    background-color: #2A3038;
+    color: #E6E8EB;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    min-width: 72px;
+}
+
+QPushButton:hover {
+    background-color: #343C47;
+}
+
+QPushButton:pressed {
+    background-color: #20262E;
+}
+
+QPushButton:disabled {
+    background-color: #1E2229;
+    color: #5B6169;
+}
+
 /* ---------------- Backups list (Reports page) ---------------- */
 QListWidget#backupsList {
     background-color: #171A20;

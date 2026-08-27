@@ -287,6 +287,47 @@ QPlainTextEdit#reportView {
     font-family: 'Consolas', 'Courier New', monospace;
 }
 
+/* ---------------- Dialogs & message boxes ---------------- */
+/* Mirrors the dark theme's dialog/message-box block - see theme.qss for
+   the full explanation. Without this, dialogs fell back to the native
+   platform style instead of this light palette. */
+QDialog {
+    background-color: #F3F4F6;
+}
+
+QMessageBox {
+    background-color: #FFFFFF;
+}
+
+QDialog QLabel,
+QMessageBox QLabel {
+    background-color: transparent;
+    color: #1F2937;
+}
+
+QPushButton {
+    background-color: #E5E7EB;
+    color: #111827;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    min-width: 72px;
+}
+
+QPushButton:hover {
+    background-color: #D1D5DB;
+}
+
+QPushButton:pressed {
+    background-color: #C7CBD1;
+}
+
+QPushButton:disabled {
+    background-color: #F3F4F6;
+    color: #9CA3AF;
+}
+
 /* ---------------- Backups list (Reports page) ---------------- */
 QListWidget#backupsList {
     background-color: #FFFFFF;

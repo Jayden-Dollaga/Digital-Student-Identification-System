@@ -12,7 +12,7 @@ import threading
 import traceback
 from pathlib import Path
 from typing import Any
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QStyleFactory
 
 from core.logger import log
 from gui_qt.main_window import MainWindow
@@ -57,6 +57,25 @@ def _on_process_exit() -> None:
     log.info("Process exit via atexit", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
 
 
+def apply_base_style(app: QApplication) -> None:
+    """Force the "Fusion" widget style before any stylesheet is applied.
+
+    Without this, Qt defaults to the native platform style (e.g. "windowsvista"
+    on Windows), which paints certain widgets - QDialog and QMessageBox chief
+    among them - using the *current user's OS theme* instead of our QSS. That
+    is why dialogs like "Confirm Wipe" or "No selection" showed up as plain
+    white/native boxes with washed-out text: the native style ignored our
+    dark background rules and only the universal text-color rule got through.
+
+    Fusion is a style Qt renders entirely itself, so it honors our stylesheet
+    fully and identically regardless of the host machine's OS theme, Windows
+    build, or dark/light system setting - which is what makes the UI look the
+    same on every PC instead of depending on that PC's own theme.
+    """
+    if "Fusion" in QStyleFactory.keys():
+        app.setStyle(QStyleFactory.create("Fusion"))
+
+
 def load_stylesheet(app: QApplication, theme: str = "dark"):
     theme_file = "theme_light.qss" if theme.lower() == "light" else "theme.qss"
     qss_path = Path(__file__).parent / theme_file
@@ -77,6 +96,7 @@ def main():
         app = QApplication(sys.argv)
         log.info("QApplication created", thread_id=threading.get_ident(), thread_name=threading.current_thread().name)
         app.aboutToQuit.connect(_on_app_about_to_quit)
+        apply_base_style(app)
 
         settings = load_settings()
         load_stylesheet(app, settings.get("theme", "dark"))
@@ -103,6 +123,7 @@ def main():
         try:
             from PySide6.QtWidgets import QMessageBox
             app = QApplication.instance() or QApplication(sys.argv)
+            apply_base_style(app)
             QMessageBox.critical(
                 None,
                 "Startup Error",
