@@ -13,9 +13,9 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
 
 ## Screenshots
 
-![Connected DSIS settings](docs/UserGuide/images/qt-ui-2026-08-28-000016.png)
+![DSIS Main](docs/UserGuide/images/Screenshot_2026-08-28_014145.png)
 
-![Fingerprint enrollment dialog](docs/UserGuide/images/qt-ui-2026-08-13-152422.png)
+![Fingerprint Report Page](docs/UserGuide/images/Screenshot_2026-08-28_014206.png)
 
 ## Quick Start
 
