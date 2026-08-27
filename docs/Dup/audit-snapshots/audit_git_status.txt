@@ -1,2 +1,0 @@
-?? audit_git_status.txt
-?? tools/copilot_forensic_search.py
