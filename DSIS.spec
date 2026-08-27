@@ -15,8 +15,8 @@ a = Analysis(
     pathex=[str(ROOT / "python")],
     binaries=[],
     datas=[
-        (str(ROOT / "python" / "gui_qt" / "theme.qss"), "python/gui_qt"),
-        (str(ROOT / "python" / "gui_qt" / "theme_light.qss"), "python/gui_qt"),
+        (str(ROOT / "python" / "gui_qt" / "theme.qss"), "gui_qt"),
+        (str(ROOT / "python" / "gui_qt" / "theme_light.qss"), "gui_qt"),
     ],
     hiddenimports=[
         "PySide6",
@@ -42,7 +42,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["gui", "main", "customtkinter"],
     noarchive=False,
 )
 
@@ -58,7 +58,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

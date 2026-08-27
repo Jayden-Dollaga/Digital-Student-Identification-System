@@ -10,6 +10,7 @@
 import logging
 import logging.handlers
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -24,7 +25,13 @@ if CONFIG.log_to_file:
     log_dir = Path(CONFIG.log_folder)
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
-        LOG_FILE = log_dir / CONFIG.log_file_name
+        # One fresh, timestamped file per run (matches the backup naming
+        # style) instead of a single fixed-name file that gets appended to
+        # or rotated only at midnight - so each launch has its own log.
+        stem = Path(CONFIG.log_file_name).stem
+        suffix = Path(CONFIG.log_file_name).suffix or ".log"
+        run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        LOG_FILE = log_dir / f"{stem}_{run_timestamp}{suffix}"
     except Exception:
         # If the log directory can't even be created (permissions, a weird
         # path, etc.) fall back to console-only rather than crashing the
@@ -95,6 +102,25 @@ class AppFormatter(logging.Formatter):
         return " | ".join(f"{key}={value}" for key, value in payload.items())
 
 
+def _prune_old_logs(log_dir: Path, keep: int) -> None:
+    """Delete old per-run log files, keeping only the most recent `keep`.
+
+    Runs once at startup right after the new file's handler is attached.
+    Mirrors the intent of the old TimedRotatingFileHandler's backupCount,
+    just applied per-run instead of per-day.
+    """
+    if keep <= 0:
+        return
+    try:
+        pattern = f"{Path(CONFIG.log_file_name).stem}_*{Path(CONFIG.log_file_name).suffix or '.log'}"
+        existing = sorted(log_dir.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        for stale_file in existing[keep:]:
+            stale_file.unlink(missing_ok=True)
+    except Exception:
+        # Cleanup failures should never block the app from starting.
+        pass
+
+
 def _configure_logger() -> logging.Logger:
     logger = logging.getLogger(LOG_NAME)
     logger.setLevel(LOG_LEVEL)
@@ -110,19 +136,17 @@ def _configure_logger() -> logging.Logger:
 
     if LOG_FILE is not None:
         try:
-            file_handler = logging.handlers.TimedRotatingFileHandler(
+            file_handler = logging.FileHandler(
                 filename=str(LOG_FILE),
-                when=CONFIG.log_rotation_when,
-                interval=CONFIG.log_rotation_interval,
-                backupCount=CONFIG.log_rotation_backup_count,
                 encoding="utf-8",
-                utc=False,
             )
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(
                 AppFormatter("%(asctime)s | %(levelname)-7s | %(source)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S.%f")
             )
             logger.addHandler(file_handler)
+
+            _prune_old_logs(LOG_FILE.parent, keep=CONFIG.log_rotation_backup_count)
         except Exception as exc:
             # This used to crash the entire app at import time (before
             # sys.excepthook was even installed) whenever the log file was

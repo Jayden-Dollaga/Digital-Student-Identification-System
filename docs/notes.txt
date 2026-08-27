@@ -12,8 +12,8 @@ DSIS
 
 
 
-
-
+Remove-Item -Recurse -Force build, dist
+python -m PyInstaller DSIS.spec --clean
 
 
 

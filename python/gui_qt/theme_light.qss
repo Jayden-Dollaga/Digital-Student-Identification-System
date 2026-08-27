@@ -252,3 +252,51 @@ QScrollBar::handle:vertical {
 QScrollBar::handle:vertical:hover {
     background: #6B7280;
 }
+
+/* ---------------- Muted / secondary text ---------------- */
+QLabel#mutedLabel {
+    color: #6B7280;
+}
+
+/* ---------------- Warning banner ---------------- */
+/* Same light-amber warning convention already used for
+   connectionStatus[state="connecting"] below, so this reads as the same
+   "heads up, not an error" tone as the rest of the light theme. */
+QLabel#warningBanner {
+    color: #92400E;
+    background-color: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+/* ---------------- Recent activity list (Dashboard) ---------------- */
+QListWidget#recentActivityList {
+    background-color: transparent;
+    border: none;
+}
+
+QListWidget#recentActivityList::item {
+    padding: 6px 2px;
+    border-bottom: 1px solid #E5E7EB;
+    color: #374151;
+}
+
+/* ---------------- Report preview (Reports page) ---------------- */
+QPlainTextEdit#reportView {
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* ---------------- Backups list (Reports page) ---------------- */
+QListWidget#backupsList {
+    background-color: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    color: #6B7280;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+
+QListWidget#backupsList::item {
+    padding: 3px 8px;
+}

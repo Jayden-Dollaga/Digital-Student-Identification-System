@@ -259,3 +259,60 @@ QScrollBar::handle:vertical {
 QScrollBar::handle:vertical:hover {
     background: #43494F;
 }
+
+/* ---------------- Muted / secondary text ---------------- */
+/* Shared role for de-emphasized text (empty states, captions, hints) that
+   used to be scattered as hardcoded inline setStyleSheet() calls across
+   several pages - those calls picked colors tuned for a dark background
+   and stayed fixed even when the app switched to the light theme, which
+   is what made things unreadable there. */
+QLabel#mutedLabel {
+    color: #AEB4BD;
+}
+
+/* ---------------- Warning banner ---------------- */
+/* Used for non-critical "showing older/fallback data" notices (Dashboard,
+   Attendance). Previously hardcoded to a dark amber-on-near-black look
+   that stayed exactly the same in light mode too, appearing as a jarring
+   dark box floating in an otherwise light page. */
+QLabel#warningBanner {
+    color: #F5B942;
+    background-color: #2A2410;
+    border: 1px solid #4A3F1A;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+/* ---------------- Recent activity list (Dashboard) ---------------- */
+QListWidget#recentActivityList {
+    background-color: transparent;
+    border: none;
+}
+
+QListWidget#recentActivityList::item {
+    padding: 6px 2px;
+    border-bottom: 1px solid #22262D;
+    color: #D4D9E0;
+}
+
+/* ---------------- Report preview (Reports page) ---------------- */
+/* This shows formatted report text, not raw diagnostic output, so it
+   should look like normal themed content - not a fixed dark terminal that
+   would look out of place once the surrounding page goes light. */
+QPlainTextEdit#reportView {
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* ---------------- Backups list (Reports page) ---------------- */
+QListWidget#backupsList {
+    background-color: #171A20;
+    border: 1px solid #2A3038;
+    border-radius: 8px;
+    color: #9AA4B2;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+
+QListWidget#backupsList::item {
+    padding: 3px 8px;
+}

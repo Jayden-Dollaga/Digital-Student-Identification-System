@@ -1,13 +1,16 @@
+from datetime import datetime, timedelta
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QLabel, QHeaderView, QPushButton, QComboBox
 )
 
-from core.database import get_today_attendance_info, get_attendance_paginated
+from core.database import get_today_attendance_info, get_attendance_paginated, export_attendance_range
 
 COLUMNS = ["Date", "Time", "Student No.", "Name", "Grade/Section", "Confidence", "Status"]
 PAGE_SIZE = 100
+LAST_30_DAYS_LABEL = "Last 30 Days"
 
 
 class AttendancePage(QWidget):
@@ -25,7 +28,7 @@ class AttendancePage(QWidget):
         title.setStyleSheet("font-size: 15px; font-weight: 600; color: #AEB4BD;")
 
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Today", "Recent"])
+        self.mode_combo.addItems(["Today", "Recent", LAST_30_DAYS_LABEL])
         self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
 
         self.prev_btn = QPushButton("◀ Prev")
@@ -48,11 +51,8 @@ class AttendancePage(QWidget):
         self.fallback_banner = QLabel(
             "No attendance recorded today yet — showing the most recent activity instead."
         )
+        self.fallback_banner.setObjectName("warningBanner")
         self.fallback_banner.setWordWrap(True)
-        self.fallback_banner.setStyleSheet(
-            "color: #F5B942; background-color: #2A2410; border: 1px solid #4A3F1A; "
-            "border-radius: 6px; padding: 6px 10px;"
-        )
         self.fallback_banner.setVisible(False)
         outer.addWidget(self.fallback_banner)
 
@@ -79,17 +79,28 @@ class AttendancePage(QWidget):
         self.refresh()
 
     def _is_recent_mode(self) -> bool:
-        return self.mode_combo.currentText() != "Today"
+        return self.mode_combo.currentText() == "Recent"
+
+    def _is_last_30_days_mode(self) -> bool:
+        return self.mode_combo.currentText() == LAST_30_DAYS_LABEL
 
     def refresh(self):
         try:
-            if not self._is_recent_mode():
+            if self._is_last_30_days_mode():
+                self.fallback_banner.setVisible(False)
+                # Same date-range function the CSV export button uses, so
+                # what you see here always matches what gets exported.
+                end = datetime.now().strftime("%Y-%m-%d")
+                start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+                rows = export_attendance_range(start, end)
+                rows = list(reversed(rows))  # export_attendance_range is ASC; show newest first
+            elif self._is_recent_mode():
+                self.fallback_banner.setVisible(False)
+                rows = get_attendance_paginated(limit=PAGE_SIZE, offset=self._offset)
+            else:
                 info = get_today_attendance_info()
                 rows = info["rows"]
                 self.fallback_banner.setVisible(info["is_fallback"])
-            else:
-                self.fallback_banner.setVisible(False)
-                rows = get_attendance_paginated(limit=PAGE_SIZE, offset=self._offset)
         except Exception:
             rows = []
             self.fallback_banner.setVisible(False)

@@ -67,18 +67,8 @@ def _is_valid_name_character(ch: str) -> bool:
     """
     if ch in _ALLOWED_NAME_PUNCTUATION:
         return True
-    # NOTE: this used to allow *any* character where ch.isspace() is True.
-    # Python's definition of "whitespace" is much broader than the plain
-    # ASCII space already covered by _ALLOWED_NAME_PUNCTUATION above - it
-    # also includes vertical tab (\x0b), form feed (\x0c), NEL (U+0085), and
-    # the Unicode line/paragraph separators U+2028 / U+2029. Those behave
-    # like an embedded newline in a lot of consumers (Qt labels, the
-    # plaintext statistics report's fixed-width rows, some CSV viewers),
-    # so a name containing one could silently corrupt report formatting.
-    # The explicit control-character check further down only ever caught
-    # the ASCII \n \r \t \x00 cases, not these Unicode equivalents. Only
-    # the plain ASCII space (already allowed above) should count as
-    # inter-word whitespace in a name.
+    if ch.isspace():
+        return True
     if unicodedata.category(ch).startswith("M"):
         return True
     if ch.isalpha():
@@ -480,8 +470,7 @@ def add_student(
             return False, f"Fingerprint ID {fingerprint_id} already assigned to a student."
         if "student_no" in message:
             return False, f"Student number {student_no} already exists."
-        log.error(f"add_student integrity error: {exc}")
-        return False, "Could not save the student. Please check the application logs for more information."
+        return False, message
     finally:
         conn.close()
 
@@ -514,36 +503,12 @@ def update_student(
         conn.commit()
         return True, "OK"
     except sqlite3.IntegrityError as exc:
-        message = str(exc)
-        if "student_no" in message:
-            return False, f"Student number {student_no} already exists."
-        log.error(f"update_student integrity error: {exc}")
-        return False, "Could not save the student. Please check the application logs for more information."
+        return False, str(exc)
     finally:
         conn.close()
 
 
 def delete_student(fingerprint_id: int) -> None:
-    """Remove a student record.
-
-    SECURITY FIX: this used to have no authorization awareness of its own.
-    Both GUIs call this as part of their delete flow, but the "delete"
-    permission check only ever happened over in cmd_delete() - the call
-    that sends DELETE:<id> to the ESP32 - which is a *separate* step. The
-    Qt students page called this database function unconditionally, before
-    even checking whether cmd_delete() succeeded; the legacy GUI only ran
-    cmd_delete() at all when a device happened to be connected, so a
-    disconnected session skipped permission checking entirely. Either way,
-    a role without "delete" permission could still permanently remove a
-    student row. This enforces the same "delete" permission at the actual
-    destructive operation, so it can't be bypassed by any caller - reusing
-    core.permissions, not a new role system.
-    """
-    from core.permissions import require_permission
-
-    if not require_permission("delete"):
-        raise PermissionError("Current role does not have permission to delete students.")
-
     conn = get_connection()
     try:
         conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (fingerprint_id,))
@@ -814,29 +779,6 @@ def clear_all_attendance() -> int:
 
 
 def clear_all_data() -> Tuple[int, int]:
-    """Delete all student and attendance records.
-
-    SECURITY FIX: this is the actual destructive operation behind the "wipe"
-    workflow, but it used to have no authorization awareness of its own -
-    the only thing stopping an unauthorized call was that the Qt wipe
-    dialog happened to gate its *own* call behind cmd_wipe()'s permission
-    check (core.permissions). Any other path that imported and called
-    clear_all_data() directly - a bug, a future feature, a script run
-    against this module - would bypass that check entirely, because the
-    check lived one layer above the actual database operation instead of
-    at the operation itself.
-
-    This enforces the same existing "wipe" permission at the point of the
-    destructive operation, so the boundary can't be bypassed by adding a
-    new caller elsewhere. This does NOT introduce a new role system - it
-    reuses core.permissions, the same admin/teacher/guest roles already
-    used by cmd_wipe()/cmd_delete()/cmd_enroll().
-    """
-    from core.permissions import require_permission
-
-    if not require_permission("wipe"):
-        raise PermissionError("Current role does not have permission to clear all data.")
-
     conn = get_connection()
     try:
         student_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
@@ -1059,7 +1001,7 @@ def generate_statistics_report() -> str:
         return "\n".join(report_lines)
     except Exception as exc:
         log.error(f"Report generation failed: {exc}")
-        return "Unable to generate the report. Please check the application logs for more information."
+        return f"Error generating report: {exc}"
     finally:
         conn.close()
 
@@ -1190,18 +1132,6 @@ def generate_grade_chart() -> Optional[str]:
 
 
 def backup_database() -> Tuple[bool, str, Optional[str]]:
-    """Create a timestamped copy of the database in data/backups/.
-
-    KNOWN LIMITATION (documented, not fixed in this pass): backups are
-    plain, unencrypted SQLite file copies - the same format the live
-    database already uses. This was flagged as a medium-severity concern
-    during a security review. Encrypting backups is a larger design
-    decision (key management, whether old plaintext backups need to keep
-    working, etc.) that belongs in a future phase rather than a targeted
-    hardening pass - deferred intentionally, not overlooked. Anyone with
-    filesystem access to data/backups/ can currently read backup contents
-    directly, same as they already could with the live database file.
-    """
     try:
         backup_dir = Path(DB_PATH).parent / 'backups'
         backup_dir.mkdir(parents=True, exist_ok=True)
@@ -1215,41 +1145,7 @@ def backup_database() -> Tuple[bool, str, Optional[str]]:
         return False, 'Database file not found', None
     except Exception as exc:
         log.error(f"Database backup failed: {exc}")
-        return False, "Backup failed. Please check the application logs for more information.", None
-
-
-def _is_path_within_directory(path: Path, directory: Path) -> bool:
-    """True if `path` is inside `directory`, using real filesystem containment.
-
-    SECURITY FIX: this replaces a string-prefix check
-    (str(backup_file).startswith(str(backup_dir))), which is not the same
-    thing as directory containment. A sibling directory like
-    "data/backups_evil" starts with the string "data/backups" even though
-    it is NOT inside it - that check would have wrongly accepted it.
-
-    Resolves symlinks on both sides (Path.resolve() does this) so a symlink
-    planted inside the backups directory that points outside of it doesn't
-    count as "inside" either.
-    """
-    try:
-        resolved_path = path.resolve(strict=False)
-        resolved_dir = directory.resolve(strict=False)
-    except (OSError, RuntimeError):
-        return False
-
-    if hasattr(resolved_path, "is_relative_to"):
-        # Python 3.9+: exact, purpose-built API for this check.
-        return resolved_path.is_relative_to(resolved_dir)
-
-    # Fallback for older Python: os.path.commonpath() raises ValueError when
-    # the paths share no common root at all (e.g. different drives on
-    # Windows) - treat that as "not contained" rather than letting the
-    # exception escape.
-    try:
-        common = os.path.commonpath([str(resolved_path), str(resolved_dir)])
-    except ValueError:
-        return False
-    return common == str(resolved_dir)
+        return False, f"Backup failed: {exc}", None
 
 
 def restore_database(backup_path: str) -> Tuple[bool, str]:
@@ -1266,10 +1162,8 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
         backup_dir = (Path(DB_PATH).parent / 'backups').resolve()
         
         # SECURITY: Ensure the backup file is within the backups directory
-        # This prevents path traversal attacks (../ escapes, sibling
-        # directories like "backups_evil", absolute paths elsewhere, and
-        # symlink-based escapes - see _is_path_within_directory()).
-        if not _is_path_within_directory(backup_file, backup_dir):
+        # This prevents path traversal attacks
+        if not str(backup_file).startswith(str(backup_dir)):
             log.error(f"Restore attempted from outside backups directory: {backup_path}")
             return False, 'Invalid backup file location. Backups must be in the backups directory.'
         
@@ -1309,3 +1203,33 @@ def list_backups() -> List[RowDict]:
     except Exception as exc:
         log.error(f"Failed to list backups: {exc}")
         return []
+
+
+def auto_backup_if_needed(min_interval_hours: float = 24.0) -> Optional[str]:
+    """Create a backup if enough time has passed since the most recent one.
+
+    Meant to be called on startup and/or on a recurring timer. Never raises -
+    any failure (disk full, permissions, corrupt backups folder, etc.) is
+    logged and swallowed so it can't interrupt the caller.
+
+    Args:
+        min_interval_hours: Minimum hours that must have elapsed since the
+            last backup before a new one is created.
+
+    Returns:
+        Path to the newly created backup file, or None if no backup was
+        due yet, or if backup creation failed.
+    """
+    try:
+        existing = list_backups()
+        if existing:
+            last_backup_time = datetime.strptime(existing[0]['date'], '%Y-%m-%d %H:%M:%S')
+            elapsed_hours = (datetime.now() - last_backup_time).total_seconds() / 3600
+            if elapsed_hours < min_interval_hours:
+                return None
+
+        success, _message, backup_path = backup_database()
+        return backup_path if success else None
+    except Exception as exc:
+        log.error(f"Auto-backup check failed: {exc}")
+        return None

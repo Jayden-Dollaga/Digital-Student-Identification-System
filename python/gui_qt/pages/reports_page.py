@@ -4,12 +4,13 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QListWidget, QListWidgetItem
 )
 
 from config import DB_PATH
 from core.database import (
     generate_statistics_report, export_attendance_range, backup_database, restore_database,
+    list_backups,
 )
 from core.logger import log
 
@@ -50,16 +51,17 @@ class ReportsPage(QWidget):
 
         intro_label = QLabel("Report preview")
         intro_label.setObjectName("cardLabel")
-        intro_label.setStyleSheet("font-size: 13px; color: #8A909C;")
 
         export_btn = QPushButton("Export CSV (last 30 days)")
         export_btn.setObjectName("primaryButton")
         export_btn.clicked.connect(self.on_export_clicked)
 
         backup_btn = QPushButton("Backup DB")
+        backup_btn.setObjectName("secondaryButton")
         backup_btn.clicked.connect(self.on_backup_clicked)
 
         restore_btn = QPushButton("Restore DB")
+        restore_btn.setObjectName("secondaryButton")
         restore_btn.clicked.connect(self.on_restore_clicked)
 
         header_row.addWidget(title)
@@ -71,15 +73,49 @@ class ReportsPage(QWidget):
         outer.addLayout(header_row)
 
         self.report_view = QPlainTextEdit()
+        self.report_view.setObjectName("reportView")
         self.report_view.setPlaceholderText("Statistics will appear here as soon as the report is generated.")
         self.report_view.setReadOnly(True)
-        self.report_view.setStyleSheet(
-            "background-color: #0F1114; border: 1px solid #262A31; "
-            "border-radius: 8px; font-family: 'Consolas', monospace; color: #9AA4B2;"
-        )
         outer.addWidget(self.report_view)
 
+        backups_header = QHBoxLayout()
+        backups_title = QLabel("Recent Backups")
+        backups_title.setObjectName("cardLabel")
+        self.backups_caption = QLabel("")
+        self.backups_caption.setObjectName("mutedLabel")
+        backups_header.addWidget(backups_title)
+        backups_header.addStretch()
+        backups_header.addWidget(self.backups_caption)
+        outer.addLayout(backups_header)
+
+        # Shows both manual ("Backup DB") and automatic backups in the same
+        # list, newest first - this is the easiest way to actually confirm
+        # automatic backups are running rather than just trusting the logs.
+        self.backups_list = QListWidget()
+        self.backups_list.setObjectName("backupsList")
+        self.backups_list.setMaximumHeight(140)
+        outer.addWidget(self.backups_list)
+
         self.refresh()
+
+    def refresh_backup_list(self):
+        try:
+            backups = list_backups()
+        except Exception as exc:
+            log.error(f"Could not list backups: {exc}")
+            backups = []
+
+        self.backups_list.clear()
+        if not backups:
+            self.backups_caption.setText("No backups yet")
+            item = QListWidgetItem("No backups yet - click \"Backup DB\" or wait for the automatic backup.")
+            self.backups_list.addItem(item)
+            return
+
+        self.backups_caption.setText(f"{len(backups)} backup(s)")
+        for entry in backups:
+            item = QListWidgetItem(f"{entry['date']}   {entry['name']}   ({entry['size_mb']})")
+            self.backups_list.addItem(item)
 
     def refresh(self):
         try:
@@ -88,6 +124,7 @@ class ReportsPage(QWidget):
             log.error(f"Could not generate statistics report: {exc}")
             report_text = "Unable to generate the report. Please check the application logs for more information."
         self.report_view.setPlainText(report_text)
+        self.refresh_backup_list()
 
     def refresh_report(self):
         self.refresh()
@@ -126,6 +163,7 @@ class ReportsPage(QWidget):
         ok, msg, path = backup_database()
         if ok:
             QMessageBox.information(self, "Backup", msg)
+            self.refresh_backup_list()
         else:
             QMessageBox.critical(self, "Backup failed", msg)
 

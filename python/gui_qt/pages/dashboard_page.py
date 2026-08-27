@@ -59,27 +59,20 @@ class DashboardPage(QWidget):
         self.activity_list = QListWidget()
         self.activity_list.setObjectName("recentActivityList")
         self.activity_list.setFocusPolicy(Qt.NoFocus)
-        self.activity_list.setStyleSheet(
-            "QListWidget { background-color: transparent; border: none; }"
-            "QListWidget::item { padding: 6px 2px; border-bottom: 1px solid #22262D; color: #D4D9E0; }"
-        )
         self.activity_list.setMinimumHeight(220)
         activity_layout.addWidget(self.activity_list)
 
         self.activity_empty_label = QLabel("No attendance activity has been recorded today yet.")
+        self.activity_empty_label.setObjectName("mutedLabel")
         self.activity_empty_label.setWordWrap(True)
-        self.activity_empty_label.setStyleSheet("color: #D4D9E0; line-height: 1.4;")
         self.activity_empty_label.setVisible(False)
         activity_layout.addWidget(self.activity_empty_label)
 
         self.activity_fallback_label = QLabel(
             "No scans recorded today yet — showing the most recent activity instead."
         )
+        self.activity_fallback_label.setObjectName("warningBanner")
         self.activity_fallback_label.setWordWrap(True)
-        self.activity_fallback_label.setStyleSheet(
-            "color: #F5B942; background-color: #2A2410; border: 1px solid #4A3F1A; "
-            "border-radius: 6px; padding: 6px 10px;"
-        )
         self.activity_fallback_label.setVisible(False)
         activity_layout.addWidget(self.activity_fallback_label)
 

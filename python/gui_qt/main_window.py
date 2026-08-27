@@ -4,7 +4,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 
 import threading
 from core.commands import cmd_scan, cmd_stop
@@ -19,7 +19,7 @@ from gui_qt.pages.settings_page import SettingsPage
 from gui_qt.workers.serial_worker import SerialWorker
 from gui_qt.workers.connection_worker import ConnectionWorker
 
-from core.database import init_database
+from core.database import init_database, auto_backup_if_needed
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
 from config import get_default_com_port, get_config
@@ -46,6 +46,24 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(860, 560)
 
         init_database()
+
+        # Automatic backups: back up on startup if the last one is stale,
+        # then keep checking periodically while the app runs. The DB is
+        # small (a school's worth of students/attendance), so this runs
+        # synchronously on the GUI thread rather than needing a dedicated
+        # worker - if that ever changes (much larger DB), this should move
+        # to a background thread instead. auto_backup_if_needed() never
+        # raises, so this can't interrupt startup even if backups are
+        # failing for some reason (disk full, permissions, etc.).
+        AUTO_BACKUP_INTERVAL_MINUTES = 25
+        self._auto_backup_interval_hours = AUTO_BACKUP_INTERVAL_MINUTES / 60.0
+        QTimer.singleShot(2000, self._run_auto_backup_check)
+        self._auto_backup_timer = QTimer(self)
+        self._auto_backup_timer.timeout.connect(self._run_auto_backup_check)
+        # Re-check at 1/5th of the actual interval so a backup fires close
+        # to its due time instead of drifting - checking is cheap, and a
+        # missed check just gets caught on the next one either way.
+        self._auto_backup_timer.start(int(AUTO_BACKUP_INTERVAL_MINUTES * 60 * 1000 / 5))
 
         self.settings = load_settings()
         self.serial_handler = SerialHandler()
@@ -185,6 +203,13 @@ class MainWindow(QMainWindow):
         # "Auto-discover ESP32 on startup" checkbox only controls whether
         # that manual Connect click searches all ports (auto_detect=True)
         # or sticks to the saved port, same as before.
+
+    def _run_auto_backup_check(self):
+        path = auto_backup_if_needed(min_interval_hours=self._auto_backup_interval_hours)
+        if path:
+            LOG.info("Automatic backup created: %s", path)
+            if hasattr(self, "reports_page") and hasattr(self.reports_page, "refresh_backup_list"):
+                self.reports_page.refresh_backup_list()
 
     def switch_page(self, key: str):
         self.stack.setCurrentWidget(self._pages[key])
