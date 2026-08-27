@@ -1,3 +1,5 @@
+"""Smoke-test imports and startup prerequisites for the Qt GUI."""
+
 from pathlib import Path
 import sys
 

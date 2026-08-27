@@ -54,3 +54,4 @@ firmware/**/build-*/
 *.tmp
 *.bak
 *.swp
+list.txt

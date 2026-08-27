@@ -22,7 +22,7 @@ This security audit identified **15 vulnerabilities** across the fingerprint att
 
 ### 1. **Shell Injection via subprocess.Popen with shell=True**
 
-**Location:** [python/gui/serial_troubleshooting.py](python/gui/serial_troubleshooting.py#L50)
+**Location:** [python/gui/serial_troubleshooting.py](../python/gui/serial_troubleshooting.py#L50)
 
 **Severity:** CRITICAL
 
@@ -58,7 +58,7 @@ def open_driver_help() -> None:
 
 ### 2. **Path Traversal in Database Restore Function**
 
-**Location:** [python/core/database.py](python/core/database.py#L807-L817)
+**Location:** [python/core/database.py](../python/core/database.py#L807-L817)
 
 **Severity:** CRITICAL
 
@@ -131,7 +131,7 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
 
 ### 3. **Insecure Dynamic Module Loading**
 
-**Location:** [python/gui/legacy/reports_table_page.py](python/gui/legacy/reports_table_page.py#L12-L28)
+**Location:** [python/gui/legacy/reports_table_page.py](../python/gui/legacy/reports_table_page.py#L12-L28)
 
 **Severity:** CRITICAL
 
@@ -210,7 +210,7 @@ except Exception as exc:
 
 ### 4. **Weak Client-Side Authorization Model**
 
-**Location:** [python/config.py](python/config.py#L36-L48), [python/gui/app.py](python/gui/app.py#L136), [python/gui/app.py](python/gui/app.py#L289-L291)
+**Location:** [python/config.py](../python/config.py#L36-L48), [python/gui/app.py](../python/gui/app.py#L136), [python/gui/app.py](../python/gui/app.py#L289-L291)
 
 **Severity:** HIGH
 
@@ -289,7 +289,7 @@ class AuthService:
 
 ### 5. **Missing Input Validation on Student Data**
 
-**Location:** [python/core/database.py](python/core/database.py#L178-L206), [python/services/student_service.py](python/services/student_service.py#L10)
+**Location:** [python/core/database.py](../python/core/database.py#L178-L206), [python/services/student_service.py](../python/services/student_service.py#L10)
 
 **Severity:** HIGH
 
@@ -389,7 +389,7 @@ def add_student(
 
 ### 6. **Improper Exception Handling with Information Disclosure**
 
-**Location:** Multiple files - [python/core/database.py](python/core/database.py#L807-L817), [python/gui/reports_page.py](python/gui/reports_page.py#L46-L71)
+**Location:** Multiple files - [python/core/database.py](../python/core/database.py#L807-L817), [python/gui/reports_page.py](../python/gui/reports_page.py#L46-L71)
 
 **Severity:** HIGH
 
@@ -443,7 +443,7 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
 
 ### 7. **Race Condition in Wipe Operation**
 
-**Location:** [python/gui/app.py](python/gui/app.py#L113-L125)
+**Location:** [python/gui/app.py](../python/gui/app.py#L113-L125)
 
 **Severity:** HIGH
 
@@ -510,7 +510,7 @@ class FingerprintApp(ctk.CTk):
 
 ### 8. **SQL Injection Risk in Dynamic Query Building**
 
-**Location:** [python/core/database.py](python/core/database.py#L390-L416)
+**Location:** [python/core/database.py](../python/core/database.py#L390-L416)
 
 **Severity:** MEDIUM
 
@@ -562,7 +562,7 @@ def get_daily_attendance_summary(
 
 ### 9. **Hardcoded Database Path Without Access Control**
 
-**Location:** [python/config.py](python/config.py#L23-L28), [python/core/database.py](python/core/database.py#L15-L16)
+**Location:** [python/config.py](../python/config.py#L23-L28), [python/core/database.py](../python/core/database.py#L15-L16)
 
 **Severity:** MEDIUM
 
@@ -624,7 +624,7 @@ class AuditedDatabaseAccess:
 
 ### 10. **Backup Files Not Encrypted**
 
-**Location:** [python/core/database.py](python/core/database.py#L790-L805)
+**Location:** [python/core/database.py](../python/core/database.py#L790-L805)
 
 **Severity:** MEDIUM
 
@@ -694,7 +694,7 @@ def backup_database_encrypted() -> Tuple[bool, str, Optional[str]]:
 
 ### 11. **Missing Validation on Port and Baud Rate**
 
-**Location:** [python/gui/app.py](python/gui/app.py#L380-L390)
+**Location:** [python/gui/app.py](../python/gui/app.py#L380-L390)
 
 **Severity:** MEDIUM
 
@@ -764,7 +764,7 @@ def _get_selected_port(self) -> str:
 
 ### 12. **Bare Except Clauses Hiding Errors**
 
-**Location:** Multiple locations - [python/gui/app.py](python/gui/app.py#L97), [python/core/device_discovery.py](python/core/device_discovery.py#L160)
+**Location:** Multiple locations - [python/gui/app.py](../python/gui/app.py#L97), [python/core/device_discovery.py](../python/core/device_discovery.py#L160)
 
 **Severity:** MEDIUM
 
@@ -803,7 +803,7 @@ except Exception as exc:
 
 ### 13. **Serial Port Connection Not Properly Closed on Error**
 
-**Location:** [python/core/serial_handler.py](python/core/serial_handler.py#L150-L175)
+**Location:** [python/core/serial_handler.py](../python/core/serial_handler.py#L150-L175)
 
 **Severity:** MEDIUM
 
@@ -874,7 +874,7 @@ def connect(self, port: str = "", baud: int = 115200) -> Tuple[bool, str]:
 
 ### 14. **Settings File Not Protected from Tampering**
 
-**Location:** [python/settings_store.py](python/settings_store.py#L42-L64)
+**Location:** [python/settings_store.py](../python/settings_store.py#L42-L64)
 
 **Severity:** MEDIUM
 
@@ -979,7 +979,7 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
 
 ### 15. **Weak Fingerprint ID Validation**
 
-**Location:** [python/core/database.py](python/core/database.py#L178), [python/core/commands.py](python/core/commands.py#L18)
+**Location:** [python/core/database.py](../python/core/database.py#L178), [python/core/commands.py](../python/core/commands.py#L18)
 
 **Severity:** LOW
 

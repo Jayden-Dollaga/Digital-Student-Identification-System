@@ -1,4 +1,5 @@
 @echo off
+REM Build the active Qt interface into dist\DSIS with PyInstaller.
 setlocal
 cd /d "%~dp0"
 

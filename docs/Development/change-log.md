@@ -8,12 +8,15 @@ Unreleased — verified 2026-08-28
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
 - Feat: Added non-blocking connection handling and improved enrollment logging (`8aef42a`, `f06a7af`).
 - Feat: Added fingerprint count listing and improved reconnect handling (`c625016`).
-- Feat: Completed security remediation for critical and high-severity findings (`7baf383`).
+- Feat: Completed remediation for the audited critical findings and student-input validation (`7baf383`); additional security work remains open below.
 - Feat: Added role-based permissions, attendance tagging, and enrollment-flow coverage (`e030bbb`, `d2109e6`).
 - Feat: Improved Unicode student-name validation and serial handshake reliability (`f593f89`, `4f670ca`).
 - Feat: Captured the full ESP32 boot banner and improved connection handling (`3f18256`).
 - Feat: Added heartbeat diagnostics and automatic database backups (`dbd3fa5`, `2721003`).
 - UI: Enhanced dialog/message-box styling for consistent themes (`4812777`).
+- Investigation: Enrollment dialog and SerialWorker integration were verified with a Qt event loop; the resolved report is preserved in `docs/Dup/historical-investigations/`.
+- Maintenance: The historical repository-organization audit is preserved in `docs/Dup/maintenance-audits/`; Qt remains the active UI and CustomTkinter remains compatibility code.
+- Security follow-up: Information-disclosure paths outside database restore, wipe-operation correlation, function-level authorization enforcement, backup encryption, and database access auditing remain to be verified or implemented.
 
 v2.4 — 2026-07-17
 -----------------

@@ -1,3 +1,5 @@
+"""Historical widget helpers retained for reference."""
+
 import customtkinter as ctk
 
 from gui.theme import get_theme_colors

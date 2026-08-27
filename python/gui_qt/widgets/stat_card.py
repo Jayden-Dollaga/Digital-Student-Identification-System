@@ -1,3 +1,5 @@
+"""Reusable statistic card widget for the DSIS Qt dashboard and pages."""
+
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 

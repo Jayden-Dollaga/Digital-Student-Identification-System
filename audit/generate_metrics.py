@@ -1,3 +1,5 @@
+"""Generate source-code line metrics and write reports under ``audit/`` and ``docs/``."""
+
 import ast
 import csv
 import io

@@ -1,4 +1,10 @@
 /************************************************************************************
+ * HISTORICAL COMPATIBILITY SKETCH
+ * The actively maintained host workflow uses firmware/ESP32_Fingerprint_AllInOne/
+ * and run_qt_gui.py. This sketch is retained for reference and older deployments.
+ ************************************************************************************/
+
+/************************************************************************************
  *  AS608 Fingerprint - Attendance Scanner (Phase 1 Final)
  *  ESP32 WROOM-32 with Screw Terminal Shield
  *

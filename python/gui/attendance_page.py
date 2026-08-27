@@ -1,3 +1,5 @@
+"""CustomTkinter attendance page backed by the attendance and student services."""
+
 import customtkinter as ctk
 
 from core.utils import format_attendance_display

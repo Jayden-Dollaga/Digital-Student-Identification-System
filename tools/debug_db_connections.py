@@ -1,3 +1,5 @@
+"""Inspect database connection behavior during troubleshooting."""
+
 import sqlite3
 import sys
 from pathlib import Path

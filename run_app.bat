@@ -1,5 +1,5 @@
 @echo off
-REM run_app.bat - launches the desktop GUI app
+REM Compatibility launcher for the legacy Python workflow; use run_qt_gui.bat for the active Qt UI.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 

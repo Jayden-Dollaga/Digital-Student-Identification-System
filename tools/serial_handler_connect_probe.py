@@ -1,3 +1,5 @@
+"""Probe SerialHandler connection behavior for serial diagnostics."""
+
 import os
 import sys
 import time

@@ -1,3 +1,5 @@
+"""Color and theme helpers for the compatibility CustomTkinter UI."""
+
 import customtkinter as ctk
 
 # Centralized theme helpers

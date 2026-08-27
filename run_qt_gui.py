@@ -1,3 +1,5 @@
+"""Launch the active PySide6 DSIS interface from the repository root."""
+
 import sys
 from pathlib import Path
 

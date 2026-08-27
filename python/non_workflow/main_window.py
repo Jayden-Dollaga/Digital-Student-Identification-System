@@ -1,3 +1,5 @@
+"""Historical non-workflow window retained outside the active Qt path."""
+
 """Compatibility wrapper exposing the current GUI application."""
 
 from gui.app import FingerprintApp, main

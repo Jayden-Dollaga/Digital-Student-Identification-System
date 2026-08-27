@@ -1,3 +1,5 @@
+"""Probe SerialWorker message handling during hardware diagnostics."""
+
 import os
 import sys
 import time

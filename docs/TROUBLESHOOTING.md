@@ -186,6 +186,6 @@ for port in ports:
 ### Related Issues
 
 - **No ports enumerated**: Check if pyserial is installed (`pip install pyserial`)
-- **Connects but then disconnects**: See [RECONNECT_HANDLING.md](./docs/RECONNECT_HANDLING.md)
+- **Connects but then disconnects**: See [serial protocol](generated/SERIAL_PROTOCOL.md) and check the connection settings.
 - **Wrong port selected**: Settings are stored in `data/settings.json` — delete to reset
 - **Multiple COM8 entries in Device Manager**: See section "Check for Driver Conflicts" above

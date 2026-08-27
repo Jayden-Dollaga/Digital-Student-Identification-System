@@ -1,3 +1,5 @@
+"""CustomTkinter live-log tab builder used by the compatibility interface."""
+
 import customtkinter as ctk
 
 

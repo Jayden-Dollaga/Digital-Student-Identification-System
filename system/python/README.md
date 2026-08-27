@@ -5,4 +5,4 @@ Place an official Python embeddable/portable distribution here so the interprete
 - Windows: `system/python/python.exe`
 - POSIX: `system/python/python`
 
-Do NOT commit the interpreter binaries to the repository. See `docs/development/PORTABLE_PYTHON.md` for usage and instructions.
+Do NOT commit the interpreter binaries to the repository. See [docs/Development/PORTABLE_PYTHON.md](../../docs/Development/PORTABLE_PYTHON.md) for usage and instructions.

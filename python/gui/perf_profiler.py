@@ -1,3 +1,5 @@
+"""Small optional profiler for timing CustomTkinter UI operations."""
+
 import time
 from collections import defaultdict
 

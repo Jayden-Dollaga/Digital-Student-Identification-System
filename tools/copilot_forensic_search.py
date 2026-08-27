@@ -1,3 +1,5 @@
+"""Collect repository evidence for forensic documentation audits."""
+
 from pathlib import Path
 import os
 

@@ -21,6 +21,18 @@ dist\DSIS\DSIS.exe
 The spec packages `run_qt_gui.py`, the Qt stylesheets, and the declared hidden
 imports. It excludes the legacy CustomTkinter modules from this build.
 
+## Historical Portable Workflow
+
+The repository also retains `tools/build_portable.bat` and
+`tools/fingerprint_portable.spec`. That workflow packages the older
+CustomTkinter application and should be treated as compatibility tooling, not as
+the supported Qt release build. `tools/portable_bootstrap.bat` installs the
+requirements used by that portable setup.
+
+Use the Qt workflow above for current releases. Use the historical workflow only
+when reproducing an older deployment, and verify its output on a disposable test
+machine.
+
 ## Validation
 
 Before distributing a build:

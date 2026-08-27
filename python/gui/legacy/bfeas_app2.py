@@ -1,3 +1,5 @@
+"""Legacy compatibility application retained for historical deployments."""
+
 import runpy
 import sys
 from pathlib import Path

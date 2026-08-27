@@ -1,3 +1,5 @@
+"""Maintenance utility for identifying Python files eligible for archival review."""
+
 from pathlib import Path
 import shutil
 

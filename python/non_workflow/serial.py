@@ -1,3 +1,5 @@
+"""Historical serial compatibility module outside the active workflow."""
+
 # Lightweight shim for environments without pyserial installed.
 # Prefer real pyserial when available.
 try:
