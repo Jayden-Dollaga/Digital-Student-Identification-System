@@ -1,24 +1,25 @@
-Documentation Index
-===================
+# Documentation Index
 
-This repository's `docs/` folder is now organized into explicit categories.
-The previously stray root files have been consolidated, and duplicate
-root images have been preserved in `docs/Dup/`.
+Use this page to find maintained guidance and clearly labeled historical or generated material.
 
-Top-level sections
-------------------
+## Top-level sections
 
 - [Architecture](Architecture/architecture.md)
+- [Database schema](Architecture/database-schema.md)
 - [Hardware](Hardware/hardware-connections.md)
-- [UserGuide](UserGuide/project-overview.md)
-- [Development](Development/change-log.md)
+- [User guide](UserGuide/project-overview.md)
+- [Installation](UserGuide/installation-guide.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Development changelog](Development/change-log.md)
+- [Development TODO](Development/todo.md)
 - [Research](Research/)
+- [Concept paper](Research/DSIS_CONCEPT_PAPER.md)
+- [Concept paper source notes](Research/DSIS_CONCEPT_PAPER_SOURCE_NOTES.md)
 - [API](API/)
 - [Generated Audit](generated/INDEX.md)
 - [Duplicates](Dup/README.md)
 
-Current folder purpose
-----------------------
+## Current folder purpose
 
 - `Architecture/` — system design, data flow, and architecture documentation.
 - `Hardware/` — wiring and physical connection documentation.
@@ -29,17 +30,15 @@ Current folder purpose
 - `generated/` — automatically generated audit reports and repository analysis.
 - `Dup/` — preserved duplicate files from the legacy docs root.
 
-Duplicate handling
-------------------
+## Duplicate handling
 
-Duplicate screenshot files that existed both at the `docs/` root and under
-`docs/UserGuide/images/` have been moved into `docs/Dup/` to preserve the
-original root copies for review. The canonical copies remain in their
-category folders.
+Confirmed duplicate screenshots are preserved in `Dup/duplicate-screenshots/`.
+The canonical copies remain in `UserGuide/images/`.
 
-Notes
------
+## Notes
 
-- `docs/Dup/` now stores duplicate legacy artifacts so duplicate cleanup is traceable.
-- `docs/README.md` explains the current folder organization.
-- `docs/INDEX.md` is the primary entry point for docs navigation.
+- `docs/Dup/` stores duplicate and superseded artifacts so cleanup is traceable.
+- `docs/README.md` gives the short orientation page.
+- This file is the primary documentation entry point.
+
+Last verified: 2026-08-28, against commit 3119175

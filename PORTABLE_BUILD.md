@@ -1,30 +1,35 @@
-# Portable build plan
+# Portable Windows Build
 
-## Goal
+The current packaging workflow uses PyInstaller for the Qt interface. The
+specification is [DSIS.spec](DSIS.spec), and the build launcher is
+[build_exe.bat](build_exe.bat).
 
-Build a portable Windows deployment that can run on another computer without requiring a separate Python installation.
+## Build
 
-## Current approach
+From the repository root, run:
 
-1. Use PyInstaller to package the GUI entry point.
-2. Bundle the application files and data folders into a single folder.
-3. Keep a bootstrap script for machines that still need dependencies.
-4. Prefer the Qt launcher at the repository root for modern testing workflows.
-5. Test the build from a USB drive on a clean Windows machine.
+```text
+build_exe.bat
+```
 
-## Planned steps
+The script invokes PyInstaller with `DSIS.spec` and writes the executable to:
 
-- Add a PyInstaller spec file.
-- Package the GUI entry point from python/gui/app.py.
-- Include the data folder and required assets.
-- Use `tools\build_portable.bat` to build the distributable.
-- Verify startup on a clean Windows machine.
-- Keep a rollback copy of the last working build.
+```text
+dist\DSIS\DSIS.exe
+```
 
-## Build steps
+The spec packages `run_qt_gui.py`, the Qt stylesheets, and the declared hidden
+imports. It excludes the legacy CustomTkinter modules from this build.
 
-1. Open a command prompt.
-2. Run `tools\build_portable.bat`.
-3. After a successful build, launch the app from `dist\portable\FingerprintAttendanceSystem`.
-4. For a quick local smoke test, use `python run_qt_gui.py` from the repository root before packaging.
-5. Test on another PC without a Python installation.
+## Validation
+
+Before distributing a build:
+
+1. Run `python run_qt_gui.py` from the repository root as a source launch smoke test.
+2. Run `build_exe.bat` and confirm `dist\DSIS\DSIS.exe` exists.
+3. Test the executable on a clean Windows machine or USB copy.
+4. Confirm serial connection, enrollment, attendance, and database access.
+
+Clean-machine and USB validation have not been recorded in this document.
+
+Last verified: 2026-08-28, against commit 3119175

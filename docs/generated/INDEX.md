@@ -2,6 +2,16 @@
 
 This folder contains audit artifacts generated from the repository analysis.
 
+`CODE_METRICS.md` and `CODE_METRICS.csv` can be regenerated with:
+
+```text
+python audit/generate_metrics.py
+```
+
+The remaining reports are point-in-time audit outputs. Their generating command
+is not currently recorded in the repository and should be verified before being
+regenerated.
+
 - `PROJECT_OVERVIEW.md` — summary of project purpose, architecture, workflows, and user scenarios.
 - `ARCHITECTURE.md` — component-level architecture audit and service responsibilities.
 - `FIRMWARE.md` — detailed firmware sketch behavior, command set, and serial output.
@@ -11,3 +21,6 @@ This folder contains audit artifacts generated from the repository analysis.
 - `TESTING.md` — testing coverage areas and notable regression test files.
 - `REPOSITORY_AUDIT.md` — high-level repository structure, existing docs, and recommendations.
 - `FILE_INVENTORY.md` — complete file inventory for the repository, including generated and existing documentation.
+- `PROJECT_FORENSIC_AUDIT.md` — point-in-time forensic audit of repository structure and project history.
+
+Last verified: 2026-08-28, against commit 3119175

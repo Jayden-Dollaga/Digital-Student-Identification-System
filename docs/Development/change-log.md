@@ -1,6 +1,20 @@
 Change Log
 ==========
 
+Unreleased — verified 2026-08-28
+--------------------------------
+
+- Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`a1fdbb4`).
+- Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
+- Feat: Added non-blocking connection handling and improved enrollment logging (`8aef42a`, `f06a7af`).
+- Feat: Added fingerprint count listing and improved reconnect handling (`c625016`).
+- Feat: Completed security remediation for critical and high-severity findings (`7baf383`).
+- Feat: Added role-based permissions, attendance tagging, and enrollment-flow coverage (`e030bbb`, `d2109e6`).
+- Feat: Improved Unicode student-name validation and serial handshake reliability (`f593f89`, `4f670ca`).
+- Feat: Captured the full ESP32 boot banner and improved connection handling (`3f18256`).
+- Feat: Added heartbeat diagnostics and automatic database backups (`dbd3fa5`, `2721003`).
+- UI: Enhanced dialog/message-box styling for consistent themes (`4812777`).
+
 v2.4 — 2026-07-17
 -----------------
 
@@ -66,3 +80,5 @@ v1.0 — Initial release
 
 Notes
 -----
+
+Last verified: 2026-08-28, against commit 3119175

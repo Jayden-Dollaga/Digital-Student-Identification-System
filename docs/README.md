@@ -1,21 +1,15 @@
-Project documentation repository
-===============================
+# DSIS Documentation
 
-This `docs/` folder is organized by documentation category and purpose.
-It is intentionally separated into:
+The documentation is organized by audience and purpose. Start with the
+[full documentation index](INDEX.md).
 
-- `Architecture/` – system architecture, data flow, and database design.
-- `Hardware/` – wiring, hardware connections, and physical component references.
-- `UserGuide/` – installation, user instructions, and manual testing results.
-- `Development/` – developer notes, change logs, implementation details, and project tracking.
-- `API/` – API or interface documentation (currently empty, reserved for future references).
-- `Research/` – design notes, research findings, and exploratory documentation.
-- `generated/` – audit reports and automatically generated documentation artifacts.
-- `Dup/` – preserved duplicate files from the legacy docs root.
+- `Architecture/` contains system, flow, and database documentation.
+- `Hardware/` contains wiring and physical connection documentation.
+- `UserGuide/` contains installation, usage, and validation guidance.
+- `Development/` contains changelog, implementation, logging, and tracking documents.
+- `generated/` contains point-in-time audit outputs and other generated reports.
+- `Dup/` contains preserved duplicates and superseded artifacts; files are never silently deleted.
 
-Duplicate artifacts are preserved in `docs/Dup/` rather than being removed silently.
-This ensures original source copies remain available in their intended folders while
-root duplicates are grouped for review.
+Research and API folders are reserved for their respective material.
 
-If you add new documentation files, place them in the folder whose name best describes
-their domain, and update `docs/INDEX.md` if you add a new top-level category.
+Last verified: 2026-08-28, against commit 3119175
