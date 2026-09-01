@@ -195,6 +195,39 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
     keep_open = False
     buffered_lines = []  # Store non-JSON lines encountered during probe
 
+    def _accept_handshake(metadata):
+        """Common path once a valid handshake JSON has been found, whether
+        it arrived unprompted during boot or as a reply to the ID? command
+        sent later. Keeps draining for a short grace window (or until READY
+        shows up) so trailing boot text lands in buffered_lines too - see
+        the note below on why this used to cut that text off.
+        """
+        nonlocal keep_open
+        keep_open = True
+        trailing_deadline = time.time() + 1.5
+        while time.time() < trailing_deadline:
+            try:
+                trailing_raw = cable.readline()
+            except Exception as trailing_exc:
+                log.debug("Exception reading trailing boot line", error=str(trailing_exc))
+                break
+            if not trailing_raw:
+                continue
+            try:
+                trailing_line = trailing_raw.decode("utf-8", errors="ignore").strip()
+            except Exception:
+                continue
+            if not trailing_line:
+                continue
+            buffered_lines.append(trailing_line)
+            log.debug("Probe: captured trailing boot line", line=trailing_line[:60])
+            trailing_meta = _parse_json_line(trailing_line)
+            if trailing_meta and str(trailing_meta.get("state", "")).upper() == "READY":
+                break
+
+        cable._probe_buffered_lines = buffered_lines
+        return True, cable, metadata, "OK"
+
     try:
         # IMPORTANT: pyserial defaults dtr/rts to True and asserts them the
         # moment the port opens. On ESP32 boards that edge triggers the
@@ -233,6 +266,35 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
                     if raw:
                         line = raw.decode("utf-8", errors="ignore").strip()
                         if line:
+                            # ROOT-CAUSE FIX: this firmware prints its identity
+                            # JSON unprompted, immediately at boot - *before*
+                            # it initializes the AS608 sensor. If sensor init
+                            # then fails (bad wiring, sensor unpowered, loose
+                            # connector), the firmware drops into an infinite
+                            # loop and never reads serial input again, so it
+                            # will never reply to the ID? handshake sent
+                            # further down - even though it already announced
+                            # exactly what device this is moments earlier.
+                            # This boot-read pass used to only store lines as
+                            # raw text without ever checking them for a valid
+                            # handshake, so a device stuck after a sensor
+                            # error always looked like "no handshake
+                            # response" here even though it was reachable and
+                            # identifiable. Check every boot line as it
+                            # arrives, not just the eventual reply to our own
+                            # command.
+                            metadata = _parse_json_line(line)
+                            if metadata is not None:
+                                valid, reason = _validate_handshake(metadata)
+                                if valid:
+                                    log.info(
+                                        "Probe: found handshake in unprompted boot output",
+                                        port=port,
+                                    )
+                                    return _accept_handshake(metadata)
+                                # Recognized JSON but it failed validation -
+                                # fall through and keep it as boot text like
+                                # anything else non-matching.
                             buffered_lines.append(line)
                             log.debug("Probe: captured boot line", line=line[:60])
                 except Exception as read_exc:
@@ -296,42 +358,7 @@ def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[An
             # Found handshake JSON
             valid, reason = _validate_handshake(metadata)
             if valid:
-                keep_open = True
-
-                # BUG FIX: this used to return the instant valid JSON was
-                # seen. But this firmware prints its identity JSON *first*,
-                # then "Sensor found!", "Stored fingerprints: N", the full
-                # command list, and finally "READY" - all of that trailing
-                # boot text was getting thrown away because the function
-                # returned before it ever arrived, which is why the Serial
-                # Monitor only ever showed a partial banner. Keep draining
-                # for a short grace window (or until we see the READY
-                # status, whichever comes first) so the rest gets captured
-                # into buffered_lines too.
-                trailing_deadline = time.time() + 1.5
-                while time.time() < trailing_deadline:
-                    try:
-                        trailing_raw = cable.readline()
-                    except Exception as trailing_exc:
-                        log.debug("Exception reading trailing boot line", error=str(trailing_exc))
-                        break
-                    if not trailing_raw:
-                        continue
-                    try:
-                        trailing_line = trailing_raw.decode("utf-8", errors="ignore").strip()
-                    except Exception:
-                        continue
-                    if not trailing_line:
-                        continue
-                    buffered_lines.append(trailing_line)
-                    log.debug("Probe: captured trailing boot line", line=trailing_line[:60])
-                    trailing_meta = _parse_json_line(trailing_line)
-                    if trailing_meta and str(trailing_meta.get("state", "")).upper() == "READY":
-                        break
-
-                # Attach buffered lines to the cable object so SerialHandler can retrieve them
-                cable._probe_buffered_lines = buffered_lines
-                return True, cable, metadata, "OK"
+                return _accept_handshake(metadata)
             return False, None, None, f"handshake rejected: {reason}"
 
         return False, None, None, "no handshake response"
