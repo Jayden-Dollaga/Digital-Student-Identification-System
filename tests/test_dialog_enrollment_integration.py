@@ -2,11 +2,29 @@
 """
 Full integration test simulating the exact GUI enrollment flow.
 Creates a real EnrollDialog, shows it, and verifies enrollment signal.
+
+This is a hardware-in-the-loop test: it needs an actual ESP32 plugged in
+to mean anything, and serial_handler.connect() does real port discovery
+with no hard upper bound on how long that can take in every failure mode.
+Under pytest (no hardware, running alongside other Qt tests) that used to
+either crash on a duplicate QApplication or hang indefinitely - neither of
+which is an acceptable outcome for an automated suite. It now skips
+cleanly and fast unless a real serial port is actually present AND
+DSIS_RUN_HARDWARE_TESTS=1 is set, so a normal `pytest` run never touches
+hardware-dependent code at all.
+
+To actually run this against real hardware:
+    DSIS_RUN_HARDWARE_TESTS=1 python -m pytest tests/test_dialog_enrollment_integration.py -v -s
+or simply:
+    python tests/test_dialog_enrollment_integration.py
 """
 
+import os
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
@@ -22,14 +40,48 @@ from gui_qt.pages.students_page import EnrollDialog
 from core.logger import log
 
 
+def _any_serial_port_present() -> bool:
+    """Cheap, non-blocking check - just enumerates what the OS already
+    knows about, never opens a port. Not proof an ESP32 is attached (could
+    be some other serial device, or a stale entry), but a fast, safe way
+    to rule out the common case of "nothing plugged in at all" before
+    considering the slower, blocking discovery path."""
+    try:
+        from serial.tools import list_ports
+        return len(list(list_ports.comports())) > 0
+    except Exception:
+        return False
+
+
+def _skip_or_fail(reason: str) -> bool:
+    """pytest.skip() when actually running under pytest (so it's reported
+    as skipped, not passed or failed); a clean printed message + False
+    return when run as a standalone script instead, since pytest.skip()
+    raises an exception type that a plain script isn't set up to catch."""
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        pytest.skip(reason)
+    print(f"   [SKIP] {reason}")
+    return False
+
+
+@pytest.mark.skipif(
+    os.environ.get("DSIS_RUN_HARDWARE_TESTS") != "1",
+    reason=(
+        "Hardware-in-the-loop test - needs a real ESP32 and explicit opt-in. "
+        "Run with DSIS_RUN_HARDWARE_TESTS=1 to include it."
+    ),
+)
 def test_enrollment_dialog_in_gui():
     """Test enrollment with real dialog and Qt event loop."""
-    
+
+    if not _any_serial_port_present():
+        return _skip_or_fail("No serial ports detected on this machine - nothing to test against.")
+
     print("=" * 70)
     print("FULL GUI ENROLLMENT INTEGRATION TEST")
     print("=" * 70)
-    
-    app = QApplication(sys.argv)
+
+    app = QApplication.instance() or QApplication(sys.argv)
     
     # Create main window just to have something to parent to
     main_window = QMainWindow()
@@ -43,7 +95,7 @@ def test_enrollment_dialog_in_gui():
     
     if not serial_handler.is_connected():
         print("   [FAIL] Not connected")
-        return False
+        return _skip_or_fail("A serial port was detected but no ESP32 responded - nothing to test against.")
     
     print("   [OK] Connected")
     

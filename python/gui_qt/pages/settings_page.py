@@ -421,19 +421,20 @@ class SettingsPage(QWidget):
                 "Unable to open the folder. Please check the application logs for more information.",
             )
 
-    def _get_theme_path(self, theme: str) -> Path:
-        theme_file = "theme_light.qss" if theme.lower() == "light" else "theme.qss"
-        return Path(__file__).resolve().parents[1] / theme_file
-
     def _apply_theme(self, theme: str) -> None:
         app = QApplication.instance()
         if app is None:
             return
-        qss_file = self._get_theme_path(theme)
-        if qss_file.exists():
-            app.setStyleSheet(qss_file.read_text(encoding="utf-8", errors="replace"))
-        else:
-            app.setStyleSheet("")
+        # Delegate to gui_qt.main_qt.apply_theme so a live theme switch from
+        # this page sets the QPalette *and* the QSS together, the same way
+        # startup does. Setting only the stylesheet here (the old behavior)
+        # left the QPalette pinned to whatever it was, which is what let the
+        # OS's light/dark setting bleed back into unstyled widgets after a
+        # switch - the same root cause as the startup theming bug, just
+        # triggered from this page instead of app launch.
+        from gui_qt.main_qt import apply_theme
+
+        apply_theme(app, theme)
 
     def _populate_ports(self):
         self.port_combo.clear()

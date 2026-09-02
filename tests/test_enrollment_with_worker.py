@@ -13,9 +13,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "python"))
 
-# CRITICAL: Create QApplication before using Qt signals
+# CRITICAL: Create QApplication before using Qt signals. Guarded because
+# this file has no test_-prefixed function (pytest won't ever call
+# simulate_enrollment_with_worker() automatically), but pytest still
+# imports every test_*.py file during collection - so an unconditional
+# QApplication(sys.argv) here crashed collection for the *whole suite*
+# whenever another Qt test's QApplication already existed, even though
+# this file was never going to run anything itself.
 from PySide6.QtWidgets import QApplication
-app = QApplication(sys.argv)
+app = QApplication.instance() or QApplication(sys.argv)
 
 from core.serial_handler import SerialHandler
 from core.commands import cmd_enroll, cmd_stop
