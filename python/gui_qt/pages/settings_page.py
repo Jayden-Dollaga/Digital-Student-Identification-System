@@ -115,6 +115,20 @@ class SettingsPage(QWidget):
         self.auto_detect_btn.setObjectName("secondaryButton")
         self.auto_detect_btn.clicked.connect(self._populate_ports)
 
+        # A saved com_port (e.g. from settings.json carried over in a
+        # portable data/ folder to another PC) can go stale and pin the app
+        # to a port that doesn't exist here. connect() now falls back to a
+        # search automatically in that case, but this gives an explicit,
+        # one-click way to clear it without touching the data folder.
+        self.forget_port_btn = QPushButton("Forget saved port")
+        self.forget_port_btn.setObjectName("secondaryButton")
+        self.forget_port_btn.setToolTip(
+            "Clear the saved port override and let the app auto-detect the ESP32 again. "
+            "Use this if the app was pinned to a port from another PC (e.g. a portable "
+            "install carried between machines)."
+        )
+        self.forget_port_btn.clicked.connect(self._forget_saved_port)
+
         self.baud_combo = QComboBox()
         self.baud_combo.addItems([str(b) for b in CONFIG.baud_rates])
         saved_baud = str(self.settings.get("baud_rate", CONFIG.baud_rate))
@@ -130,6 +144,7 @@ class SettingsPage(QWidget):
         port_controls = QHBoxLayout()
         port_controls.addWidget(self.port_count_label)
         port_controls.addStretch()
+        port_controls.addWidget(self.forget_port_btn)
         port_controls.addWidget(self.auto_detect_btn)
 
         override_hint = QLabel(
@@ -451,6 +466,34 @@ class SettingsPage(QWidget):
             )
 
         self.port_count_label.setText(f"Devices found: {len(found_devices)}")
+
+    def _forget_saved_port(self) -> None:
+        """Clear any saved COM port override and re-enable auto-discovery.
+
+        This is the explicit fix for a stale com_port in settings.json
+        (most commonly from a portable data/ folder that was carried over
+        from a different PC). Previously the only way to clear this was to
+        delete the whole data/ folder, which also wipes students, logs,
+        and every other setting - this only touches the port.
+        """
+        self.settings["com_port"] = ""
+        self.auto_detect_serial.setChecked(True)
+        self.settings["auto_detect_serial"] = True
+        save_settings(self.settings)
+        self._populate_ports()
+
+        if self.on_connection_settings_changed:
+            self.on_connection_settings_changed(
+                "",
+                int(self.baud_combo.currentText()),
+                auto_detect=True,
+            )
+
+        QMessageBox.information(
+            self,
+            "Port Forgotten",
+            "Saved port override cleared. The app will auto-detect the ESP32 on next connect.",
+        )
 
     def on_save(self):
         new_port = self.port_combo.currentData() or self.port_combo.currentText().strip()

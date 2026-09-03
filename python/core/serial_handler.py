@@ -137,6 +137,80 @@ class SerialHandler:
                 self.reconnect_port = port
                 self.reconnect_baud = baud
                 self._auto_detect_requested = False
+
+                # Before even trying to open the port, check whether it's
+                # still a real port on this machine. A com_port value saved
+                # in settings.json on one PC (or carried over in a portable
+                # data/ folder) is frequently stale on another - e.g. saved
+                # as "COM4" but this machine enumerates the ESP32 on "COM5".
+                # Previously this went straight to a search=False probe of
+                # the stale port, which fails outright with no recovery
+                # short of the user clearing settings.json by hand. Now we
+                # detect staleness up front and fall back to a real search
+                # so a saved-but-wrong port behaves like "no port saved" on
+                # a new machine, instead of hard-locking the app to it.
+                available_ports = list_serial_ports()
+                cleaned_port = cleanup_stale_port(port, available_ports)
+                if cleaned_port is None:
+                    log.warning(
+                        "Saved COM port not present on this machine; falling back to auto-detect search",
+                        stale_port=port,
+                        available_ports=available_ports,
+                    )
+                    candidate_port, cable, metadata, error = discover_device(
+                        preferred_port=None,
+                        baud=baud,
+                    )
+                    if candidate_port is None:
+                        self.connected = False
+                        self.esp32 = None
+                        if self.auto_reconnect_enabled and self._has_ever_connected:
+                            self._schedule_reconnect()
+                        log.warning(
+                            "SerialHandler.connect() exiting after stale-port fallback search failed",
+                            stale_port=port,
+                            error=error,
+                        )
+                        return False, (
+                            f"Saved port {port} is no longer available on this device, "
+                            f"and no ESP32 was found on any other port: {error}"
+                        )
+
+                    log.info(
+                        "Recovered from stale saved port via auto-detect",
+                        stale_port=port,
+                        found_port=candidate_port,
+                    )
+                    if self.esp32 is not None and getattr(self.esp32, "is_open", False):
+                        try:
+                            self.esp32.close()
+                        except Exception:
+                            pass
+                    self.esp32 = cable
+                    if hasattr(cable, '_probe_buffered_lines'):
+                        self._pending_raw_lines.extend(cable._probe_buffered_lines)
+                    self.esp32.timeout = 0
+                    try:
+                        self.esp32.reset_input_buffer()
+                    except Exception:
+                        pass
+                    try:
+                        self.esp32.reset_output_buffer()
+                    except Exception:
+                        pass
+                    self.connected = True
+                    self._has_ever_connected = True
+                    self.reconnect_port = candidate_port
+                    self.reconnect_baud = baud
+                    self.reconnect_count = 0
+                    self.device_metadata = metadata
+                    log.success(
+                        "Connected to ESP32 via stale-port fallback search",
+                        port=candidate_port,
+                        baud=baud,
+                    )
+                    return True, f"OK (saved port {port} was stale; reconnected on {candidate_port})"
+
                 discovery_port, cable, metadata, discovery_error = discover_device(
                     preferred_port=port,
                     baud=baud,
