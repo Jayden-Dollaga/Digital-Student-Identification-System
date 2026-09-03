@@ -21,6 +21,7 @@ Use this page to find maintained guidance and clearly labeled historical or gene
 - [Database updates](Development/database-updates.md)
 - [Logging guide](Development/logging-guide.md)
 - [Portable Python](Development/PORTABLE_PYTHON.md)
+- [UI prototypes](Development/ui-prototypes.md)
 - [Tools catalog](Development/tools-catalog.md)
 - [Runtime data](Development/runtime-data.md)
 - [Development TODO](Development/todo.md)
@@ -69,4 +70,4 @@ Historical investigation reports retained for review:
 Generated reports are listed in [generated/INDEX.md](generated/INDEX.md). Archived
 copies and one-off reports are listed in [Dup/README.md](Dup/README.md).
 
-Last verified: 2026-09-03, against commit d68a405
+Last verified: 2026-09-04, against commit be7a046

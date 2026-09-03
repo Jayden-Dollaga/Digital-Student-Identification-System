@@ -1,9 +1,10 @@
 Change Log
 ==========
 
-Unreleased — verified 2026-09-03
+Unreleased — verified 2026-09-04
 --------------------------------
 
+- UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
 - Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`dc22456`).
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
 - Feat: Added non-blocking connection handling and improved enrollment logging (`8aef42a`, `f06a7af`).

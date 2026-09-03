@@ -55,12 +55,12 @@ Installing Python packages does not install Windows USB drivers. The application
 
 The maintained desktop interface is the PySide6/Qt application launched by [run_qt_gui.py](run_qt_gui.py) or [run_qt_gui.bat](run_qt_gui.bat). The older CustomTkinter interface remains available through [run_app.bat](run_app.bat) for compatibility and is not the primary workflow.
 
-### UI Prototype
+### UI Prototypes
 
-The isolated Task Manager-inspired identification concept can be previewed without starting the live serial or database workflow:
+The UI concepts in [`tests/Prototype/`](tests/Prototype/) are isolated previews. They do not start the live serial or database workflow and do not replace the maintained Qt application. See the [UI prototype guide](docs/Development/ui-prototypes.md) for the full comparison and testing notes.
 
 ```text
-   python tests/Prototype/run_qt_prototype.py
+python tests/Prototype/run_qt_prototype.py
 ```
 
 It includes mock identification data, navigation, device status, scan controls, result details, and a compact density switch for evaluating the layout before integration.
@@ -113,4 +113,4 @@ See the [documentation index](docs/INDEX.md) for the full map.
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-03, against the current `main` branch
+Last verified: 2026-09-04, against commit `be7a046`
