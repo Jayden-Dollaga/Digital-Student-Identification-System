@@ -499,10 +499,10 @@ class WipeDialog(QDialog):
         self.confirm_btn = QPushButton("Confirm Wipe")
         self.confirm_btn.setObjectName("dangerButton")
         self.confirm_btn.clicked.connect(self.on_confirm)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
         button_row.addWidget(self.confirm_btn)
-        button_row.addWidget(cancel_btn)
+        button_row.addWidget(self.cancel_btn)
         outer.addLayout(button_row)
 
         self.serial_worker.wipe_progress.connect(self.on_wipe_progress)
@@ -531,18 +531,207 @@ class WipeDialog(QDialog):
                 f"All fingerprints wiped. Cleared {student_count} student profile(s) and "
                 f"{attendance_count} attendance record(s)."
             )
-            self.confirm_btn.setEnabled(True)
+            self._show_done_state()
             if self.on_wiped:
                 self.on_wiped()
         elif event == "error":
             self.status_label.setText("Sensor reported an error — check the Logs page.")
             self.confirm_btn.setEnabled(True)
 
+    def _show_done_state(self) -> None:
+        """Turn the button row from "Confirm Wipe / Cancel" into a single
+        "Done" button once the wipe has actually finished.
+
+        Before this, a completed wipe left the dialog looking identical to
+        the pre-wipe state - "Confirm Wipe" re-enabled and still wired to
+        on_confirm, with the only difference being the status text above
+        it, which is easy to miss. This makes success visually distinct
+        and closes the dialog once acknowledged instead of leaving a
+        stale confirm button sitting there.
+        """
+        self.confirm_btn.setText("Done")
+        self.confirm_btn.setObjectName("primaryButton")
+        self.confirm_btn.setEnabled(True)
+        try:
+            self.confirm_btn.clicked.disconnect(self.on_confirm)
+        except (RuntimeError, TypeError):
+            pass
+        self.confirm_btn.clicked.connect(self.accept)
+        self.confirm_btn.style().unpolish(self.confirm_btn)
+        self.confirm_btn.style().polish(self.confirm_btn)
+        self.cancel_btn.hide()
+
     def closeEvent(self, event):
         try:
             self.serial_worker.wipe_progress.disconnect(self.on_wipe_progress)
         except (RuntimeError, TypeError):
             pass
+        super().closeEvent(event)
+
+
+class ConfirmDeleteDialog(QDialog):
+    """Confirms, then performs, deletion of one or more students - keeping
+    the local database and the ESP32 sensor in sync.
+
+    Previously "Confirm Delete" removed the local DB row immediately and
+    fired DELETE:<id> at the ESP32 without ever checking the response.
+    The firmware always replies with a SUCCESS or FAILED line for that
+    specific ID (see firmware/ESP32_Fingerprint_AllInOne/*.ino), but
+    nothing on the Python side read it, so the DB and the sensor could
+    drift out of sync - exactly the "DB says 3 deleted, sensor still
+    reports 4 stored" mismatch this fixes. This mirrors what WipeDialog
+    already does for "Wipe All": send the hardware command, wait for its
+    confirmation, and only touch the local database once that arrives.
+    For multiple selected students, IDs are sent one at a time - waiting
+    for each one's own SUCCESS/FAILED before moving to the next - since
+    the sensor confirms deletions individually, not as a batch.
+    """
+
+    def __init__(self, fingerprint_ids, device_connected, serial_handler, serial_worker,
+                 delete_from_db, parent=None):
+        super().__init__(parent)
+        self.fingerprint_ids = list(fingerprint_ids)
+        self.device_connected = device_connected
+        self.serial_handler = serial_handler
+        self.serial_worker = serial_worker
+        self.delete_from_db = delete_from_db  # callback(fingerprint_id); may raise PermissionError
+        self._queue = list(self.fingerprint_ids)
+        self._current_id = None
+        self._succeeded = []
+        self._failed = []
+        self._permission_denied = False
+        self._started = False
+
+        self.setWindowTitle("Confirm Delete")
+        self.setMinimumWidth(420)
+
+        outer = QVBoxLayout(self)
+
+        if len(self.fingerprint_ids) == 1:
+            id_phrase = f"student with fingerprint ID {self.fingerprint_ids[0]}"
+        else:
+            id_list = ", ".join(str(i) for i in self.fingerprint_ids)
+            id_phrase = f"{len(self.fingerprint_ids)} students with fingerprint IDs {id_list}"
+
+        if not device_connected:
+            message = (
+                f"Delete {id_phrase}? "
+                "Connect to the ESP32 first - deleting while disconnected is disabled so the "
+                "database and the sensor can't drift out of sync (a deleted ID could get reused "
+                "during enrollment while its old fingerprint template is still on the sensor)."
+            )
+        else:
+            message = (
+                f"Delete {id_phrase}? This will also remove "
+                f"{'the fingerprint' if len(self.fingerprint_ids) == 1 else 'those fingerprints'} "
+                "from the connected device."
+            )
+        warning = QLabel(message)
+        warning.setWordWrap(True)
+        outer.addWidget(warning)
+
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        outer.addWidget(self.status_label)
+
+        button_row = QHBoxLayout()
+        self.confirm_btn = QPushButton("Confirm Delete")
+        self.confirm_btn.setObjectName("dangerButton")
+        self.confirm_btn.clicked.connect(self.on_confirm)
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        button_row.addWidget(self.confirm_btn)
+        button_row.addWidget(self.cancel_btn)
+        outer.addLayout(button_row)
+
+        if self.device_connected:
+            self.serial_worker.delete_progress.connect(self.on_delete_progress)
+
+    def on_confirm(self):
+        if not self.device_connected:
+            # Same pattern as WipeDialog: stay clickable, but refuse to run
+            # and say why - rather than disabling the button outright,
+            # which left it looking identical to its normal red/clickable
+            # state (dangerButton has no QSS :disabled style) while
+            # silently doing nothing on click.
+            self.status_label.setText("Connect to the ESP32 before deleting.")
+            return
+
+        self._started = True
+        self.confirm_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
+        self._send_next()
+
+    def _send_next(self):
+        if not self._queue:
+            self._finish()
+            return
+        self._current_id = self._queue.pop(0)
+        self.status_label.setText(f"Deleting fingerprint ID {self._current_id} on the device…")
+        if not cmd_delete(self.serial_handler, self._current_id):
+            self._failed.append(self._current_id)
+            self._send_next()
+
+    def on_delete_progress(self, progress: dict):
+        if not self._started or progress.get("id") != self._current_id:
+            return
+        event = progress.get("event")
+        if event == "success":
+            if self._delete_local(self._current_id):
+                self._succeeded.append(self._current_id)
+            self._send_next()
+        elif event == "error":
+            self._failed.append(self._current_id)
+            self._send_next()
+
+    def _delete_local(self, fingerprint_id: int) -> bool:
+        try:
+            self.delete_from_db(fingerprint_id)
+            return True
+        except PermissionError:
+            self._permission_denied = True
+            QMessageBox.warning(
+                self, "Not allowed", "Your current role does not have permission to delete students."
+            )
+            self._finish()
+            return False
+
+    def _finish(self):
+        if self._permission_denied:
+            self.reject()
+            return
+
+        parts = []
+        if self._succeeded:
+            parts.append(
+                f"Deleted {len(self._succeeded)} student(s): "
+                f"{', '.join(str(i) for i in self._succeeded)}."
+            )
+        if self._failed:
+            parts.append(
+                f"Could not delete {len(self._failed)} fingerprint ID(s) on the device: "
+                f"{', '.join(str(i) for i in self._failed)} (left in the database)."
+            )
+        self.status_label.setText(" ".join(parts) if parts else "Nothing was deleted.")
+
+        self.confirm_btn.setText("Done")
+        self.confirm_btn.setObjectName("primaryButton")
+        self.confirm_btn.setEnabled(True)
+        try:
+            self.confirm_btn.clicked.disconnect(self.on_confirm)
+        except (RuntimeError, TypeError):
+            pass
+        self.confirm_btn.clicked.connect(self.accept)
+        self.confirm_btn.style().unpolish(self.confirm_btn)
+        self.confirm_btn.style().polish(self.confirm_btn)
+        self.cancel_btn.hide()
+
+    def closeEvent(self, event):
+        if self.device_connected:
+            try:
+                self.serial_worker.delete_progress.disconnect(self.on_delete_progress)
+            except (RuntimeError, TypeError):
+                pass
         super().closeEvent(event)
 
 
@@ -635,46 +824,56 @@ class StudentsPage(QWidget):
             if hasattr(window, "_clear_scan_block_reason"):
                 window._clear_scan_block_reason()
 
+    def _selected_rows(self) -> list[int]:
+        """All currently selected rows, not just the "current" one.
+
+        The table's default Qt selection mode allows ctrl/shift multi-row
+        selection (you can see it highlight several rows green), but
+        on_delete_clicked used to only read table.currentRow() - a single
+        row - so selecting 3 rows and clicking Delete Selected quietly
+        deleted just one, with no indication the others were skipped.
+        """
+        rows = {index.row() for index in self.table.selectionModel().selectedRows()}
+        if not rows:
+            current = self.table.currentRow()
+            if current >= 0:
+                rows = {current}
+        return sorted(rows)
+
     def on_delete_clicked(self):
-        row = self.table.currentRow()
-        if row < 0:
+        rows = self._selected_rows()
+        if not rows:
             QMessageBox.information(self, "No selection", "Select a student row first.")
             return
-        fingerprint_id = int(self.table.item(row, 0).text())
-        device_connected = self.serial_handler is not None and self.serial_handler.is_connected()
-        if device_connected:
-            confirm_text = (
-                f"Delete student with fingerprint ID {fingerprint_id}? "
-                "This will also remove the fingerprint from the connected device."
-            )
-        else:
-            confirm_text = (
-                f"Delete student with fingerprint ID {fingerprint_id}? "
-                "The device is not connected, so the fingerprint template will remain stored on "
-                "the sensor until you connect and delete it separately (ID collisions are possible "
-                "if this ID gets reused during enrollment)."
-            )
-        confirm = QMessageBox.question(self, "Confirm delete", confirm_text)
-        if confirm != QMessageBox.Yes:
-            return
-        try:
-            self.service.delete_student(fingerprint_id)
-        except PermissionError:
-            QMessageBox.warning(
-                self,
-                "Not allowed",
-                "Your current role does not have permission to delete students.",
-            )
-            return
-        if device_connected:
-            cmd_delete(self.serial_handler, fingerprint_id)
+        fingerprint_ids = [int(self.table.item(row, 0).text()) for row in rows]
+        device_connected = (
+            self.serial_handler is not None
+            and self.serial_handler.is_connected()
+            and self.serial_worker is not None
+        )
+
+        dialog = ConfirmDeleteDialog(
+            fingerprint_ids,
+            device_connected,
+            self.serial_handler,
+            self.serial_worker,
+            delete_from_db=self.service.delete_student,
+            parent=self,
+        )
+        dialog.exec()
         self.refresh()
 
     def on_edit_clicked(self):
-        row = self.table.currentRow()
-        if row < 0:
+        rows = self._selected_rows()
+        if not rows:
             QMessageBox.information(self, "No selection", "Select a student row first.")
             return
+        if len(rows) > 1:
+            QMessageBox.information(
+                self, "Multiple rows selected", "Select only one student row to edit."
+            )
+            return
+        row = rows[0]
         fingerprint_id = int(self.table.item(row, 0).text())
         existing = self.service.get_student(fingerprint_id) or {}
         dialog = StudentDetailsDialog(fingerprint_id, existing=existing, parent=self)

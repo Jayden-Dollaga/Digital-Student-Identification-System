@@ -205,6 +205,22 @@ QPushButton#dangerButton:hover {
     background-color: #991B1B;
 }
 
+/* Connect/Disconnect button (gui_qt/main_window.py) reuses #primaryButton
+   for layout, but switches to the danger red palette while connected -
+   the button reads "Disconnect" at that point, and red makes it clear
+   that's the action it will take when clicked, matching Stop/Wipe/Delete
+   elsewhere in the app. */
+QPushButton#primaryButton[connectionState="connected"],
+QPushButton#primaryButton[connectionState="connecting"] {
+    background-color: #7F1D1D;
+    color: #FCA5A5;
+}
+
+QPushButton#primaryButton[connectionState="connected"]:hover,
+QPushButton#primaryButton[connectionState="connecting"]:hover {
+    background-color: #991B1B;
+}
+
 QPushButton#secondaryButton {
     background-color: #2A3038;
     color: #E6E8EB;

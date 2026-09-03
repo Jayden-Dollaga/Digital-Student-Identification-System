@@ -33,6 +33,8 @@ def default_settings() -> Dict[str, Any]:
         "enable_debug_logging": CONFIG.enable_debug_logging,
         # active user role: gates access to destructive/admin-only actions in the UI
         "current_role": CONFIG.default_user_role,
+        # minutes between automatic-backup due-checks (Settings > Backups)
+        "auto_backup_interval_minutes": 25,
     }
 
 

@@ -30,6 +30,9 @@ RE_ENROLL_SUCCESS = re.compile(r"SUCCESS!?\s*Finger saved as ID #(\d+)", re.IGNO
 RE_ENROLL_CANCEL = re.compile(r"ENROLLMENT cancelled|Enrollment cancelled|ENROLL_CANCELLED", re.IGNORECASE)
 RE_WIPE_START = re.compile(r"Wiping ALL fingerprints", re.IGNORECASE)
 RE_WIPE_SUCCESS = re.compile(r"SUCCESS\s*-\s*All fingerprints deleted", re.IGNORECASE)
+RE_DELETE_START = re.compile(r"Deleting ID #(\d+)", re.IGNORECASE)
+RE_DELETE_SUCCESS = re.compile(r"SUCCESS\s*-\s*ID #(\d+) deleted", re.IGNORECASE)
+RE_DELETE_FAIL = re.compile(r"FAILED\s*-\s*Could not delete ID #(\d+)", re.IGNORECASE)
 RE_STORED_COUNT = re.compile(r"Stored fingerprints:\s*(\d+)", re.IGNORECASE)
 
 
@@ -40,6 +43,7 @@ class SerialWorker(QThread):
     raw_line = Signal(str)             # raw ESP32 serial output for diagnostics
     enroll_progress = Signal(dict)     # {"event": "enrolling"|"success"|"cancelled"|"error", "id": str|None}
     wipe_progress = Signal(dict)       # {"event": "start"|"success"|"error"}
+    delete_progress = Signal(dict)     # {"event": "start"|"success"|"error", "id": int|None} - response to DELETE:<id>
     fingerprint_count = Signal(int)    # response to the LIST command
     error = Signal(str)
 
@@ -114,6 +118,7 @@ class SerialWorker(QThread):
                 self._process_line(line)
                 self._parse_enroll_progress(line)
                 self._parse_wipe_progress(line)
+                self._parse_delete_progress(line)
                 self._parse_fingerprint_count(line)
             except Exception as exc:
                 self.error.emit(str(exc))
@@ -236,6 +241,35 @@ class SerialWorker(QThread):
         upper = message.upper()
         if "ERROR" in upper or "FAIL" in upper:
             self.wipe_progress.emit({"event": "error"})
+
+    def _parse_delete_progress(self, message: str):
+        """Response to DELETE:<id> (firmware/ESP32_Fingerprint_AllInOne/*.ino):
+
+            >> Deleting ID #3...
+               SUCCESS - ID #3 deleted.
+        or
+               FAILED - Could not delete ID #3 (may not exist)
+
+        cmd_delete() previously just fired DELETE:<id> and moved on without
+        ever reading this response, so the local database was deleted
+        unconditionally regardless of whether the sensor actually deleted
+        anything - unlike Wipe, which already waited for its own
+        SUCCESS/ERROR line before touching the database. This gives
+        per-ID delete the same guarantee.
+        """
+        match = RE_DELETE_START.search(message)
+        if match:
+            self.delete_progress.emit({"event": "start", "id": int(match.group(1))})
+            return
+
+        match = RE_DELETE_SUCCESS.search(message)
+        if match:
+            self.delete_progress.emit({"event": "success", "id": int(match.group(1))})
+            return
+
+        match = RE_DELETE_FAIL.search(message)
+        if match:
+            self.delete_progress.emit({"event": "error", "id": int(match.group(1))})
 
     def _parse_fingerprint_count(self, line: str):
         """Response to the LIST command (also printed once at boot):

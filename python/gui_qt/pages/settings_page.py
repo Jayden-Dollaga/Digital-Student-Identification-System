@@ -12,35 +12,12 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QFormLayout, QLabel, QComboBox, QCheckBox,
     QPushButton, QFrame, QMessageBox, QHBoxLayout, QSpinBox, QScrollArea
 )
-from PySide6.QtCore import QThread, Signal
 
 from config import get_config, get_default_com_port
 from settings_store import load_settings, save_settings
-from core.firmware_helper import discover_firmware_candidates, find_firmware_binary, upload_firmware_with_progress
 from core.logger import log
 
 CONFIG = get_config()
-
-
-def format_firmware_status(binary_path=None, candidates=None):
-    if binary_path is not None:
-        return f"Firmware ready: {binary_path.name}"
-    if candidates:
-        return f"Firmware source found (not a .bin): {candidates[0].name}"
-    return "No bundled firmware detected."
-
-
-class FirmwareUploadWorker(QThread):
-    progress = Signal(str)
-    finished = Signal(bool, str)
-
-    def __init__(self, port: str, parent=None):
-        super().__init__(parent)
-        self.port = port
-
-    def run(self):
-        ok, msg = upload_firmware_with_progress(port=self.port, progress_callback=self.progress.emit)
-        self.finished.emit(ok, msg)
 
 
 class SettingsPage(QWidget):
@@ -156,9 +133,9 @@ class SettingsPage(QWidget):
         port_controls.addWidget(self.auto_detect_btn)
 
         override_hint = QLabel(
-            "Only needed if auto-discovery can't find your device, or to pick a specific "
-            "port for firmware upload. Otherwise leave this alone — the app finds the ESP32 "
-            "on its own and the panel above will show it once connected."
+            "Only needed if auto-discovery can't find your device. Otherwise leave this "
+            "alone — the app finds the ESP32 on its own and the panel above will show it "
+            "once connected."
         )
         override_hint.setWordWrap(True)
         override_hint.setStyleSheet("color: #8A909C; font-size: 11px;")
@@ -198,6 +175,30 @@ class SettingsPage(QWidget):
 
         outer.addWidget(self._section_label("Attendance Behavior"))
         outer.addWidget(attendance_card)
+
+        # ---- backups card ----
+        backup_card = QFrame()
+        backup_card.setObjectName("card")
+        backup_form = QFormLayout(backup_card)
+        backup_form.setContentsMargins(16, 16, 16, 16)
+
+        self.backup_interval_spin = QSpinBox()
+        self.backup_interval_spin.setRange(1, 1440)
+        self.backup_interval_spin.setSuffix(" min")
+        self.backup_interval_spin.setValue(
+            int(self.settings.get("auto_backup_interval_minutes", 25))
+        )
+        backup_form.addRow("Auto-backup every", self.backup_interval_spin)
+        backup_hint = QLabel(
+            "How often the app checks whether an automatic database backup is due. "
+            "You can still make one anytime with \"Backup DB\" on the Reports page."
+        )
+        backup_hint.setWordWrap(True)
+        backup_hint.setStyleSheet("color: #8A909C; font-size: 11px;")
+        backup_form.addRow("", backup_hint)
+
+        outer.addWidget(self._section_label("Backups"))
+        outer.addWidget(backup_card)
 
         # ---- appearance card ----
         theme_card = QFrame()
@@ -284,43 +285,13 @@ class SettingsPage(QWidget):
         outer.addWidget(self._section_label("Logging & Diagnostics"))
         outer.addWidget(log_card)
 
-        # ---- firmware card ----
-        fw_card = QFrame()
-        fw_card.setObjectName("card")
-        fw_layout = QVBoxLayout(fw_card)
-        fw_layout.setContentsMargins(16, 16, 16, 16)
-
-        fw_label = QLabel("Firmware")
-        fw_label.setObjectName("cardLabel")
-        self.fw_status = QLabel("")
-        self.fw_status.setStyleSheet("color: #8A909C;")
-        self.fw_status.setWordWrap(True)
-        self.fw_progress = QLabel("")
-        self.fw_progress.setWordWrap(True)
-        upload_btn = QPushButton("Upload Firmware")
-        upload_btn.setObjectName("primaryButton")
-        upload_btn.clicked.connect(self.on_upload_firmware)
-        self._upload_btn = upload_btn
-        self._upload_worker = None
-        self._upload_in_progress = False
-        self._fw_binary_available = False
-
-        fw_layout.addWidget(fw_label)
-        fw_layout.addWidget(self.fw_status)
-        fw_layout.addWidget(upload_btn)
-        fw_layout.addWidget(self.fw_progress)
-        outer.addWidget(self._section_label("Firmware"))
-        outer.addWidget(fw_card)
-
         save_btn = QPushButton("Save Settings")
         save_btn.setObjectName("primaryButton")
         save_btn.clicked.connect(self.on_save)
         outer.addWidget(save_btn)
 
         outer.addStretch()
-        self._refresh_firmware_status()
         self._apply_theme(self.settings.get("theme", "dark"))
-        self.set_admin_mode(CONFIG.user_roles.get(saved_role, {}).get("can_manage_users", False))
         self.refresh_connection_status()
 
     def _section_label(self, text: str) -> QLabel:
@@ -394,15 +365,6 @@ class SettingsPage(QWidget):
         role = CONFIG.user_roles.get(key, {})
         perms = role.get("permissions", [])
         self.permissions_label.setText(", ".join(perms) if perms else "None")
-
-    def set_admin_mode(self, is_admin: bool) -> None:
-        """Gate the firmware upload button behind the admin role (destructive action)."""
-        is_admin = bool(is_admin)
-        self._upload_btn.setEnabled(is_admin and self._fw_binary_available)
-        if not is_admin:
-            self._upload_btn.setToolTip("Only the Administrator role can flash firmware.")
-        else:
-            self._upload_btn.setToolTip("")
 
     def _open_folder(self, path: str) -> None:
         try:
@@ -490,47 +452,6 @@ class SettingsPage(QWidget):
 
         self.port_count_label.setText(f"Devices found: {len(found_devices)}")
 
-    def _refresh_firmware_status(self):
-        candidates = discover_firmware_candidates()
-        binary = find_firmware_binary()
-        status_text = format_firmware_status(binary, candidates)
-        self.fw_status.setText(status_text)
-        self._fw_binary_available = binary is not None
-        is_admin = CONFIG.user_roles.get(self.role_combo.currentData(), {}).get("can_manage_users", False)
-        self._upload_btn.setEnabled(self._fw_binary_available and is_admin)
-
-    def on_upload_firmware(self):
-        if self._upload_in_progress:
-            QMessageBox.information(self, "Firmware Upload", "An upload is already in progress.")
-            return
-
-        port = self.port_combo.currentData() or self.port_combo.currentText().strip()
-        if not port:
-            QMessageBox.warning(self, "Firmware Upload", "Select a device first.")
-            return
-
-        self._upload_in_progress = True
-        self._upload_btn.setEnabled(False)
-        self.fw_progress.setText("Starting upload...")
-
-        self._upload_worker = FirmwareUploadWorker(port, self)
-        self._upload_worker.progress.connect(self._update_upload_progress)
-        self._upload_worker.finished.connect(self._finish_upload)
-        self._upload_worker.start()
-
-    def _update_upload_progress(self, line: str):
-        self.fw_progress.setText(line)
-
-    def _finish_upload(self, ok: bool, msg: str):
-        self._upload_in_progress = False
-        is_admin = CONFIG.user_roles.get(self.role_combo.currentData(), {}).get("can_manage_users", False)
-        self._upload_btn.setEnabled(self._fw_binary_available and is_admin)
-        self.fw_progress.setText(msg)
-        if ok:
-            self.fw_status.setText("Firmware upload completed successfully.")
-        else:
-            self.fw_status.setText("Firmware upload failed. Check the log output above.")
-
     def on_save(self):
         new_port = self.port_combo.currentData() or self.port_combo.currentText().strip()
         if not new_port:
@@ -544,6 +465,7 @@ class SettingsPage(QWidget):
         cooldown = self.cooldown_spin.value()
         min_confidence = self.min_confidence_spin.value()
         compact_sidebar = self.compact_sidebar_check.isChecked()
+        backup_interval_minutes = self.backup_interval_spin.value()
 
         self.settings.update({
             "com_port": new_port,
@@ -557,13 +479,12 @@ class SettingsPage(QWidget):
             "current_role": selected_role,
             "log_to_file": self.log_to_file_check.isChecked(),
             "enable_debug_logging": self.debug_logging_check.isChecked(),
+            "auto_backup_interval_minutes": backup_interval_minutes,
         })
         self.settings.setdefault("theme", "dark")
         save_settings(self.settings)
 
         self._apply_theme(selected_theme)
-        self.set_admin_mode(CONFIG.user_roles.get(selected_role, {}).get("can_manage_users", False))
-        self._refresh_firmware_status()
 
         if self.attendance_processor is not None:
             self.attendance_processor.cooldown_seconds = cooldown
@@ -578,6 +499,7 @@ class SettingsPage(QWidget):
                 theme=selected_theme,
                 compact_sidebar=compact_sidebar,
                 current_role=selected_role,
+                backup_interval_minutes=backup_interval_minutes,
             )
 
         QMessageBox.information(self, "Settings", "Settings saved.")

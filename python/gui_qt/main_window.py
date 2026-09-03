@@ -47,6 +47,8 @@ class MainWindow(QMainWindow):
 
         init_database()
 
+        self.settings = load_settings()
+
         # Automatic backups: back up on startup if the last one is stale,
         # then keep checking periodically while the app runs. The DB is
         # small (a school's worth of students/attendance), so this runs
@@ -55,17 +57,16 @@ class MainWindow(QMainWindow):
         # to a background thread instead. auto_backup_if_needed() never
         # raises, so this can't interrupt startup even if backups are
         # failing for some reason (disk full, permissions, etc.).
-        AUTO_BACKUP_INTERVAL_MINUTES = 25
-        self._auto_backup_interval_hours = AUTO_BACKUP_INTERVAL_MINUTES / 60.0
+        #
+        # The interval is user-configurable from Settings > Backups (stored
+        # as "auto_backup_interval_minutes") rather than a fixed constant,
+        # since a fixed value was too aggressive for some setups.
+        self._auto_backup_timer: Optional[QTimer] = None
         QTimer.singleShot(2000, self._run_auto_backup_check)
-        self._auto_backup_timer = QTimer(self)
-        self._auto_backup_timer.timeout.connect(self._run_auto_backup_check)
-        # Re-check at 1/5th of the actual interval so a backup fires close
-        # to its due time instead of drifting - checking is cheap, and a
-        # missed check just gets caught on the next one either way.
-        self._auto_backup_timer.start(int(AUTO_BACKUP_INTERVAL_MINUTES * 60 * 1000 / 5))
+        self._configure_auto_backup_timer(
+            self.settings.get("auto_backup_interval_minutes", 25)
+        )
 
-        self.settings = load_settings()
         self.serial_handler = SerialHandler()
         self.serial_handler.auto_reconnect_enabled = bool(self.settings.get("auto_reconnect", True))
         self.auto_detect_serial = bool(self.settings.get("auto_detect_serial", True))
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
 
         self.connect_button = QPushButton("Connect")
         self.connect_button.setObjectName("primaryButton")
+        self.connect_button.setProperty("connectionState", "disconnected")
         self.connect_button.clicked.connect(self.on_connect_clicked)
 
         self.scan_toggle_button = QPushButton("SCAN")
@@ -204,6 +206,34 @@ class MainWindow(QMainWindow):
         # that manual Connect click searches all ports (auto_detect=True)
         # or sticks to the saved port, same as before.
 
+    def _configure_auto_backup_timer(self, interval_minutes: float) -> None:
+        """(Re)start the auto-backup timer for the given interval.
+
+        Called once at startup with the saved setting, and again from
+        ``on_connection_settings_changed`` if the user changes the interval
+        on the Settings page, so a new value takes effect immediately
+        instead of requiring a restart.
+        """
+        try:
+            interval_minutes = float(interval_minutes)
+        except (TypeError, ValueError):
+            interval_minutes = 25.0
+        if interval_minutes <= 0:
+            interval_minutes = 25.0
+
+        self._auto_backup_interval_hours = interval_minutes / 60.0
+
+        if self._auto_backup_timer is not None:
+            self._auto_backup_timer.stop()
+            self._auto_backup_timer.deleteLater()
+
+        self._auto_backup_timer = QTimer(self)
+        self._auto_backup_timer.timeout.connect(self._run_auto_backup_check)
+        # Re-check at 1/5th of the actual interval so a backup fires close
+        # to its due time instead of drifting - checking is cheap, and a
+        # missed check just gets caught on the next one either way.
+        self._auto_backup_timer.start(int(interval_minutes * 60 * 1000 / 5))
+
     def _run_auto_backup_check(self):
         path = auto_backup_if_needed(min_interval_hours=self._auto_backup_interval_hours)
         if path:
@@ -244,6 +274,22 @@ class MainWindow(QMainWindow):
         if hasattr(self.settings_page, "set_admin_mode"):
             self.settings_page.set_admin_mode(bool(role.get("can_manage_users", False)))
 
+    def _set_connect_button_state(self, state: str) -> None:
+        """Update the Connect/Disconnect button's text and color together.
+
+        The button reuses #primaryButton for its layout/sizing, but while
+        connected (or connecting) it switches to the red "danger" palette
+        via the connectionState property - see theme.qss - since at that
+        point clicking it disconnects, matching the red Stop/Wipe/Delete
+        buttons used for state-changing actions elsewhere in the app.
+        Qt doesn't repaint dynamic properties on their own, so this always
+        needs the unpolish/polish pair to actually pick up the new color.
+        """
+        self.connect_button.setText("Disconnect" if state in {"connected", "connecting"} else "Connect")
+        self.connect_button.setProperty("connectionState", state)
+        self.connect_button.style().unpolish(self.connect_button)
+        self.connect_button.style().polish(self.connect_button)
+
     def on_connect_clicked(self):
         """Handle Connect/Disconnect button click using background worker."""
         if self.serial_handler.is_connected():
@@ -270,7 +316,7 @@ class MainWindow(QMainWindow):
                 port = saved_port or get_default_com_port(CONFIG.com_port)
                 baud = int(self.settings.get("baud_rate") or 115200)
                 
-                self.connect_button.setText("Disconnect")
+                self._set_connect_button_state("connected")
                 self.settings["com_port"] = self.serial_handler.reconnect_port or port
                 self.settings["baud_rate"] = baud
                 self.update_connection_metadata()
@@ -298,13 +344,13 @@ class MainWindow(QMainWindow):
                 )
             else:
                 LOG.error("Connection failed: %s", message)
-                self.connect_button.setText("Connect")
+                self._set_connect_button_state("disconnected")
                 self.update_connection_metadata()
                 self.logs_page.set_connection_state("disconnected")
         except Exception as exc:
             LOG.exception("Exception in on_connect_result", error=str(exc))
             self.connect_button.setEnabled(True)
-            self.connect_button.setText("Connect")
+            self._set_connect_button_state("disconnected")
             try:
                 self.update_connection_metadata()
             except Exception:
@@ -319,6 +365,7 @@ class MainWindow(QMainWindow):
         theme: Optional[str] = None,
         compact_sidebar: Optional[bool] = None,
         current_role: Optional[str] = None,
+        backup_interval_minutes: Optional[float] = None,
     ):
         """Called by SettingsPage after Save — reconnect with new values if already connected."""
         self.settings["com_port"] = port
@@ -337,6 +384,9 @@ class MainWindow(QMainWindow):
         if current_role is not None:
             self.settings["current_role"] = current_role
             self._apply_role_permissions(current_role)
+        if backup_interval_minutes is not None:
+            self.settings["auto_backup_interval_minutes"] = backup_interval_minutes
+            self._configure_auto_backup_timer(backup_interval_minutes)
 
         if self.serial_handler.is_connected():
             self.serial_handler.disconnect()
@@ -390,7 +440,7 @@ class MainWindow(QMainWindow):
         self.connection_label.setProperty("state", state)
         self.connection_label.style().unpolish(self.connection_label)
         self.connection_label.style().polish(self.connection_label)
-        self.connect_button.setText("Disconnect" if state in {"connected", "connecting"} else "Connect")
+        self._set_connect_button_state(state)
         self.scan_toggle_button.setEnabled(state == "connected")
         if not state == "connected":
             self.scan_active = False

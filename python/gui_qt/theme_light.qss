@@ -200,6 +200,18 @@ QPushButton#dangerButton:hover {
     background-color: #B91C1C;
 }
 
+/* Connect/Disconnect button - see theme.qss for the explanation. */
+QPushButton#primaryButton[connectionState="connected"],
+QPushButton#primaryButton[connectionState="connecting"] {
+    background-color: #DC2626;
+    color: #FEE2E2;
+}
+
+QPushButton#primaryButton[connectionState="connected"]:hover,
+QPushButton#primaryButton[connectionState="connecting"]:hover {
+    background-color: #B91C1C;
+}
+
 QPushButton#secondaryButton {
     background-color: #E5E7EB;
     color: #111827;
