@@ -1,4 +1,6 @@
-# Migration Example: serial_handler.py
+# Migration Example: serial_handler.py (Historical)
+
+> Historical example. Current modules already use the centralized logger; see [logging-guide.md](logging-guide.md) for active behavior.
 
 ## Goal
 
@@ -277,6 +279,6 @@ Each follows the same pattern:
 ## Questions?
 
 Refer to:
-- `docs/LOGGER_USAGE.md` — Comprehensive usage guide
+- `docs/Development/logger_usage.md` — Comprehensive usage guide
 - `docs/LOGGING_QUICK_REFERENCE.md` — Quick reference
 - `python/core/logger.py` — Implementation details

@@ -54,4 +54,4 @@ The active application is launched with the root `run_qt_gui.bat`. The current Q
 
 Hardware probes may contain hard-coded COM-port defaults. Confirm the selected port in the script and close Arduino IDE or other serial monitors before running them.
 
-Last verified: 2026-08-28, against commit 3119175
+Last verified: 2026-09-03, against commit d68a405

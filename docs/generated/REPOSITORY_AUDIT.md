@@ -1,5 +1,7 @@
 # Repository Audit
 
+> Point-in-time generated report. The maintained launcher and current structure are documented in the root README and active guides.
+
 ## High-level structure
 
 - `README.md` — project overview, install instructions, usage notes.

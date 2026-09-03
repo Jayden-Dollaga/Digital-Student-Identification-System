@@ -6,7 +6,7 @@ Digital Student Identification System (DSIS)
 
 ## Status
 
-Production-ready prototype with ESP32 firmware, a Python desktop interface, SQLite storage, backup/restore support, reporting, and role-based access.
+Prototype with ESP32 firmware, a Python desktop interface, SQLite storage, backup/restore support, reporting, and local UI action gating.
 
 ## Purpose
 
@@ -34,6 +34,8 @@ The system supports the full attendance lifecycle:
 5. review records, generate reports, and export data
 6. maintain backup copies of the database
 
+Unknown scans can be shown during operation, but the current database foreign-key schema only persists attendance rows for enrolled fingerprint IDs. Roles gate actions in the local UI; they are not user authentication, and a person with access to the settings file can change the stored role.
+
 ## Hardware
 
 | Component | Role |
@@ -46,13 +48,14 @@ The system supports the full attendance lifecycle:
 
 ## Software stack
 
-- Python 3.13+
-- CustomTkinter for the GUI
+- Python 3.10 or newer (64-bit Windows recommended)
+- PySide6/Qt for the maintained GUI
+- CustomTkinter for the legacy compatibility GUI only
 - PySerial for serial communication
 - SQLite for local persistence
 - Matplotlib for charts
 - OpenPyXL for Excel export
-- Pillow for supporting image-related helpers
+- Pillow for supporting image-related helpers and the legacy GUI
 - Arduino IDE for firmware development
 
 ## Repository structure
@@ -120,7 +123,7 @@ The SQLite database lives in the data directory and is used as the system’s pr
 
 ## Configuration
 
-Key settings are centralized in [python/config.py](python/config.py), including:
+Key settings are centralized in [python/config.py](../../python/config.py), including:
 
 - serial port detection
 - baud rate
@@ -133,7 +136,7 @@ Key settings are centralized in [python/config.py](python/config.py), including:
 The current system includes:
 
 - serial reconnect handling
-- role-based permissions in the GUI
+- local role-based action gating in the GUI (not authenticated authorization)
 - backup creation and restore support
 - log output for troubleshooting and operational visibility
 - automatic attendance logging with cooldown protection
@@ -142,10 +145,10 @@ The current system includes:
 
 ## Getting started
 
-1. Install the Python dependencies with [install_requirements.bat](../install_requirements.bat) or pip.
+1. Install the Python dependencies with [install_requirements.bat](../../install_requirements.bat) or pip.
 2. Upload the firmware to the ESP32.
 3. Connect the hardware.
-4. Launch the GUI using the newer Qt interface with [run_qt_gui.bat](../run_qt_gui.bat) or `python run_qt_gui.py`.
+4. Launch the GUI using the newer Qt interface with [run_qt_gui.bat](../../run_qt_gui.bat) or `python run_qt_gui.py`.
    - The legacy CustomTkinter GUI remains available for compatibility at `run_app.bat` or `python python/gui/app.py`, but the Qt stack is the preferred modern path.
 5. Enroll students and begin scanning.
 

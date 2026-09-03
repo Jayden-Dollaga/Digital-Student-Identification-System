@@ -56,7 +56,7 @@ ENABLE_DEBUG_LOGGING  = False               # Show debug messages
 LOG_TO_FILE = True
 ```
 
-Then logs automatically save to `data/logs/YYYY-MM-DD.log` without any code changes.
+Then each run writes a timestamped log such as `data/logs/fingerprint_attendance_YYYYMMDD_HHMMSS.log` without code changes.
 
 ### Enable Debug Logging
 

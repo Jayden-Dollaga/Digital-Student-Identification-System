@@ -26,7 +26,7 @@ Typical workflow
 
 ```powershell
 # Example: from a system shell
-system\python.exe -m pip install PySide6 pyserial Pillow matplotlib openpyxl
+system\python\python.exe -m pip install -r requirements.txt
 ```
 
 4. Run the runtime manager:

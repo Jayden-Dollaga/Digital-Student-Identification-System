@@ -2,12 +2,13 @@
 
 ## ESP32 to AS608
 
-- V+ -> 3.3V
+- V+ -> the regulated supply specified for the exact AS608 module revision
 - GND -> GND
 - TX -> GPIO 14
 - RX -> GPIO 27
 
 ## Notes
 
-- Use the same baud rate configured in python/config.py.
+- The PC-to-ESP32 link uses 115200 baud; the internal ESP32-to-AS608 UART uses 57600 baud.
+- Check the sensor label or datasheet before applying power. Do not assume every AS608 breakout accepts the same voltage.
 - If serial communication is unstable, check cable grounding and power.

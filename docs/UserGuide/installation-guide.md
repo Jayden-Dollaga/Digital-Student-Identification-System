@@ -7,7 +7,7 @@ This guide is written for beginners and covers the full workflow for using the D
 The main idea is simple:
 
 1. **Upload the ESP32 firmware once** using Arduino IDE.
-2. **Run the Python app daily** using [run_qt_gui.bat](../run_qt_gui.bat) or the command line.
+2. **Run the Python app daily** using [run_qt_gui.bat](../../run_qt_gui.bat) or the command line.
 3. **Keep the Arduino Serial Monitor closed** while the app is running so the COM port is available.
 
 ---
@@ -25,11 +25,11 @@ Before uploading firmware, make sure:
 
 ### 1.2 Open the correct firmware file
 
-Open the file [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) in Arduino IDE.
+Open the file [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) in Arduino IDE.
 
 This is the all-in-one firmware sketch used for enrollment, scanning, and all operations.
 
-If you are using the desktop app and want a quick first-time check, open the Settings dialog and use the ESP32 Firmware Helper section. It will show whether a bundled firmware binary was detected and, when esptool is available, can attempt an upload using the selected COM port.
+The maintained Qt Settings page does not upload firmware. Use Arduino IDE for the supported source upload. The firmware helper belongs to the legacy CustomTkinter interface, requires a separately installed `esptool`, and must not be used with the bundled placeholder binary.
 
 ### 1.3 Select the correct board
 
@@ -93,11 +93,11 @@ After the upload completes:
 
 ### 2.1 Launch the app with the provided batch file
 
-From the project root, double-click [run_qt_gui.bat](../run_qt_gui.bat).
+From the project root, double-click [run_qt_gui.bat](../../run_qt_gui.bat).
 
 This is the easiest way to start the app for everyday use.
 
-If you need the legacy CustomTkinter interface, use [run_app.bat](run_app.bat) instead.
+If you need the legacy CustomTkinter interface, use [run_app.bat](../../run_app.bat) instead.
 
 ### 2.2 Alternative: launch from the command line
 
@@ -115,7 +115,7 @@ python .\run_qt_gui.py
 
 ### 2.2.1 Recommended Qt startup
 
-The Qt UI is recommended for newer installs because it avoids the `Pillow` dependency, supports theme switching, and includes an auto-discover option for ESP32 COM ports.
+The Qt UI is recommended for newer installs because it does not directly use Pillow for its UI, supports theme switching, and includes an auto-discover option for ESP32 COM ports.
 
 ```powershell
 run_qt_gui.bat
@@ -141,9 +141,9 @@ If you already installed dependencies once, you do not need to reinstall them be
 
 ### 2.3 Create a desktop shortcut
 
-For daily convenience, create a shortcut to [run_qt_gui.bat](../run_qt_gui.bat):
+For daily convenience, create a shortcut to [run_qt_gui.bat](../../run_qt_gui.bat):
 
-1. Right-click [run_qt_gui.bat](../run_qt_gui.bat).
+1. Right-click [run_qt_gui.bat](../../run_qt_gui.bat).
 2. Choose **Create shortcut**.
 3. Move the shortcut to your Desktop.
 4. Double-click it whenever you want to start the system.
@@ -155,9 +155,9 @@ If you want, you can also pin the shortcut to the taskbar.
 When the app starts normally, you should see:
 
 - the desktop GUI open,
-- the app connect to the ESP32 successfully,
-- the status change to connected,
-- the system wait for fingerprint input.
+- a disconnected status until you click **Connect**,
+- the app discover or open the selected ESP32 COM port,
+- the status change to connected after the DSIS handshake succeeds.
 
 If the firmware is running correctly, the ESP32 will also be ready to respond to scan, enroll, and wipe commands.
 
@@ -169,17 +169,17 @@ If the firmware is running correctly, the ESP32 will also be ready to respond to
 
 The default baud rate for the ESP32 communication is **115200**.
 
-This is configured in [python/config.py](python/config.py).
+This is configured in [python/config.py](../../python/config.py).
 
 ### 3.2 Change the COM port and baud rate
 
-You can change the COM port and baud rate in the app through the settings UI or by editing configuration values in [python/config.py](python/config.py).
+You can change the COM port and baud rate in the app through the settings UI or by editing configuration values in [python/config.py](../../python/config.py).
 
-The app also saves user choices in the app's settings storage under [data](data).
+The app also saves user choices in the app's settings storage under [data](../../data).
 
 ### 3.3 Where settings are saved
 
-The application stores its saved settings in the [data](data) folder so your preferred COM port and UI choices persist between launches.
+The application stores its saved settings in the [data](../../data) folder so your preferred COM port and UI choices persist between launches. The Qt Settings page also provides **Forget saved port** when a previously used COM number is stale.
 
 ---
 
@@ -193,8 +193,10 @@ If you do not see a COM port, install the correct driver first.
 
 Common driver families include:
 
-- **CP210x** driver
-- **CH340/CH341** driver (if your board uses that chip)
+- **CP210x** for Silicon Labs USB bridges
+- **CH340/CH341** for WCH USB bridges
+- **CH9102** for WCH CH9102-family bridges
+- **FTDI VCP** for FT232-family bridges
 
 If you are unsure, check the board label or the USB chip on the ESP32 board.
 
@@ -206,7 +208,7 @@ The fingerprint sensor should be wired so that:
 - **GND** goes to ground,
 - **TX** and **RX** are cross-connected properly.
 
-The project's main firmware in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) expects the sensor and ESP32 to be connected in the correct serial arrangement.
+The project's main firmware in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) expects the sensor and ESP32 to be connected in the correct serial arrangement.
 
 ### 4.3 Power requirements
 
@@ -312,7 +314,7 @@ When something seems wrong:
 
 ### 6.2 Check logs when something goes wrong
 
-The project writes logs to the [data](data) folder. If the app is not behaving properly, open the most recent log file and look for connection, scan, or enrollment messages.
+The project writes logs to the [data](../../data) folder. If the app is not behaving properly, open the most recent log file and look for connection, scan, or enrollment messages.
 
 ### 6.3 Verify the firmware is running correctly
 
@@ -337,8 +339,8 @@ If the Serial Monitor is open, the Python app may fail to access the COM port.
 
 For daily use:
 
-1. **Upload the firmware once** using [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino).
-2. **Use [run_qt_gui.bat](../run_qt_gui.bat)** to launch the app.
+1. **Upload the firmware once** using [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino).
+2. **Use [run_qt_gui.bat](../../run_qt_gui.bat)** to launch the app.
 3. **Keep the Serial Monitor closed**.
 4. **Use the correct COM port and 115200 baud rate**.
 5. **Restart the app if the sensor stops responding**.

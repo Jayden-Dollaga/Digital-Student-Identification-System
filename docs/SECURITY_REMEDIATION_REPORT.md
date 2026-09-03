@@ -1,8 +1,10 @@
-# Security Remediation Pass - Completion Report
+# Security Remediation Pass - Historical Report
+
+> Historical snapshot. This report is not a current security-status statement; consult the active Python code, tests, and `SECURITY.md` for current behavior.
 
 ## Executive Summary
 
-A comprehensive security remediation pass has been completed on the DSIS (Digital Student Identification System) project. **All 3 CRITICAL vulnerabilities have been fixed**, along with **1 HIGH severity vulnerability** (student input validation). The project now has **90 tests passing** (was 66), with **24 new security tests** added and **zero regressions**.
+A comprehensive security remediation pass was completed on the DSIS project at the time of this report. Its test counts, paths, and findings are historical and must be revalidated before a release.
 
 ---
 
@@ -213,7 +215,7 @@ def add_student(...):
 ### 4. Role/Authorization Issues
 **Investigation Result**: PARTIALLY FALSE POSITIVE
 
-**Finding**: current_role is defined in settings.json but **NOT persisted** in save_current_settings(). This means the role is session-only and changes don't persist between application restarts.
+**Historical finding:** At the time of this report, `current_role` was described as session-only. The current settings store persists the selected role in `data/settings.json`; this is local UI action gating, not authentication.
 
 **Risk Assessment**: 
 - ⚠️ Role can be changed in-memory during a session

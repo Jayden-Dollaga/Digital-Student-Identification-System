@@ -26,10 +26,10 @@ The architecture is intended to support:
 
 The Python side is organized around a small set of focused responsibilities:
 
-- [python/core/serial_handler.py](../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
-- [python/core/attendance.py](../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
-- [python/core/database.py](../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
-- [python/gui_qt/main_qt.py](../python/gui_qt/main_qt.py) is the primary modern Qt entry point and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
+- [python/core/serial_handler.py](../../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
+- [python/core/attendance.py](../../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
+- [python/core/database.py](../../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
+- [python/gui_qt/main_qt.py](../../python/gui_qt/main_qt.py) is the primary modern Qt entry point and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
 
 This keeps the GUI thinner, improves testability, and makes it easier to evolve the system over time.
 

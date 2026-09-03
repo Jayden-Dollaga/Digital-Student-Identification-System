@@ -1,6 +1,6 @@
 # Generated Documentation Index
 
-This folder contains audit artifacts generated from the repository analysis.
+This folder contains point-in-time audit artifacts generated from repository analysis. These reports are not automatically kept in sync with `main`; consult the active guides under `docs/` for current behavior.
 
 `CODE_METRICS.md` and `CODE_METRICS.csv` can be regenerated with:
 
@@ -23,4 +23,4 @@ regenerated.
 - `FILE_INVENTORY.md` — complete file inventory for the repository, including generated and existing documentation.
 - `PROJECT_FORENSIC_AUDIT.md` — point-in-time forensic audit of repository structure and project history.
 
-Last verified: 2026-08-28, against commit 3119175
+Generated snapshot last verified: 2026-08-28, against commit 3119175

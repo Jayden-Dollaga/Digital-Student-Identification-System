@@ -1,191 +1,67 @@
-# Troubleshooting Guide - Digital Student Identification System (DSIS)
+# Troubleshooting DSIS
 
-## Issue: "PermissionError(13): Access is denied" on COM Port
+## No COM Port Appears
 
-### Root Cause
-The fingerprint device on **COM4** is being blocked by Windows or another application. This is an **OS-level port access issue**, not a software bug.
+1. Connect the ESP32 with a data-capable USB cable.
+2. Open **Device Manager > Ports (COM & LPT)**.
+3. Install the driver matching the USB bridge shown there. CP210x, CH340/CH341, CH9102, and FTDI boards use different drivers. See the [USB Serial Drivers section](UserGuide/installation-guide.md#41-usb-serial-driver).
+4. Try another USB port and reconnect the board.
 
-### Symptoms
-```
-PermissionError(13, 'Access is denied.'): Port in use by another application or USB driver issue
-```
+Python packages do not install Windows USB drivers. Native-USB ESP32 boards may expose USB CDC or USB-JTAG instead of a COM port; those variants are not verified by this project.
 
-Logs show the app successfully:
-- ✅ Enumerates available ports (COM4, COM9, COM1)
-- ✅ Identifies COM4 as the fingerprint device
-- ✅ Attempts handshake on correct port
-- ❌ Fails with PermissionError when trying to open COM4
+## Access Denied on a COM Port
 
-### Resolution Steps (Try in Order)
+The selected COM port is already open in another application. COM numbers such as COM4 are examples and vary by computer.
 
-#### 1. **Close Conflicting Applications**
-Check for any of these running and close them:
-- Arduino IDE
-- Serial Monitor applications
-- PuTTY, TeraTerm, or other serial terminals
-- Python scripts using `python -c "import serial; s=serial.Serial('COM4')"`
-- Other DSIS instances
+Close Arduino IDE, Arduino Serial Monitor, PuTTY, Tera Term, other serial terminals, other DSIS instances, and Python processes that may use the port. Disconnect and reconnect the board, then try again. Windows does not provide a dependable built-in mapping from an open COM handle to its owning process; use a trusted handle-inspection utility if the port remains locked.
 
-**Windows Task Manager Check:**
-```
-Ctrl + Shift + Esc → Processes tab → Search for: arduino, serial, putty, python
-```
+## Firmware Upload Fails
 
-#### 2. **Unplug and Replug the USB Device**
-- Unplug the ESP32 fingerprint device from USB
-- Wait 3 seconds
-- Plug it back in
-- Wait for Windows to reinstall the driver (~2 seconds)
-- Try connecting again
+- Select **ESP32 Arduino > ESP32 Dev Module** for the verified ESP32 WROOM-32 target.
+- Select the COM port currently assigned to the board.
+- Use an upload speed of **115200**.
+- Try a different data cable or USB port.
+- Press and hold the board's **BOOT** button while upload begins if the board does not enter download mode.
 
-#### 3. **Check Device Manager**
-1. Press `Win + X` → Device Manager
-2. Look for "Ports (COM & LPT)" section
-3. Find the device with a **⚠ Yellow Warning Triangle** (if any)
-   - Right-click → Update driver → Search automatically
-4. Check for **Silicon Labs CP210x USB to UART Bridge**
-   - Should be `COM4` with no warnings
-5. If you see `COM4` listed multiple times, **uninstall all instances** and replug
+Upload the maintained [all-in-one firmware](../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino). The historical sketches and `firmware/prebuilt/attendance_v1.0.bin` placeholder are not interchangeable with the desktop application.
 
-#### 4. **Verify Port is Not Held by Another Service**
-Run PowerShell as Administrator:
-```powershell
-# List all processes using COM ports
-Get-Process | Where-Object { $_.Handles -gt 100 } | ForEach-Object {
-    try {
-        if ((Get-WmiObject -Query "SELECT * FROM Win32_SerialPort WHERE DeviceID='COM4'" -ErrorAction SilentlyContinue)) {
-            "Process: $($_.Name) (PID: $($_.Id))"
-        }
-    } catch { }
-}
-```
+## App Connects but Sensor Does Not Respond
 
-#### 5. **Update USB Driver**
-Visit Silicon Labs website:
-- Download: CP210x USB to UART Bridge VCP Drivers
-- https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers
-- Install for Windows
-- Restart computer
-- Replug device
+Check the sensor power and crossed UART wiring:
 
-#### 6. **Try Different USB Port**
-- Plug the ESP32 into a different USB port on your computer
-- Windows will re-enumerate and may assign a different COM port
-- Note the new port number and update settings if needed
+- AS608 TX to ESP32 GPIO14 (UART2 RX)
+- AS608 RX to ESP32 GPIO27 (UART2 TX)
+- GND to GND
+- V+ connected according to the exact sensor module revision
 
-#### 7. **Check for Driver Conflicts**
-1. Device Manager → View → Show hidden devices
-2. Look in "Other devices" for unknown items
-3. If you see a device with name like "COM Port" or similar:
-   - Right-click → Delete
-   - Replug device to force re-detection
+The PC-to-ESP32 connection uses **115200 baud**. The internal ESP32-to-AS608 connection uses **57600 baud** and is configured by the firmware, not in the desktop app.
 
-### Advanced Diagnostics
+## Test the Host Serial Connection
 
-#### View All COM Ports and Their Status
-```powershell
-# Run in PowerShell (Admin)
-[System.IO.Ports.SerialPort]::GetPortNames()
-# Or: 
-Get-WmiObject Win32_SerialPort | Select-Object Name, Description, DeviceID
-```
+Run this from the project root after closing the DSIS application and all serial monitors:
 
-#### Test COM Port Directly (Python)
 ```python
 import serial
-import time
 
-for port in ['COM4', 'COM8', 'COM9']:
-    try:
-        print(f"Testing {port}...")
-        s = serial.Serial(port, 115200, timeout=1)
-        s.write(b"ID?\n")
-        response = s.readline(timeout=2)
-        print(f"  ✓ {port} opened successfully: {response}")
-        s.close()
-    except PermissionError as e:
-        print(f"  ✗ {port} BLOCKED: {e}")
-    except Exception as e:
-        print(f"  ? {port} Error: {e}")
+port = "COM5"  # Replace with the port shown by Device Manager.
+try:
+    with serial.Serial(port, 115200, timeout=2) as connection:
+        connection.write(b"ID?\n")
+        print(connection.readline())
+except PermissionError as error:
+    print(f"Port is already in use: {error}")
+except Exception as error:
+    print(f"Serial test failed: {error}")
 ```
 
-### Software Improvements Made
+The application can auto-discover a device when Windows exposes a COM port and the firmware responds to the DSIS identity handshake. In the Qt app, click **Connect** and use auto-discovery or select the detected port manually.
 
-The application now includes several improvements for better diagnostics:
+## Collect Diagnostics
 
-#### 1. **Enhanced Error Reporting**
-- Shows **all** access denied errors, not just the last error
-- Clearly highlights which ports are blocked (likely the real device)
-- Example: `"Access denied on 1 ports (likely real devices); first: COM4: PermissionError..."`
+From the project root, run:
 
-#### 2. **Stale Port Cleanup**
-- Stored COM port (COM8) is automatically validated
-- If port no longer exists, app logs this and skips reconnect attempts to that port
-- Reduces log spam from retrying non-existent ports
-
-#### 3. **Smarter Reconnect Logic**
-- Auto-detect mode: Refreshes port enumeration on each retry (detects newly plugged devices)
-- Explicit port mode: Validates port still exists after 2 attempts
-- After 3+ failed attempts, suggests switching to auto-detect
-- Exponential backoff: Waits 2s, 4s, 8s, 16s, 30s (capped)
-
-#### 4. **Connection Diagnostics**
-Main window shows:
-- Which ports were probed
-- Why each port failed (access denied vs. no handshake vs. no device)
-- Suggestions for resolution
-
-### Workflow Recommendations
-
-#### Best Practice: Auto-Detect
-1. Click **Connect** without specifying a port
-2. App probes all available ports
-3. Device found automatically
-4. Future connections use discovered port as preferred
-
-#### For Specific Port: Explicit Mode
-1. Click **Settings** → Manual COM Port
-2. Enter exact port (e.g., COM4)
-3. Click Connect
-4. Fails if port blocked or has no device
-
-#### During Development: Keep Device Plugged
-- Don't unplug device while app is running
-- Each USB reconnect requires re-enumeration
-- If you must unplug:
-  1. Close app or click Disconnect
-  2. Unplug device
-  3. Replug device
-  4. Wait 3 seconds for driver to load
-  5. Open app and Connect
-
-### When to Contact Support
-
-If you've tried all steps above and still see **PermissionError(13)**:
-
-1. Run this diagnostic:
 ```powershell
-# Generate diagnostics file
-cd "c:\Users\EnforcerX\Downloads\Arduino-IDE - Project\AI-Assisted Fingerprint Attendance System"
-python -c "
-from python.core.device_discovery import list_serial_ports, discover_device
-ports = list_serial_ports()
-print('Available ports:', ports)
-for port in ports:
-    success, meta, error = discover_device(preferred_port=port, allow_search=False)
-    print(f'{port}: {\"OK\" if success else error}')
-" > diagnostics.txt 2>&1
+python -c "from python.core.device_discovery import list_serial_ports; print(list_serial_ports())"
 ```
 
-2. Share:
-   - `data/logs/fingerprint_attendance.log` (last 100 lines)
-   - `diagnostics.txt` output
-   - Device Manager screenshot (Ports section)
-   - Windows version (Win + R → winver)
-
-### Related Issues
-
-- **No ports enumerated**: Check if pyserial is installed (`pip install pyserial`)
-- **Connects but then disconnects**: See [serial protocol](generated/SERIAL_PROTOCOL.md) and check the connection settings.
-- **Wrong port selected**: Settings are stored in `data/settings.json` — delete to reset
-- **Multiple COM8 entries in Device Manager**: See section "Check for Driver Conflicts" above
+When reporting a problem, include the output, the Device Manager device name, the selected board, the USB bridge family, and the relevant lines from `data/logs/fingerprint_attendance.log`.

@@ -1,4 +1,6 @@
-# Polish Phase Roadmap
+# Polish Phase Roadmap (Historical)
+
+> Historical planning document. It predates the maintained Qt interface; see [project overview](../UserGuide/project-overview.md) for current status.
 
 **Status:** Foundation Complete ✅  
 **Phase:** 2.0 — Polish, Stability, Research  
@@ -60,7 +62,7 @@ A **presentation-ready GUI** that looks professional enough for:
 
 2. **Enable file logging in production** (5 minutes)
    - Set `LOG_TO_FILE = True` in `config.py`
-   - Logs automatically save to `data/logs/YYYY-MM-DD.log`
+   - Logs are written to timestamped per-run files under `data/logs/`.
 
 3. **Log archival strategy** (optional)
    - Monthly archive script

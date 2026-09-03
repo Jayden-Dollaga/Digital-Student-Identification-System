@@ -1,5 +1,5 @@
-Testing Results
-===============
+Testing Results (historical record)
+===================================
 
 Summary
 -------
@@ -22,7 +22,7 @@ Session Validation — 2026-07-05
 - Verified `python/gui/app.py` and `python/core/database.py` compile cleanly with `python -m py_compile`.
 - Ran `python -m unittest -v tests.test_attendance_parsing` successfully to confirm the attendance parsing and scanning flow behaves correctly.
 - Manual validation targeted the Today-default attendance workflow, unknown scan persistence, incremental card insertion, and the Add Student dialog gating.
-- Confirmed that unknown scans are persisted in the DB as sentinel `fingerprint_id = 0` events and displayed correctly in the GUI.
+- Earlier tests and documentation claimed that unknown scans were persisted as sentinel `fingerprint_id = 0` events. The current foreign-key schema rejects that row, so this claim requires correction before it can be treated as a supported behavior.
 - Confirmed that Add Student dialog gating now rejects invalid IDs and does not create student entries for unknown scans.
 - Updated tests and documentation notes to reflect the new sentinel handling and per-fingerprint cooldown behavior.
 
@@ -30,4 +30,4 @@ Notes
 -----
 
 - Serial-dependent flows are not fully testable in CI without an attached ESP32. Tests focus on DB logic and UI helpers.
-- Additional integration tests should be added to exercise backup/restore and reconnect behaviors (requires mocking serial or a virtual serial device).
+- Newer focused Qt, serial-worker, reconnect, security, and enrollment tests exist elsewhere in `tests/`; this file remains a historical test record rather than a current coverage report.

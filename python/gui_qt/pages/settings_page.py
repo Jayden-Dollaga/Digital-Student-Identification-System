@@ -138,7 +138,7 @@ class SettingsPage(QWidget):
         self.auto_reconnect = QCheckBox("Auto-reconnect")
         self.auto_reconnect.setChecked(self.settings.get("auto_reconnect", True))
 
-        self.auto_detect_serial = QCheckBox("Auto-discover ESP32 on startup")
+        self.auto_detect_serial = QCheckBox("Auto-discover ESP32 when connecting")
         self.auto_detect_serial.setChecked(self.settings.get("auto_detect_serial", True))
 
         port_controls = QHBoxLayout()

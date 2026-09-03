@@ -8,13 +8,15 @@ The project uses a centralized Python logger so events from the GUI, serial hand
 - File output: written to the data logs folder when enabled in the configuration
 
 Default log location:
-- data/logs/YYYY-MM-DD.log
+
+- `data/logs/fingerprint_attendance_YYYYMMDD_HHMMSS.log` when file logging is enabled
 
 ## Configuration
 
 The logger behavior is controlled in [python/config.py](../python/config.py).
 
 Key settings:
+
 - LOG_TO_FILE: enable or disable file logging
 - LOG_FOLDER: directory for log files
 - ENABLE_DEBUG_LOGGING: include extra debug messages
@@ -39,6 +41,7 @@ log.error("Connection failed")
 ## What gets logged
 
 Typical entries include:
+
 - ESP32 connection events
 - Scan results and attendance saves
 - Enrollment progress and cancellations
@@ -78,10 +81,8 @@ The GUI surfaces these outcomes in dialogs but you should always check the log f
 
 ## Useful tips
 
-## Useful tips
-
 - Keep log files for troubleshooting and audits
 - Review the daily log if a scan or enrollment fails
 - Enable debug logging when investigating serial or firmware issues
- - When investigating reconnects, search for `Attempting reconnect` and follow the subsequent `failed`/`successful` messages in the same log file
- - For backup/restore issues, copy the timestamped log lines around the operation and include the backup filename when requesting support
+- When investigating reconnects, search for `Attempting reconnect` and follow the subsequent `failed`/`successful` messages in the same log file
+- For backup/restore issues, copy the timestamped log lines around the operation and include the backup filename when requesting support

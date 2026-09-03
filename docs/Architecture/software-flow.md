@@ -37,7 +37,7 @@ The current Python implementation uses a more structured flow than earlier versi
 4. The serial handler receives the raw output and passes it to the attendance processor.
 5. The attendance processor interprets the scan result, applies cooldown and confidence rules, and returns a structured outcome.
 6. The database layer records the event and the GUI refreshes the attendance view.
-7. Unknown or unregistered scans are stored as history entries rather than being dropped.
+7. Unknown or unregistered scans can be shown as operational events, but are not persisted by the current attendance schema unless a valid enrolled fingerprint ID is available.
 
 ## Backup and restore flow
 

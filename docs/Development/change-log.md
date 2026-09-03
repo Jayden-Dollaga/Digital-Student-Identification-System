@@ -1,10 +1,10 @@
 Change Log
 ==========
 
-Unreleased — verified 2026-08-28
+Unreleased — verified 2026-09-03
 --------------------------------
 
-- Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`a1fdbb4`).
+- Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`dc22456`).
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
 - Feat: Added non-blocking connection handling and improved enrollment logging (`8aef42a`, `f06a7af`).
 - Feat: Added fingerprint count listing and improved reconnect handling (`c625016`).
@@ -17,6 +17,11 @@ Unreleased — verified 2026-08-28
 - Investigation: Enrollment dialog and SerialWorker integration were verified with a Qt event loop; the resolved report is preserved in `docs/Dup/historical-investigations/`.
 - Maintenance: The historical repository-organization audit is preserved in `docs/Dup/maintenance-audits/`; Qt remains the active UI and CustomTkinter remains compatibility code.
 - Security follow-up: Information-disclosure paths outside database restore, wipe-operation correlation, function-level authorization enforcement, backup encryption, and database access auditing remain to be verified or implemented.
+- Docs: Rebuilt Windows setup guidance around the maintained Qt application, verified ESP32 WROOM-32 wiring, and USB bridge-specific driver installation.
+- Fix: Recognized valid DSIS handshakes during the firmware boot phase and added sensor-failure regression coverage (`31bde42`).
+- Security: Enforced additional student-operation permissions and improved database error logging (`4d87200`).
+- Improve: Refactored theme management, improved hardware-test handling, and added configurable automatic-backup intervals (`215582c`, `849a504`).
+- Fix: Added stale COM-port cleanup and a **Forget saved port** workflow for ESP32 connection recovery (`d68a405`).
 
 v2.4 — 2026-07-17
 -----------------
@@ -35,7 +40,7 @@ v2.3 — 2026-07-05
 
 - Add: Windows launcher for one-click startup and dependency setup via `run_app.bat`.
 - UI: Reworked the Attendance view into a Today-first experience with clearer cards, status badges, confidence indicators, and a secondary Recent/Load More history path.
-- Add: Unknown or unregistered scans now appear as red unregistered entries in the attendance UI, are saved to attendance history, and do not create student roster rows by default.
+- Add: Unknown or unregistered scans appear as red operational entries in the attendance UI; the current foreign-key schema does not persist them as sentinel attendance rows.
 - Fix: Added cooldown/rate-limiting for repeated UNKNOWN scans and switched to incremental attendance card rendering for better performance as history grows.
 - Fix: Added ID/CONFIDENCE timeout protection so stale fingerprint IDs expire before the next confidence reading.
 - Improve: New scans now insert cards into the active Attendance tab only when that tab is visible, avoiding unnecessary full refreshes.
@@ -48,7 +53,7 @@ Detailed Session Summary
 
 - Enforced "Today" as the default attendance view on startup, while preserving a secondary "Recent" history mode with pagination.
 - Fixed attendance ordering so newest records render first and recent scans are inserted at the top of the current view.
-- Preserved and rendered UNKNOWN/unregistered fingerprint scans as real history entries using `fingerprint_id = 0`.
+- Historical note: Earlier UI work described UNKNOWN/unregistered scans as `fingerprint_id = 0` history entries; the current schema rejects that sentinel row and the behavior is not supported persistence.
 - Guaranteed that unregistered scans are saved to the attendance table and displayed as red "Unregistered" cards rather than being dropped.
 - Added per-fingerprint cooldown tracking so duplicate scans are blocked independently for each fingerprint ID.
 - Fixed the scan parser to use a dedicated `last_logged_times` dictionary rather than a single global scan state, preventing different fingerprints from bypassing duplicate protection.
@@ -84,4 +89,4 @@ v1.0 — Initial release
 Notes
 -----
 
-Last verified: 2026-08-28, against commit 3119175
+Last verified: 2026-09-03, against the current `main` branch

@@ -22,7 +22,7 @@ The older sketches should not be mixed with the current host protocol without ve
 
 Upload the all-in-one `.ino` sketch with Arduino IDE for a source build. Keep the Python application and Arduino Serial Monitor from opening the same COM port simultaneously. The current host default baud rate is 115200; the sensor UART is configured separately by the firmware.
 
-The file named `attendance_v1.0.bin` was added in commit `d8d3b46` on 2026-07-27.
+The file named `attendance_v1.0.bin` is retained as an historical placeholder.
 Git records its content as the literal text `BIN_PLACEHOLDER`, not a compiled
 binary. No source sketch, compiler version, board setting, or upload procedure
 can be established from repository history. It must not be flashed.
@@ -35,4 +35,4 @@ D990B199010D6DA7875876DBC40A1D7FC848201719FA5BF66BB7FA8B77F097F1
 
 <!-- TODO: verify — ask project owner whether this placeholder should be replaced and which source built the intended binary. -->
 
-Last verified: 2026-08-28, against commit 3119175
+Last verified: 2026-09-03, against commit d68a405

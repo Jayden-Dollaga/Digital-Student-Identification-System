@@ -11,8 +11,8 @@ A centralized logging system that replaces scattered `print()` statements throug
 ✅ **Colored Console Output**
 - Info (white), Success (green), Warning (yellow), Error (red), Debug (cyan)
 
-✅ **File Logging** (optional)
-- Automatically saves to `data/logs/YYYY-MM-DD.log`
+✅ **File Logging** (enabled by default)
+- Saves each run to `data/logs/fingerprint_attendance_YYYYMMDD_HHMMSS.log`
 - Enable with one config change (no code modification needed)
 
 ✅ **Debug Mode** (optional)
@@ -56,8 +56,8 @@ log.debug("Detailed diagnostic info")
 In `python/config.py`:
 
 ```python
-# Enable file logging (saves to data/logs/YYYY-MM-DD.log)
-LOG_TO_FILE = False  # Change to True to enable
+# Enable file logging (saves one timestamped file per run)
+LOG_TO_FILE = True
 
 # Enable debug output
 ENABLE_DEBUG_LOGGING = False  # Change to True to enable
@@ -172,8 +172,8 @@ The logger has been tested and verified:
 |------|---------|
 | `python/core/logger.py` | Logger implementation |
 | `python/config.py` | Logging configuration |
-| `docs/LOGGER_USAGE.md` | Detailed usage guide |
-| `docs/LOGGING_QUICK_REFERENCE.md` | This file |
+| `docs/Development/logger_usage.md` | Detailed usage guide |
+| `docs/Development/logging-quick-reference.md` | This file |
 
 ---
 
@@ -193,4 +193,4 @@ No rush — the system works perfectly with or without it.
 
 ## Questions?
 
-See `docs/LOGGER_USAGE.md` for comprehensive guide with examples.
+See `docs/Development/logger_usage.md` for comprehensive guidance with examples.

@@ -1,4 +1,6 @@
-# Centralized Logging System — Implementation Summary
+# Centralized Logging System — Historical Implementation Summary
+
+> Historical report. Current logging behavior is documented in [logging-guide.md](logging-guide.md) and implemented in `python/core/logger.py`.
 
 ## What Was Built
 
@@ -15,7 +17,7 @@ A production-ready centralized logging system that replaces scattered `print()` 
 - **Size:** ~130 lines
 - **Features:**
   - Colored console output (6 levels: debug, info, success, warning, error, critical)
-  - Optional file logging (saves to `data/logs/YYYY-MM-DD.log`)
+  - File logging enabled by default, with one timestamped file per run under `data/logs/`
   - Optional debug mode (controlled from config)
   - Automatic timestamps
   - Global logger instance (`log`)
@@ -30,7 +32,7 @@ A production-ready centralized logging system that replaces scattered `print()` 
 
 ### 3. Documentation (3 guides)
 - `docs/LOGGING_QUICK_REFERENCE.md` — Quick reference for daily use
-- `docs/LOGGER_USAGE.md` — Comprehensive usage guide with examples
+- `docs/Development/logger_usage.md` — Comprehensive usage guide with examples
 - `docs/MIGRATION_EXAMPLE.md` — Before/after code examples showing migration
 
 ---
@@ -218,7 +220,7 @@ log.info("Application started")
 ### Created
 - `python/core/logger.py` — Logger implementation (130 lines)
 - `docs/LOGGING_QUICK_REFERENCE.md` — Quick start guide
-- `docs/LOGGER_USAGE.md` — Comprehensive guide
+- `docs/Development/logger_usage.md` — Comprehensive guide
 - `docs/MIGRATION_EXAMPLE.md` — Code examples
 
 ### Modified
@@ -231,8 +233,8 @@ log.info("Application started")
 ```python
 # python/config.py
 
-# Enable file logging (saves to data/logs/YYYY-MM-DD.log)
-LOG_TO_FILE = False  # Change to True to enable
+# Enable file logging (one timestamped file per run)
+LOG_TO_FILE = True
 
 # Enable debug output (only shows log.debug() calls)
 ENABLE_DEBUG_LOGGING = False  # Change to True to enable
@@ -270,7 +272,7 @@ When ready to save logs to files:
 LOG_TO_FILE = True
 ```
 
-Done! All logs now save to `data/logs/YYYY-MM-DD.log` automatically.
+Done! Logs save to a timestamped file under `data/logs/` by default.
 
 ---
 
@@ -278,7 +280,7 @@ Done! All logs now save to `data/logs/YYYY-MM-DD.log` automatically.
 
 Refer to:
 - `docs/LOGGING_QUICK_REFERENCE.md` — Quick answers
-- `docs/LOGGER_USAGE.md` — Detailed guide with examples
+- `docs/Development/logger_usage.md` — Detailed guide with examples
 - `docs/MIGRATION_EXAMPLE.md` — Code examples and patterns
 - `python/core/logger.py` — Implementation details
 

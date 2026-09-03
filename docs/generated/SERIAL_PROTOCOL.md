@@ -55,16 +55,16 @@ The firmware emits JSON lines during scan mode:
 
 The Python processor uses `parse_json_line()` to parse these lines and `AttendanceProcessor` to decide whether to record an event.
 
-### Legacy text scan outputs
+### Legacy text scan inputs
 
-The firmware also emits text-based scan results for compatibility:
+The Python parser accepts these text-based scan results for compatibility with historical firmware:
 
 - `ID:1`
 - `CONFIDENCE:223`
 - `UNKNOWN`
 - `LOW_CONFIDENCE:42`
 
-`python/core/attendance.py` can parse both styles and applies a cooldown to avoid duplicate logging.
+The maintained all-in-one firmware emits JSON attendance events. `python/core/attendance.py` can parse both styles and applies a cooldown to avoid duplicate logging.
 
 ## Connection lifecycle
 

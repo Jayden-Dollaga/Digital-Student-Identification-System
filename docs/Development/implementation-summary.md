@@ -1,66 +1,30 @@
-# Implementation Summary — Recent Changes
+# Implementation Summary
 
-Date: 2026-07-05
+This historical summary is retained as provenance for the refactoring and workflow work completed in July 2026. Current behavior is defined by the active Python, firmware, and test code.
 
-This document records the recent implementation work performed across the project, why it was done, and how to validate it. It is intended to be a concise but detailed record for future maintainers.
+## Implemented areas
 
-## High-level goals
-- Improve UX: make the Attendance UI more visual and informative.
-- Fix reliability: address reconnect auto-retry and UI state updates.
-- Fix data integrity: ensure wipe clears both fingerprints and attendance.
-- Add restore/backup UI and enforce export permissions.
-- Provide a simple launcher and update documentation and logging guidance.
+- PySide6/Qt is the maintained desktop interface; the CustomTkinter interface remains compatibility code.
+- `SerialHandler` and `ConnectionWorker` manage device discovery, DSIS identity handshakes, buffered boot output, disconnects, and reconnect attempts.
+- `AttendanceProcessor` handles JSON and legacy text input, cooldowns, confidence thresholds, and attendance workflow decisions.
+- SQLite persistence covers students, attendance, reports, backups, and restore validation.
+- The Qt interface provides enrollment, scanning, student management, reports, logs, settings, role-based local action gating, and connection recovery controls.
+- The settings store persists COM port, baud rate, theme, cooldown, confidence, auto-reconnect, auto-discovery, logging, role, and backup preferences.
 
-## Files added or modified (high level)
-- `python/gui/app.py` — major UI changes: attendance cards, status helpers, restore dialog, permission checks, reconnect UI updates.
-- `python/core/attendance.py` — processor now persists UNKNOWN scans to attendance log using `fingerprint_id = 0` sentinel.
-- `python/core/database.py` — added `clear_all_data()` and ensured attendance queries include joined student info; attendance table used for saved UNKNOWN scans.
-- `docs/` — added `logging-guide.md`, updated `README.md`, and this `implementation-summary.md`.
-- `run_app.bat` — launcher that runs `python/main.py` and installs `requirements.txt` if missing (already present in project root).
+## Unknown scans
 
-## Attendance UI changes (details)
-- Replaced plain-text list with card-based layout built from `CTkFrame` cards in `refresh_attendance_view()`.
-  - Each card contains:
-    - Avatar placeholder (initials of student name).
-    - Colored status badge: green for present/good, yellow for weak, red for danger/unknown.
-    - Main textual info: student name, fingerprint ID, student number/grade/section.
-    - A colored "confidence" pill showing confidence value (green/yellow).
-  - Cards are created in `python/gui/app.py::refresh_attendance_view()`.
+The firmware emits JSON unknown events and the UI can display them operationally. The current database enables foreign keys and requires attendance rows to reference enrolled students, so `fingerprint_id = 0` is not a supported persisted attendance row. Earlier versions of this report described sentinel-row persistence; that description is obsolete.
 
-## Unknown / Unregistered scan handling
-- Requirement: unknown/unregistered scans must be visible in the attendance UI as red items and saved in logs, but not added to the `students` table.
-- Implementation:
-  - `AttendanceProcessor.process_line()` now writes UNKNOWN scans to the `attendance` table using `log_attendance(0, 0, "UNKNOWN", now)` where `fingerprint_id=0` is a sentinel for unregistered scans.
-  - The GUI parser (`python/gui/app.py`) also writes unknown scans when it sees the `UNKNOWN` message and refreshes the attendance view.
-  - The attendance JOIN queries in `database.py` coalesce student info; for `fingerprint_id=0` a label like `Unknown ID:0` will appear by default — consider customizing display text to `Unregistered` if preferred (see Next Steps).
+## Firmware and serial contract
 
-## Reconnect and UI state fixes
-- `read_serial_output()` and related UI helper methods were updated to correctly reflect connection status, reconnect attempts, and to avoid previous logic bugs that prevented UI updates during retries.
+The maintained sketch is `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. The host-to-ESP32 USB connection uses 115200 baud, while the internal ESP32-to-AS608 UART uses 57600 baud. Historical sketches and the placeholder prebuilt binary are not interchangeable with the maintained Qt workflow.
 
-## Wipe and backup/restore changes
-- Added `clear_all_data()` which deletes both `students` and `attendance` tables' contents and returns counts.
-- Added a Restore dialog in the GUI (`open_restore_dialog()` and `_confirm_restore()`) calling `list_backups()` and `restore_database()`.
+## Verification
 
-## Permissions and Export
-- Export/backup/restore buttons now respect the role-based permissions defined in `config.USER_ROLES`.
-- `show_statistics_report()` and `export_statistics_report()` call `has_permission("export")` before enabling export functionality.
+Run the focused implementation tests from the repository root:
 
-## Testing and verification steps
-1. Run the preferred Qt GUI launcher: `python run_qt_gui.py` or double-click `run_qt_gui.bat` on Windows.
-   - The legacy CustomTkinter workflow is still available via `run_app.bat` or `python/main.py` for compatibility.
-2. Connect the ESP32 and start Scan mode on the device.
-3. Scan a registered fingerprint: a green card should appear and a DB record written to `data/attendance.db`.
-4. Scan an unregistered fingerprint: a red/unknown card should appear and a DB record with `fingerprint_id=0` should be added (check `attendance` table).
-5. Test wipe: use the Wipe dialog to wipe fingerprints and verify `clear_all_data()` clears both `students` and `attendance`.
-6. Test restore: create a backup via Backup DB, then Restore DB to validate dialog listing and restore behavior.
+```powershell
+python -m pytest tests/test_project_structure.py tests/test_qt_enrollment_flow.py tests/test_qt_serial_worker.py
+```
 
-## Notes and rationale
-- Using `fingerprint_id=0` for unknown scans keeps all scan history in one place (attendance table) which simplifies reporting while preventing accidental creation of student records.
-- The UI uses named colors and CTk theme-safe values; avoid eight-digit hex like `#ffffff10` which causes Tcl/Tk errors on some platforms.
-
-## Next steps / UX options
-- Replace `Unknown ID:0` display with `Unregistered` in the UI and reports for clarity (recommended). I can implement this change if you want.
-- Add action buttons to attendance cards (View profile / Mark as present / Add student) — requires permission gating and confirmation flows.
-- Add small unit tests to validate `AttendanceProcessor` behavior for UNKNOWN, low confidence, and duplicate cooldown handling.
-
-If you want any of the next steps implemented now (for example, change the display label for sentinel `0` to `Unregistered`), tell me which and I'll apply the change and run quick verification.
+Serial hardware integration still requires a connected, correctly wired ESP32 and AS608 module. This summary was reviewed against commit `d68a405` on 2026-09-03.

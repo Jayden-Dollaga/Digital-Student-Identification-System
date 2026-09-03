@@ -44,4 +44,4 @@ Before distributing a build:
 
 Clean-machine and USB validation have not been recorded in this document.
 
-Last verified: 2026-08-28, against commit 3119175
+Last verified: 2026-09-03, against commit d68a405

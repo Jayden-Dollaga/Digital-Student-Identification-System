@@ -6,22 +6,23 @@ The Digital Student Identification System (DSIS) uses an ESP32 board and an AS60
 
 ## Recommended hardware
 
-- ESP32 DevKit or WROOM-32 board
+- ESP32 WROOM-32 board selected as **ESP32 Dev Module**
 - AS608 fingerprint sensor module
 - USB cable for power and serial communication
 - breadboard and jumper wires
-- stable 3.3V power source
+- suitable regulated power for the exact AS608 module revision
 
 ## Default wiring
 
 | AS608 pin | Connection | ESP32 connection |
 | --- | --- | --- |
-| V+ | 3.3V | 3.3V |
+| V+ | Module power input | Use the voltage specified by the sensor board revision; the verified setup uses the shield's regulated sensor supply. |
 | GND | Ground | GND |
-| TX | Sensor TX | ESP32 RX |
-| RX | Sensor RX | ESP32 TX |
+| TX | Sensor TX | ESP32 GPIO14 (UART2 RX) |
+| RX | Sensor RX | ESP32 GPIO27 (UART2 TX) |
 
-> The exact pin numbers may vary by board revision. The current firmware expects a serial-based communication path between the ESP32 and the sensor module.
+> TX and RX are crossed. These GPIO assignments are specific to the maintained firmware in [ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino); do not change them without changing the firmware.
+> AS608 modules and breakout boards do not all have the same power circuitry. Check the label or datasheet for your revision before applying power. Do not assume that an unregulated sensor board can be connected directly to 3.3V or 5V.
 
 ## Notes on wiring quality
 
@@ -32,7 +33,7 @@ The Digital Student Identification System (DSIS) uses an ESP32 board and an AS60
 
 ## Serial considerations
 
-The host machine connects to the ESP32 through USB. The Python application uses the discovered COM port to communicate with the device. If you change boards or wiring significantly, verify that the firmware and host-side serial settings still agree.
+The host machine connects to the ESP32 through USB at **115200 baud**. The internal ESP32-to-AS608 UART runs at **57600 baud**. The Python application only configures the host-side rate and uses the discovered COM port. COM numbers are assigned by Windows and vary between machines.
 
 ## Validation checklist
 

@@ -1,5 +1,7 @@
 # Database Audit
 
+> Point-in-time generated report. The active schema is documented in [database-schema.md](../Architecture/database-schema.md) and implemented in `python/core/database.py`.
+
 ## Storage backend
 
 - SQLite is the primary data store.
