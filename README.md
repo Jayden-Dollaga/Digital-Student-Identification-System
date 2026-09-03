@@ -55,6 +55,46 @@ Installing Python packages does not install Windows USB drivers. The application
 
 The maintained desktop interface is the PySide6/Qt application launched by [run_qt_gui.py](run_qt_gui.py) or [run_qt_gui.bat](run_qt_gui.bat). The older CustomTkinter interface remains available through [run_app.bat](run_app.bat) for compatibility and is not the primary workflow.
 
+### UI Prototype
+
+The isolated Task Manager-inspired identification concept can be previewed without starting the live serial or database workflow:
+
+```text
+   python tests/Prototype/run_qt_prototype.py
+```
+
+It includes mock identification data, navigation, device status, scan controls, result details, and a compact density switch for evaluating the layout before integration.
+
+An alternate hybrid concept combines that identification workspace with the production app's Dashboard, Attendance, Students, Reports, and Logs structure:
+
+```text
+python tests/Prototype/run_hybrid_prototype.py
+```
+
+The Windows 11 Task Manager-inspired comparison variant adds icon navigation, a lighter utility palette, and an icon-only compact rail:
+
+```text
+python tests/Prototype/run_task_manager_variant.py
+```
+
+The original-style reconstruction is available separately for direct comparison with the current application's six-page dark shell:
+
+```text
+python tests/Prototype/original_ui.py
+```
+
+For a display-only preview composed from the actual Qt pages in `python/gui_qt` (without starting serial workers), run:
+
+```text
+python tests/Prototype/run_original_ui_display.py
+```
+
+To view the actual Qt pages with the Task Manager-inspired shell and navigation icons combined:
+
+```text
+python tests/Prototype/run_combined_ui.py
+```
+
 ## Project Structure
 
 | Path | Purpose |
