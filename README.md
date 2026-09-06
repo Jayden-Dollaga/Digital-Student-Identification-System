@@ -29,10 +29,10 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
 
 3. Upload the all-in-one firmware once using Arduino IDE. See [Installation](INSTALLATION.md) for wiring, board, and firmware details.
 
-4. Connect the ESP32 with a data-capable USB cable, close other serial monitors, and launch the active Qt application:
+4. Connect the ESP32 with a data-capable USB cable, close other serial monitors, and launch the active v3 webview application:
 
    ```text
-   run_qt_gui.bat
+   run_web_gui.bat
    ```
 
 For packaged Windows deployment, see [Portable Build](PORTABLE_BUILD.md). For connection problems, see [Troubleshooting](docs/TROUBLESHOOTING.md). Contributors should start with [Contributing](CONTRIBUTING.md) and [Release Guide](RELEASE.md).
@@ -53,7 +53,7 @@ Installing Python packages does not install Windows USB drivers. The application
 
 ## Active Interfaces
 
-The maintained desktop interface is the PySide6/Qt application launched by [run_qt_gui.py](run_qt_gui.py) or [run_qt_gui.bat](run_qt_gui.bat). The older CustomTkinter interface remains available through [run_app.bat](run_app.bat) for compatibility and is not the primary workflow.
+The maintained desktop interface is the HTML/pywebview v3 application launched by [run_web_gui.py](run_web_gui.py) or [run_web_gui.bat](run_web_gui.bat). The former Qt and CustomTkinter interfaces are archived under [archive/legacy-ui/](archive/legacy-ui/) and are not current launchers.
 
 ### UI Prototypes
 
@@ -113,4 +113,4 @@ See the [documentation index](docs/INDEX.md) for the full map.
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-04, against commit `be7a046`
+Last verified: 2026-09-06, against commit `6b44ca8`

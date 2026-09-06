@@ -7,7 +7,8 @@ Commit `be7a046` adds isolated Qt interface prototypes for comparing possible la
 - Prototypes use mock data or display-only production pages.
 - They do not start the live serial worker or database workflow.
 - Changes made in a prototype do not change the maintained DSIS application.
-- The supported desktop entry point remains `run_qt_gui.bat` and `run_qt_gui.py`.
+- The supported desktop entry point is now `run_web_gui.bat` and `run_web_gui.py`.
+- The Qt and CustomTkinter interfaces used by some prototypes are archived snapshots, not active launchers.
 
 ## Available previews
 

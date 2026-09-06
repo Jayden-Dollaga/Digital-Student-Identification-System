@@ -26,4 +26,4 @@ For hardware changes, also record the ESP32 board, USB bridge, sensor module rev
 
 ## Documentation source of truth
 
-The maintained desktop interface is the PySide6/Qt application launched by `run_qt_gui.bat`. The all-in-one firmware at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` is the supported firmware path. Historical sketches and the placeholder binary are retained for reference and should not be presented as interchangeable installation options.
+The maintained desktop interface is the HTML/pywebview v3 application launched by `run_web_gui.bat`. The former Qt and CustomTkinter trees are archived under `archive/legacy-ui/`. The all-in-one firmware at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` is the supported firmware path. Historical sketches and the placeholder binary are retained for reference and should not be presented as interchangeable installation options.

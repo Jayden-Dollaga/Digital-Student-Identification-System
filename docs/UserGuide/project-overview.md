@@ -49,8 +49,8 @@ Unknown scans can be shown during operation, but the current database foreign-ke
 ## Software stack
 
 - Python 3.10 or newer (64-bit Windows recommended)
-- PySide6/Qt for the maintained GUI
-- CustomTkinter for the legacy compatibility GUI only
+- HTML/CSS/JavaScript in a pywebview desktop window for the maintained v3 GUI
+- PySide6/Qt and CustomTkinter as archived legacy interfaces only
 - PySerial for serial communication
 - SQLite for local persistence
 - Matplotlib for charts
@@ -100,14 +100,12 @@ The application is split into clear layers:
 
 ## GUI modules
 
-The GUI has been organized into focused modules so the code is easier to maintain:
+The active GUI is organized as a webview shell and a Python API bridge. The former page-based desktop modules remain in the archive for reference:
 
-- app.py: main controller and application lifecycle
-- attendance_page.py: attendance records and display logic
-- students_page.py: student registration and management
-- dialogs.py: enrollment, backup, restore, and wipe dialogs
-- sidebar.py: connection controls and quick actions
-- statistics_page.py, reports_page.py, log_page.py: reporting and logging views
+- `python/gui_web/main_web.py`: v3 webview launcher and window lifecycle
+- `python/gui_web/api.py`: bridge from the web UI to the existing Python backend
+- `python/gui_web/web/`: active HTML, CSS, and JavaScript interface
+- `archive/legacy-ui/`: historical Qt and CustomTkinter page implementations
 
 ## Data handling
 
@@ -148,8 +146,8 @@ The current system includes:
 1. Install the Python dependencies with [install_requirements.bat](../../install_requirements.bat) or pip.
 2. Upload the firmware to the ESP32.
 3. Connect the hardware.
-4. Launch the GUI using the newer Qt interface with [run_qt_gui.bat](../../run_qt_gui.bat) or `python run_qt_gui.py`.
-   - The legacy CustomTkinter GUI remains available for compatibility at `run_app.bat` or `python python/gui/app.py`, but the Qt stack is the preferred modern path.
+4. Launch the active v3 webview interface with [run_web_gui.bat](../../run_web_gui.bat) or `python run_web_gui.py`.
+   - The Qt and CustomTkinter interfaces are retained only as archived historical snapshots under `archive/legacy-ui/`.
 5. Enroll students and begin scanning.
 
 > The GUI now opens larger by default so more of the user interface is visible on start.

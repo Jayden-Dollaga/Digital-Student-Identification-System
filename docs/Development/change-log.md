@@ -5,6 +5,7 @@ Unreleased — verified 2026-09-04
 --------------------------------
 
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
+- Maintenance: Added versioned `archive/legacy-ui/v1` and `archive/legacy-ui/v2` snapshots, including historical StudentsPage implementations for Qt and CustomTkinter comparison. These files are archival and not part of the supported runtime (`6b44ca8`).
 - Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`dc22456`).
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
 - Feat: Added non-blocking connection handling and improved enrollment logging (`8aef42a`, `f06a7af`).
@@ -16,7 +17,7 @@ Unreleased — verified 2026-09-04
 - Feat: Added heartbeat diagnostics and automatic database backups (`dbd3fa5`, `2721003`).
 - UI: Enhanced dialog/message-box styling for consistent themes (`4812777`).
 - Investigation: Enrollment dialog and SerialWorker integration were verified with a Qt event loop; the resolved report is preserved in `docs/Dup/historical-investigations/`.
-- Maintenance: The historical repository-organization audit is preserved in `docs/Dup/maintenance-audits/`; Qt remains the active UI and CustomTkinter remains compatibility code.
+- Maintenance: The historical repository-organization audit is preserved in `docs/Dup/maintenance-audits/`; the HTML/pywebview v3 interface is active, while Qt and CustomTkinter remain archived snapshots.
 - Security follow-up: Information-disclosure paths outside database restore, wipe-operation correlation, function-level authorization enforcement, backup encryption, and database access auditing remain to be verified or implemented.
 - Docs: Rebuilt Windows setup guidance around the maintained Qt application, verified ESP32 WROOM-32 wiring, and USB bridge-specific driver installation.
 - Fix: Recognized valid DSIS handshakes during the firmware boot phase and added sensor-failure regression coverage (`31bde42`).

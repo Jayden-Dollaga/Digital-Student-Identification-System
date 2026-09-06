@@ -70,4 +70,4 @@ Historical investigation reports retained for review:
 Generated reports are listed in [generated/INDEX.md](generated/INDEX.md). Archived
 copies and one-off reports are listed in [Dup/README.md](Dup/README.md).
 
-Last verified: 2026-09-04, against commit be7a046
+Last verified: 2026-09-06, against commit 6b44ca8
