@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSIS — Prototype UI</title>
+<style>
+  :root {
+    --bg:       #13151A;
+    --surface:  #1A1D23;
+    --surface2: #1F2229;
+    --border:   #252830;
+    --border2:  #2E333D;
+    --accent:   #3B78FF;
+    --accent-d: #2355C9;
+    --text:     #D9DCE3;
+    --muted:    #6B7280;
+    --muted2:   #9CA3AF;
+    --green:    #22C55E;
+    --yellow:   #EAB308;
+    --red:      #EF4444;
+    --sidebar-w: 188px;
+    --header-h: 42px;
+    --statusbar-h: 26px;
+    --row-h: 34px;
+    --font: "Segoe UI", system-ui, sans-serif;
+    --compact: 0;
+  }
+  .compact {
+    --sidebar-w: 52px;
+    --header-h: 36px;
+    --row-h: 28px;
+    --compact: 1;
+    font-size: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Window chrome ── */
+  #titlebar {
+    height: 36px;
+    background: #0E1016;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #titlebar .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #titlebar .logo svg { display: block; }
+  #titlebar .logo-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: #E8EAF0;
+    letter-spacing: .3px;
+  }
+  #titlebar .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+  #titlebar .tb-spacer { flex: 1; }
+  .win-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .win-btn:hover { background: var(--surface2); color: var(--text); }
+  .win-btn.close:hover { background: #C42B2B; color: #fff; }
+
+  /* ── App body ── */
+  #app {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    transition: width .15s ease;
+    overflow: hidden;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    padding: 10px 14px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .compact .nav-section-label { opacity: 0; height: 0; padding: 0; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    height: var(--row-h);
+    cursor: pointer;
+    color: var(--muted2);
+    border-radius: 5px;
+    margin: 1px 6px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background .1s, color .1s;
+    position: relative;
+    overflow: hidden;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active {
+    background: #1E3A8A22;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 20%; bottom: 20%;
+    width: 2px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+  }
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: .85;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .compact .nav-label { display: none; }
+  .compact .nav-item { justify-content: center; padding: 0; margin: 1px 4px; }
+
+  .sidebar-spacer { flex: 1; }
+
+  /* compact toggle button at sidebar bottom */
+  .compact-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin: 6px;
+    cursor: pointer;
+    color: var(--muted);
+    border-radius: 5px;
+    font-size: 12px;
+    transition: background .1s, color .1s;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .compact-toggle:hover { background: var(--surface2); color: var(--text); }
+  .compact .compact-toggle { justify-content: center; padding: 8px 0; }
+  .compact-toggle-label { flex: 1; }
+  .compact .compact-toggle-label { display: none; }
+  .compact-toggle svg { flex-shrink: 0; }
+
+  /* ── Right panel ── */
+  #right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Page header ── */
+  #page-header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  #page-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #E8EAF0;
+  }
+  .compact #page-title { font-size: 13px; }
+  .header-sep {
+    width: 1px; height: 16px;
+    background: var(--border2);
+    flex-shrink: 0;
+  }
+  .header-spacer { flex: 1; }
+
+  /* status pill */
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .status-pill.disconnected { background: #2A1A1A; color: #EF4444; border: 1px solid #3D2020; }
+  .status-pill.connected    { background: #0D2A18; color: #22C55E; border: 1px solid #17472A; }
+  .status-pill.scanning     { background: #1A1F0A; color: #84CC16; border: 1px solid #2D3A14; }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .dot.pulse {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+
+  .hdr-btn {
+    height: 26px;
+    padding: 0 12px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background .1s, border-color .1s;
+    white-space: nowrap;
+  }
+  .hdr-btn:hover { background: var(--border2); }
+  .hdr-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .hdr-btn.primary:hover { background: var(--accent-d); border-color: var(--accent-d); }
+  .hdr-btn.danger { background: #7F1D1D; border-color: #991B1B; color: #FCA5A5; }
+  .hdr-btn.danger:hover { background: #991B1B; }
+
+  /* ── Page content ── */
+  #page-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Pages ── */
+  .page { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .page.active { display: flex; }
+
+  /* ─ Dashboard ─ */
+  #page-dashboard { padding: 14px 16px; gap: 12px; overflow-y: auto; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .compact .stat-card { padding: 8px 12px; }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted2);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #E8EAF0;
+    line-height: 1.1;
+  }
+  .compact .stat-value { font-size: 18px; }
+  .stat-sub { font-size: 11px; color: var(--muted); }
+  .stat-card.accent-green { border-top: 2px solid var(--green); }
+  .stat-card.accent-blue  { border-top: 2px solid var(--accent); }
+  .stat-card.accent-yellow{ border-top: 2px solid var(--yellow); }
+  .stat-card.accent-red   { border-top: 2px solid var(--red); }
+
+  /* scan result flash area */
+  #scan-result-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .scan-icon-wrap {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  .scan-icon-wrap.match { background: #0D2A18; border-color: #17472A; }
+  .scan-icon-wrap.miss  { background: #2A1A1A; border-color: #3D2020; }
+  .scan-info { flex: 1; }
+  .scan-name { font-size: 15px; font-weight: 700; color: #E8EAF0; }
+  .compact .scan-name { font-size: 13px; }
+  .scan-meta { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+  .scan-status-tag {
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+  .scan-status-tag.present { background: #14532D; color: #4ADE80; }
+  .scan-status-tag.unknown { background: #451A03; color: #FB923C; }
+  .scan-status-tag.idle    { background: var(--surface2); color: var(--muted); }
+  .confidence-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .confidence-bar-bg {
+    flex: 1; height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .confidence-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--green);
+    transition: width .4s ease;
+  }
+  .confidence-label { font-size: 11px; color: var(--muted2); white-space: nowrap; }
+
+  /* activity table */
+  .section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  /* ─ Table / list layout (shared) ─ */
+  .data-table-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .data-table thead th {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border2);
+    padding: 0 10px;
+    height: 32px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+  }
+  .compact .data-table thead th { height: 26px; font-size: 10.5px; }
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .08s;
+    cursor: default;
+  }
+  .data-table tbody tr:hover { background: var(--surface2); }
+  .data-table tbody td {
+    padding: 0 10px;
+    height: var(--row-h);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+  }
+  .compact .data-table tbody td { font-size: 12px; }
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.present { background: #14532D; color: #4ADE80; }
+  .badge.absent  { background: #2A1A1A; color: #EF4444; }
+  .badge.late    { background: #431407; color: #FB923C; }
+  .badge.admin   { background: #1e1b4b; color: #a5b4fc; }
+  .badge.student { background: #162032; color: #60a5fa; }
+
+  /* ─ Toolbar strip ─ */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 14px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .compact .toolbar { height: 30px; }
+  .toolbar-sep {
+    width: 1px; height: 16px;
+    background: var(--border2);
+    flex-shrink: 0;
+  }
+  .toolbar-spacer { flex: 1; }
+  .tb-search {
+    height: 24px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font);
+    padding: 0 8px;
+    width: 180px;
+    outline: none;
+  }
+  .tb-search:focus { border-color: var(--accent); }
+  .compact .tb-search { height: 20px; width: 140px; font-size: 11px; }
+  .tb-select {
+    height: 24px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font);
+    padding: 0 6px;
+    outline: none;
+    cursor: pointer;
+  }
+  .compact .tb-select { height: 20px; font-size: 11px; }
+  .tb-count { font-size: 11px; color: var(--muted); }
+
+  /* ─ Status bar ─ */
+  #statusbar {
+    height: var(--statusbar-h);
+    background: #0E1016;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .sb-item { display: flex; align-items: center; gap: 5px; }
+  .sb-item .dot { width: 5px; height: 5px; }
+  .sb-sep { width: 1px; height: 12px; background: var(--border2); }
+  .sb-spacer { flex: 1; }
+  .sb-time { font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+
+  /* ─ Settings layout ─ */
+  #page-settings { overflow-y: auto; }
+  .settings-inner { padding: 16px; display: flex; flex-direction: column; gap: 16px; max-width: 580px; }
+  .settings-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .settings-group-title {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    height: 38px;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compact .settings-row { height: 30px; }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row-label { flex: 1; font-size: 12.5px; color: var(--text); }
+  .settings-row-desc { font-size: 11px; color: var(--muted); }
+  .settings-row-value { font-size: 12px; color: var(--muted2); }
+  .toggle-switch {
+    width: 34px; height: 18px;
+    border-radius: 9px;
+    background: var(--border2);
+    position: relative;
+    cursor: pointer;
+    transition: background .2s;
+    flex-shrink: 0;
+  }
+  .toggle-switch.on { background: var(--accent); }
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px; left: 3px;
+    transition: left .2s;
+  }
+  .toggle-switch.on::after { left: 19px; }
+
+  /* ─ Log page — dual panel ─ */
+  #page-logs { padding: 0; flex-direction: column; }
+
+  .log-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1 1 50%;
+    min-height: 80px;
+  }
+  .log-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    height: 34px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+  }
+  .compact .log-panel-header { height: 28px; }
+  .log-panel-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* resize handle between panels */
+  #log-resize-handle {
+    height: 4px;
+    background: var(--border);
+    cursor: ns-resize;
+    flex-shrink: 0;
+    transition: background .15s;
+    position: relative;
+    z-index: 2;
+  }
+  #log-resize-handle:hover,
+  #log-resize-handle.dragging { background: var(--accent); }
+
+  .log-output {
+    flex: 1;
+    background: #0C0E13;
+    font-family: "Consolas", "Cascadia Code", monospace;
+    font-size: 11.5px;
+    overflow-y: auto;
+    padding: 6px 12px;
+    color: #9CA3AF;
+    line-height: 1.6;
+  }
+  .log-line { display: flex; gap: 10px; }
+  .log-line.hidden { display: none; }
+  .log-ts { color: #4B5563; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .log-lvl { flex-shrink: 0; font-weight: 600; min-width: 56px; }
+  .log-lvl.info { color: #3B82F6; }
+  .log-lvl.warn { color: #EAB308; }
+  .log-lvl.err  { color: #EF4444; }
+  .log-lvl.ok   { color: #22C55E; }
+  .log-src { color: #6B7280; flex-shrink: 0; min-width: 56px; }
+  .log-msg { color: #C9CDD4; flex: 1; white-space: pre-wrap; word-break: break-all; }
+
+  /* serial monitor specifics */
+  .serial-output { color: #A3E635; background: #080A0D; }
+  .serial-output .serial-rx { color: #A3E635; }
+  .serial-output .serial-tx { color: #60A5FA; }
+  .serial-output .serial-sys { color: #6B7280; font-style: italic; }
+
+  .serial-meta {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: "Consolas", monospace;
+  }
+  .sm-state { font-weight: 600; }
+  .sm-state.disconnected { color: var(--red); }
+  .sm-state.connected    { color: var(--green); }
+
+  .sm-autoscroll-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted2);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .sm-autoscroll-wrap input { cursor: pointer; accent-color: var(--accent); }
+
+  .serial-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    height: 34px;
+    background: var(--surface);
+    border-top: 1px solid var(--border2);
+    flex-shrink: 0;
+  }
+  .compact .serial-toolbar { height: 28px; }
+  .serial-cmd-input {
+    flex: 1;
+    max-width: none !important;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: "Consolas", monospace;
+    padding: 0 8px;
+    height: 24px;
+    outline: none;
+  }
+  .serial-cmd-input:focus { border-color: var(--accent); }
+  .compact .serial-cmd-input { height: 20px; }
+
+  /* ─ Reports page ─ */
+  #page-reports { overflow-y: auto; }
+  .reports-inner { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .report-item {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    height: 38px;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .compact .report-item { height: 30px; font-size: 12px; }
+  .report-item:hover { background: var(--surface2); }
+  .report-icon { color: var(--muted2); }
+  .report-name { flex: 1; color: var(--text); }
+  .report-meta { font-size: 11px; color: var(--muted); }
+
+  /* ─ Students page details panel ─ */
+  .split-layout { display: flex; flex: 1; overflow: hidden; }
+  .split-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .detail-panel {
+    width: 240px;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .detail-panel-title {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .detail-field { padding: 6px 14px; border-bottom: 1px solid var(--border); }
+  .compact .detail-field { padding: 4px 14px; }
+  .detail-field-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .detail-field-value { font-size: 12.5px; color: var(--text); margin-top: 1px; }
+  .compact .detail-field-value { font-size: 12px; }
+  .detail-actions { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; margin-top: auto; border-top: 1px solid var(--border); }
+  .detail-btn {
+    height: 28px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .detail-btn:hover { background: var(--border2); }
+  .detail-btn.danger { background: #7F1D1D; border-color: #991B1B; color: #FCA5A5; }
+  .detail-btn.danger:hover { background: #991B1B; }
+
+  /* ─ Modern stats report ─ */
+  .rpt-root { display: flex; flex-direction: column; gap: 12px; }
+  .rpt-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rpt-metric { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+  .rpt-metric-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .rpt-metric-value { font-size: 22px; font-weight: 700; color: #E8EAF0; line-height: 1.1; }
+  .compact .rpt-metric-value { font-size: 17px; }
+  .rpt-metric-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .rpt-metric.blue   { border-top: 2px solid var(--accent); }
+  .rpt-metric.green  { border-top: 2px solid var(--green); }
+  .rpt-metric.yellow { border-top: 2px solid var(--yellow); }
+  .rpt-section-block { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .rpt-section-title { padding: 7px 14px; font-size: 11px; font-weight: 700; color: var(--muted2); text-transform: uppercase; letter-spacing: .5px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+  .rpt-ts-line { font-size: 11px; color: var(--muted); padding: 6px 14px; border-bottom: 1px solid var(--border); }
+  .rpt-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .rpt-table thead th { padding: 0 12px; height: 28px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .rpt-table tbody tr { border-bottom: 1px solid var(--border); }
+  .rpt-table tbody tr:last-child { border-bottom: none; }
+  .rpt-table tbody td { padding: 0 12px; height: 30px; color: var(--text); font-size: 12.5px; }
+  .compact .rpt-table tbody td { height: 24px; font-size: 12px; }
+  .rpt-rank { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; font-size: 11px; font-weight: 700; background: var(--surface2); color: var(--muted2); }
+  .rpt-rank.gold   { background: #422006; color: #FCD34D; }
+  .rpt-rank.silver { background: #1C2028; color: #CBD5E1; }
+  .rpt-rank.bronze { background: #2A1500; color: #D97706; }
+  .rpt-bar-cell { width: 130px; }
+  .rpt-bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .rpt-bar-bg { flex:1; height:4px; background:var(--border2); border-radius:2px; overflow:hidden; }
+  .rpt-bar-fill { height:100%; border-radius:2px; background:var(--accent); }
+  .rpt-bar-label { font-size:11px; color:var(--muted2); width:32px; text-align:right; }
+  .rpt-grade-pill { display:inline-block; padding:1px 8px; border-radius:3px; font-size:11px; font-weight:600; background:var(--surface2); color:var(--muted2); }
+
+  /* number spinner in settings */
+  .settings-spinner {
+    width: 72px;
+    height: 26px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: var(--font);
+    padding: 0 6px;
+    outline: none;
+    text-align: right;
+  }
+  .settings-spinner:focus { border-color: var(--accent); }
+  .compact .settings-spinner { height: 22px; font-size: 12px; }
+
+  /* fingerprint avatar in detail */
+  .fp-avatar {
+    width: 60px; height: 60px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px auto;
+  }
+
+  /* Scroll bars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3A4050; }
+
+  /* tooltip */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 8px;
+    background: #0E1016;
+    color: var(--text);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    border: 1px solid var(--border2);
+    pointer-events: none;
+    z-index: 99;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Fake window titlebar ── -->
+<div id="titlebar">
+  <div class="logo">
+    <!-- Fingerprint SVG logo — CSS-replaceable, just swap the <img> src -->
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="11" cy="11" r="10.5" fill="#1B2A4A" stroke="#3B78FF" stroke-width="1"/>
+      <path d="M11 6a5 5 0 0 0-5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M11 8a3 3 0 0 0-3 3" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <circle cx="11" cy="11" r="1" fill="#3B78FF"/>
+      <path d="M14 11a3 3 0 0 1-3 3" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M16 11a5 5 0 0 1-5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M11 6a5 5 0 0 1 5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="logo-text">DSIS</span>
+    <span class="logo-sub">Digital Student Identification System</span>
+  </div>
+  <div class="tb-spacer"></div>
+  <button class="win-btn" title="Minimize">&#x2212;</button>
+  <button class="win-btn" title="Maximize">&#x25A1;</button>
+  <button class="win-btn close" title="Close">&#x2715;</button>
+</div>
+
+<!-- ── App body ── -->
+<div id="app">
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+    <div style="height:8px;"></div>
+
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="nav(this,'dashboard')" data-tip="Dashboard">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" opacity=".45"/></svg>
+      </span>
+      <span class="nav-label">Dashboard</span>
+    </div>
+
+    <div class="nav-section-label" style="margin-top:6px;">Records</div>
+    <div class="nav-item" onclick="nav(this,'attendance')" data-tip="Attendance">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 0 1 1 1h4a1 1 0 1 1 2 0h1a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1-1Zm3 6H5v1h3V7Zm3 2H5v1h6V9Zm0 2H5v1h6v-1Z" opacity=".9"/></svg>
+      </span>
+      <span class="nav-label">Attendance</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'students')" data-tip="Students">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="5" r="3"/><path d="M2 13c0-3.3 2.7-6 6-6s6 2.7 6 6H2Z"/></svg>
+      </span>
+      <span class="nav-label">Students</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'reports')" data-tip="Reports">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2Zm2 3h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z" opacity=".9"/></svg>
+      </span>
+      <span class="nav-label">Reports</span>
+    </div>
+
+    <div class="nav-section-label" style="margin-top:6px;">System</div>
+    <div class="nav-item" onclick="nav(this,'logs')" data-tip="Logs">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="6" width="10" height="2" rx="1"/><rect x="1" y="10" width="12" height="2" rx="1"/><rect x="1" y="14" width="7" height="2" rx="1"/></svg>
+      </span>
+      <span class="nav-label">Logs</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'settings')" data-tip="Settings">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8Zm6-1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" opacity=".8"/><path d="M6.5 1.5h3v1.7a5.5 5.5 0 0 0-3 0V1.5ZM1.5 6.5h1.7a5.5 5.5 0 0 0 0 3H1.5v-3Zm11.3 0h1.7v3h-1.7a5.5 5.5 0 0 0 0-3ZM6.5 12.8v1.7h3v-1.7a5.5 5.5 0 0 1-3 0Z"/></svg>
+      </span>
+      <span class="nav-label">Settings</span>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <!-- Compact toggle -->
+    <div class="compact-toggle" onclick="toggleCompact()" id="compact-btn" data-tip="Toggle density">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" id="compact-icon">
+        <rect x="1" y="2" width="12" height="1.5" rx=".75"/>
+        <rect x="1" y="6" width="12" height="1.5" rx=".75"/>
+        <rect x="1" y="10" width="12" height="1.5" rx=".75"/>
+      </svg>
+      <span class="compact-toggle-label" id="compact-label">Compact view</span>
+    </div>
+  </nav>
+
+  <!-- ── Right panel ── -->
+  <div id="right">
+
+    <!-- Page header -->
+    <div id="page-header">
+      <span id="page-title">Dashboard</span>
+      <div class="header-sep"></div>
+
+      <div id="status-pill" class="status-pill disconnected">
+        <span class="dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+
+      <span id="device-info" style="font-size:11px;color:var(--muted);display:none;">COM8 · 115200 baud · ESP32 · Protocol 2</span>
+
+      <div class="header-spacer"></div>
+
+      <!-- Scan toggle -->
+      <button class="hdr-btn" id="scan-btn" onclick="toggleScan()" disabled>SCAN</button>
+      <!-- Connect -->
+      <button class="hdr-btn primary" id="connect-btn" onclick="toggleConnect()">Connect</button>
+    </div>
+
+    <!-- Page content area -->
+    <div id="page-content">
+
+      <!-- ── Dashboard ── -->
+      <div class="page active" id="page-dashboard">
+
+        <div class="stat-row">
+          <div class="stat-card accent-blue">
+            <div class="stat-label">Scans Today</div>
+            <div class="stat-value" id="stat-scans">14</div>
+            <div class="stat-sub">Last: 08:47 AM</div>
+          </div>
+          <div class="stat-card accent-green">
+            <div class="stat-label">Total Students</div>
+            <div class="stat-value">87</div>
+            <div class="stat-sub">Enrolled fingerprints</div>
+          </div>
+          <div class="stat-card accent-yellow">
+            <div class="stat-label">Attendance Rate</div>
+            <div class="stat-value">82%</div>
+            <div class="stat-sub">Today — 72 of 87</div>
+          </div>
+          <div class="stat-card accent-red">
+            <div class="stat-label">Unknown Scans</div>
+            <div class="stat-value">2</div>
+            <div class="stat-sub">Unrecognized fingerprints</div>
+          </div>
+        </div>
+
+        <!-- Last scan result -->
+        <div id="scan-result-area">
+          <div class="scan-icon-wrap" id="scan-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 4a7 7 0 0 0-7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M11 7a4 4 0 0 0-4 4" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <circle cx="11" cy="11" r="1.2" fill="#4B5563"/>
+              <path d="M15 11a4 4 0 0 1-4 4" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M18 11a7 7 0 0 1-7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M11 4a7 7 0 0 1 7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            </svg>
+          </div>
+          <div class="scan-info">
+            <div class="scan-name" id="scan-name">Awaiting scan…</div>
+            <div class="scan-meta" id="scan-meta">Device not connected. Connect a reader to begin scanning.</div>
+            <div class="confidence-bar-wrap" id="conf-wrap" style="display:none;">
+              <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="conf-fill" style="width:0%"></div></div>
+              <span class="confidence-label" id="conf-label">—</span>
+            </div>
+          </div>
+          <span class="scan-status-tag idle" id="scan-tag">IDLE</span>
+        </div>
+
+        <!-- Recent activity table -->
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;gap:6px;">
+          <div class="section-header">Recent Activity</div>
+          <div class="data-table-wrap">
+            <table class="data-table">
+              <thead><tr>
+                <th>Time</th>
+                <th>Student No.</th>
+                <th>Name</th>
+                <th>Grade / Section</th>
+                <th>Confidence</th>
+                <th>Status</th>
+              </tr></thead>
+              <tbody id="activity-tbody">
+                <tr><td>08:47 AM</td><td>2024-00134</td><td>Reyes, Maria L.</td><td>Grade 11 — STEM-A</td><td>98%</td><td><span class="badge present">PRESENT</span></td></tr>
+                <tr><td>08:44 AM</td><td>2024-00089</td><td>Santos, Juan P.</td><td>Grade 10 — GAS-B</td><td>95%</td><td><span class="badge present">PRESENT</span></td></tr>
+                <tr><td>08:41 AM</td><td>2024-00201</td><td>Cruz, Andrea F.</td><td>Grade 12 — HUMSS-C</td><td>97%</td><td><span class="badge present">PRESENT</span></td></tr>
+                <tr><td>08:38 AM</td><td>—</td><td><em style="color:var(--muted)">Unknown fingerprint</em></td><td>—</td><td>31%</td><td><span class="badge absent">UNKNOWN</span></td></tr>
+                <tr><td>08:36 AM</td><td>2024-00057</td><td>Lim, Carlos R.</td><td>Grade 11 — ABM-A</td><td>94%</td><td><span class="badge late">LATE</span></td></tr>
+                <tr><td>08:30 AM</td><td>2024-00113</td><td>De Leon, Patricia</td><td>Grade 10 — STEM-B</td><td>99%</td><td><span class="badge present">PRESENT</span></td></tr>
+                <tr><td>08:28 AM</td><td>2024-00178</td><td>Garcia, Miguel A.</td><td>Grade 12 — ABM-B</td><td>96%</td><td><span class="badge present">PRESENT</span></td></tr>
+                <tr><td>08:25 AM</td><td>2024-00044</td><td>Torres, Sophia M.</td><td>Grade 11 — STEM-A</td><td>93%</td><td><span class="badge present">PRESENT</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Attendance ── -->
+      <div class="page" id="page-attendance">
+        <div class="toolbar">
+          <select class="tb-select" id="att-mode">
+            <option>Today</option>
+            <option>Recent</option>
+            <option>Last 30 Days</option>
+          </select>
+          <div class="toolbar-sep"></div>
+          <input class="tb-search" placeholder="Search name, student no…" id="att-search" oninput="filterTable('att-tbody','att-search')">
+          <div class="toolbar-spacer"></div>
+          <span class="tb-count" id="att-count">8 records</span>
+          <div class="toolbar-sep"></div>
+          <button class="hdr-btn">Export CSV</button>
+          <button class="hdr-btn primary">Refresh</button>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>Date</th><th>Time</th><th>Student No.</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Status</th>
+            </tr></thead>
+            <tbody id="att-tbody">
+              <tr><td>2026-09-04</td><td>08:47 AM</td><td>2024-00134</td><td>Reyes, Maria L.</td><td>Grade 11 — STEM-A</td><td>98%</td><td><span class="badge present">PRESENT</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:44 AM</td><td>2024-00089</td><td>Santos, Juan P.</td><td>Grade 10 — GAS-B</td><td>95%</td><td><span class="badge present">PRESENT</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:41 AM</td><td>2024-00201</td><td>Cruz, Andrea F.</td><td>Grade 12 — HUMSS-C</td><td>97%</td><td><span class="badge present">PRESENT</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:38 AM</td><td>—</td><td>Unknown fingerprint</td><td>—</td><td>31%</td><td><span class="badge absent">UNKNOWN</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:36 AM</td><td>2024-00057</td><td>Lim, Carlos R.</td><td>Grade 11 — ABM-A</td><td>94%</td><td><span class="badge late">LATE</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:30 AM</td><td>2024-00113</td><td>De Leon, Patricia</td><td>Grade 10 — STEM-B</td><td>99%</td><td><span class="badge present">PRESENT</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:28 AM</td><td>2024-00178</td><td>Garcia, Miguel A.</td><td>Grade 12 — ABM-B</td><td>96%</td><td><span class="badge present">PRESENT</span></td></tr>
+              <tr><td>2026-09-04</td><td>08:25 AM</td><td>2024-00044</td><td>Torres, Sophia M.</td><td>Grade 11 — STEM-A</td><td>93%</td><td><span class="badge present">PRESENT</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Students ── -->
+      <div class="page" id="page-students">
+        <div class="toolbar">
+          <input class="tb-search" placeholder="Search students…" id="stu-search" oninput="filterTable('stu-tbody','stu-search')">
+          <div class="toolbar-sep"></div>
+          <span class="tb-count">87 students</span>
+          <div class="toolbar-spacer"></div>
+          <button class="hdr-btn primary">+ Enroll Fingerprint</button>
+        </div>
+        <div class="split-layout">
+          <div class="split-main">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead><tr>
+                  <th>FP ID</th><th>Student No.</th><th>Name</th><th>Grade</th><th>Section</th>
+                </tr></thead>
+                <tbody id="stu-tbody">
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>1</td><td>2024-00001</td><td>Aguilar, Bianca</td><td>Grade 10</td><td>STEM-A</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>2</td><td>2024-00044</td><td>Torres, Sophia M.</td><td>Grade 11</td><td>STEM-A</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer" class="selected-row"><td>3</td><td>2024-00057</td><td>Lim, Carlos R.</td><td>Grade 11</td><td>ABM-A</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>4</td><td>2024-00089</td><td>Santos, Juan P.</td><td>Grade 10</td><td>GAS-B</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>5</td><td>2024-00113</td><td>De Leon, Patricia</td><td>Grade 10</td><td>STEM-B</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>6</td><td>2024-00134</td><td>Reyes, Maria L.</td><td>Grade 11</td><td>STEM-A</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>7</td><td>2024-00178</td><td>Garcia, Miguel A.</td><td>Grade 12</td><td>ABM-B</td></tr>
+                  <tr onclick="selectStudent(this)" style="cursor:pointer"><td>8</td><td>2024-00201</td><td>Cruz, Andrea F.</td><td>Grade 12</td><td>HUMSS-C</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Student detail panel -->
+          <div class="detail-panel">
+            <div class="detail-panel-title">Student Details</div>
+            <div class="fp-avatar">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M14 6a8 8 0 0 0-8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M14 10a4 4 0 0 0-4 4" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <circle cx="14" cy="14" r="1.4" fill="#3B78FF"/>
+                <path d="M18 14a4 4 0 0 1-4 4" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M22 14a8 8 0 0 1-8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M14 6a8 8 0 0 1 8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+              </svg>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Name</div>
+              <div class="detail-field-value" id="det-name">Lim, Carlos R.</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Student No.</div>
+              <div class="detail-field-value" id="det-sno">2024-00057</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Grade</div>
+              <div class="detail-field-value" id="det-grade">Grade 11</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Section</div>
+              <div class="detail-field-value" id="det-section">ABM-A</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Fingerprint ID</div>
+              <div class="detail-field-value" id="det-fpid">#3</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Status Today</div>
+              <div class="detail-field-value"><span class="badge late">LATE</span></div>
+            </div>
+            <div class="detail-actions">
+              <button class="detail-btn">Re-enroll Fingerprint</button>
+              <button class="detail-btn danger">Delete Student</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Reports ── -->
+      <div class="page" id="page-reports">
+        <div class="reports-inner">
+
+          <!-- Statistics report -->
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Attendance Statistics Report</div>
+          <div id="stats-report"></div>
+
+          <div style="height:1px;background:var(--border2);margin:4px 0;"></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Exports</div>
+          <div class="report-item"><span class="report-icon">📄</span><span class="report-name">Export Today's Attendance (CSV)</span><span class="report-meta">87 students</span></div>
+          <div class="report-item"><span class="report-icon">📄</span><span class="report-name">Export Last 30 Days (CSV)</span><span class="report-meta">September 2026</span></div>
+          <div class="report-item"><span class="report-icon">📊</span><span class="report-name">Export All Students (CSV)</span><span class="report-meta">87 records</span></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Backups</div>
+          <div class="report-item"><span class="report-icon">💾</span><span class="report-name">backup_2026-09-04_08-00.db</span><span class="report-meta">Today, 08:00 AM · 156 KB</span></div>
+          <div class="report-item"><span class="report-icon">💾</span><span class="report-name">backup_2026-09-03_08-01.db</span><span class="report-meta">Yesterday, 08:01 AM · 154 KB</span></div>
+          <div class="report-item"><span class="report-icon">💾</span><span class="report-name">backup_2026-09-02_08-00.db</span><span class="report-meta">Sep 2, 08:00 AM · 152 KB</span></div>
+          <button class="hdr-btn primary" style="width:fit-content;height:28px;margin-top:4px;">+ Create Backup Now</button>
+        </div>
+      </div>
+
+      <!-- ── Logs ── -->
+      <div class="page" id="page-logs">
+
+        <!-- ── TOP: Application Log ── -->
+        <div class="log-panel">
+          <div class="log-panel-header">
+            <span class="log-panel-title">Application Log</span>
+            <div class="toolbar-spacer"></div>
+            <select class="tb-select" id="applog-filter" onchange="applyAppLogFilter()">
+              <option value="all">All levels</option>
+              <option value="INFO">INFO</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+            <input class="tb-search" placeholder="Filter…" id="applog-search" oninput="applyAppLogFilter()" style="width:140px;">
+            <button class="hdr-btn" onclick="clearAppLog()">Clear</button>
+          </div>
+          <div id="applog-output" class="log-output">
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.210</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow created</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.281</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow shown</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.443</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">ConnectionWorker.run() entered</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.444</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">SerialWorker.run() entered</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:00:02.091</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Database backed up to H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 08:00:02.093</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Automatic backup created: H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:36:44.201</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded (LATE) | student_no=2024-00057 name="Lim, Carlos R." confidence=94</span></div>
+            <div class="log-line" data-lvl="WARN"><span class="log-ts">2026-09-06 08:38:19.004</span><span class="log-lvl warn">WARN&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Unknown fingerprint | fp_id=99 confidence=31 — below threshold, skipped</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:47:12.443</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded | student_no=2024-00134 name="Reyes, Maria L." confidence=98</span></div>
+          </div>
+        </div>
+
+        <!-- resize handle -->
+        <div id="log-resize-handle"></div>
+
+        <!-- ── BOTTOM: Serial Monitor ── -->
+        <div class="log-panel" id="serial-panel">
+          <div class="log-panel-header">
+            <span class="log-panel-title">Serial Monitor</span>
+            <div class="serial-meta" id="serial-meta-bar">
+              <span id="sm-port">Port: N/A</span>
+              <span id="sm-baud">Baud: N/A</span>
+              <span id="sm-state" class="sm-state disconnected">State: Disconnected</span>
+            </div>
+            <div class="toolbar-spacer"></div>
+            <label class="sm-autoscroll-wrap">
+              <input type="checkbox" id="sm-autoscroll" checked>
+              Auto-scroll
+            </label>
+            <button class="hdr-btn" id="sm-pause-btn" onclick="toggleSerialPause()">Pause</button>
+            <button class="hdr-btn" onclick="clearSerial()">Clear</button>
+          </div>
+          <div id="serial-output" class="log-output serial-output"></div>
+          <div class="serial-toolbar">
+            <button class="hdr-btn" onclick="serialCmd('LIST')">List</button>
+            <button class="hdr-btn" onclick="serialCmd('RESET')">Reset Device</button>
+            <div class="toolbar-spacer"></div>
+            <input class="tb-search serial-cmd-input" id="serial-cmd" placeholder="Enter command and press Send" style="flex:1;max-width:none;">
+            <button class="hdr-btn primary" onclick="sendSerialCmd()">Send</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Settings ── -->
+      <div class="page" id="page-settings">
+        <div class="settings-inner">
+
+          <div class="settings-group">
+            <div class="settings-group-title">Connection</div>
+            <div class="settings-row">
+              <span class="settings-row-label">COM Port</span>
+              <span class="settings-row-value">COM8 (auto-detected)</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Baud Rate</span>
+              <span class="settings-row-value">115200</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-reconnect</span>
+              <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-detect ESP32 on connect</span>
+              <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Appearance</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Theme</span>
+              <span class="settings-row-value">Dark</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Compact view</span>
+              <div class="toggle-switch" id="settings-compact-toggle" onclick="toggleCompact(); this.classList.toggle('on')"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Attendance Behavior</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Scan cooldown</span>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" min="1" max="60" value="10" class="settings-spinner" id="set-cooldown"> <span style="font-size:12px;color:var(--muted2);">s</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Minimum match confidence</span>
+              <input type="number" min="1" max="100" value="96" class="settings-spinner" id="set-confidence">
+            </div>
+            <div style="padding:6px 14px 10px;font-size:11px;color:var(--accent);opacity:.8;">
+              Lower confidence accepts weaker fingerprint matches; cooldown blocks repeat scans of the same student.
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">User Role</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Active role</span>
+              <select class="tb-select" id="role-select" onchange="updateRole()" style="flex:1;height:28px;font-size:12.5px;">
+                <option value="admin">Administrator</option>
+                <option value="teacher">Teacher</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+            <div class="settings-row" style="align-items:flex-start;padding-top:6px;padding-bottom:6px;height:auto;">
+              <span class="settings-row-label" style="padding-top:1px;">Permissions</span>
+              <div id="role-permissions" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
+            </div>
+            <div style="padding:4px 14px 10px;font-size:11px;color:var(--muted);font-style:italic;">
+              No login is enforced yet — this only hides admin-only pages/actions in the UI.
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Logging &amp; Diagnostics</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Write logs to file</span>
+              <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Verbose debug logging</span>
+              <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div style="padding:4px 14px 8px;font-size:11px;color:var(--accent);opacity:.8;">
+              Logging changes take effect the next time the app starts.
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Log folder</span>
+              <span class="settings-row-value" style="font-family:'Consolas',monospace;font-size:11.5px;">H:\DSIS\data\logs</span>
+              <button class="hdr-btn" style="margin-left:auto;">Open Log Folder</button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Backups</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-backup interval</span>
+              <span class="settings-row-value">25 min</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Last backup</span>
+              <span class="settings-row-value">Today, 08:00 AM</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="hdr-btn primary">Save Changes</button>
+            <button class="hdr-btn">Discard</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+
+    <!-- ── Status bar ── -->
+    <div id="statusbar">
+      <div class="sb-item">
+        <span class="dot" id="sb-dot" style="background:var(--red)"></span>
+        <span id="sb-conn-text">Disconnected</span>
+      </div>
+      <div class="sb-sep"></div>
+      <div class="sb-item" id="sb-device" style="display:none;">
+        <span>ESP32 · COM8 · Protocol 2</span>
+      </div>
+      <div class="sb-sep" id="sb-device-sep" style="display:none;"></div>
+      <div class="sb-item">87 students</div>
+      <div class="sb-sep"></div>
+      <div class="sb-item">14 scans today</div>
+      <div class="sb-spacer"></div>
+      <div class="sb-item">
+        <span>v2.1.0-beta</span>
+      </div>
+      <div class="sb-sep"></div>
+      <div class="sb-item sb-time" id="sb-time">—</div>
+    </div>
+
+  </div><!-- /right -->
+</div><!-- /app -->
+
+<style>
+  .selected-row { background: #1E3A8A22 !important; }
+  .selected-row td { color: #93C5FD; }
+</style>
+
+<script>
+// ── Navigation ──
+const PAGE_TITLES = {
+  dashboard: 'Dashboard', attendance: 'Attendance', students: 'Students',
+  reports: 'Reports', logs: 'Logs', settings: 'Settings',
+};
+
+function nav(el, key) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + key).classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[key];
+}
+
+// ── Compact mode ──
+let compact = false;
+function toggleCompact() {
+  compact = !compact;
+  document.getElementById('app').classList.toggle('compact', compact);
+  document.getElementById('compact-label').textContent = compact ? 'Normal view' : 'Compact view';
+}
+
+// ── Connection simulation ──
+let connected = false;
+let scanning = false;
+
+function setStatus(state) {
+  const pill = document.getElementById('status-pill');
+  const text = document.getElementById('status-text');
+  const dot = pill.querySelector('.dot');
+  const connBtn = document.getElementById('connect-btn');
+  const scanBtn = document.getElementById('scan-btn');
+  const sbDot = document.getElementById('sb-dot');
+  const sbConn = document.getElementById('sb-conn-text');
+  const sbDev = document.getElementById('sb-device');
+  const sbDevSep = document.getElementById('sb-device-sep');
+  const devInfo = document.getElementById('device-info');
+
+  pill.className = 'status-pill ' + state;
+  dot.className = 'dot' + (state === 'scanning' ? ' pulse' : '');
+
+  if (state === 'disconnected') {
+    text.textContent = 'Disconnected';
+    connBtn.textContent = 'Connect';
+    connBtn.className = 'hdr-btn primary';
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'SCAN';
+    sbDot.style.background = 'var(--red)';
+    sbConn.textContent = 'Disconnected';
+    sbDev.style.display = 'none';
+    sbDevSep.style.display = 'none';
+    devInfo.style.display = 'none';
+  } else if (state === 'connected') {
+    text.textContent = 'Connected';
+    connBtn.textContent = 'Disconnect';
+    connBtn.className = 'hdr-btn danger';
+    scanBtn.disabled = false;
+    sbDot.style.background = 'var(--green)';
+    sbConn.textContent = 'Connected';
+    sbDev.style.display = 'flex';
+    sbDevSep.style.display = 'block';
+    devInfo.style.display = 'block';
+  } else if (state === 'scanning') {
+    text.textContent = 'Scanning…';
+  }
+}
+
+function toggleConnect() {
+  if (!connected) {
+    connected = true;
+    setStatus('connected');
+    updateSerialMeta();
+    smAppend('--- Serial port COM8 opened at 115200 baud ---', 'serial-sys');
+    smAppend('ESP32 · Firmware v2.1 · Protocol 2', 'serial-sys');
+    addLog('INFO', 'SYSTEM', 'Connected to COM8 at 115200 baud');
+    addLog('SUCCESS', 'SYSTEM', 'Device metadata received — ESP32 · Firmware v2.1 · Protocol 2');
+  } else {
+    connected = false;
+    scanning = false;
+    setStatus('disconnected');
+    updateSerialMeta();
+    smAppend('--- Serial port closed ---', 'serial-sys');
+    document.getElementById('scan-btn').textContent = 'SCAN';
+    document.getElementById('scan-btn').classList.remove('danger');
+    addLog('INFO', 'SYSTEM', 'Disconnected from device');
+  }
+}
+
+function toggleScan() {
+  if (!connected) return;
+  scanning = !scanning;
+  const btn = document.getElementById('scan-btn');
+  if (scanning) {
+    btn.textContent = 'STOP';
+    btn.classList.add('danger');
+    setStatus('scanning');
+    smAppend('> SCAN', 'serial-tx');
+    smAppend('OK', 'serial-rx');
+    addLog('INFO', 'SYSTEM', 'SCAN command sent to ESP32');
+    // simulate a scan after 2.5s
+    setTimeout(() => {
+      if (scanning) simulateScan();
+    }, 2500);
+  } else {
+    btn.textContent = 'SCAN';
+    btn.classList.remove('danger');
+    setStatus('connected');
+    smAppend('> STOP', 'serial-tx');
+    smAppend('OK', 'serial-rx');
+    addLog('INFO', 'SYSTEM', 'STOP command sent to ESP32');
+  }
+}
+
+function simulateScan() {
+  const students = [
+    { name: 'Reyes, Maria L.', sno: '2024-00134', gs: 'Grade 11 — STEM-A', conf: 98, status: 'PRESENT' },
+    { name: 'Santos, Juan P.', sno: '2024-00089', gs: 'Grade 10 — GAS-B', conf: 95, status: 'PRESENT' },
+    { name: 'Lim, Carlos R.', sno: '2024-00057', gs: 'Grade 11 — ABM-A', conf: 94, status: 'LATE' },
+  ];
+  const pick = students[Math.floor(Math.random() * students.length)];
+  const now = new Date();
+  const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  document.getElementById('scan-name').textContent = pick.name;
+  document.getElementById('scan-meta').textContent = `${pick.sno} · ${pick.gs} · ${ts}`;
+  document.getElementById('scan-tag').textContent = pick.status;
+  document.getElementById('scan-tag').className = 'scan-status-tag ' + (pick.status === 'PRESENT' ? 'present' : 'unknown');
+  document.getElementById('conf-wrap').style.display = 'flex';
+  document.getElementById('conf-fill').style.width = pick.conf + '%';
+  document.getElementById('conf-label').textContent = pick.conf + '% confidence';
+  document.getElementById('scan-icon-wrap').className = 'scan-icon-wrap match';
+
+  smAppend(`SCAN_RESULT fp_id=${pick.fpid || Math.floor(Math.random()*87)+1} confidence=${pick.conf} status=MATCH`, 'serial-rx');
+  addLog('SUCCESS', 'SYSTEM', `Attendance recorded | student_no=${pick.sno} name="${pick.name}" confidence=${pick.conf}`);
+  generateStatsReport();
+
+  // add row to activity table
+  const tbody = document.getElementById('activity-tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td><td>${pick.sno}</td><td>${pick.name}</td><td>${pick.gs}</td><td>${pick.conf}%</td><td><span class="badge present">PRESENT</span></td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+
+  if (scanning) {
+    setTimeout(() => { if (scanning) simulateScan(); }, 3000 + Math.random() * 2000);
+  }
+}
+
+// ── Application Log ──
+function fmtTs() {
+  const now = new Date();
+  const d = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
+  return `${d} ${t}`;
+}
+
+function addLog(level, src, msg) {
+  const lvlClass = level === 'OK' || level === 'SUCCESS' ? 'ok' : level === 'WARN' ? 'warn' : level === 'ERROR' ? 'err' : 'info';
+  const lvlText = (level === 'OK' ? 'SUCCESS' : level).padEnd(7, '\u00a0');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.dataset.lvl = level === 'OK' ? 'SUCCESS' : level;
+  div.innerHTML = `<span class="log-ts">${fmtTs()}</span><span class="log-lvl ${lvlClass}">${lvlText}</span><span class="log-src">${src}</span><span class="log-msg">${msg}</span>`;
+  const out = document.getElementById('applog-output');
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+  applyAppLogFilter();
+}
+
+function applyAppLogFilter() {
+  const lvl = document.getElementById('applog-filter').value;
+  const q   = document.getElementById('applog-search').value.toLowerCase();
+  document.querySelectorAll('#applog-output .log-line').forEach(row => {
+    const lvlMatch = lvl === 'all' || row.dataset.lvl === lvl;
+    const qMatch   = !q || row.textContent.toLowerCase().includes(q);
+    row.classList.toggle('hidden', !(lvlMatch && qMatch));
+  });
+}
+
+function clearAppLog() {
+  document.getElementById('applog-output').innerHTML = '';
+}
+
+// ── Serial Monitor ──
+let serialPaused = false;
+let serialBuffer = [];
+
+function smAppend(text, cls) {
+  const entry = { text, cls };
+  if (serialPaused) { serialBuffer.push(entry); return; }
+  _smWrite(text, cls);
+}
+
+function _smWrite(text, cls) {
+  const out = document.getElementById('serial-output');
+  const div = document.createElement('div');
+  div.className = cls || 'serial-rx';
+  div.textContent = text;
+  out.appendChild(div);
+  if (document.getElementById('sm-autoscroll').checked) out.scrollTop = out.scrollHeight;
+}
+
+function toggleSerialPause() {
+  serialPaused = !serialPaused;
+  const btn = document.getElementById('sm-pause-btn');
+  btn.textContent = serialPaused ? 'Resume' : 'Pause';
+  btn.classList.toggle('primary', serialPaused);
+  if (!serialPaused) {
+    serialBuffer.forEach(e => _smWrite(e.text, e.cls));
+    serialBuffer = [];
+  }
+}
+
+function clearSerial() {
+  document.getElementById('serial-output').innerHTML = '';
+  serialBuffer = [];
+}
+
+function serialCmd(cmd) {
+  if (!connected) return;
+  smAppend(`> ${cmd}`, 'serial-tx');
+  addLog('INFO', 'SYSTEM', `Command sent: ${cmd}`);
+  setTimeout(() => {
+    if (cmd === 'LIST') smAppend('Found 2 found! Stored ID(s) from #1 to #87', 'serial-rx');
+    if (cmd === 'RESET') { smAppend('ESP32 resetting…', 'serial-sys'); addLog('WARN', 'SYSTEM', 'Device reset requested'); }
+  }, 400);
+}
+
+function sendSerialCmd() {
+  const input = document.getElementById('serial-cmd');
+  const val = input.value.trim();
+  if (!val || !connected) return;
+  smAppend(`> ${val}`, 'serial-tx');
+  input.value = '';
+  addLog('INFO', 'SYSTEM', `Command sent: ${val}`);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement.id === 'serial-cmd') sendSerialCmd();
+});
+
+function updateSerialMeta() {
+  const port = document.getElementById('sm-port');
+  const baud = document.getElementById('sm-baud');
+  const state = document.getElementById('sm-state');
+  if (connected) {
+    port.textContent = 'Port: COM8';
+    baud.textContent = 'Baud: 115200';
+    state.textContent = 'State: Connected';
+    state.className = 'sm-state connected';
+  } else {
+    port.textContent = 'Port: N/A';
+    baud.textContent = 'Baud: N/A';
+    state.textContent = 'State: Disconnected';
+    state.className = 'sm-state disconnected';
+  }
+}
+
+// ── Draggable resize between log panels ──
+(function() {
+  const handle = document.getElementById('log-resize-handle');
+  if (!handle) return;
+  let dragging = false, startY = 0, startTop = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    const panels = document.querySelectorAll('.log-panel');
+    startTop = panels[0].getBoundingClientRect().height;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const page = document.getElementById('page-logs');
+    const total = page.getBoundingClientRect().height - handle.offsetHeight;
+    const delta = e.clientY - startY;
+    const newTop = Math.max(60, Math.min(total - 120, startTop + delta));
+    const panels = document.querySelectorAll('.log-panel');
+    panels[0].style.flex = 'none';
+    panels[0].style.height = newTop + 'px';
+    panels[1].style.flex = '1';
+    panels[1].style.height = '';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    handle.classList.remove('dragging');
+  });
+})();
+
+// ── Statistics Report (modern) ──
+function generateStatsReport() {
+  const now = new Date();
+  const ts = now.toLocaleString('en-PH', { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  const students = [
+    { name: 'Reyes, Maria L.',   sno: '2024-00134', grade: 'Grade 11', section: 'STEM-A',  count: 18 },
+    { name: 'Santos, Juan P.',   sno: '2024-00089', grade: 'Grade 10', section: 'GAS-B',   count: 16 },
+    { name: 'Cruz, Andrea F.',   sno: '2024-00201', grade: 'Grade 12', section: 'HUMSS-C', count: 15 },
+    { name: 'De Leon, Patricia', sno: '2024-00113', grade: 'Grade 10', section: 'STEM-B',  count: 14 },
+    { name: 'Garcia, Miguel A.', sno: '2024-00178', grade: 'Grade 12', section: 'ABM-B',   count: 13 },
+    { name: 'Torres, Sophia M.', sno: '2024-00044', grade: 'Grade 11', section: 'STEM-A',  count: 12 },
+    { name: 'Lim, Carlos R.',    sno: '2024-00057', grade: 'Grade 11', section: 'ABM-A',   count: 10 },
+    { name: 'Aguilar, Bianca',   sno: '2024-00001', grade: 'Grade 10', section: 'STEM-A',  count:  9 },
+  ];
+
+  const total  = students.reduce((s, x) => s + x.count, 0);
+  const avg    = (total / students.length).toFixed(1);
+  const maxCnt = students[0].count;
+  const top10  = [...students].sort((a,b) => b.count - a.count).slice(0, 10);
+
+  const byGrade = {};
+  students.forEach(s => { byGrade[s.grade] = (byGrade[s.grade] || 0) + 1; });
+
+  const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+
+  const div = document.getElementById('stats-report');
+  div.innerHTML = `
+    <div class="rpt-root">
+
+      <!-- Key metrics -->
+      <div class="rpt-metrics">
+        <div class="rpt-metric blue">
+          <div class="rpt-metric-label">Total Students</div>
+          <div class="rpt-metric-value">${students.length}</div>
+          <div class="rpt-metric-sub">Enrolled fingerprints</div>
+        </div>
+        <div class="rpt-metric green">
+          <div class="rpt-metric-label">Attendance Records</div>
+          <div class="rpt-metric-value">${total}</div>
+          <div class="rpt-metric-sub">Across all students</div>
+        </div>
+        <div class="rpt-metric yellow">
+          <div class="rpt-metric-label">Avg per Student</div>
+          <div class="rpt-metric-value">${avg}</div>
+          <div class="rpt-metric-sub">Records per enrolled student</div>
+        </div>
+      </div>
+
+      <!-- Top 10 -->
+      <div class="rpt-section-block">
+        <div class="rpt-section-title">Top Students — By Attendance Count</div>
+        <div class="rpt-ts-line">Generated ${ts}</div>
+        <table class="rpt-table">
+          <thead><tr>
+            <th style="width:32px">#</th>
+            <th>Name</th>
+            <th>Student No.</th>
+            <th>Grade</th>
+            <th>Section</th>
+            <th class="rpt-bar-cell">Attendance</th>
+          </tr></thead>
+          <tbody>
+            ${top10.map((s,i) => `
+            <tr>
+              <td><span class="rpt-rank ${rankClass(i)}">${i+1}</span></td>
+              <td>${s.name}</td>
+              <td style="color:var(--muted2);font-size:12px;">${s.sno}</td>
+              <td style="color:var(--muted2);">${s.grade}</td>
+              <td style="color:var(--muted2);">${s.section}</td>
+              <td class="rpt-bar-cell">
+                <div class="rpt-bar-wrap">
+                  <div class="rpt-bar-bg"><div class="rpt-bar-fill" style="width:${Math.round(s.count/maxCnt*100)}%"></div></div>
+                  <span class="rpt-bar-label">${s.count}</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Students by grade -->
+      <div class="rpt-section-block">
+        <div class="rpt-section-title">Students by Grade</div>
+        <table class="rpt-table">
+          <thead><tr><th>Grade</th><th>Students</th><th class="rpt-bar-cell">Distribution</th></tr></thead>
+          <tbody>
+            ${Object.entries(byGrade).map(([g,n]) => `
+            <tr>
+              <td>${g}</td>
+              <td>${n}</td>
+              <td class="rpt-bar-cell">
+                <div class="rpt-bar-wrap">
+                  <div class="rpt-bar-bg"><div class="rpt-bar-fill" style="width:${Math.round(n/students.length*100)}%;background:var(--green)"></div></div>
+                  <span class="rpt-bar-label">${Math.round(n/students.length*100)}%</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Enrolled students -->
+      <div class="rpt-section-block">
+        <div class="rpt-section-title">All Enrolled Students</div>
+        <table class="rpt-table">
+          <thead><tr><th>Name</th><th>Student No.</th><th>Grade</th><th>Section</th><th>Records</th></tr></thead>
+          <tbody>
+            ${students.map(s => `
+            <tr>
+              <td>${s.name}</td>
+              <td style="color:var(--muted2);font-size:12px;">${s.sno}</td>
+              <td style="color:var(--muted2);">${s.grade}</td>
+              <td style="color:var(--muted2);">${s.section}</td>
+              <td><span class="badge present">${s.count}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+    </div>`;
+}
+
+
+// ── Student row select ──
+function selectStudent(row) {
+  document.querySelectorAll('#stu-tbody tr').forEach(r => r.classList.remove('selected-row'));
+  row.classList.add('selected-row');
+  const cells = row.querySelectorAll('td');
+  document.getElementById('det-fpid').textContent = '#' + cells[0].textContent;
+  document.getElementById('det-sno').textContent = cells[1].textContent;
+  document.getElementById('det-name').textContent = cells[2].textContent;
+  document.getElementById('det-grade').textContent = cells[3].textContent;
+  document.getElementById('det-section').textContent = cells[4].textContent;
+}
+
+// ── Table filter ──
+function filterTable(tbodyId, inputId) {
+  const q = document.getElementById(inputId).value.toLowerCase();
+  document.querySelectorAll('#' + tbodyId + ' tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// ── Clock ──
+function tick() {
+  const now = new Date();
+  document.getElementById('sb-time').textContent =
+    now.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' +
+    now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+// ── User Role ──
+const ROLE_PERMISSIONS = {
+  admin:   { label: 'Administrator', perms: ['scan','enroll','delete','wipe','export','backup','restore'], color: 'admin' },
+  teacher: { label: 'Teacher',       perms: ['scan','export','backup'],                                   color: 'student' },
+  guest:   { label: 'Guest',         perms: ['scan'],                                                     color: 'absent' },
+};
+const PERM_COLORS = {
+  scan: '#1E3A5F:#60A5FA', enroll: '#14532D:#4ADE80', delete: '#7F1D1D:#FCA5A5',
+  wipe: '#7F1D1D:#FCA5A5', export: '#1A1F0A:#A3E635', backup: '#1e1b4b:#a5b4fc',
+  restore: '#1e1b4b:#a5b4fc',
+};
+function updateRole() {
+  const key  = document.getElementById('role-select').value;
+  const role = ROLE_PERMISSIONS[key];
+  const wrap = document.getElementById('role-permissions');
+  wrap.innerHTML = role.perms.map(p => {
+    const [bg, fg] = (PERM_COLORS[p] || '#1F2229:#9CA3AF').split(':');
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:3px;font-size:11px;font-weight:600;background:${bg};color:${fg};">${p}</span>`;
+  }).join('');
+}
+
+tick();
+setInterval(tick, 1000);
+generateStatsReport();
+updateRole();
+</script>
+</body>
+</html>
