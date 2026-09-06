@@ -1,0 +1,456 @@
+"""ESP32 fingerprint device discovery and handshake support.
+
+This module replaces manual COM port guessing with a structured discovery
+workflow. It enumerates serial ports, ranks likely ESP32 candidates, and
+validates the device using a JSON handshake handled by the firmware.
+"""
+
+import json
+import time
+from typing import Any, Dict, List, Optional, Tuple, Set, cast
+
+try:
+    import serial
+    from serial.tools import list_ports
+except ModuleNotFoundError:  # pragma: no cover
+    serial = None
+    list_ports = None
+
+from config import get_config, get_default_com_port
+from core.logger import log
+
+CONFIG = get_config()
+
+SUPPORTED_DEVICE_IDENTIFIER = "Digital Student Identification System"
+MIN_PROTOCOL_VERSION = 1
+HANDSHAKE_COMMAND = "ID?"
+HANDSHAKE_TIMEOUT_SECONDS = 3.0
+STATIC_PORT_CANDIDATES = [
+    "COM1", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "COM10", "COM11", "COM12",
+]
+KNOWN_DEVICE_KEYWORDS = [
+    "esp32", "cp210", "ch340", "usb serial", "silicon labs", "uart", "arduino",
+]
+KNOWN_NON_DEVICE_KEYWORDS = ["bluetooth", "bt"]
+KNOWN_VID_PID_SCORES = {
+    "10c4:ea60": 140,
+    "1a86:7523": 140,
+    "0403:6001": 120,
+    "1a86:55d3": 120,
+}
+
+
+def list_serial_ports() -> List[str]:
+    """Return a list of available serial ports."""
+    if list_ports is None:
+        return []
+
+    try:
+        return [port.device for port in list_ports.comports() if getattr(port, "device", None)]
+    except Exception as exc:
+        log.warning("Failed to enumerate serial ports", error=str(exc))
+        return []
+
+
+def _score_port_info(port_info: Any) -> int:
+    score = 0
+    description = (getattr(port_info, "description", "") or "").lower()
+    device = (getattr(port_info, "device", "") or "").lower()
+    combined = f"{device} {description}".strip()
+
+    vid = getattr(port_info, "vid", None)
+    pid = getattr(port_info, "pid", None)
+    # Use zero-padded 4-digit hex for consistent VID:PID formatting (matches other modules)
+    vid_pid = f"{vid:04x}:{pid:04x}" if vid is not None and pid is not None else ""
+    if vid_pid in KNOWN_VID_PID_SCORES:
+        score += KNOWN_VID_PID_SCORES[vid_pid]
+
+    for keyword in KNOWN_DEVICE_KEYWORDS:
+        if keyword in combined:
+            score += 80
+
+    for keyword in KNOWN_NON_DEVICE_KEYWORDS:
+        if keyword in combined:
+            score -= 100
+
+    if "com" in device:
+        score += 10
+    if "usb" in combined:
+        score += 10
+
+    return score
+
+
+def _ordered_candidate_ports(preferred_port: Optional[str] = None) -> List[str]:
+    """Build an ordered list of ports to probe for the ESP32 device."""
+    ordered: List[str] = []
+    seen: Set[str] = set()
+
+    def add_port(port: Optional[str]) -> None:
+        if not port:
+            return
+        normalized = port.strip()
+        if not normalized:
+            return
+        key = normalized.upper()
+        if key in seen:
+            return
+        seen.add(key)
+        ordered.append(normalized)
+
+    actual_ports: List[str] = []
+    port_candidates: List[str] = []
+    if list_ports is not None:
+        try:
+            ports = list_ports.comports()
+            actual_ports = [port.device for port in ports if getattr(port, "device", None)]
+            scored = [(_score_port_info(port), port.device) for port in ports if getattr(port, "device", None)]
+            scored.sort(key=lambda item: item[0], reverse=True)
+            port_candidates = [device for _score, device in scored]
+        except Exception as exc:
+            log.warning("Unable to score serial ports", error=str(exc))
+            actual_ports = list_serial_ports()
+    else:
+        actual_ports = list_serial_ports()
+
+    if actual_ports:
+        normalized_actual = {port.upper(): port for port in actual_ports}
+        if preferred_port:
+            pref_key = preferred_port.strip().upper()
+            if pref_key in normalized_actual:
+                add_port(normalized_actual[pref_key])
+            else:
+                log.info(
+                    "Preferred port not present in current enumeration; skipping stale preferred port",
+                    preferred_port=preferred_port,
+                    available_ports=actual_ports,
+                )
+        default_port = get_default_com_port(CONFIG.com_port)
+        if default_port:
+            default_key = default_port.strip().upper()
+            if default_key in normalized_actual:
+                add_port(normalized_actual[default_key])
+            else:
+                log.info(
+                    "Default COM port not present in current enumeration; skipping stale default port",
+                    default_port=default_port,
+                    available_ports=actual_ports,
+                )
+        for device in port_candidates or actual_ports:
+            add_port(device)
+    else:
+        if preferred_port:
+            add_port(preferred_port)
+        default_port = get_default_com_port(CONFIG.com_port)
+        add_port(default_port)
+        if not ordered:
+            for port in STATIC_PORT_CANDIDATES:
+                add_port(port)
+
+    return ordered
+
+
+def _parse_json_line(line: str) -> Optional[Dict[str, Any]]:
+    if not line or not line.strip().startswith("{"):
+        return None
+
+    try:
+        parsed = json.loads(line.strip())
+    except Exception:
+        return None
+
+    if isinstance(parsed, dict):
+        return cast(Dict[str, Any], parsed)
+    return None
+
+
+def _validate_handshake(metadata: Dict[str, Any]) -> Tuple[bool, str]:
+    if not metadata:
+        return False, "empty handshake payload"
+
+    if metadata.get("device") != SUPPORTED_DEVICE_IDENTIFIER:
+        return False, f"unexpected device identifier: {metadata.get('device')!r}"
+
+    protocol = metadata.get("protocol")
+    if isinstance(protocol, str):
+        protocol = protocol.strip()
+        if protocol.isdigit():
+            protocol = int(protocol)
+    if not isinstance(protocol, int):
+        return False, "protocol version missing or invalid"
+
+    if protocol < MIN_PROTOCOL_VERSION:
+        return False, f"protocol version {protocol} is lower than supported {MIN_PROTOCOL_VERSION}"
+
+    return True, "OK"
+
+
+def _probe_port(port: str, baud: int, timeout: float) -> Tuple[bool, Optional[Any], Optional[Dict[str, Any]], str]:
+    if serial is None:
+        return False, None, None, "pyserial is not installed"
+
+    log.info("Probing port for handshake", port=port, baud=baud, timeout=timeout)
+    cable = None
+    keep_open = False
+    buffered_lines = []  # Store non-JSON lines encountered during probe
+
+    def _accept_handshake(metadata):
+        """Common path once a valid handshake JSON has been found, whether
+        it arrived unprompted during boot or as a reply to the ID? command
+        sent later. Keeps draining for a short grace window (or until READY
+        shows up) so trailing boot text lands in buffered_lines too - see
+        the note below on why this used to cut that text off.
+        """
+        nonlocal keep_open
+        keep_open = True
+        trailing_deadline = time.time() + 1.5
+        while time.time() < trailing_deadline:
+            try:
+                trailing_raw = cable.readline()
+            except Exception as trailing_exc:
+                log.debug("Exception reading trailing boot line", error=str(trailing_exc))
+                break
+            if not trailing_raw:
+                continue
+            try:
+                trailing_line = trailing_raw.decode("utf-8", errors="ignore").strip()
+            except Exception:
+                continue
+            if not trailing_line:
+                continue
+            buffered_lines.append(trailing_line)
+            log.debug("Probe: captured trailing boot line", line=trailing_line[:60])
+            trailing_meta = _parse_json_line(trailing_line)
+            if trailing_meta and str(trailing_meta.get("state", "")).upper() == "READY":
+                break
+
+        cable._probe_buffered_lines = buffered_lines
+        return True, cable, metadata, "OK"
+
+    try:
+        # IMPORTANT: pyserial defaults dtr/rts to True and asserts them the
+        # moment the port opens. On ESP32 boards that edge triggers the
+        # auto-reset circuit on the EN pin, so constructing serial.Serial()
+        # with a port (which auto-opens) resets the device before dtr/rts
+        # can be cleared. Build the object closed, set dtr/rts first, then
+        # open() explicitly so no reset pulse is ever sent.
+        cable = serial.Serial()
+        cable.port = port
+        cable.baudrate = baud
+        cable.timeout = timeout
+        cable.dsrdtr = False
+        cable.rtscts = False
+        cable.xonxoff = False
+        try:
+            cable.dtr = False
+            cable.rts = False
+        except Exception:
+            pass
+        cable.open()
+        
+        # Wait for device to finish booting and outputting all initial messages
+        # This includes bootloader output (rst, boot, load, entry) plus application startup.
+        # Using 1.0s as a balance between capturing boot messages and connection responsiveness.
+        try:
+            time.sleep(1.0)
+        except Exception as sleep_exc:
+            log.warning("Exception during boot wait sleep", error=str(sleep_exc))
+        
+        # Read any boot-time data without clearing the buffer
+        # This allows us to see what the device outputs on startup
+        try:
+            while cable.in_waiting > 0:
+                try:
+                    raw = cable.readline()
+                    if raw:
+                        line = raw.decode("utf-8", errors="ignore").strip()
+                        if line:
+                            # ROOT-CAUSE FIX: this firmware prints its identity
+                            # JSON unprompted, immediately at boot - *before*
+                            # it initializes the AS608 sensor. If sensor init
+                            # then fails (bad wiring, sensor unpowered, loose
+                            # connector), the firmware drops into an infinite
+                            # loop and never reads serial input again, so it
+                            # will never reply to the ID? handshake sent
+                            # further down - even though it already announced
+                            # exactly what device this is moments earlier.
+                            # This boot-read pass used to only store lines as
+                            # raw text without ever checking them for a valid
+                            # handshake, so a device stuck after a sensor
+                            # error always looked like "no handshake
+                            # response" here even though it was reachable and
+                            # identifiable. Check every boot line as it
+                            # arrives, not just the eventual reply to our own
+                            # command.
+                            metadata = _parse_json_line(line)
+                            if metadata is not None:
+                                valid, reason = _validate_handshake(metadata)
+                                if valid:
+                                    log.info(
+                                        "Probe: found handshake in unprompted boot output",
+                                        port=port,
+                                    )
+                                    return _accept_handshake(metadata)
+                                # Recognized JSON but it failed validation -
+                                # fall through and keep it as boot text like
+                                # anything else non-matching.
+                            buffered_lines.append(line)
+                            log.debug("Probe: captured boot line", line=line[:60])
+                except Exception as read_exc:
+                    log.debug("Exception reading boot line", error=str(read_exc))
+                    break
+        except Exception as boot_read_exc:
+            log.debug("Exception in boot data read loop", error=str(boot_read_exc))
+        
+        try:
+            cable.reset_output_buffer()
+        except Exception:
+            pass
+
+        # Now send handshake probe
+        try:
+            cable.write((HANDSHAKE_COMMAND + "\n").encode("utf-8"))
+            cable.flush()
+        except Exception as write_exc:
+            log.warning("Exception writing handshake", error=str(write_exc))
+            return False, None, None, f"failed to write handshake: {str(write_exc)}"
+
+        # BUG FIX: cable.timeout was left at the full probe `timeout` (e.g.
+        # 2s), and each cable.readline() call blocks for up to that entire
+        # value waiting for a line. Combined with an outer `deadline` of
+        # `now + timeout`, a single readline() call that times out with no
+        # data could burn the *entire* deadline budget in one shot, leaving
+        # no time for further attempts even though more data (like the
+        # actual handshake JSON, arriving just after some boot noise) was
+        # about to show up. That's what caused "Connect" to intermittently
+        # fail even with a healthy device attached - the probe effectively
+        # only got one real read attempt instead of repeatedly polling
+        # within the deadline window. Lower the per-call read timeout to a
+        # short polling interval so readline() returns frequently and the
+        # outer while loop actually gets multiple chances within `timeout`.
+        cable.timeout = 0.2
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                raw = cable.readline()
+            except Exception as read_exc:
+                log.debug("Exception reading handshake response", error=str(read_exc))
+                continue
+                
+            if not raw:
+                continue
+            try:
+                line = raw.decode("utf-8", errors="ignore").strip()
+            except Exception:
+                continue
+            if not line:
+                continue
+            
+            # Check if this is JSON (handshake response)
+            metadata = _parse_json_line(line)
+            if metadata is None:
+                # Not JSON, store it with the other boot lines
+                buffered_lines.append(line)
+                log.debug("Probe: captured response line", line=line[:60])
+                continue
+            
+            # Found handshake JSON
+            valid, reason = _validate_handshake(metadata)
+            if valid:
+                return _accept_handshake(metadata)
+            return False, None, None, f"handshake rejected: {reason}"
+
+        return False, None, None, "no handshake response"
+    except Exception as exc:
+        error_message = str(exc)
+        if cable is not None and getattr(cable, "is_open", False):
+            try:
+                cable.close()
+            except Exception:
+                pass
+        if "Access is denied" in error_message or "PermissionError" in error_message:
+            return False, None, None, (
+                "PermissionError(13, 'Access is denied.'): Port in use by another application or USB driver issue. "
+                "Check Device Manager or close any serial terminal using the port."
+            )
+        return False, None, None, error_message
+    finally:
+        if cable is not None and not keep_open:
+            try:
+                cable.close()
+            except Exception:
+                pass
+
+
+def discover_device(
+    preferred_port: Optional[str] = None,
+    baud: int = 115200,
+    allow_search: bool = True,
+    timeout: float = HANDSHAKE_TIMEOUT_SECONDS,
+) -> Tuple[Optional[str], Optional[Any], Optional[Dict[str, Any]], str]:
+    """Discover the ESP32 fingerprint device and return its port, open serial object, and metadata."""
+    if serial is None:
+        return None, None, None, "pyserial is not installed"
+
+    candidates = _ordered_candidate_ports(preferred_port if preferred_port else None)
+    if not candidates:
+        return None, None, None, "no serial ports available"
+
+    log.info(
+        "Starting ESP32 discovery",
+        preferred_port=preferred_port,
+        baud=baud,
+        candidates=candidates,
+    )
+
+    if not allow_search and preferred_port:
+        success, cable, metadata, error = _probe_port(preferred_port, baud, timeout)
+        if success:
+            return preferred_port, cable, metadata, ""
+        return None, None, None, error
+
+    errors: List[str] = []
+    for candidate in candidates:
+        success, cable, metadata, error = _probe_port(candidate, baud, timeout)
+        if success:
+            log.success("ESP32 discovery succeeded", port=candidate, metadata=metadata)
+            return candidate, cable, metadata, ""
+
+        if error:
+            errors.append(f"{candidate}: {error}")
+            log.warning("ESP32 discovery probe failed", port=candidate, baud=baud, error=error)
+        else:
+            log.warning("ESP32 discovery probe timed out", port=candidate, baud=baud)
+
+        if not allow_search and preferred_port:
+            # Keep the user informed when probing only the explicitly requested port.
+            log.warning("ESP32 discovery failed", port=candidate, baud=baud, error=error)
+            break
+
+    if allow_search and errors:
+        # Identify critical errors (access denied) that block actual devices
+        access_errors = [e for e in errors if "PermissionError(13, 'Access is denied" in e or "Access is denied" in e]
+        
+        if access_errors:
+            # At least one port is blocked—this is often the real device
+            summary = (
+                access_errors[0]
+                if len(access_errors) == 1
+                else f"Access denied on {len(access_errors)} ports (likely real devices); first: {access_errors[0]}"
+            )
+            log.warning("ESP32 discovery failed - port access blocked", baud=baud, error=summary, all_errors=errors)
+        else:
+            # No access errors; all ports either don't exist or have no device
+            summary = (
+                errors[0]
+                if len(errors) == 1
+                else f"{len(errors)} ports probed; common issues: device not found or incorrect port. Errors: {', '.join(errors)}"
+            )
+            log.warning("ESP32 discovery failed", baud=baud, error=summary)
+        return None, None, None, summary
+
+    if errors:
+        return None, None, None, errors[0]
+
+    return None, None, None, "no matching ESP32 device found"
