@@ -16,7 +16,7 @@ DSIS
 
 
 python -m pip install openpyxl numpy
-
+python archive\legacy-ui\v2\run_qt_gui.py
 
 Remove-Item -Recurse -Force build, dist
 python -m PyInstaller DSIS.spec --clean
