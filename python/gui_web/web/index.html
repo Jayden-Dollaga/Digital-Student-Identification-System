@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSIS — Digital Student Identification System</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ── Fake window titlebar ── -->
+<div id="titlebar">
+  <div class="logo">
+    <!-- Fingerprint SVG logo — CSS-replaceable, just swap the <img> src -->
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="11" cy="11" r="10.5" fill="#1B2A4A" stroke="#3B78FF" stroke-width="1"/>
+      <path d="M11 6a5 5 0 0 0-5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M11 8a3 3 0 0 0-3 3" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <circle cx="11" cy="11" r="1" fill="#3B78FF"/>
+      <path d="M14 11a3 3 0 0 1-3 3" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M16 11a5 5 0 0 1-5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      <path d="M11 6a5 5 0 0 1 5 5" stroke="#3B78FF" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="logo-text">DSIS</span>
+    <span class="logo-sub">Digital Student Identification System</span>
+  </div>
+  <div class="tb-spacer"></div>
+  <button class="win-btn" title="Minimize">&#x2212;</button>
+  <button class="win-btn" title="Maximize">&#x25A1;</button>
+  <button class="win-btn close" title="Close">&#x2715;</button>
+</div>
+
+<!-- ── App body ── -->
+<div id="app">
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+    <div style="height:8px;"></div>
+
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="nav(this,'dashboard')" data-tip="Dashboard">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" opacity=".45"/></svg>
+      </span>
+      <span class="nav-label">Dashboard</span>
+    </div>
+
+    <div class="nav-section-label" style="margin-top:6px;">Records</div>
+    <div class="nav-item" onclick="nav(this,'attendance')" data-tip="Attendance">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 0 1 1 1h4a1 1 0 1 1 2 0h1a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1-1Zm3 6H5v1h3V7Zm3 2H5v1h6V9Zm0 2H5v1h6v-1Z" opacity=".9"/></svg>
+      </span>
+      <span class="nav-label">Attendance</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'students')" data-tip="Students">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="5" r="3"/><path d="M2 13c0-3.3 2.7-6 6-6s6 2.7 6 6H2Z"/></svg>
+      </span>
+      <span class="nav-label">Students</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'reports')" data-tip="Reports">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2Zm2 3h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z" opacity=".9"/></svg>
+      </span>
+      <span class="nav-label">Reports</span>
+    </div>
+
+    <div class="nav-section-label" style="margin-top:6px;">System</div>
+    <div class="nav-item" onclick="nav(this,'logs')" data-tip="Logs">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="6" width="10" height="2" rx="1"/><rect x="1" y="10" width="12" height="2" rx="1"/><rect x="1" y="14" width="7" height="2" rx="1"/></svg>
+      </span>
+      <span class="nav-label">Logs</span>
+    </div>
+    <div class="nav-item" onclick="nav(this,'settings')" data-tip="Settings">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8Zm6-1a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" opacity=".8"/><path d="M6.5 1.5h3v1.7a5.5 5.5 0 0 0-3 0V1.5ZM1.5 6.5h1.7a5.5 5.5 0 0 0 0 3H1.5v-3Zm11.3 0h1.7v3h-1.7a5.5 5.5 0 0 0 0-3ZM6.5 12.8v1.7h3v-1.7a5.5 5.5 0 0 1-3 0Z"/></svg>
+      </span>
+      <span class="nav-label">Settings</span>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <!-- Compact toggle -->
+    <div class="compact-toggle" onclick="toggleCompact()" id="compact-btn" data-tip="Toggle density">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" id="compact-icon">
+        <rect x="1" y="2" width="12" height="1.5" rx=".75"/>
+        <rect x="1" y="6" width="12" height="1.5" rx=".75"/>
+        <rect x="1" y="10" width="12" height="1.5" rx=".75"/>
+      </svg>
+      <span class="compact-toggle-label" id="compact-label">Compact view</span>
+    </div>
+  </nav>
+
+  <!-- ── Right panel ── -->
+  <div id="right">
+
+    <!-- Page header -->
+    <div id="page-header">
+      <span id="page-title">Dashboard</span>
+      <div class="header-sep"></div>
+
+      <div id="status-pill" class="status-pill disconnected">
+        <span class="dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+
+      <span id="device-info" style="font-size:11px;color:var(--muted);display:none;">COM8 · 115200 baud · ESP32 · Protocol 2</span>
+
+      <div class="header-spacer"></div>
+
+      <!-- Scan toggle -->
+      <button class="hdr-btn" id="scan-btn" onclick="toggleScan()" disabled>SCAN</button>
+      <!-- Connect -->
+      <button class="hdr-btn primary" id="connect-btn" onclick="toggleConnect()">Connect</button>
+    </div>
+
+    <!-- Page content area -->
+    <div id="page-content">
+
+      <!-- ── Dashboard ── -->
+      <div class="page active" id="page-dashboard">
+
+        <div class="stat-row">
+          <div class="stat-card accent-blue">
+            <div class="stat-label">Scans Today</div>
+            <div class="stat-value" id="stat-scans">14</div>
+            <div class="stat-sub" id="stat-scans-sub">Last: —</div>
+          </div>
+          <div class="stat-card accent-green">
+            <div class="stat-label">Total Students</div>
+            <div class="stat-value" id="stat-students">0</div>
+            <div class="stat-sub">Enrolled fingerprints</div>
+          </div>
+          <div class="stat-card accent-yellow">
+            <div class="stat-label">Attendance Rate</div>
+            <div class="stat-value" id="stat-rate">0%</div>
+            <div class="stat-sub" id="stat-rate-sub">Today</div>
+          </div>
+          <div class="stat-card accent-red">
+            <div class="stat-label">Unknown Scans</div>
+            <div class="stat-value" id="stat-unknown">0</div>
+            <div class="stat-sub">Unrecognized fingerprints</div>
+          </div>
+        </div>
+
+        <!-- Last scan result -->
+        <div id="scan-result-area">
+          <div class="scan-icon-wrap" id="scan-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 4a7 7 0 0 0-7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M11 7a4 4 0 0 0-4 4" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <circle cx="11" cy="11" r="1.2" fill="#4B5563"/>
+              <path d="M15 11a4 4 0 0 1-4 4" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M18 11a7 7 0 0 1-7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M11 4a7 7 0 0 1 7 7" stroke="#4B5563" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            </svg>
+          </div>
+          <div class="scan-info">
+            <div class="scan-name" id="scan-name">Awaiting scan…</div>
+            <div class="scan-meta" id="scan-meta">Device not connected. Connect a reader to begin scanning.</div>
+            <div class="confidence-bar-wrap" id="conf-wrap" style="display:none;">
+              <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="conf-fill" style="width:0%"></div></div>
+              <span class="confidence-label" id="conf-label">—</span>
+            </div>
+          </div>
+          <span class="scan-status-tag idle" id="scan-tag">IDLE</span>
+        </div>
+
+        <!-- Recent activity table -->
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;gap:6px;">
+          <div class="section-header">Recent Activity</div>
+          <div class="data-table-wrap">
+            <table class="data-table">
+              <thead><tr>
+                <th>Time</th>
+                <th>Student No.</th>
+                <th>Name</th>
+                <th>Grade / Section</th>
+                <th>Confidence</th>
+                <th>Status</th>
+              </tr></thead>
+              <tbody id="activity-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Attendance ── -->
+      <div class="page" id="page-attendance">
+        <div class="toolbar">
+          <select class="tb-select" id="att-mode">
+            <option>Today</option>
+            <option>Recent</option>
+            <option>Last 30 Days</option>
+          </select>
+          <div class="toolbar-sep"></div>
+          <input class="tb-search" placeholder="Search name, student no…" id="att-search" oninput="filterTable('att-tbody','att-search')">
+          <div class="toolbar-spacer"></div>
+          <span class="tb-count" id="att-count">8 records</span>
+          <div class="toolbar-sep"></div>
+          <button class="hdr-btn" onclick="exportAttendanceCsv()">Export CSV</button>
+          <button class="hdr-btn primary" onclick="loadAttendancePage()">Refresh</button>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>Date</th><th>Time</th><th>Student No.</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Status</th>
+            </tr></thead>
+            <tbody id="att-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Students ── -->
+      <div class="page" id="page-students">
+        <div class="toolbar">
+          <input class="tb-search" placeholder="Search students…" id="stu-search" oninput="filterTable('stu-tbody','stu-search')">
+          <div class="toolbar-sep"></div>
+          <span class="tb-count" id="stu-count">0 students</span>
+          <div class="toolbar-spacer"></div>
+          <button class="hdr-btn primary" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
+        </div>
+        <div class="split-layout">
+          <div class="split-main">
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead><tr>
+                  <th>FP ID</th><th>Student No.</th><th>Name</th><th>Grade</th><th>Section</th>
+                </tr></thead>
+                <tbody id="stu-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Student detail panel -->
+          <div class="detail-panel">
+            <div class="detail-panel-title">Student Details</div>
+            <div class="fp-avatar">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <path d="M14 6a8 8 0 0 0-8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M14 10a4 4 0 0 0-4 4" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <circle cx="14" cy="14" r="1.4" fill="#3B78FF"/>
+                <path d="M18 14a4 4 0 0 1-4 4" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M22 14a8 8 0 0 1-8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                <path d="M14 6a8 8 0 0 1 8 8" stroke="#3B78FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+              </svg>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Name</div>
+              <div class="detail-field-value" id="det-name">Lim, Carlos R.</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Student No.</div>
+              <div class="detail-field-value" id="det-sno">2024-00057</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Grade</div>
+              <div class="detail-field-value" id="det-grade">Grade 11</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Section</div>
+              <div class="detail-field-value" id="det-section">ABM-A</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Fingerprint ID</div>
+              <div class="detail-field-value" id="det-fpid">#3</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Status Today</div>
+              <div class="detail-field-value"><span class="badge late">LATE</span></div>
+            </div>
+            <div class="detail-actions">
+              <button class="detail-btn" onclick="reenrollSelectedStudent()">Re-enroll Fingerprint</button>
+              <button class="detail-btn danger" onclick="deleteSelectedStudent()">Delete Student</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Reports ── -->
+      <div class="page" id="page-reports">
+        <div class="reports-inner">
+
+          <!-- Statistics report -->
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Attendance Statistics Report</div>
+          <div id="stats-report"></div>
+
+          <div style="height:1px;background:var(--border2);margin:4px 0;"></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Exports</div>
+          <div class="report-item" onclick="exportAttendanceCsv('today')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Today's Attendance (CSV)</span><span class="report-meta" id="rpt-today-count">—</span></div>
+          <div class="report-item" onclick="exportAttendanceCsv('last30')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Last 30 Days (CSV)</span><span class="report-meta" id="rpt-last30-label">—</span></div>
+          <div class="report-item" onclick="exportStudentsCsv()" style="cursor:pointer"><span class="report-icon">📊</span><span class="report-name">Export All Students (CSV)</span><span class="report-meta" id="rpt-students-count">—</span></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Backups</div>
+          <div id="backups-list"></div>
+          <button class="hdr-btn primary" style="width:fit-content;height:28px;margin-top:4px;" onclick="createBackupNow()">+ Create Backup Now</button>
+        </div>
+      </div>
+
+      <!-- ── Logs ── -->
+      <div class="page" id="page-logs">
+
+        <!-- ── TOP: Application Log ── -->
+        <div class="log-panel">
+          <div class="log-panel-header">
+            <span class="log-panel-title">Application Log</span>
+            <div class="toolbar-spacer"></div>
+            <select class="tb-select" id="applog-filter" onchange="applyAppLogFilter()">
+              <option value="all">All levels</option>
+              <option value="INFO">INFO</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+            <input class="tb-search" placeholder="Filter…" id="applog-search" oninput="applyAppLogFilter()" style="width:140px;">
+            <button class="hdr-btn" onclick="clearAppLog()">Clear</button>
+          </div>
+          <div id="applog-output" class="log-output">
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.210</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow created</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.281</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow shown</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.443</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">ConnectionWorker.run() entered</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.444</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">SerialWorker.run() entered</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:00:02.091</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Database backed up to H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
+            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 08:00:02.093</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Automatic backup created: H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:36:44.201</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded (LATE) | student_no=2024-00057 name="Lim, Carlos R." confidence=94</span></div>
+            <div class="log-line" data-lvl="WARN"><span class="log-ts">2026-09-06 08:38:19.004</span><span class="log-lvl warn">WARN&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Unknown fingerprint | fp_id=99 confidence=31 — below threshold, skipped</span></div>
+            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:47:12.443</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded | student_no=2024-00134 name="Reyes, Maria L." confidence=98</span></div>
+          </div>
+        </div>
+
+        <!-- resize handle -->
+        <div id="log-resize-handle"></div>
+
+        <!-- ── BOTTOM: Serial Monitor ── -->
+        <div class="log-panel" id="serial-panel">
+          <div class="log-panel-header">
+            <span class="log-panel-title">Serial Monitor</span>
+            <div class="serial-meta" id="serial-meta-bar">
+              <span id="sm-port">Port: N/A</span>
+              <span id="sm-baud">Baud: N/A</span>
+              <span id="sm-state" class="sm-state disconnected">State: Disconnected</span>
+            </div>
+            <div class="toolbar-spacer"></div>
+            <label class="sm-autoscroll-wrap">
+              <input type="checkbox" id="sm-autoscroll" checked>
+              Auto-scroll
+            </label>
+            <button class="hdr-btn" id="sm-pause-btn" onclick="toggleSerialPause()">Pause</button>
+            <button class="hdr-btn" onclick="clearSerial()">Clear</button>
+          </div>
+          <div id="serial-output" class="log-output serial-output"></div>
+          <div class="serial-toolbar">
+            <button class="hdr-btn" onclick="serialCmd('LIST')">List</button>
+            <button class="hdr-btn" onclick="serialCmd('RESET')">Reset Device</button>
+            <div class="toolbar-spacer"></div>
+            <input class="tb-search serial-cmd-input" id="serial-cmd" placeholder="Enter command and press Send" style="flex:1;max-width:none;">
+            <button class="hdr-btn primary" onclick="sendSerialCmd()">Send</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Settings ── -->
+      <div class="page" id="page-settings">
+        <div class="settings-inner">
+
+          <div class="settings-group">
+            <div class="settings-group-title">Connection</div>
+            <div class="settings-row">
+              <span class="settings-row-label">COM Port</span>
+              <span class="settings-row-value" id="set-com-port">—</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Baud Rate</span>
+              <span class="settings-row-value" id="set-baud-rate">—</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-reconnect</span>
+              <div class="toggle-switch" id="set-auto-reconnect" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-detect ESP32 on connect</span>
+              <div class="toggle-switch" id="set-auto-detect" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Appearance</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Theme</span>
+              <span class="settings-row-value" id="set-theme">Dark</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Compact view</span>
+              <div class="toggle-switch" id="settings-compact-toggle" onclick="toggleCompact(); this.classList.toggle('on')"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Attendance Behavior</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Scan cooldown</span>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" min="1" max="60" value="10" class="settings-spinner" id="set-cooldown"> <span style="font-size:12px;color:var(--muted2);">s</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Minimum match confidence</span>
+              <input type="number" min="1" max="100" value="96" class="settings-spinner" id="set-confidence">
+            </div>
+            <div style="padding:6px 14px 10px;font-size:11px;color:var(--accent);opacity:.8;">
+              Lower confidence accepts weaker fingerprint matches; cooldown blocks repeat scans of the same student.
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">User Role</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Active role</span>
+              <select class="tb-select" id="role-select" onchange="updateRole()" style="flex:1;height:28px;font-size:12.5px;">
+                <option value="admin">Administrator</option>
+                <option value="teacher">Teacher</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+            <div class="settings-row" style="align-items:flex-start;padding-top:6px;padding-bottom:6px;height:auto;">
+              <span class="settings-row-label" style="padding-top:1px;">Permissions</span>
+              <div id="role-permissions" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
+            </div>
+            <div style="padding:4px 14px 10px;font-size:11px;color:var(--muted);font-style:italic;">
+              No login is enforced yet — this only hides admin-only pages/actions in the UI.
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Logging &amp; Diagnostics</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Write logs to file</span>
+              <div class="toggle-switch" id="set-log-to-file" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Verbose debug logging</span>
+              <div class="toggle-switch" id="set-debug-logging" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div style="padding:4px 14px 8px;font-size:11px;color:var(--accent);opacity:.8;">
+              Logging changes take effect the next time the app starts.
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Log folder</span>
+              <span class="settings-row-value" style="font-family:'Consolas',monospace;font-size:11.5px;" id="set-log-folder">—</span>
+              <button class="hdr-btn" style="margin-left:auto;" onclick="openLogFolder()">Open Log Folder</button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Backups</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Auto-backup interval</span>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" min="1" max="180" value="25" class="settings-spinner" id="set-backup-interval"> <span style="font-size:12px;color:var(--muted2);">min</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Last backup</span>
+              <span class="settings-row-value" id="set-last-backup">—</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="hdr-btn primary" onclick="saveSettings()">Save Changes</button>
+            <button class="hdr-btn" onclick="loadSettingsPage()">Discard</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+
+    <!-- ── Status bar ── -->
+    <div id="statusbar">
+      <div class="sb-item">
+        <span class="dot" id="sb-dot" style="background:var(--red)"></span>
+        <span id="sb-conn-text">Disconnected</span>
+      </div>
+      <div class="sb-sep"></div>
+      <div class="sb-item" id="sb-device" style="display:none;">
+        <span>ESP32 · COM8 · Protocol 2</span>
+      </div>
+      <div class="sb-sep" id="sb-device-sep" style="display:none;"></div>
+      <div class="sb-item" id="sb-students">0 students</div>
+      <div class="sb-sep"></div>
+      <div class="sb-item" id="sb-scans">0 scans today</div>
+      <div class="sb-spacer"></div>
+      <div class="sb-item">
+        <span>v3.0.0</span>
+      </div>
+      <div class="sb-sep"></div>
+      <div class="sb-item sb-time" id="sb-time">—</div>
+    </div>
+
+  </div><!-- /right -->
+</div><!-- /app -->
+
+
+<script src="app.js"></script>
+</body>
+</html>

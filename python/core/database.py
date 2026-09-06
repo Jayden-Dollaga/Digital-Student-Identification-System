@@ -245,6 +245,24 @@ def init_database() -> None:
         _migrate_attendance_event_type(cursor)
 
         conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
+
+        # Seed a permanent placeholder row for fingerprint_id 0, representing
+        # "Unregistered/Unknown" scans. The attendance table's FOREIGN KEY on
+        # fingerprint_id (enforced via PRAGMA foreign_keys = ON in
+        # get_connection()) otherwise rejects every unknown-fingerprint scan
+        # outright, since nothing else ever inserts a fingerprint_id=0
+        # student. The ATTENDANCE_JOIN_QUERY's `CASE WHEN a.fingerprint_id = 0
+        # THEN 'Unregistered'` branch already assumed this row's existence;
+        # this is what actually makes that branch reachable.
+        now_iso = datetime.now().isoformat()
+        conn.execute(
+            """
+            INSERT INTO students (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date)
+            VALUES (0, 'N/A', 'Unregistered', 'N/A', 'N/A', ?, ?)
+            ON CONFLICT(fingerprint_id) DO NOTHING
+            """,
+            (now_iso, now_iso),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -572,7 +590,10 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
 def get_all_students() -> List[StudentRow]:
     conn = get_connection()
     try:
-        rows = conn.execute("SELECT * FROM students ORDER BY fingerprint_id").fetchall()
+        # fingerprint_id 0 is the reserved "Unregistered" placeholder used to
+        # satisfy the attendance table's FK for unknown-fingerprint scans
+        # (see init_database()) - it is not a real enrolled student.
+        rows = conn.execute("SELECT * FROM students WHERE fingerprint_id > 0 ORDER BY fingerprint_id").fetchall()
         return _row_dicts(rows)
     finally:
         conn.close()
@@ -581,7 +602,7 @@ def get_all_students() -> List[StudentRow]:
 def get_student_count() -> int:
     conn = get_connection()
     try:
-        return conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+        return conn.execute("SELECT COUNT(*) FROM students WHERE fingerprint_id > 0").fetchone()[0]
     finally:
         conn.close()
 

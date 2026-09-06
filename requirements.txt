@@ -7,8 +7,13 @@ PySide6>=6.5
 Pillow>=9.0,<11
 pytest==7.4.0
 pyinstaller>=6.15
+pywebview>=5.0
 
 # Notes:
-# - `PySide6` is required for the Qt GUI under `python/gui_qt/`.
-# - `customtkinter` is used by the legacy `python/gui/` UI.
-# - If you only need one GUI (Qt or legacy), you can omit the other GUI dependency.
+# - `pywebview` is required for the active v3 HTML GUI under `python/gui_web/`
+#   (launched via `run_web_gui.py` / `run_web_gui.bat`).
+# - `PySide6` is required for the archived v2 Qt GUI under
+#   `archive/legacy-ui/v2/python/gui_qt/`.
+# - `customtkinter` is used by the archived v1 UI under
+#   `archive/legacy-ui/v1/python/gui/`.
+# - If you only run v3, you can omit PySide6 and customtkinter.

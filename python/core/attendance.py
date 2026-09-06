@@ -147,15 +147,26 @@ class AttendanceProcessor:
                 reason=self._cooldown_reason(fingerprint_id, now),
             ).to_dict()
 
-        self._log_and_record(fingerprint_id, 0, "UNKNOWN", now)
-        return ScanOutcome(
-            fingerprint_id=fingerprint_id,
-            confidence=0,
-            status="UNKNOWN",
-            timestamp=now,
-            logged=True,
-            reason=None,
-        ).to_dict()
+        try:
+            self._log_and_record(fingerprint_id, 0, "UNKNOWN", now)
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=0,
+                status="UNKNOWN",
+                timestamp=now,
+                logged=True,
+                reason=None,
+            ).to_dict()
+        except Exception as exc:
+            log.error(f"Failed to log unknown-fingerprint scan: {exc}")
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=0,
+                status="UNKNOWN",
+                timestamp=now,
+                logged=False,
+                reason="Could not record unknown scan (see application log).",
+            ).to_dict()
 
     def _handle_confidence_scan(self, confidence: int) -> Optional[ScanResult]:
         fingerprint_id = self.current_id
