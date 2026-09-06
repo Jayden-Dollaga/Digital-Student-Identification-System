@@ -12,8 +12,22 @@ DSIS
 
 
 
+
+
+
+python -m pip install openpyxl numpy
+
+
 Remove-Item -Recurse -Force build, dist
 python -m PyInstaller DSIS.spec --clean
+
+
+Remove-Item -Recurse -Force build-v2, dist-v2 -ErrorAction SilentlyContinue
+python -m PyInstaller DSIS_v2.spec --clean --noconfirm --workpath build-v2 --distpath dist-v2
+
+
+
+
 
 
 

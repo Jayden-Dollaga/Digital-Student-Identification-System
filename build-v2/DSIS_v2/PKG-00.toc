@@ -1,0 +1,61 @@
+('C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+ 'Fingerprint Attendance System\\build-v2\\DSIS_v2\\DSIS-v2.pkg',
+ {'BINARY': True,
+  'DATA': True,
+  'EXECUTABLE': True,
+  'EXTENSION': True,
+  'PYMODULE': True,
+  'PYSOURCE': True,
+  'PYZ': False,
+  'SPLASH': True,
+  'SYMLINK': False},
+ [('pyi-contents-directory _internal', '', 'OPTION'),
+  ('PYZ-00.pyz',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance System\\build-v2\\DSIS_v2\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance System\\build-v2\\DSIS_v2\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance '
+   'System\\build-v2\\DSIS_v2\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance '
+   'System\\build-v2\\DSIS_v2\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance '
+   'System\\build-v2\\DSIS_v2\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance '
+   'System\\build-v2\\DSIS_v2\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'C:\\Users\\EnforcerX\\AppData\\Roaming\\Python\\Python314\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'C:\\Users\\EnforcerX\\AppData\\Roaming\\Python\\Python314\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pyside6',
+   'C:\\Users\\EnforcerX\\AppData\\Roaming\\Python\\Python314\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pyside6.py',
+   'PYSOURCE'),
+  ('run_qt_gui',
+   'C:\\Users\\EnforcerX\\Downloads\\Arduino-IDE - Project\\AI-Assisted '
+   'Fingerprint Attendance System\\archive\\legacy-ui\\v2\\run_qt_gui.py',
+   'PYSOURCE')],
+ 'python314.dll',
+ True,
+ False,
+ False,
+ [],
+ None,
+ None,
+ None)
