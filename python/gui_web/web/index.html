@@ -25,6 +25,11 @@
     <span class="logo-sub">Digital Student Identification System</span>
   </div>
   <div class="tb-spacer"></div>
+  <select id="titlebar-role" class="tb-role-badge role-admin" title="Active user role" onchange="applyRole(this.value)">
+    <option value="admin">Administrator</option>
+    <option value="teacher">Teacher</option>
+    <option value="guest">Guest</option>
+  </select>
   <button class="win-btn" title="Minimize">&#x2212;</button>
   <button class="win-btn" title="Maximize">&#x25A1;</button>
   <button class="win-btn close" title="Close">&#x2715;</button>
@@ -365,21 +370,45 @@
 
           <div class="settings-group">
             <div class="settings-group-title">Connection</div>
-            <div class="settings-row">
-              <span class="settings-row-label">COM Port</span>
-              <span class="settings-row-value" id="set-com-port">—</span>
-            </div>
-            <div class="settings-row">
-              <span class="settings-row-label">Baud Rate</span>
-              <span class="settings-row-value" id="set-baud-rate">—</span>
-            </div>
-            <div class="settings-row">
-              <span class="settings-row-label">Auto-reconnect</span>
-              <div class="toggle-switch" id="set-auto-reconnect" onclick="this.classList.toggle('on')"></div>
-            </div>
-            <div class="settings-row">
-              <span class="settings-row-label">Auto-detect ESP32 on connect</span>
-              <div class="toggle-switch" id="set-auto-detect" onclick="this.classList.toggle('on')"></div>
+            <div class="conn-card">
+              <div class="conn-card-header">
+                <span class="conn-card-title">Connected Device</span>
+                <span class="conn-status-pill" id="conn-device-status">\u25cf Disconnected</span>
+              </div>
+              <div class="conn-detail" id="conn-device-detail">No device connected yet. Connect from the top bar \u2014 this panel will fill in automatically once a device responds.</div>
+
+              <div class="conn-divider"></div>
+
+              <div class="conn-override-title">Manual Port Override (optional)</div>
+
+              <div class="settings-row">
+                <span class="settings-row-label">Port override</span>
+                <input list="conn-port-list" id="set-port-override" class="settings-text-input" placeholder="Select a detected port\u2026">
+                <datalist id="conn-port-list"></datalist>
+              </div>
+
+              <div class="conn-port-actions">
+                <span class="conn-port-count" id="conn-port-count">Devices found: 0</span>
+                <div class="conn-port-buttons">
+                  <button class="hdr-btn" onclick="forgetSavedPort()">Forget saved port</button>
+                  <button class="hdr-btn" onclick="refreshPortList()">Refresh device list</button>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-row-label">Baud Rate</span>
+                <select class="settings-text-input" id="set-baud-rate-select"></select>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label">Auto-reconnect</span>
+                <div class="toggle-switch" id="set-auto-reconnect" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div class="settings-row">
+                <span class="settings-row-label">Auto-discover ESP32 when connecting</span>
+                <div class="toggle-switch" id="set-auto-detect" onclick="this.classList.toggle('on')"></div>
+              </div>
+
+              <div class="conn-hint">Only needed if auto-discovery can't find your device. Otherwise leave this alone \u2014 the app finds the ESP32 on its own and the panel above will show it once connected.</div>
             </div>
           </div>
 
@@ -387,7 +416,10 @@
             <div class="settings-group-title">Appearance</div>
             <div class="settings-row">
               <span class="settings-row-label">Theme</span>
-              <span class="settings-row-value" id="set-theme">Dark</span>
+              <select class="settings-text-input" id="set-theme" style="max-width:160px;" onchange="applyTheme(this.value)">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
             </div>
             <div class="settings-row">
               <span class="settings-row-label">Compact view</span>

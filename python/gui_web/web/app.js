@@ -120,6 +120,7 @@ async function toggleConnect() {
     setStatus('disconnected');
     smAppend('--- Serial port closed ---', 'serial-sys');
   }
+  refreshConnectedDevicePanel();
 }
 
 async function toggleScan() {
@@ -575,30 +576,87 @@ function updateSerialMeta() {
   document.addEventListener('mouseup', () => { dragging = false; handle.classList.remove('dragging'); });
 })();
 
-// ── Settings ──
+function applyTheme(theme) {
+  const t = (theme || 'dark').toLowerCase();
+  document.body.classList.toggle('light-theme', t === 'light');
+  const select = document.getElementById('set-theme');
+  if (select) select.value = t;
+}
 async function loadSettingsPage() {
   if (!api()) return;
   const s = await api().get_settings();
-  document.getElementById('set-com-port').textContent = s.com_port || 'Auto-detect';
-  document.getElementById('set-baud-rate').textContent = s.baud_rate;
   document.getElementById('set-auto-reconnect').classList.toggle('on', !!s.auto_reconnect);
   document.getElementById('set-auto-detect').classList.toggle('on', !!s.auto_detect_serial);
-  document.getElementById('set-theme').textContent = (s.theme || 'dark').charAt(0).toUpperCase() + (s.theme || 'dark').slice(1);
+  applyTheme(s.theme);
   document.getElementById('settings-compact-toggle').classList.toggle('on', !!s.compact_sidebar);
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
   document.getElementById('role-select').value = s.current_role || 'admin';
   currentRole = s.current_role || 'admin';
-  updateRole();
+  applyRole(currentRole);
   document.getElementById('set-log-to-file').classList.toggle('on', !!s.log_to_file);
   document.getElementById('set-debug-logging').classList.toggle('on', !!s.enable_debug_logging);
   document.getElementById('set-log-folder').textContent = s.log_folder || '\u2014';
   document.getElementById('set-backup-interval').value = s.auto_backup_interval_minutes;
   document.getElementById('set-last-backup').textContent = s.last_backup || 'No backups yet';
+
+  await refreshConnectedDevicePanel();
+  await refreshPortList();
+  populateBaudOptions(s.baud_rate);
+  const portInput = document.getElementById('set-port-override');
+  if (portInput) portInput.value = s.com_port || '';
+}
+
+async function refreshConnectedDevicePanel() {
+  const status = await api().get_connection_status();
+  const pill = document.getElementById('conn-device-status');
+  const detail = document.getElementById('conn-device-detail');
+  if (status.connected) {
+    pill.textContent = '\u25cf Connected';
+    pill.className = 'conn-status-pill connected';
+    const meta = status.device_metadata || {};
+    const lines = [];
+    if (status.port) lines.push(`Port: ${status.port}`);
+    if (status.baud) lines.push(`Baud: ${status.baud}`);
+    if (meta.device) lines.push(`Device: ${meta.device}`);
+    if (meta.board) lines.push(`Board: ${meta.board}`);
+    if (meta.firmware) lines.push(`Firmware: ${meta.firmware}`);
+    if (meta.protocol !== undefined && meta.protocol !== null) lines.push(`Protocol: ${meta.protocol}`);
+    if (meta.sensor) lines.push(`Sensor: ${meta.sensor}`);
+    if (meta.serial_number) lines.push(`Serial Number: ${meta.serial_number}`);
+    detail.textContent = lines.length ? lines.join('\n') : 'Connected, but the device hasn\u2019t reported its metadata yet.';
+  } else {
+    pill.textContent = '\u25cf Disconnected';
+    pill.className = 'conn-status-pill';
+    detail.textContent = 'No device connected yet. Connect from the top bar \u2014 this panel will fill in automatically once a device responds.';
+  }
+}
+
+async function refreshPortList() {
+  const ports = await api().list_ports_detailed();
+  const datalist = document.getElementById('conn-port-list');
+  datalist.innerHTML = ports.map(p => `<option value="${p.device}">${p.label}</option>`).join('');
+  document.getElementById('conn-port-count').textContent = `Devices found: ${ports.length}`;
+}
+
+async function forgetSavedPort() {
+  await api().forget_saved_port();
+  document.getElementById('set-port-override').value = '';
+  alert('Saved port cleared. The app will auto-detect the ESP32 on next connect.');
+}
+
+function populateBaudOptions(current) {
+  const select = document.getElementById('set-baud-rate-select');
+  const rates = [9600, 19200, 38400, 57600, 115200, 230400];
+  select.innerHTML = rates.map(r => `<option value="${r}">${r}</option>`).join('');
+  select.value = current || 115200;
 }
 
 async function saveSettings() {
   const payload = {
+    com_port: document.getElementById('set-port-override').value.trim(),
+    baud_rate: parseInt(document.getElementById('set-baud-rate-select').value, 10),
+    theme: document.getElementById('set-theme').value,
     auto_reconnect: document.getElementById('set-auto-reconnect').classList.contains('on'),
     auto_detect_serial: document.getElementById('set-auto-detect').classList.contains('on'),
     compact_sidebar: document.getElementById('settings-compact-toggle').classList.contains('on'),
@@ -620,15 +678,33 @@ const ROLE_COLORS = {
   wipe: '#7F1D1D:#FCA5A5', export: '#1A1F0A:#A3E635', backup: '#1e1b4b:#a5b4fc',
   restore: '#1e1b4b:#a5b4fc',
 };
-async function updateRole() {
-  const key = document.getElementById('role-select').value;
+const ROLE_LABELS = { admin: 'Administrator', teacher: 'Teacher', guest: 'Guest' };
+
+function paintTitlebarRole(key) {
+  const badge = document.getElementById('titlebar-role');
+  if (!badge) return;
+  badge.className = 'tb-role-badge role-' + key;
+  badge.value = key;
+}
+
+async function applyRole(key) {
   const res = await api().set_current_role(key);
   currentRole = key;
+  paintTitlebarRole(key);
+  const select = document.getElementById('role-select');
+  if (select) select.value = key;
   const wrap = document.getElementById('role-permissions');
-  wrap.innerHTML = (res.permissions || []).map(p => {
-    const [bg, fg] = (ROLE_COLORS[p] || '#1F2229:#9CA3AF').split(':');
-    return `<span style="display:inline-block;padding:2px 9px;border-radius:3px;font-size:11px;font-weight:600;background:${bg};color:${fg};">${p}</span>`;
-  }).join('');
+  if (wrap) {
+    wrap.innerHTML = (res.permissions || []).map(p => {
+      const [bg, fg] = (ROLE_COLORS[p] || '#1F2229:#9CA3AF').split(':');
+      return `<span style="display:inline-block;padding:2px 9px;border-radius:3px;font-size:11px;font-weight:600;background:${bg};color:${fg};">${p}</span>`;
+    }).join('');
+  }
+}
+
+function updateRole() {
+  const key = document.getElementById('role-select').value;
+  applyRole(key);
 }
 
 // ── Clock ──
@@ -652,6 +728,8 @@ tick();
 setInterval(tick, 1000);
 whenApiReady(() => {
   loadDashboard();
+  api().get_settings().then(s => applyTheme(s.theme));
+  api().get_current_role().then(role => { currentRole = role || 'admin'; paintTitlebarRole(currentRole); });
   // Lightweight background refresh so the dashboard/logs pages stay current
   // even if the scan callback happens while the user is on another page.
   setInterval(() => {

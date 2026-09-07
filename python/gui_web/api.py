@@ -92,6 +92,34 @@ class Api:
     def list_ports(self) -> List[str]:
         return list_serial_ports()
 
+    def list_ports_detailed(self) -> List[Dict[str, str]]:
+        """Same idea as v2's port dropdown: VID:PID + device + description."""
+        try:
+            from serial.tools import list_ports as _list_ports
+        except Exception:
+            return [{"device": p, "label": p} for p in list_serial_ports()]
+        results = []
+        try:
+            for port_info in _list_ports.comports():
+                device = getattr(port_info, "device", None)
+                if not device:
+                    continue
+                vid = getattr(port_info, "vid", None)
+                pid = getattr(port_info, "pid", None)
+                vid_pid = f"{vid:04x}:{pid:04x}" if vid is not None and pid is not None else "UNKNOWN"
+                description = (getattr(port_info, "description", "") or "").strip()
+                label = f"{vid_pid} \u2014 {device}" + (f" ({description})" if description else "")
+                results.append({"device": device, "label": label})
+        except Exception:
+            pass
+        return results
+
+    def forget_saved_port(self) -> Dict[str, Any]:
+        settings = load_settings()
+        settings["com_port"] = ""
+        save_settings(settings)
+        return {"ok": True}
+
     def connect(self, port: str = "", baud: int = 0, auto_detect: bool = False) -> Dict[str, Any]:
         baud = baud or CONFIG.baud_rate
         ok, message = self.serial.connect(port=port or "", baud=baud, auto_detect=auto_detect or not port)
