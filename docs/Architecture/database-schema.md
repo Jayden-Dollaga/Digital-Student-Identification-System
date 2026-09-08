@@ -24,7 +24,7 @@ CREATE TABLE students (
 
 ### attendance
 
-The attendance table stores attendance events for enrolled students. Unknown fingerprint events are handled by the attendance processor but are not valid database rows under the current foreign-key schema.
+The attendance table stores attendance events for enrolled students and unknown scans. The database seeds a permanent `fingerprint_id = 0` student row named `Unregistered`, allowing unknown events to satisfy the attendance foreign key.
 
 ```sql
 CREATE TABLE attendance (
@@ -42,8 +42,8 @@ CREATE TABLE attendance (
 
 ## Design notes
 
-- Fingerprint IDs must refer to enrolled students when an attendance row is written.
-- The UI may display an unknown or unregistered scan as an operational event, but the current schema does not persist it as `fingerprint_id = 0` because foreign keys are enabled and no student with ID 0 exists.
+- Fingerprint ID 0 is a reserved system row for unknown or unregistered scans. It is created by `init_database()` and must not be edited or deleted as a normal student profile.
+- Unknown attendance events may be persisted with `fingerprint_id = 0` and are displayed as `Unregistered`.
 - The database is used for both operational history and reporting.
 
 ## Backup behavior

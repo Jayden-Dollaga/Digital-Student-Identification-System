@@ -1,6 +1,6 @@
 # DSIS UI Prototypes
 
-Commit `be7a046` adds isolated Qt interface prototypes for comparing possible layouts and navigation models. They are development previews under `tests/Prototype/`, not alternate production launchers.
+Commit `be7a046` adds isolated Qt interface prototypes for comparing possible layouts and navigation models. They are development previews under `tests/Prototype/`, not alternate production launchers for the active v3 webview interface.
 
 ## Scope
 
@@ -33,6 +33,6 @@ Run the prototype tests from the repository root:
 python -m pytest tests/Prototype/tests
 ```
 
-For end-to-end application behavior, run the main test suite and use the maintained Qt launcher instead of a prototype.
+For end-to-end application behavior, run the main test suite and use the maintained v3 webview launcher instead of a prototype.
 
 Last reviewed: 2026-09-04, against commit `be7a046`.

@@ -6,7 +6,7 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
 
 - Fingerprint enrollment, matching, deletion, and device wipe
 - SQLite student and attendance records
-- Qt dashboard, attendance, students, reports, logs, and settings pages
+- HTML/pywebview dashboard, attendance, students, reports, logs, and settings interface
 - Attendance cooldown handling and confidence-aware scan processing
 - CSV/report exports and database backups with role-based UI permissions
 - ESP32 device discovery, connection status, firmware assistance, and serial diagnostics
@@ -57,7 +57,7 @@ The maintained desktop interface is the HTML/pywebview v3 application launched b
 
 ### UI Prototypes
 
-The UI concepts in [`tests/Prototype/`](tests/Prototype/) are isolated previews. They do not start the live serial or database workflow and do not replace the maintained Qt application. See the [UI prototype guide](docs/Development/ui-prototypes.md) for the full comparison and testing notes.
+The UI concepts in [`tests/Prototype/`](tests/Prototype/) are isolated previews. They do not start the live serial or database workflow and do not replace the maintained v3 webview application. See the [UI prototype guide](docs/Development/ui-prototypes.md) for the full comparison and testing notes.
 
 ```text
 python tests/Prototype/run_qt_prototype.py
@@ -113,4 +113,4 @@ See the [documentation index](docs/INDEX.md) for the full map.
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-06, against commit `6b44ca8`
+Last verified: 2026-09-09, against commit `ea3ea7c`

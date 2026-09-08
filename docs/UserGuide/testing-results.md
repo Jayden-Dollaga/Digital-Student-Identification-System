@@ -1,33 +1,38 @@
-Testing Results (historical record)
-===================================
+# Testing Results
 
-Summary
--------
-- Several unit tests were added to validate core behaviors:
-  - `tests/test_database_reset.py` — verifies `clear_all_data()` clears students and attendance
-  - `tests/test_attendance_ui_utils.py` — validates attendance formatting helpers
-- These tests pass in the current workspace and were used to validate the wipe and UI formatting changes.
+The latest full test run was executed on 2026-09-09 with Python 3.14.6:
 
-How to run
-----------
-1. Ensure project dependencies are installed.
-2. From the project root run:
+- 206 tests passed
+- 1 test was skipped
+- The suite includes database, security, serial, Qt-reference, webview smoke, permissions, enrollment, and UI tests.
 
-```bash
-pytest -q
+## Run the tests
+
+From the repository root:
+
+```powershell
+python -m pytest -q --disable-warnings
 ```
 
-Session Validation — 2026-07-05
------------------------------
-- Verified `python/gui/app.py` and `python/core/database.py` compile cleanly with `python -m py_compile`.
-- Ran `python -m unittest -v tests.test_attendance_parsing` successfully to confirm the attendance parsing and scanning flow behaves correctly.
-- Manual validation targeted the Today-default attendance workflow, unknown scan persistence, incremental card insertion, and the Add Student dialog gating.
-- Earlier tests and documentation claimed that unknown scans were persisted as sentinel `fingerprint_id = 0` events. The current foreign-key schema rejects that row, so this claim requires correction before it can be treated as a supported behavior.
-- Confirmed that Add Student dialog gating now rejects invalid IDs and does not create student entries for unknown scans.
-- Updated tests and documentation notes to reflect the new sentinel handling and per-fingerprint cooldown behavior.
+For the webview-specific smoke tests:
 
-Notes
------
+```powershell
+python -m pytest tests/test_gui_web_smoke.py
+```
 
-- Serial-dependent flows are not fully testable in CI without an attached ESP32. Tests focus on DB logic and UI helpers.
-- Newer focused Qt, serial-worker, reconnect, security, and enrollment tests exist elsewhere in `tests/`; this file remains a historical test record rather than a current coverage report.
+## Manual v3 acceptance
+
+The maintained interface is launched with `run_web_gui.bat` or `python run_web_gui.py`. With an ESP32 and AS608 connected, verify:
+
+1. Connect and confirm the port, baud rate, device metadata, and fingerprint count.
+2. Start and stop scanning and confirm the device mode and scan button agree.
+3. Scan a registered fingerprint and confirm the attendance row and dashboard counts update.
+4. Scan an unknown fingerprint and confirm it is shown as `Unregistered` and persisted through reserved `fingerprint_id = 0`.
+5. Start, cancel, and complete enrollment; save the student only after device success is reported.
+6. Delete a student and confirm the local profile is removed only after device deletion succeeds.
+7. Wipe device fingerprints and confirm the device count reaches zero while student records remain.
+8. Disconnect and reconnect and confirm pending operations clear and the count refreshes.
+
+Prototype and archived Qt/CustomTkinter tests do not replace hardware validation. Physical ESP32 behavior still requires the documented board, sensor wiring, USB driver, and a connected device.
+
+Last reviewed: 2026-09-09, against commit `ea3ea7c`.

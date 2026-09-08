@@ -16,7 +16,7 @@ The initializer does not reconstruct every possible missing legacy column. Exist
 
 ## Attendance constraints
 
-Attendance writes must use an enrolled fingerprint ID. `fingerprint_id = 0` is not a valid unknown-scan record because no student with that key exists. Unknown scans may be handled by the UI or processor, but they are not a supported persisted attendance row under the current schema.
+Attendance writes use an enrolled fingerprint ID or the reserved `fingerprint_id = 0` system row for unknown scans. `init_database()` creates the `Unregistered` row when needed, and normal student-management flows must not treat it as an editable student.
 
 ## Backup and restore
 

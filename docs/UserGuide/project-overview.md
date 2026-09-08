@@ -34,7 +34,7 @@ The system supports the full attendance lifecycle:
 5. review records, generate reports, and export data
 6. maintain backup copies of the database
 
-Unknown scans can be shown during operation, but the current database foreign-key schema only persists attendance rows for enrolled fingerprint IDs. Roles gate actions in the local UI; they are not user authentication, and a person with access to the settings file can change the stored role.
+Unknown scans are shown as `Unregistered` and persisted through the reserved `fingerprint_id = 0` system row. Roles gate actions in the local UI; they are not user authentication, and a person with access to the settings file can change the stored role.
 
 ## Hardware
 
@@ -139,6 +139,7 @@ The current system includes:
 - log output for troubleshooting and operational visibility
 - automatic attendance logging with cooldown protection
 - persistent settings stored locally so COM port, baud rate, theme, cooldown, and auto-reconnect preferences are restored automatically
+- light and dark web themes can be selected from Settings and are persisted with the other UI preferences
 - type hints on core database and serial communication helpers to improve maintainability and IDE feedback
 
 ## Getting started

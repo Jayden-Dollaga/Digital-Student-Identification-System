@@ -6,7 +6,7 @@ These scripts support diagnostics, packaging, repository maintenance, and portab
 | --- | --- | --- |
 | `runtime_manager.py` | Manage the optional portable Python runtime and launch workflows | See `docs/Development/PORTABLE_PYTHON.md` |
 | `portable_bootstrap.bat` | Install Python requirements for a portable setup | Use only when setting up a portable runtime |
-| `build_portable.bat` | Build the historical CustomTkinter portable package | Uses `fingerprint_portable.spec`; not the primary Qt build |
+| `build_portable.bat` | Build the historical CustomTkinter portable package | Uses `fingerprint_portable.spec`; not the primary v3 webview build |
 | `fingerprint_portable.spec` | PyInstaller specification for the historical portable workflow | Bundles the legacy application and project assets |
 | `verify_gui_startup.py` | Smoke-test the legacy CustomTkinter startup path | Compatibility diagnostic |
 | `serial_pipeline_tester.py` | Capture and inspect raw serial/boot output | Requires a connected ESP32; verify the port before use |
@@ -50,7 +50,7 @@ That run measured 181 source files, including 56 files under `tests/`. Execution
 on other platforms is not confirmed because the script currently embeds this
 machine's Windows absolute repository path.
 
-The active application is launched with the root `run_qt_gui.bat`. The current Qt packaging workflow is documented in [PORTABLE_BUILD.md](../../PORTABLE_BUILD.md); the legacy portable workflow is retained for historical compatibility.
+The active application is launched with the root `run_web_gui.bat`. The current v3 packaging workflow is documented in [PORTABLE_BUILD.md](../../PORTABLE_BUILD.md); Qt and CustomTkinter tooling is retained for historical compatibility.
 
 Hardware probes may contain hard-coded COM-port defaults. Confirm the selected port in the script and close Arduino IDE or other serial monitors before running them.
 

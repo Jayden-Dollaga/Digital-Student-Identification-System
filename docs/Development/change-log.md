@@ -1,10 +1,11 @@
 Change Log
 ==========
 
-Unreleased — verified 2026-09-04
+Unreleased — verified 2026-09-09
 --------------------------------
 
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
+- UI: Added the v3 light theme stylesheet, expanded webview UI components, and preserved the proven Qt implementation under `python/gui_web/v2_reference/` for parity review (`ea3ea7c`).
 - Maintenance: Added versioned `archive/legacy-ui/v1` and `archive/legacy-ui/v2` snapshots, including historical StudentsPage implementations for Qt and CustomTkinter comparison. These files are archival and not part of the supported runtime (`6b44ca8`).
 - Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`dc22456`).
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).
@@ -19,7 +20,7 @@ Unreleased — verified 2026-09-04
 - Investigation: Enrollment dialog and SerialWorker integration were verified with a Qt event loop; the resolved report is preserved in `docs/Dup/historical-investigations/`.
 - Maintenance: The historical repository-organization audit is preserved in `docs/Dup/maintenance-audits/`; the HTML/pywebview v3 interface is active, while Qt and CustomTkinter remain archived snapshots.
 - Security follow-up: Information-disclosure paths outside database restore, wipe-operation correlation, function-level authorization enforcement, backup encryption, and database access auditing remain to be verified or implemented.
-- Docs: Rebuilt Windows setup guidance around the maintained Qt application, verified ESP32 WROOM-32 wiring, and USB bridge-specific driver installation.
+- Docs: Rebuilt Windows setup guidance around the maintained desktop application, verified ESP32 WROOM-32 wiring, and USB bridge-specific driver installation.
 - Fix: Recognized valid DSIS handshakes during the firmware boot phase and added sensor-failure regression coverage (`31bde42`).
 - Security: Enforced additional student-operation permissions and improved database error logging (`4d87200`).
 - Improve: Refactored theme management, improved hardware-test handling, and added configurable automatic-backup intervals (`215582c`, `849a504`).

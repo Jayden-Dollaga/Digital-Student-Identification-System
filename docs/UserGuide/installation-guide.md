@@ -29,7 +29,7 @@ Open the file [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.in
 
 This is the all-in-one firmware sketch used for enrollment, scanning, and all operations.
 
-The maintained Qt Settings page does not upload firmware. Use Arduino IDE for the supported source upload. The firmware helper belongs to the legacy CustomTkinter interface, requires a separately installed `esptool`, and must not be used with the bundled placeholder binary.
+The maintained V3 Settings page does not upload firmware. Use Arduino IDE for the supported source upload. The archived Qt and CustomTkinter interfaces are retained for historical reference only; do not use their firmware-helper paths as the current installation workflow.
 
 ### 1.3 Select the correct board
 
@@ -97,7 +97,7 @@ From the project root, double-click [run_web_gui.bat](../../run_web_gui.bat).
 
 This starts the maintained HTML/pywebview V3 application.
 
-If you need the legacy CustomTkinter interface, use [run_app.bat](../../run_app.bat) instead.
+The former Qt and CustomTkinter launchers are archived under [archive/legacy-ui/](../../archive/legacy-ui/) and are not supported daily-use workflows.
 
 ### 2.2 Alternative: launch from the command line
 
@@ -107,11 +107,7 @@ You can also open a terminal in the project root and run V3 directly:
 python run_web_gui.py
 ```
 
-The archived Qt UI is available only for historical comparison:
-
-```powershell
-python archive\legacy-ui\v2\run_qt_gui.py
-```
+The archived Qt and CustomTkinter source trees are available only for historical comparison under `archive/legacy-ui/`; they do not have supported launch commands.
 
 ### 2.2.1 V3 startup behavior
 
@@ -348,7 +344,7 @@ If the Serial Monitor is open, the Python app may fail to access the COM port.
 For daily use:
 
 1. **Upload the firmware once** using [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino).
-2. **Use [run_qt_gui.bat](../../run_qt_gui.bat)** to launch the app.
+2. **Use [run_web_gui.bat](../../run_web_gui.bat)** to launch the app.
 3. **Keep the Serial Monitor closed**.
 4. **Use the correct COM port and 115200 baud rate**.
 5. **Restart the app if the sensor stops responding**.
