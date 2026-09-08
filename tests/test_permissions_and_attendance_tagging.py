@@ -79,6 +79,120 @@ class TestBackendPermissionEnforcement:
         assert cmd_wipe(handler) is False
         handler.send_command.assert_not_called()
 
+    def test_disconnect_cancels_active_device_state_before_closing_port(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        api.serial.disconnect = MagicMock()
+        api._scanning = True
+        api._pending_enroll = True
+        api._pending_wipe = True
+        api._pending_delete_id = 7
+        stop_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_stop", stop_mock)
+
+        api.disconnect()
+
+        assert api._scanning is False
+        assert api._pending_enroll is False
+        assert api._pending_wipe is False
+        assert api._pending_delete_id is None
+        stop_mock.assert_called_once_with(api.serial)
+        api.serial.disconnect.assert_called_once()
+
+    def test_scan_state_machine_updates_mode_and_scanning_flags(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        api._push = MagicMock()
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_scan", lambda handler: True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_stop", lambda handler: True)
+
+        assert api.start_scan() is True
+        assert api._scanning is True
+        assert api._device_mode == "scan"
+
+        api.stop_scan()
+        assert api._scanning is False
+        assert api._device_mode == "command"
+
+    def test_unexpected_disconnect_clears_pending_operations_and_publishes_state(self):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=False)
+        api._observed_connected = True
+        api._scanning = True
+        api._device_mode = "scan"
+        api._pending_enroll = True
+        api._pending_delete_id = 9
+        api._pending_wipe = True
+        api._push = MagicMock()
+
+        assert api._sync_connection_state() is False
+
+        assert api._scanning is False
+        assert api._device_mode == "command"
+        assert api._pending_enroll is False
+        assert api._pending_delete_id is None
+        assert api._pending_wipe is False
+        api._push.assert_any_call("connection_status", api.get_connection_status())
+        api._push.assert_any_call("connection_changed", {"connected": False})
+
+    def test_device_operations_are_mutually_exclusive(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        api._pending_enroll = True
+        api._push = MagicMock()
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        send_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_wipe", send_mock)
+
+        result = api.wipe_all_on_device()
+
+        assert result["ok"] is False
+        assert "enrollment" in result["message"].lower()
+        send_mock.assert_not_called()
+
+    def test_connect_honors_explicit_auto_detect_setting(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.connect = MagicMock(return_value=(False, "not found"))
+        monkeypatch.setattr(api, "_start_read_loop", MagicMock())
+
+        result = api.connect(port="", baud=115200, auto_detect=False)
+
+        assert result["connected"] is False
+        api.serial.connect.assert_called_once_with(port="", baud=115200, auto_detect=False)
+
+    def test_guest_cannot_list_backups(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: False)
+        list_mock = MagicMock(return_value=[{"name": "secret.zip"}])
+        monkeypatch.setattr("gui_web.api.db.list_backups", list_mock)
+
+        assert api.list_backups() == []
+        list_mock.assert_not_called()
+
+    def test_guest_cannot_generate_statistics_report(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: False)
+
+        result = api.get_statistics_report()
+
+        assert result["ok"] is False
+        assert "report permission" in result["message"]
+
 
 class TestAttendanceEventTypeTagging:
     def test_first_scan_of_day_is_tagged_time_in(self, temp_db):

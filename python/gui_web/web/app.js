@@ -12,8 +12,21 @@ let connected = false;
 let scanning = false;
 let selectedStudent = null;
 let currentRole = 'admin';
+let currentPermissions = new Set(['scan']);
 let deviceFingerprintCount = null;
 let connectionPollTimer = null;
+
+function hasPermission(action) {
+  return currentPermissions.has(action);
+}
+
+function guardPermission(action, label) {
+  if (!hasPermission(action)) {
+    alert(`${label || 'This action'} requires the ${action} permission for the current role.`);
+    return false;
+  }
+  return true;
+}
 
 function escapeHtml(value) {
   return String(value == null ? '' : value)
@@ -45,6 +58,9 @@ window.dsisEvent = function (event, payload) {
   else if (event === 'wipe_progress') handleWipeProgress(payload);
   else if (event === 'fingerprint_count') handleFingerprintCount(payload);
   else if (event === 'connection_status') handleConnectionStatus(payload);
+  else if (event === 'connection_changed') handleConnectionChanged(payload);
+  else if (event === 'serial_error') handleSerialError(payload);
+  else if (event === 'data_changed') handleDataChanged(payload);
   else if (event === 'mode_changed') handleModeChanged(payload);
 };
 
@@ -66,10 +82,15 @@ function nav(el, key) {
 
 // ── Compact mode ──
 let compact = false;
-function toggleCompact() {
-  compact = !compact;
+function applyCompact(value) {
+  compact = !!value;
   document.getElementById('app').classList.toggle('compact', compact);
   document.getElementById('compact-label').textContent = compact ? 'Normal view' : 'Compact view';
+  const settingsToggle = document.getElementById('settings-compact-toggle');
+  if (settingsToggle) settingsToggle.classList.toggle('on', compact);
+}
+function toggleCompact() {
+  applyCompact(!compact);
 }
 
 // ── Connection ──
@@ -88,11 +109,12 @@ function setStatus(state) {
   pill.className = 'status-pill ' + state;
   dot.className = 'dot' + (state === 'scanning' ? ' pulse' : '');
 
+  const canScan = hasPermission('scan');
   if (state === 'disconnected') {
     text.textContent = 'Disconnected';
     connBtn.textContent = 'Connect';
     connBtn.className = 'hdr-btn primary';
-    scanBtn.disabled = true;
+    scanBtn.disabled = !canScan;
     scanBtn.textContent = 'SCAN';
     scanBtn.classList.remove('danger');
     sbDot.style.background = 'var(--red)';
@@ -104,7 +126,7 @@ function setStatus(state) {
     text.textContent = 'Connected';
     connBtn.textContent = 'Disconnect';
     connBtn.className = 'hdr-btn danger';
-    scanBtn.disabled = false;
+    scanBtn.disabled = !canScan;
     sbDot.style.background = 'var(--green)';
     sbConn.textContent = 'Connected';
     sbDev.style.display = 'flex';
@@ -146,6 +168,7 @@ async function toggleConnect() {
 }
 
 async function toggleScan() {
+  if (!guardPermission('scan', 'Scanning')) return;
   if (!connected || !api()) return;
   scanning = !scanning;
   const btn = document.getElementById('scan-btn');
@@ -175,6 +198,33 @@ function handleConnectionStatus(status) {
     const meta = status.device_metadata || {};
     document.getElementById('device-info').textContent = `${status.port} · ${status.baud || '?'} baud` + (meta.type ? ` · ${meta.type}` : '');
   }
+}
+
+function handleConnectionChanged(payload) {
+  if (payload.connected) return;
+  connected = false;
+  scanning = false;
+  settlePendingDelete(false);
+  if (enrollState && enrollState.step === 'enrolling') {
+    enrollState.step = 'failed';
+    const status = document.getElementById('em-status');
+    if (status) status.textContent = 'The ESP32 disconnected. Enrollment was cancelled.';
+    resetEnrollForm();
+  }
+  if (window._wipeWait) settleWipeWait({ event: 'error', message: 'The ESP32 disconnected.' });
+  setStatus('disconnected');
+}
+
+function handleSerialError(payload) {
+  const message = payload && payload.message ? payload.message : 'Serial communication failed.';
+  smAppend(`--- Serial error: ${message} ---`, 'serial-sys');
+  if (connected) setStatus('disconnected');
+}
+
+function handleDataChanged(payload) {
+  if (!payload || payload.reason !== 'restore' || !api()) return;
+  Promise.all([loadDashboard(), loadAttendancePage(), loadStudentsPage(), loadReportsPage(), loadSettingsPage()]);
+  if (connected) api().request_fingerprint_count();
 }
 
 function handleModeChanged(payload) {
@@ -357,6 +407,7 @@ function attendanceOnScanEvent(row) {
 }
 
 async function exportAttendanceCsv(mode) {
+  if (!guardPermission('export', 'Exporting attendance data')) return;
   if (!api()) return;
   const selected = document.getElementById('att-mode');
   const modeKey = mode || (selected ? (selected.value === 'Recent' ? 'recent' : selected.value === 'Last 30 Days' ? 'last30' : 'today') : 'today');
@@ -394,6 +445,7 @@ async function selectStudent(row, fingerprintId) {
 let pendingDelete = null; // { fingerprintId, resolve }
 
 async function deleteSelectedStudent() {
+  if (!guardPermission('delete', 'Deleting a student')) return;
   if (!selectedStudent || !selectedStudent.fingerprint_id) return;
   const fpid = selectedStudent.fingerprint_id;
   const name = selectedStudent.student_name;
@@ -404,10 +456,15 @@ async function deleteSelectedStudent() {
   }
   if (!confirm(`Delete ${name}? This will also remove the fingerprint from the connected device.`)) return;
 
+  const deleteWait = waitForDelete(fpid);
   const res = await api().delete_on_device(fpid);
-  if (!res.ok) { alert('Could not delete: ' + res.message); return; }
+  if (!res.ok) {
+    settlePendingDelete(false);
+    alert('Could not delete: ' + res.message);
+    return;
+  }
 
-  const deleted = await waitForDelete(fpid);
+  const deleted = await deleteWait;
   if (deleted) await loadStudentsPage();
 }
 
@@ -427,11 +484,21 @@ function waitForDelete(fingerprintId, timeoutMs = 15000) {
   });
 }
 
+function settlePendingDelete(value) {
+  if (!pendingDelete) return;
+  const pending = pendingDelete;
+  pendingDelete = null;
+  pending.resolve(value);
+}
+
 function handleDeleteProgress(payload) {
   if (!pendingDelete || payload.id !== pendingDelete.fingerprintId) return;
   if (payload.event === 'success') {
-    api().delete_student(pendingDelete.fingerprintId).then(() => {
-      pendingDelete.resolve(true);
+    api().delete_student(pendingDelete.fingerprintId).then(result => {
+      if (!result || !result.ok) {
+        alert(`The device deleted fingerprint ID ${pendingDelete.fingerprintId}, but the database could not be updated: ${result && result.message ? result.message : 'unknown error'}.`);
+      }
+      pendingDelete.resolve(!!(result && result.ok));
       pendingDelete = null;
     });
   } else if (payload.event === 'error') {
@@ -484,26 +551,46 @@ async function saveEditedStudentDetails(fingerprintId) {
 }
 
 async function wipeAllFingerprints() {
+  if (!guardPermission('wipe', 'Wiping fingerprints')) return;
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
   if (!confirm('Wipe ALL fingerprints from the device? This cannot be undone and does not remove student records from the database.')) return;
+  const wipeWait = waitForWipe();
   const res = await api().wipe_all_on_device();
-  if (!res.ok) { alert(res.message); return; }
+  if (!res.ok) {
+    settleWipeWait({ event: 'error', message: res.message });
+    alert(res.message);
+    return;
+  }
   const status = document.getElementById('em-status');
   if (status) status.textContent = res.message;
-  await new Promise(resolve => {
+  const event = await wipeWait;
+  if (event.event === 'timeout') {
+    alert('Timed out waiting for the device to finish wiping fingerprints.');
+  } else if (event.event === 'error') {
+    alert(event.message || 'The device could not wipe fingerprints.');
+  } else if (event.event === 'success') {
+    alert('All fingerprints were removed from the device. Student records were kept.');
+  }
+}
+
+function waitForWipe(timeoutMs = 15000) {
+  return new Promise(resolve => {
     const timer = setTimeout(() => {
-      window._wipeWait = null;
-      resolve();
-      alert('Timed out waiting for the device to finish wiping fingerprints.');
-    }, 15000);
+      if (window._wipeWait) {
+        window._wipeWait = null;
+        resolve({ event: 'timeout' });
+      }
+    }, timeoutMs);
     window._wipeWait = event => {
       clearTimeout(timer);
       window._wipeWait = null;
-      if (event.event === 'error') alert(event.message || 'The device could not wipe fingerprints.');
-      else if (event.event === 'success') alert('All fingerprints were removed from the device. Student records were kept.');
-      resolve();
+      resolve(event);
     };
   });
+}
+
+function settleWipeWait(event) {
+  if (window._wipeWait) window._wipeWait(event);
 }
 
 function handleWipeProgress(payload) {
@@ -521,6 +608,7 @@ function reenrollSelectedStudent() {
 }
 
 function openEnrollDialog(existing) {
+  if (!guardPermission('enroll', 'Enrollment')) return;
   closeEnrollDialog();
   const overlay = document.createElement('div');
   overlay.id = 'enroll-modal-overlay';
@@ -577,15 +665,16 @@ async function startEnrollment() {
   btn.textContent = 'Enrolling\u2026';
   ['em-sno', 'em-name', 'em-grade', 'em-section'].forEach(id => document.getElementById(id).disabled = true);
 
+  enrollState.step = 'enrolling';
   const res = await api().start_enroll();
   document.getElementById('em-status').textContent = res.message;
   if (!res.ok) {
+    enrollState.step = 'initial';
     btn.disabled = false;
     btn.textContent = 'Start Enrollment';
     ['em-sno', 'em-name', 'em-grade', 'em-section'].forEach(id => document.getElementById(id).disabled = false);
     return;
   }
-  enrollState.step = 'enrolling';
 }
 
 function handleEnrollProgress(payload) {
@@ -639,17 +728,18 @@ async function saveEnrolledStudent() {
   // of leaving a stale duplicate row (and a stale template still on the
   // sensor for that old ID).
   if (previous && previous.fingerprint_id && previous.fingerprint_id !== newId) {
+    const deleteWait = waitForDelete(previous.fingerprint_id);
     const del = await api().delete_on_device(previous.fingerprint_id);
     if (!del.ok) {
+      settlePendingDelete(false);
       document.getElementById('em-status').textContent = `Saved new fingerprint, but the old device record could not be removed: ${del.message}`;
       return;
     }
-    const deleted = await waitForDelete(previous.fingerprint_id);
+    const deleted = await deleteWait;
     if (!deleted) {
       document.getElementById('em-status').textContent = 'New fingerprint saved, but the old fingerprint remains on the device. Review the student records before continuing.';
       return;
     }
-    await api().delete_student(previous.fingerprint_id);
   }
 
   closeEnrollDialog();
@@ -658,6 +748,7 @@ async function saveEnrolledStudent() {
 }
 
 async function exportStudentsCsv() {
+  if (!guardPermission('export', 'Exporting students data')) return;
   const res = await api().export_students_csv();
   alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
@@ -675,6 +766,10 @@ async function loadReportsPage() {
 
 async function generateStatsReport() {
   const report = await api().get_statistics_report();
+  if (!report || report.ok === false) {
+    document.getElementById('stats-report').textContent = report && report.message ? report.message : 'Reports are unavailable for the current role.';
+    return;
+  }
   const now = new Date();
   const ts = now.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
@@ -771,27 +866,41 @@ async function loadBackupsList() {
     div.innerHTML = '<div class="report-item"><span class="report-name" style="color:var(--muted)">No backups yet</span></div>';
     return;
   }
-  div.innerHTML = backups.map(b => {
-    return `<div class="report-item" style="cursor:pointer" onclick="restoreBackup('${b.path.replace(/\\/g, '\\\\')}')">` +
-      `<span class="report-icon">\u{1F4BE}</span><span class="report-name">${escapeHtml(b.name)}</span>` +
-      `<span class="report-meta">${escapeHtml(b.date || '')} \u00b7 ${escapeHtml(b.size_mb || '?')}</span></div>`;
-  }).join('');
+  div.replaceChildren();
+  backups.forEach(backup => {
+    const item = document.createElement('div');
+    item.className = 'report-item';
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', () => restoreBackup(backup.path));
+
+    const icon = document.createElement('span');
+    icon.className = 'report-icon';
+    icon.textContent = '\u{1F4BE}';
+    const name = document.createElement('span');
+    name.className = 'report-name';
+    name.textContent = backup.name || '';
+    const meta = document.createElement('span');
+    meta.className = 'report-meta';
+    meta.textContent = `${backup.date || ''} \u00b7 ${backup.size_mb || '?'}`;
+    item.append(icon, name, meta);
+    div.appendChild(item);
+  });
 }
 
 async function createBackupNow() {
+  if (!guardPermission('backup', 'Creating a backup')) return;
   const res = await api().create_backup();
   alert(res.ok ? res.message : `Backup failed: ${res.message}`);
   loadBackupsList();
 }
 
 async function restoreBackup(path) {
+  if (!guardPermission('restore', 'Restoring a backup')) return;
   if (!confirm('Restore this backup? The current database will be overwritten.')) return;
   const res = await api().restore_backup(path);
   alert(res.ok ? 'Database restored.' : `Restore failed: ${res.message}`);
   if (res.ok) {
     selectedStudent = null;
-    await Promise.all([loadDashboard(), loadAttendancePage(), loadStudentsPage(), loadReportsPage(), loadSettingsPage()]);
-    if (connected) api().request_fingerprint_count();
   }
 }
 
@@ -881,15 +990,20 @@ function toggleSerialPause() {
 function clearSerial() { document.getElementById('serial-output').innerHTML = ''; serialBuffer = []; }
 
 async function serialCmd(cmd) {
-  if (!connected) return;
-  await api().send_serial_command(cmd);
+  if (currentRole !== 'admin') { alert('Serial commands require the Administrator role.'); return; }
+  if (!connected) { alert('Connect to the ESP32 first.'); return; }
+  const ok = await api().send_serial_command(cmd);
+  if (!ok) alert(`Could not send ${cmd} to the ESP32.`);
 }
 async function sendSerialCmd() {
+  if (currentRole !== 'admin') { alert('Serial commands require the Administrator role.'); return; }
   const input = document.getElementById('serial-cmd');
   const val = input.value.trim();
-  if (!val || !connected) return;
+  if (!val) return;
+  if (!connected) { alert('Connect to the ESP32 first.'); return; }
   input.value = '';
-  await api().send_serial_command(val);
+  const ok = await api().send_serial_command(val);
+  if (!ok) alert('The command was rejected or could not be sent.');
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement.id === 'serial-cmd') sendSerialCmd();
@@ -954,9 +1068,11 @@ async function loadSettingsPage() {
   document.getElementById('set-auto-reconnect').classList.toggle('on', !!s.auto_reconnect);
   document.getElementById('set-auto-detect').classList.toggle('on', !!s.auto_detect_serial);
   applyTheme(s.theme);
-  document.getElementById('settings-compact-toggle').classList.toggle('on', !!s.compact_sidebar);
+  applyCompact(!!s.compact_sidebar);
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
+  const titlebarRole = document.getElementById('titlebar-role');
+  if (titlebarRole) titlebarRole.value = s.current_role || 'admin';
   document.getElementById('role-select').value = s.current_role || 'admin';
   currentRole = s.current_role || 'admin';
   applyRole(currentRole);
@@ -1019,6 +1135,10 @@ function populateBaudOptions(current) {
 }
 
 async function saveSettings() {
+  if (currentRole !== 'admin') {
+    alert('Only the Administrator role can save settings.');
+    return;
+  }
   const payload = {
     com_port: document.getElementById('set-port-override').value.trim(),
     baud_rate: parseInt(document.getElementById('set-baud-rate-select').value, 10),
@@ -1031,11 +1151,12 @@ async function saveSettings() {
     log_to_file: document.getElementById('set-log-to-file').classList.contains('on'),
     enable_debug_logging: document.getElementById('set-debug-logging').classList.contains('on'),
     auto_backup_interval_minutes: parseInt(document.getElementById('set-backup-interval').value, 10),
+    current_role: currentRole,
   };
   const res = await api().save_ui_settings(payload);
   if (!res.ok) { alert(`Settings could not be saved: ${res.message}`); return; }
-  compact = payload.compact_sidebar;
-  document.getElementById('app').classList.toggle('compact', compact);
+  applyCompact(payload.compact_sidebar);
+  applyTheme(payload.theme);
   alert('Settings saved.');
 }
 
@@ -1059,7 +1180,10 @@ function paintTitlebarRole(key) {
 async function applyRole(key) {
   const res = await api().set_current_role(key);
   currentRole = key;
+  currentPermissions = new Set(res.permissions || []);
   paintTitlebarRole(key);
+  const titlebar = document.getElementById('titlebar-role');
+  if (titlebar) titlebar.value = key;
   const select = document.getElementById('role-select');
   if (select) select.value = key;
   const wrap = document.getElementById('role-permissions');
@@ -1072,10 +1196,15 @@ async function applyRole(key) {
   const permissions = new Set(res.permissions || []);
   const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');
   const reportsNav = document.querySelector('[onclick*="nav(this,\'reports\')"]');
-  if (studentsNav) studentsNav.style.display = permissions.has('enroll') || permissions.has('delete') ? 'flex' : 'none';
+  const scanBtn = document.getElementById('scan-btn');
+  if (scanBtn) scanBtn.disabled = !permissions.has('scan') || !connected;
+  if (studentsNav) studentsNav.style.display = permissions.has('enroll') || permissions.has('delete') || permissions.has('wipe') ? 'flex' : 'none';
   if (reportsNav) reportsNav.style.display = permissions.has('export') || permissions.has('backup') || permissions.has('restore') ? 'flex' : 'none';
   document.querySelectorAll('[data-permission]').forEach(element => {
-    element.disabled = !permissions.has(element.dataset.permission);
+    const allowed = permissions.has(element.dataset.permission);
+    element.disabled = !allowed;
+    element.style.opacity = allowed ? '1' : '0.45';
+    element.title = allowed ? '' : `Requires ${element.dataset.permission} permission`;
   });
 }
 
@@ -1105,8 +1234,19 @@ tick();
 setInterval(tick, 1000);
 whenApiReady(() => {
   loadDashboard();
-  api().get_settings().then(s => applyTheme(s.theme));
-  api().get_current_role().then(role => { currentRole = role || 'admin'; paintTitlebarRole(currentRole); });
+  api().get_settings().then(s => {
+    applyTheme(s.theme);
+    applyCompact(!!s.compact_sidebar);
+  });
+  api().get_current_role().then(role => {
+    currentRole = role || 'admin';
+    paintTitlebarRole(currentRole);
+    const titlebar = document.getElementById('titlebar-role');
+    if (titlebar) titlebar.value = currentRole;
+    const roleSelect = document.getElementById('role-select');
+    if (roleSelect) roleSelect.value = currentRole;
+    applyRole(currentRole);
+  });
   // Lightweight background refresh so the dashboard/logs pages stay current
   // even if the scan callback happens while the user is on another page.
   connectionPollTimer = setInterval(async () => {

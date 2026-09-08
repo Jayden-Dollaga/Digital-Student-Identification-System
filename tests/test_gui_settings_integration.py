@@ -195,6 +195,28 @@ def test_all_toggles_have_runtime_effect():
         print(f"✓ All {len(toggle_settings)} toggles are present and boolean type")
 
 
+def test_saved_role_persists_in_settings_payload():
+    """Verify the role selected in the UI remains persisted when settings are saved."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        settings = {
+            "com_port": "COM3",
+            "baud_rate": 115200,
+            "cooldown": 10,
+            "theme": "dark",
+            "auto_reconnect": True,
+            "auto_detect_serial": True,
+            "compact_sidebar": False,
+            "enable_profiler": False,
+            "current_role": "teacher",
+        }
+        save_settings(settings, settings_file)
+
+        loaded = load_settings(settings_file)
+        assert loaded["current_role"] == "teacher"
+        print("✓ saved role persists in settings payload")
+
+
 if __name__ == "__main__":
     try:
         test_app_applies_auto_reconnect_setting()

@@ -12,6 +12,17 @@ except Exception:
 
 
 def create_app_or_skip(testcase):
+    tcl_root = Path(sys.executable).resolve().parent / "tcl" / "tcl8.6"
+    if not (tcl_root / "init.tcl").is_file():
+        testcase.skipTest(f"Archived GUI requires a readable Tcl runtime at {tcl_root}")
+    if tk is not None:
+        try:
+            tk.Tcl().eval("info patchlevel")
+            probe = tk.Tk()
+            probe.withdraw()
+            probe.destroy()
+        except Exception as exc:
+            testcase.skipTest(f"Archived GUI requires an initializable Tcl runtime: {exc}")
     try:
         from gui.app import FingerprintApp
     except Exception as exc:

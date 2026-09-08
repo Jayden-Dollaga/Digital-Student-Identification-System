@@ -136,6 +136,7 @@ class Api:
         self.processor = AttendanceProcessor()
         self._read_thread: Optional[threading.Thread] = None
         self._read_stop = threading.Event()
+        self._observed_connected = False
         self._scanning = False  # whether we've told the device to enter SCAN_MODE
         self._device_mode = "command"  # "scan" | "command", as reported by the device itself
         self._pending_delete_id: Optional[int] = None
@@ -235,9 +236,11 @@ class Api:
         save_settings(settings)
         return {"ok": True}
 
-    def connect(self, port: str = "", baud: int = 0, auto_detect: bool = False) -> Dict[str, Any]:
+    def connect(self, port: str = "", baud: int = 0, auto_detect: Optional[bool] = None) -> Dict[str, Any]:
         baud = baud or CONFIG.baud_rate
-        ok, message = self.serial.connect(port=port or "", baud=baud, auto_detect=auto_detect or not port)
+        if auto_detect is None:
+            auto_detect = bool(load_settings().get("auto_detect_serial", True))
+        ok, message = self.serial.connect(port=port or "", baud=baud, auto_detect=bool(auto_detect))
         if ok:
             settings = load_settings()
             settings["com_port"] = self.serial.reconnect_port or port
@@ -255,8 +258,15 @@ class Api:
         }
 
     def disconnect(self) -> Dict[str, Any]:
+        try:
+            if self.serial.is_connected():
+                cmds.cmd_stop(self.serial)
+        except Exception:
+            pass
         self._stop_read_loop()
+        self._observed_connected = False
         self._scanning = False
+        self._device_mode = "command"
         self._pending_enroll = False
         self._pending_delete_id = None
         self._pending_wipe = False
@@ -275,14 +285,29 @@ class Api:
         }
 
     # -- scanning -------------------------------------------------------------
+    def _operation_conflict(self, operation: str) -> Optional[str]:
+        if self._pending_enroll:
+            return "Enrollment is already in progress."
+        if self._pending_delete_id is not None:
+            return "Fingerprint deletion is already in progress."
+        if self._pending_wipe:
+            return "Fingerprint wipe is already in progress."
+        if operation != "scan" and self._scanning:
+            return "Stop attendance scanning before starting this operation."
+        return None
+
     def start_scan(self) -> bool:
         if not permissions.require_permission("scan"):
             return False
         if not self.serial.is_connected():
             return False
+        if self._operation_conflict("scan"):
+            return False
         ok = cmds.cmd_scan(self.serial)
         if ok:
             self._scanning = True
+            self._device_mode = "scan"
+            self._push("mode_changed", {"mode": "scan"})
         return ok
 
     def stop_scan(self) -> bool:
@@ -290,6 +315,8 @@ class Api:
             return False
         ok = cmds.cmd_stop(self.serial) if self.serial.is_connected() else True
         self._scanning = False
+        self._device_mode = "command"
+        self._push("mode_changed", {"mode": "command"})
         return ok
 
     # -- enrollment (real hardware flow, ported from v2's EnrollDialog) -----------
@@ -308,7 +335,13 @@ class Api:
             return {"ok": False, "message": "Connect to the ESP32 first."}
         if not permissions.require_permission("enroll"):
             return {"ok": False, "message": "Current role does not have enroll permission."}
+        conflict = self._operation_conflict("enroll")
+        if conflict:
+            return {"ok": False, "message": conflict}
         cmds.cmd_stop(self.serial)
+        self._scanning = False
+        self._device_mode = "command"
+        self._push("mode_changed", {"mode": "command"})
         self._pending_enroll = True
         ok = cmds.cmd_enroll(self.serial)
         if not ok:
@@ -342,6 +375,9 @@ class Api:
             return {"ok": False, "message": "Connect to the ESP32 first \u2014 deleting while disconnected is disabled so the database and the sensor can't drift out of sync."}
         if not permissions.require_permission("delete"):
             return {"ok": False, "message": "Current role does not have delete permission."}
+        conflict = self._operation_conflict("delete")
+        if conflict:
+            return {"ok": False, "message": conflict}
         self._pending_delete_id = int(fingerprint_id)
         ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
         if not ok:
@@ -354,6 +390,9 @@ class Api:
             return {"ok": False, "message": "Connect to the ESP32 first."}
         if not permissions.require_permission("wipe"):
             return {"ok": False, "message": "Current role does not have wipe permission."}
+        conflict = self._operation_conflict("wipe")
+        if conflict:
+            return {"ok": False, "message": conflict}
         self._pending_wipe = True
         ok = cmds.cmd_wipe(self.serial)
         if not ok:
@@ -385,16 +424,42 @@ class Api:
 
     def _stop_read_loop(self) -> None:
         self._read_stop.set()
+        thread = self._read_thread
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+        if thread and not thread.is_alive():
+            self._read_thread = None
+
+    def _sync_connection_state(self) -> bool:
+        """Publish serial transitions and invalidate device operations on loss."""
+        connected = self.serial.is_connected()
+        if connected == self._observed_connected:
+            return connected
+
+        self._observed_connected = connected
+        if not connected:
+            self._scanning = False
+            self._device_mode = "command"
+            self._pending_enroll = False
+            self._pending_delete_id = None
+            self._pending_wipe = False
+        self._push("connection_status", self.get_connection_status())
+        self._push("connection_changed", {"connected": connected})
+        return connected
 
     def _read_loop(self) -> None:
         while not self._read_stop.is_set():
-            if not self.serial.is_connected():
+            connected = self._sync_connection_state()
+            if not connected:
                 time.sleep(0.5)
                 continue
             try:
                 line = self.serial.read_line()
             except Exception as exc:
                 log.error(f"Serial read error: {exc}")
+                self._push("serial_error", {"message": str(exc)})
+                self.serial.connected = False
+                self._sync_connection_state()
                 time.sleep(0.2)
                 continue
             if not line:
@@ -624,6 +689,8 @@ class Api:
 
     # -- reports / backups --------------------------------------------------------
     def get_statistics_report(self) -> Dict[str, Any]:
+        if not (permissions.has_permission("export") or permissions.has_permission("backup")):
+            return {"ok": False, "message": "Current role does not have report permission."}
         summary = db.get_daily_attendance_summary()
         totals: Dict[str, Dict[str, Any]] = {}
         for row in summary:
@@ -654,6 +721,8 @@ class Api:
         }
 
     def list_backups(self) -> List[Dict[str, Any]]:
+        if not permissions.require_permission("backup"):
+            return []
         return db.list_backups()
 
     def create_backup(self) -> Dict[str, Any]:
@@ -666,6 +735,8 @@ class Api:
         if not permissions.require_permission("restore"):
             return {"ok": False, "message": "Current role does not have restore permission."}
         ok, message = db.restore_database(backup_path)
+        if ok:
+            self._push("data_changed", {"reason": "restore"})
         return {"ok": ok, "message": message}
 
     # -- settings -----------------------------------------------------------------

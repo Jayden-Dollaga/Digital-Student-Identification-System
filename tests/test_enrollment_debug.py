@@ -7,6 +7,7 @@ Run this to see if cmd_enroll is working correctly with a real SerialHandler.
 import sys
 import time
 from pathlib import Path
+import pytest
 
 # Setup path
 ROOT = Path(__file__).resolve().parent
@@ -36,9 +37,8 @@ def test_enrollment_flow():
     print(f"   Connected: {is_connected}")
     
     if not is_connected:
-        print("\n[FAIL] DIAGNOSTIC: SerialHandler not connected")
-        print("   Cannot test cmd_enroll without connection")
-        return False
+        handler.disconnect()
+        pytest.skip("ESP32 is not connected; hardware enrollment diagnostic skipped")
     
     print("\n[OK] Serial connection successful")
     
@@ -78,15 +78,13 @@ def test_enrollment_flow():
             print("      - 'STEP 3: Place same finger again'")
             
         else:
-            print("   [FAIL] cmd_enroll() returned False")
-            print("   DIAGNOSTIC: Serial communication failed")
-            return False
+            pytest.fail("cmd_enroll() returned False; serial communication failed")
             
     except Exception as e:
         print(f"   [ERROR] Exception in cmd_enroll: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        pytest.fail(f"cmd_enroll raised {type(e).__name__}: {e}")
     finally:
         print("\n6. Cleaning up...")
         try:
@@ -98,13 +96,12 @@ def test_enrollment_flow():
     print("\n" + "=" * 60)
     print("DIAGNOSTIC COMPLETE")
     print("=" * 60)
-    return True
 
 
 if __name__ == "__main__":
     try:
-        success = test_enrollment_flow()
-        sys.exit(0 if success else 1)
+        test_enrollment_flow()
+        sys.exit(0)
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
         sys.exit(1)

@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
 if "__file__" in globals():
     ROOT = Path(__file__).resolve().parent
@@ -9,40 +10,34 @@ else:
 
 block_cipher = None
 
-# Current presentation GUI entry point for the active DSIS Qt app.
+# Active V3 HTML/pywebview entry point.
 a = Analysis(
-    [str(ROOT / "run_qt_gui.py")],
-    pathex=[str(ROOT / "python")],
+    [str(ROOT / "run_web_gui.py")],
+    pathex=[str(ROOT / "python"), str(ROOT / "python" / "gui_web")],
     binaries=[],
     datas=[
-        (str(ROOT / "python" / "gui_qt" / "theme.qss"), "gui_qt"),
-        (str(ROOT / "python" / "gui_qt" / "theme_light.qss"), "gui_qt"),
+        (str(ROOT / "python" / "gui_web" / "web"), "gui_web/web"),
     ],
-    hiddenimports=[
-        "PySide6",
-        "PySide6.QtCore",
-        "PySide6.QtGui",
-        "PySide6.QtWidgets",
-        "gui_qt.main_qt",
-        "gui_qt.main_window",
-        "gui_qt.pages.dashboard_page",
-        "gui_qt.pages.attendance_page",
-        "gui_qt.pages.students_page",
-        "gui_qt.pages.reports_page",
-        "gui_qt.pages.logs_page",
-        "gui_qt.pages.settings_page",
-        "gui_qt.widgets.sidebar",
-        "gui_qt.workers.serial_worker",
+    hiddenimports=collect_submodules("webview") + [
+        "webview",
+        "gui_web.main_web",
+        "gui_web.api",
+        "api",
+        "core.database",
+        "core.serial_handler",
+        "core.attendance",
+        "core.permissions",
+        "core.commands",
+        "core.device_discovery",
+        "core.logger",
+        "config",
+        "settings_store",
         "serial",
-        "matplotlib",
-        "openpyxl",
-        "PIL",
-        "numpy",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["gui", "main", "customtkinter"],
+    excludes=["gui_qt", "PySide6", "customtkinter"],
     noarchive=False,
 )
 
@@ -58,7 +53,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

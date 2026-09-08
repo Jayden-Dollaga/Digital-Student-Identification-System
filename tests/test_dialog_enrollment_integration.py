@@ -121,10 +121,8 @@ def test_enrollment_dialog_in_gui():
         id_val = progress.get("id")
         print(f"   [SIGNAL] Enrollment event: {event} (ID={id_val})")
         received_signals.append(event)
-        dialog.on_enroll_progress(progress)
     
-    # Connect tracking function
-    dialog.serial_worker.enroll_progress.disconnect(dialog.on_enroll_progress)
+    # Keep the dialog's own handler connected; close() owns its disconnect.
     dialog.serial_worker.enroll_progress.connect(track_enroll_progress)
     
     # Setup auto-send of enrollment command after dialog opens
@@ -157,9 +155,9 @@ def test_enrollment_dialog_in_gui():
     
     # Cleanup
     print("\n7. Cleaning up...")
+    dialog.serial_worker.enroll_progress.disconnect(track_enroll_progress)
     dialog.close()
-    serial_worker.quit()
-    serial_worker.wait()
+    serial_worker.stop()
     serial_handler.disconnect()
     
     print()
@@ -172,7 +170,7 @@ def test_enrollment_dialog_in_gui():
         print(f"Received signals: {received_signals if received_signals else 'NONE'}")
     print("=" * 70)
     
-    return "enrolling" in received_signals
+    assert "enrolling" in received_signals, f"Dialog did not receive enrollment signal: {received_signals or 'NONE'}"
 
 
 if __name__ == "__main__":

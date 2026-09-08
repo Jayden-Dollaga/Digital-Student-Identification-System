@@ -59,9 +59,7 @@ def test_button_click_in_studentpage():
     print("\n4. Checking button is enabled after form fill...")
     is_enabled = dialog.primary_btn.isEnabled()
     print(f"   Button enabled: {is_enabled}")
-    if not is_enabled:
-        print("   ❌ PROBLEM: Button is still disabled after form fill!")
-        return False
+    assert is_enabled, "Button is still disabled after valid form fields were filled"
     print("   ✅ Button is enabled")
     
     # Simulate button click
@@ -79,22 +77,16 @@ def test_button_click_in_studentpage():
                 # Check what happened
                 print("\n6. Checking if enrollment commands were called...")
                 
-                if not mock_stop.called:
-                    print("   ❌ cmd_stop() was NOT called!")
-                    return False
+                assert mock_stop.called, "cmd_stop() was not called"
                 print("   ✅ cmd_stop() was called")
                 
-                if not mock_enroll.called:
-                    print("   ❌ cmd_enroll() was NOT called!")
-                    return False
+                assert mock_enroll.called, "cmd_enroll() was not called"
                 print("   ✅ cmd_enroll() was called")
                 
                 # Check state transition
                 print("\n7. Checking state after button click...")
                 print(f"   Current state: {dialog.state}")
-                if dialog.state != EnrollmentState.ENROLLING:
-                    print("   ❌ State did NOT transition to ENROLLING!")
-                    return False
+                assert dialog.state == EnrollmentState.ENROLLING, "State did not transition to ENROLLING"
                 print("   ✅ State transitioned to ENROLLING")
                 
                 # Check logging
@@ -117,7 +109,6 @@ def test_button_click_in_studentpage():
     print("\n" + "=" * 70)
     print("✅ ALL CHECKS PASSED - BUTTON CLICK WORKS CORRECTLY IN CONTEXT")
     print("=" * 70)
-    return True
 
 
 if __name__ == "__main__":

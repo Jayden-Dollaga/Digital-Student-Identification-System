@@ -7,7 +7,7 @@ This guide is written for beginners and covers the full workflow for using the D
 The main idea is simple:
 
 1. **Upload the ESP32 firmware once** using Arduino IDE.
-2. **Run the Python app daily** using [run_qt_gui.bat](../../run_qt_gui.bat) or the command line.
+2. **Run the Python app daily** using [run_web_gui.bat](../../run_web_gui.bat) or the command line.
 3. **Keep the Arduino Serial Monitor closed** while the app is running so the COM port is available.
 
 ---
@@ -91,59 +91,51 @@ After the upload completes:
 
 ## 2. Daily Operation: Run Without Arduino IDE
 
-### 2.1 Launch the app with the provided batch file
+### 2.1 Launch the V3 app with the provided batch file
 
-From the project root, double-click [run_qt_gui.bat](../../run_qt_gui.bat).
+From the project root, double-click [run_web_gui.bat](../../run_web_gui.bat).
 
-This is the easiest way to start the app for everyday use.
+This starts the maintained HTML/pywebview V3 application.
 
 If you need the legacy CustomTkinter interface, use [run_app.bat](../../run_app.bat) instead.
 
 ### 2.2 Alternative: launch from the command line
 
-You can also open a terminal in the project root and run the legacy GUI:
+You can also open a terminal in the project root and run V3 directly:
 
 ```powershell
-python python/gui/app.py
+python run_web_gui.py
 ```
 
-or the modern Qt UI:
+The archived Qt UI is available only for historical comparison:
 
 ```powershell
-python .\run_qt_gui.py
+python archive\legacy-ui\v2\run_qt_gui.py
 ```
 
-### 2.2.1 Recommended Qt startup
+### 2.2.1 V3 startup behavior
 
-The Qt UI is recommended for newer installs because it does not directly use Pillow for its UI, supports theme switching, and includes an auto-discover option for ESP32 COM ports.
+V3 opens Dashboard, Attendance, Students, Reports, Logs, and Settings in one HTML/pywebview window. It continuously reads serial output so enrollment, delete, wipe, mode, count, and attendance events update without a separate serial monitor.
 
 ```powershell
-run_qt_gui.bat
+run_web_gui.bat
 ```
 
-> Note: If `python -m pip install Pillow` fails on Python 3.14, use Python 3.13 for the legacy GUI or use the Qt UI with `python .\run_qt_gui.py` instead.
-
-### 2.2.1 Run it again
+### 2.2.2 Run it again
 
 When you want to start the app again, use the same commands from the project root:
 
 ```powershell
-.\run_qt_gui.bat
-```
-
-Or run the Qt UI directly:
-
-```powershell
-python .\run_qt_gui.py
+run_web_gui.bat
 ```
 
 If you already installed dependencies once, you do not need to reinstall them before each launch.
 
 ### 2.3 Create a desktop shortcut
 
-For daily convenience, create a shortcut to [run_qt_gui.bat](../../run_qt_gui.bat):
+For daily convenience, create a shortcut to [run_web_gui.bat](../../run_web_gui.bat):
 
-1. Right-click [run_qt_gui.bat](../../run_qt_gui.bat).
+1. Right-click [run_web_gui.bat](../../run_web_gui.bat).
 2. Choose **Create shortcut**.
 3. Move the shortcut to your Desktop.
 4. Double-click it whenever you want to start the system.
@@ -160,6 +152,22 @@ When the app starts normally, you should see:
 - the status change to connected after the DSIS handshake succeeds.
 
 If the firmware is running correctly, the ESP32 will also be ready to respond to scan, enroll, and wipe commands.
+
+### 2.5 V3 roles and device acceptance
+
+V3 roles are local workflow permissions, not account authentication:
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | Scan, enroll, delete, wipe, export, backup, restore, settings, serial commands |
+| Teacher | Scan, export, backup |
+| Guest | Scan only |
+
+With the board connected, verify connect/disconnect, auto-reconnect, scan logging,
+enrollment cancellation and success, delete confirmation, wipe confirmation, and
+fingerprint-count refresh. A successful enrollment must be reported by the device
+before the student record is saved. A successful device delete must be reported
+before the local student record is removed.
 
 ---
 

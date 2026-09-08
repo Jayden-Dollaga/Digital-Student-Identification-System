@@ -560,7 +560,11 @@ void handleCommand(String input) {
     Serial.print("\n>> Deleting ID #");
     Serial.print(id);
     Serial.println("...");
-    if (finger.deleteModel(id) == FINGERPRINT_OK) {
+    // Some sensor/library combinations report FINGERPRINT_OK for deleteModel
+    // even when the slot is empty. Load the template first so the host only
+    // receives SUCCESS when a real stored fingerprint existed.
+    uint8_t loadResult = finger.loadModel(id);
+    if (loadResult == FINGERPRINT_OK && finger.deleteModel(id) == FINGERPRINT_OK) {
       Serial.print("   SUCCESS - ID #");
       Serial.print(id);
       Serial.println(" deleted.");

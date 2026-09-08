@@ -21,4 +21,35 @@ The verified target is an ESP32 WROOM-32 selected as **ESP32 Dev Module** in Ard
 
 See [Troubleshooting](docs/TROUBLESHOOTING.md) for COM-port and firmware checks.
 
-Last verified: 2026-09-06, against commit `6b44ca8`
+## V3 Workflow Acceptance
+
+The maintained interface is the HTML/pywebview application launched by
+`run_web_gui.bat` or `python run_web_gui.py`. After connecting the board,
+verify the following sequence:
+
+1. Connect and confirm port, baud, device metadata, and fingerprint count.
+2. Start and stop scanning; confirm the device mode and scan button agree.
+3. Scan a registered finger and confirm the attendance row and dashboard count update.
+4. Start enrollment, cancel it, and confirm the device returns to command mode.
+5. Complete enrollment and save the student only after device success is reported.
+6. Delete a student and confirm the database changes only after device deletion succeeds.
+7. Wipe device fingerprints and confirm the device count reaches zero while student records remain.
+8. Disconnect and reconnect the board; confirm pending operations clear and the count refreshes.
+
+V3 roles are local workflow permissions, not account authentication:
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | Scan, enroll, delete, wipe, export, backup, restore, settings, serial commands |
+| Teacher | Scan, export, backup |
+| Guest | Scan only |
+
+Hardware verification recorded 2026-09-09: COM4 identified as Digital Student
+Identification System / ESP32 / AS608 firmware 1.0, protocol 1. Auto-discovery,
+connect, LIST/fingerprint-count traffic, scan mode entry/exit, enrollment
+cancellation, disconnect, empty-device wipe, and absent-ID deletion passed.
+Valid-finger attendance capture and successful enrollment still require an
+operator to place a finger on the sensor.
+
+Last verified: 2026-09-09, source build, packaged startup, automated tests, and
+safe physical lifecycle smoke test.

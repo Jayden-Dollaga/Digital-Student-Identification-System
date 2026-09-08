@@ -565,7 +565,7 @@ def clear_all_students() -> int:
     conn = get_connection()
     try:
         conn.execute("DELETE FROM attendance")
-        conn.execute("DELETE FROM students")
+        conn.execute("DELETE FROM students WHERE fingerprint_id > 0")
         conn.commit()
         return len(students)
     finally:
@@ -850,10 +850,10 @@ def clear_all_data() -> Tuple[int, int]:
 
     conn = get_connection()
     try:
-        student_count = conn.execute("SELECT COUNT(*) FROM students").fetchone()[0]
+        student_count = conn.execute("SELECT COUNT(*) FROM students WHERE fingerprint_id > 0").fetchone()[0]
         attendance_count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
         conn.execute("DELETE FROM attendance")
-        conn.execute("DELETE FROM students")
+        conn.execute("DELETE FROM students WHERE fingerprint_id > 0")
         conn.commit()
         return student_count, attendance_count
     finally:
