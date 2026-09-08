@@ -263,7 +263,7 @@
   #page-title {
     font-size: 14px;
     font-weight: 600;
-    color: #E8EAF0;
+    color: var(--text);
   }
   .compact #page-title { font-size: 13px; }
   .header-sep {
@@ -361,7 +361,7 @@
   .stat-value {
     font-size: 24px;
     font-weight: 700;
-    color: #E8EAF0;
+    color: var(--text);
     line-height: 1.1;
   }
   .compact .stat-value { font-size: 18px; }
@@ -396,7 +396,7 @@
   .scan-icon-wrap.match { background: #0D2A18; border-color: #17472A; }
   .scan-icon-wrap.miss  { background: #2A1A1A; border-color: #3D2020; }
   .scan-info { flex: 1; }
-  .scan-name { font-size: 15px; font-weight: 700; color: #E8EAF0; }
+  .scan-name { font-size: 15px; font-weight: 700; color: var(--text); }
   .compact .scan-name { font-size: 13px; }
   .scan-meta { font-size: 11px; color: var(--muted2); margin-top: 2px; }
   .scan-status-tag {
@@ -591,6 +591,12 @@
   .settings-row-label { flex: 1; font-size: 12.5px; color: var(--text); }
   .settings-row-desc { font-size: 11px; color: var(--muted); }
   .settings-row-value { font-size: 12px; color: var(--muted2); }
+
+  .log-empty {
+    color: var(--muted);
+    padding: 16px;
+    font-size: 12px;
+  }
   .toggle-switch {
     width: 34px; height: 18px;
     border-radius: 9px;
@@ -611,6 +617,32 @@
     transition: left .2s;
   }
   .toggle-switch.on::after { left: 19px; }
+
+  /* ─ Enroll/Re-enroll modal ─ */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .modal-card {
+    width: 360px; background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,.4);
+  }
+  .modal-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .modal-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .modal-field { margin-bottom: 10px; }
+  .modal-field label { display: block; font-size: 11px; color: var(--muted2); margin-bottom: 4px; }
+  .modal-field input {
+    width: 100%; height: 30px; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 4px; color: var(--text); font-size: 12.5px; padding: 0 8px;
+  }
+  .modal-field input:focus { outline: none; border-color: var(--accent); }
+  .modal-field input:disabled { opacity: .55; }
+  .modal-field-row { display: flex; gap: 10px; }
+  .modal-field-row .modal-field { flex: 1; }
+  .modal-status { font-size: 11.5px; color: var(--muted2); min-height: 16px; margin: 6px 0; line-height: 1.5; }
+  .modal-id { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
   /* ─ Connection card (Settings page) ─ */
   .conn-card { padding: 14px; }
@@ -644,6 +676,31 @@
   .conn-port-count { font-size: 11.5px; color: var(--muted2); }
   .conn-port-buttons { display: flex; gap: 8px; }
   .conn-hint { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  @media (max-width: 980px) {
+    #titlebar .logo-sub { display: none; }
+    #page-header { gap: 8px; padding: 0 10px; }
+    #device-info { display: none !important; }
+    .toolbar { height: auto; min-height: 38px; flex-wrap: wrap; padding: 6px 10px; }
+    .toolbar-spacer { min-width: 10px; }
+    .toolbar-sep { display: none; }
+    .tb-search { min-width: 120px; flex: 1 1 160px; }
+    .data-table-wrap { overflow-x: auto; }
+    .data-table { min-width: 680px; }
+    .split-layout { min-width: 720px; }
+    .modal-card { width: min(360px, calc(100vw - 28px)); }
+  }
+
+  @media (max-width: 720px) {
+    :root { --sidebar-w: 52px; }
+    #sidebar .nav-label, #sidebar .nav-section-label, .compact-toggle-label { display: none; }
+    .nav-item { justify-content: center; padding: 0; margin: 1px 4px; }
+    .compact-toggle { justify-content: center; padding: 8px 0; }
+    .stat-row { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    .status-pill { display: none; }
+    #scan-btn, #connect-btn { padding: 0 8px; }
+    .reports-inner, .settings-inner { padding: 10px; }
+  }
 
   /* ─ Log page — dual panel ─ */
   #page-logs { padding: 0; flex-direction: column; }
@@ -836,7 +893,7 @@
   .rpt-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .rpt-metric { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
   .rpt-metric-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-  .rpt-metric-value { font-size: 22px; font-weight: 700; color: #E8EAF0; line-height: 1.1; }
+  .rpt-metric-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
   .compact .rpt-metric-value { font-size: 17px; }
   .rpt-metric-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .rpt-metric.blue   { border-top: 2px solid var(--accent); }

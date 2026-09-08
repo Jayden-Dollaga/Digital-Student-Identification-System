@@ -129,7 +129,7 @@
         <div class="stat-row">
           <div class="stat-card accent-blue">
             <div class="stat-label">Scans Today</div>
-            <div class="stat-value" id="stat-scans">14</div>
+            <div class="stat-value" id="stat-scans">0</div>
             <div class="stat-sub" id="stat-scans-sub">Last: —</div>
           </div>
           <div class="stat-card accent-green">
@@ -203,8 +203,11 @@
           <input class="tb-search" placeholder="Search name, student no…" id="att-search" oninput="filterTable('att-tbody','att-search')">
           <div class="toolbar-spacer"></div>
           <span class="tb-count" id="att-count">8 records</span>
+          <div class="toolbar-sep" id="att-page-sep" style="display:none;"></div>
+          <button class="hdr-btn" id="att-prev-btn" style="display:none;" onclick="attendancePrevPage()">\u25c0 Prev</button>
+          <button class="hdr-btn" id="att-next-btn" style="display:none;" onclick="attendanceNextPage()">Next \u25b6</button>
           <div class="toolbar-sep"></div>
-          <button class="hdr-btn" onclick="exportAttendanceCsv()">Export CSV</button>
+          <button class="hdr-btn" data-permission="export" onclick="exportAttendanceCsv()">Export CSV</button>
           <button class="hdr-btn primary" onclick="loadAttendancePage()">Refresh</button>
         </div>
         <div class="data-table-wrap">
@@ -224,7 +227,8 @@
           <div class="toolbar-sep"></div>
           <span class="tb-count" id="stu-count">0 students</span>
           <div class="toolbar-spacer"></div>
-          <button class="hdr-btn primary" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
+          <button class="hdr-btn danger" data-permission="wipe" onclick="wipeAllFingerprints()">Wipe All Fingerprints</button>
+          <button class="hdr-btn primary" data-permission="enroll" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
         </div>
         <div class="split-layout">
           <div class="split-main">
@@ -252,29 +256,30 @@
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Name</div>
-              <div class="detail-field-value" id="det-name">Lim, Carlos R.</div>
+              <div class="detail-field-value" id="det-name">No student selected</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Student No.</div>
-              <div class="detail-field-value" id="det-sno">2024-00057</div>
+              <div class="detail-field-value" id="det-sno">—</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Grade</div>
-              <div class="detail-field-value" id="det-grade">Grade 11</div>
+              <div class="detail-field-value" id="det-grade">—</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Section</div>
-              <div class="detail-field-value" id="det-section">ABM-A</div>
+              <div class="detail-field-value" id="det-section">—</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Fingerprint ID</div>
-              <div class="detail-field-value" id="det-fpid">#3</div>
+              <div class="detail-field-value" id="det-fpid">—</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Status Today</div>
-              <div class="detail-field-value"><span class="badge late">LATE</span></div>
+              <div class="detail-field-value"><span class="badge">—</span></div>
             </div>
             <div class="detail-actions">
+              <button class="detail-btn" onclick="editSelectedStudentDetails()">Edit Details</button>
               <button class="detail-btn" onclick="reenrollSelectedStudent()">Re-enroll Fingerprint</button>
               <button class="detail-btn danger" onclick="deleteSelectedStudent()">Delete Student</button>
             </div>
@@ -297,7 +302,7 @@
           <div class="report-item" onclick="exportStudentsCsv()" style="cursor:pointer"><span class="report-icon">📊</span><span class="report-name">Export All Students (CSV)</span><span class="report-meta" id="rpt-students-count">—</span></div>
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Backups</div>
           <div id="backups-list"></div>
-          <button class="hdr-btn primary" style="width:fit-content;height:28px;margin-top:4px;" onclick="createBackupNow()">+ Create Backup Now</button>
+          <button class="hdr-btn primary" data-permission="backup" style="width:fit-content;height:28px;margin-top:4px;" onclick="createBackupNow()">+ Create Backup Now</button>
         </div>
       </div>
 
@@ -320,15 +325,7 @@
             <button class="hdr-btn" onclick="clearAppLog()">Clear</button>
           </div>
           <div id="applog-output" class="log-output">
-            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.210</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow created</span></div>
-            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.281</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">MainWindow shown</span></div>
-            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.443</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">ConnectionWorker.run() entered</span></div>
-            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 07:55:17.444</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">SerialWorker.run() entered</span></div>
-            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:00:02.091</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Database backed up to H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
-            <div class="log-line" data-lvl="INFO"><span class="log-ts">2026-09-06 08:00:02.093</span><span class="log-lvl info">INFO&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Automatic backup created: H:\DSIS\data\backups\attendance_20260906_080002.db</span></div>
-            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:36:44.201</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded (LATE) | student_no=2024-00057 name="Lim, Carlos R." confidence=94</span></div>
-            <div class="log-line" data-lvl="WARN"><span class="log-ts">2026-09-06 08:38:19.004</span><span class="log-lvl warn">WARN&nbsp;&nbsp;&nbsp;</span><span class="log-src">SYSTEM</span><span class="log-msg">Unknown fingerprint | fp_id=99 confidence=31 — below threshold, skipped</span></div>
-            <div class="log-line" data-lvl="SUCCESS"><span class="log-ts">2026-09-06 08:47:12.443</span><span class="log-lvl ok">SUCCESS</span><span class="log-src">SYSTEM</span><span class="log-msg">Attendance recorded | student_no=2024-00134 name="Reyes, Maria L." confidence=98</span></div>
+            <div class="log-empty">No application log entries yet.</div>
           </div>
         </div>
 
@@ -515,12 +512,13 @@
       </div>
       <div class="sb-sep"></div>
       <div class="sb-item" id="sb-device" style="display:none;">
-        <span>ESP32 · COM8 · Protocol 2</span>
+        <span id="sb-device-label">ESP32 device</span>
       </div>
       <div class="sb-sep" id="sb-device-sep" style="display:none;"></div>
       <div class="sb-item" id="sb-students">0 students</div>
       <div class="sb-sep"></div>
       <div class="sb-item" id="sb-scans">0 scans today</div>
+      <div class="sb-item" id="sb-device-count">Device fingerprints: —</div>
       <div class="sb-spacer"></div>
       <div class="sb-item">
         <span>v3.0.0</span>
