@@ -428,6 +428,24 @@ class Api:
             self._pending_wipe = False
         return {"ok": ok, "message": "Wiping ALL fingerprints\u2026" if ok else "Could not send WIPE command."}
 
+    def wipe_all_data(self) -> Dict[str, Any]:
+        """Delete local student and attendance data without touching the device."""
+        if not permissions.require_permission("wipe"):
+            return {"ok": False, "message": "Current role does not have wipe permission."}
+        try:
+            students, attendance = db.clear_all_data()
+            return {
+                "ok": True,
+                "message": f"Removed {students} student records and {attendance} attendance records. Device fingerprints were not changed.",
+                "students": students,
+                "attendance": attendance,
+            }
+        except PermissionError as exc:
+            return {"ok": False, "message": str(exc)}
+        except Exception as exc:
+            log.error(f"Failed to wipe local data: {exc}")
+            return {"ok": False, "message": "Could not wipe local database data."}
+
     def request_fingerprint_count(self) -> bool:
         if not self.serial.is_connected():
             return False
@@ -574,7 +592,20 @@ class Api:
             return
         if RE_WIPE_SUCCESS.search(message):
             self._pending_wipe = False
-            self._push("wipe_progress", {"event": "success"})
+            try:
+                students, attendance = db.clear_all_data()
+                self._push(
+                    "wipe_progress",
+                    {
+                        "event": "success",
+                        "students": students,
+                        "attendance": attendance,
+                    },
+                )
+                self._push("data_changed", {"reason": "wipe"})
+            except Exception as exc:
+                log.error(f"Device wipe succeeded but local data wipe failed: {exc}")
+                self._push("wipe_progress", {"event": "error", "message": "Device fingerprints were wiped, but local data could not be cleared."})
             self.request_fingerprint_count()
             return
         if self._pending_wipe:
@@ -609,9 +640,8 @@ class Api:
         if permissions.get_current_role() != "admin":
             return False
         command = cmd.strip().upper()
-        if command not in {"LIST", "HELP", "STOP", "SCAN", "ID?", "RESET"}:
+        if command not in {"LIST", "HELP", "COMMANDS", "STOP", "SCAN", "ID?"}:
             return False
-        self._append_serial_log(f"> {cmd}", "tx")
         return self.serial.send_command(cmd)
 
     def reset_device(self) -> bool:
@@ -685,9 +715,15 @@ class Api:
         student_name: str,
         grade: str,
         section: str,
+        previous_fingerprint_id: int = 0,
     ) -> Dict[str, Any]:
         if not permissions.require_permission("enroll"):
             return {"ok": False, "message": "Current role does not have enroll permission."}
+        if previous_fingerprint_id and int(previous_fingerprint_id) != int(fingerprint_id):
+            ok, message = db.replace_student_fingerprint(
+                int(previous_fingerprint_id), int(fingerprint_id), student_no, student_name, grade, section
+            )
+            return {"ok": ok, "message": message}
         ok, message = db.register_student(int(fingerprint_id), student_no, student_name, grade, section)
         return {"ok": ok, "message": message}
 

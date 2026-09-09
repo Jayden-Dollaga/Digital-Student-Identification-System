@@ -96,7 +96,7 @@ enum LedState {
 
 const char DEVICE_IDENTIFIER[] = "Digital Student Identification System";
 const char DEVICE_BOARD[] = "ESP32";
-const char DEVICE_FIRMWARE[] = "1.0";
+const char DEVICE_FIRMWARE[] = "1.0.10";
 const char DEVICE_SENSOR[] = "AS608";
 const int DEVICE_PROTOCOL = 1;
 

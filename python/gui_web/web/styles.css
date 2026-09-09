@@ -12,6 +12,8 @@
     --green:    #22C55E;
     --yellow:   #EAB308;
     --red:      #EF4444;
+    --logo-bg:  #1B2A4A;
+    --logo-accent: #3B78FF;
     --sidebar-w: 188px;
     --header-h: 42px;
     --statusbar-h: 26px;
@@ -42,6 +44,8 @@
     --green:    #17A34A;
     --yellow:   #B7860B;
     --red:      #D6373A;
+    --logo-bg:  #E8F0FF;
+    --logo-accent: #2864D7;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -663,6 +667,11 @@
   .enroll-log-line.muted { color: var(--muted); }
   .modal-id { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .confirm-modal { width: min(420px, calc(100vw - 28px)); }
+  .confirm-warning { margin: 10px 0; padding: 8px 10px; border: 1px solid #E7A5A8; border-radius: 4px; background: #FDECEC; color: #B4232A; font-size: 11px; line-height: 1.4; }
+  .confirm-modal .hdr-btn.danger { color: #B4232A; background: #FDECEC; border-color: #E7A5A8; }
+  .confirm-modal .hdr-btn.danger:hover { background: #F8D7D9; }
+  .light-theme .confirm-warning { border-color: #E7A5A8; background: #FDECEC; color: #B4232A; }
 
   /* ─ Monthly Attendance Evaluation (Dashboard) ─ */
   .me-leaderboard {
@@ -722,6 +731,21 @@
   .conn-port-count { font-size: 11.5px; color: var(--muted2); }
   .conn-port-buttons { display: flex; gap: 8px; }
   .conn-hint { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  .role-permission { display: inline-block; padding: 2px 9px; margin: 2px 3px 2px 0; border-radius: 3px; font-size: 11px; font-weight: 600; background: var(--surface2); color: var(--muted2); }
+  .role-permission-scan { background: #1E3A5F; color: #60A5FA; }
+  .role-permission-enroll { background: #14532D; color: #4ADE80; }
+  .role-permission-delete, .role-permission-wipe { background: #7F1D1D; color: #FCA5A5; }
+  .role-permission-export { background: #1A1F0A; color: #A3E635; }
+  .role-permission-backup, .role-permission-restore { background: #1E1B4B; color: #A5B4FC; }
+
+  .light-theme .role-permission-scan { background: #E8F0FF; color: #1D4ED8; }
+  .light-theme .role-permission-enroll { background: #E7F6EC; color: #16723A; }
+  .light-theme .role-permission-delete,
+  .light-theme .role-permission-wipe { background: #FDECEC; color: #B4232A; }
+  .light-theme .role-permission-export { background: #F4F8DE; color: #557A12; }
+  .light-theme .role-permission-backup,
+  .light-theme .role-permission-restore { background: #EEF0FF; color: #4F46A5; }
 
   @media (max-width: 980px) {
     #titlebar .logo-sub { display: none; }
@@ -1029,3 +1053,52 @@
 /* Selected row highlight (Students page) */
 .selected-row { background: #1E3A8A22 !important; }
 .selected-row td { color: #93C5FD; }
+
+/* Light-theme surfaces that intentionally use darker terminal defaults above. */
+.light-theme #titlebar,
+.light-theme .log-panel-header,
+.light-theme .serial-toolbar { background: var(--surface); }
+.light-theme #titlebar .logo-text { color: var(--text); }
+.light-theme #statusbar { background: var(--surface); }
+.light-theme .tb-role-badge.role-admin { background-color: #E8F0FF; color: #1D4ED8; border-color: #B8CDF7; }
+.light-theme .tb-role-badge.role-teacher { background-color: #E7F6EC; color: #16723A; border-color: #A9DDBA; }
+.light-theme .tb-role-badge.role-guest { background-color: #FFF5D9; color: #8A5A00; border-color: #E7CE8A; }
+.light-theme .nav-item.active { background: #E8F0FF; }
+.light-theme .scan-icon-wrap.match { background: #E7F6EC; border-color: #A9DDBA; }
+.light-theme .scan-icon-wrap.miss { background: #FDECEC; border-color: #E7A5A8; }
+.light-theme .badge.present { background: #E7F6EC; color: #16723A; }
+.light-theme .badge.late { background: #FFF3E6; color: #A54B08; }
+.light-theme .badge.admin { background: #EEF0FF; color: #4F46A5; }
+.light-theme .badge.student { background: #E8F0FF; color: #1D4ED8; }
+.light-theme .me-cat-excellent { background: #E7F6EC; color: #16723A; }
+.light-theme .me-cat-good { background: #FFF5D9; color: #8A5A00; }
+.light-theme .me-cat-attention { background: #FFF3E6; color: #A54B08; }
+.light-theme .me-cat-low { background: #FDECEC; color: #B4232A; }
+.light-theme .log-output { background: var(--surface2); color: var(--text); }
+.light-theme .log-ts { color: var(--muted); }
+.light-theme .log-src { color: var(--muted2); }
+.light-theme .log-msg { color: var(--text); }
+.light-theme .log-lvl.info { color: #2563EB; }
+.light-theme .log-lvl.warn { color: #946B00; }
+.light-theme .log-lvl.err { color: #B4232A; }
+.light-theme .log-lvl.ok { color: #16723A; }
+.light-theme .serial-output { color: #166534; background: #F7FAF8; border-color: var(--border); }
+.light-theme .serial-output .serial-rx { color: #166534; }
+.light-theme .serial-output .serial-tx { color: #1D4ED8; }
+.light-theme .serial-output .serial-sys { color: var(--muted); }
+.light-theme .status-pill.disconnected { background: #FDECEC; color: var(--red); border-color: #F4B8BA; }
+.light-theme .status-pill.connected { background: #EAF8EF; color: #16803A; border-color: #A9DDBA; }
+.light-theme .status-pill.scanning { background: #F4F8DE; color: #557A12; border-color: #C9D993; }
+.light-theme .badge.present,
+.light-theme .scan-status-tag.present { background: #E7F6EC; color: #16723A; }
+.light-theme .badge.absent { background: #FDECEC; color: #B4232A; }
+.light-theme .badge.late,
+.light-theme .scan-status-tag.unknown { background: #FFF3E6; color: #A54B08; }
+.light-theme .hdr-btn.danger,
+.light-theme .detail-btn.danger { background: #FDECEC; border-color: #E7A5A8; color: #B4232A; }
+.light-theme .hdr-btn.danger:hover,
+.light-theme .detail-btn.danger:hover { background: #F8D7D9; }
+.light-theme .selected-row { background: #E8F0FF !important; }
+.light-theme .selected-row td { color: #1D4ED8; }
+.light-theme .rpt-rank.silver { background: #EEF0F3; color: #586273; }
+.light-theme ::-webkit-scrollbar-thumb:hover { background: #AAB2BF; }

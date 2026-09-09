@@ -142,6 +142,20 @@ class TestBackendPermissionEnforcement:
         api._push.assert_any_call("connection_status", api.get_connection_status())
         api._push.assert_any_call("connection_changed", {"connected": False})
 
+    def test_disconnect_clears_pending_delete_before_future_operations(self):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=False)
+        api._observed_connected = True
+        api._pending_delete_id = 10
+        api._push = MagicMock()
+
+        api._sync_connection_state()
+
+        assert api._pending_delete_id is None
+        assert api._operation_conflict("delete") is None
+
     def test_device_operations_are_mutually_exclusive(self, monkeypatch):
         from gui_web.api import Api
 
@@ -228,6 +242,48 @@ class TestBackendPermissionEnforcement:
         assert api._pending_delete_id == 22
         delete_mock.assert_called_once_with(api.serial, 22)
 
+    def test_commands_help_action_sends_intentional_unknown_command(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+        send_mock = MagicMock(return_value=True)
+        monkeypatch.setattr(api.serial, "send_command", send_mock)
+
+        assert api.send_serial_command("COMMANDS") is True
+        send_mock.assert_called_once_with("COMMANDS")
+
+    def test_wipe_all_data_clears_local_database_without_device_command(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        clear_mock = MagicMock(return_value=(3, 12))
+        monkeypatch.setattr("gui_web.api.db.clear_all_data", clear_mock)
+
+        result = api.wipe_all_data()
+
+        assert result["ok"] is True
+        assert result["students"] == 3
+        assert result["attendance"] == 12
+        clear_mock.assert_called_once_with()
+
+    def test_confirmed_device_wipe_clears_linked_local_data(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api._pending_wipe = True
+        api._push = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.clear_all_data", MagicMock(return_value=(4, 9)))
+        monkeypatch.setattr(api, "request_fingerprint_count", MagicMock())
+
+        api._parse_wipe_progress("SUCCESS - All fingerprints deleted.")
+
+        assert api._pending_wipe is False
+        api._push.assert_any_call("wipe_progress", {"event": "success", "students": 4, "attendance": 9})
+        api._push.assert_any_call("data_changed", {"reason": "wipe"})
+
 
 class TestAttendanceEventTypeTagging:
     def test_first_scan_of_day_is_tagged_time_in(self, temp_db):
@@ -247,6 +303,31 @@ class TestAttendanceEventTypeTagging:
         assert "time_in" in event_types
         assert "time_out" in event_types
 
+        def test_reenrollment_migrates_existing_student_without_duplicate_number(self, temp_db):
+            db_module.add_student(1, "S-1", "Student One", "10", "A")
+            db_module.log_attendance(fingerprint_id=1, confidence=100, status="Present")
+
+            ok, message = db_module.replace_student_fingerprint(1, 2, "S-1", "Student One Updated", "11", "B")
+
+            assert ok is True, message
+            assert db_module.get_student(1) is None
+            migrated = db_module.get_student(2)
+            assert migrated["student_no"] == "S-1"
+            assert migrated["student_name"] == "Student One Updated"
+            assert db_module.get_attendance_by_student(2)
+
+        def test_delete_student_preserves_attendance_as_unregistered(self, temp_db):
+            db_module.add_student(10, "S-10", "Student Ten", "10", "A")
+            db_module.log_attendance(fingerprint_id=10, confidence=100, status="Present")
+
+            db_module.delete_student(10)
+
+            assert db_module.get_student(10) is None
+            with db_module.get_connection() as conn:
+                row = conn.execute(
+                    "SELECT fingerprint_id FROM attendance ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+            assert row["fingerprint_id"] == 0
     def test_daily_summary_uses_tagged_time_in_and_out(self, temp_db):
         import datetime
 

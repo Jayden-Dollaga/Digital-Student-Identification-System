@@ -574,6 +574,37 @@ async function selectStudent(row, fingerprintId) {
 
 let pendingDelete = null; // { fingerprintId, resolve }
 
+function showDestructiveConfirm(title, message, confirmLabel) {
+  return new Promise(resolve => {
+    const existing = document.getElementById('destructive-confirm-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'destructive-confirm-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-card confirm-modal">
+        <div class="modal-title">${escapeHtml(title)}</div>
+        <div class="modal-sub">${escapeHtml(message)}</div>
+        <div class="confirm-warning">This action cannot be undone.</div>
+        <div class="modal-actions">
+          <button class="hdr-btn" data-confirm-cancel>Cancel</button>
+          <button class="hdr-btn danger" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>`;
+    const finish = value => {
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.querySelector('[data-confirm-cancel]').addEventListener('click', () => finish(false));
+    overlay.querySelector('[data-confirm-ok]').addEventListener('click', () => finish(true));
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) finish(false);
+    });
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-confirm-cancel]').focus();
+  });
+}
+
 async function deleteSelectedStudent() {
   if (!guardPermission('delete', 'Deleting a student')) return;
   if (!selectedStudent || !selectedStudent.fingerprint_id) return;
@@ -584,7 +615,12 @@ async function deleteSelectedStudent() {
     alert(`Delete ${name}? Connect to the ESP32 first \u2014 deleting while disconnected is disabled so the database and the sensor can't drift out of sync (a deleted ID could get reused during enrollment while its old fingerprint template is still on the sensor).`);
     return;
   }
-  if (!confirm(`Delete ${name}? This will also remove the fingerprint from the connected device.`)) return;
+  const confirmed = await showDestructiveConfirm(
+    'Confirm Delete Student',
+    `Delete ${name}? The student record and fingerprint ID ${fpid} will be removed. Attendance history will be preserved as unregistered.`,
+    'Confirm Delete'
+  );
+  if (!confirmed) return;
 
   const deleteWait = waitForDelete(fpid);
   const res = await api().delete_on_device(fpid);
@@ -624,17 +660,27 @@ function settlePendingDelete(value) {
 function handleDeleteProgress(payload) {
   if (!pendingDelete || payload.id !== pendingDelete.fingerprintId) return;
   if (payload.event === 'success') {
-    api().delete_student(pendingDelete.fingerprintId).then(result => {
+    const operation = pendingDelete;
+    api().delete_student(operation.fingerprintId).then(result => {
       if (!result || !result.ok) {
-        alert(`The device deleted fingerprint ID ${pendingDelete.fingerprintId}, but the database could not be updated: ${result && result.message ? result.message : 'unknown error'}.`);
+        alert(`The device deleted fingerprint ID ${operation.fingerprintId}, but the database could not be updated: ${result && result.message ? result.message : 'unknown error'}.`);
       }
-      pendingDelete.resolve(!!(result && result.ok));
-      pendingDelete = null;
+      if (pendingDelete === operation) {
+        pendingDelete = null;
+        operation.resolve(!!(result && result.ok));
+      }
+    }).catch(error => {
+      if (pendingDelete === operation) {
+        pendingDelete = null;
+        operation.resolve(false);
+      }
+      alert(`The device was updated, but the database operation failed: ${error && error.message ? error.message : 'unknown error'}.`);
     });
   } else if (payload.event === 'error') {
-    alert(`The device reported it could not delete fingerprint ID ${pendingDelete.fingerprintId}. Nothing was removed from the database.`);
-    pendingDelete.resolve(false);
+    const operation = pendingDelete;
+    alert(`The device reported it could not delete fingerprint ID ${operation.fingerprintId}. Nothing was removed from the database.`);
     pendingDelete = null;
+    operation.resolve(false);
   }
 }
 
@@ -683,7 +729,12 @@ async function saveEditedStudentDetails(fingerprintId) {
 async function wipeAllFingerprints() {
   if (!guardPermission('wipe', 'Wiping fingerprints')) return;
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
-  if (!confirm('Wipe ALL fingerprints from the device? This cannot be undone and does not remove student records from the database.')) return;
+  const confirmed = await showDestructiveConfirm(
+    'Confirm Wipe Fingerprints',
+    'Remove every stored fingerprint template from the connected ESP32 and clear the linked student and attendance data.',
+    'Confirm Wipe'
+  );
+  if (!confirmed) return;
   const wipeWait = waitForWipe();
   const res = await api().wipe_all_on_device();
   if (!res.ok) {
@@ -699,8 +750,23 @@ async function wipeAllFingerprints() {
   } else if (event.event === 'error') {
     alert(event.message || 'The device could not wipe fingerprints.');
   } else if (event.event === 'success') {
-    alert('All fingerprints were removed from the device. Student records were kept.');
+    await Promise.all([loadDashboard(), loadAttendancePage(), loadStudentsPage(), loadReportsPage()]);
+    selectedStudent = null;
+    alert(`All fingerprints and linked local data were cleared. Removed ${event.students || 0} student record(s) and ${event.attendance || 0} attendance record(s).`);
   }
+}
+
+async function wipeAllData() {
+  if (!guardPermission('wipe', 'Wiping local data')) return;
+  if (!confirm('Wipe all students and attendance data from the database? Device fingerprints will not be changed.')) return;
+  const res = await api().wipe_all_data();
+  if (!res.ok) {
+    alert(res.message || 'Could not wipe local database data.');
+    return;
+  }
+  selectedStudent = null;
+  await Promise.all([loadDashboard(), loadAttendancePage(), loadStudentsPage(), loadReportsPage()]);
+  alert(res.message);
 }
 
 function waitForWipe(timeoutMs = 15000) {
@@ -897,13 +963,6 @@ async function saveEnrolledStudent() {
   const newId = enrollState.assignedId;
   const previous = enrollState.existing;
 
-  const res = await api().save_student(newId, sno, name, grade, section);
-  if (!res.ok) {
-    document.getElementById('em-status').textContent = 'Could not save: ' + res.message;
-    return;
-  }
-
-  enrollState.saved = true;
   // Re-enroll: the device assigned a new slot, so retire the old one instead
   // of leaving a stale duplicate row (and a stale template still on the
   // sensor for that old ID).
@@ -921,6 +980,14 @@ async function saveEnrolledStudent() {
       return;
     }
   }
+
+  const res = await api().save_student(newId, sno, name, grade, section, previous && previous.fingerprint_id ? previous.fingerprint_id : 0);
+  if (!res.ok) {
+    document.getElementById('em-status').textContent = 'Could not save student: ' + res.message;
+    return;
+  }
+
+  enrollState.saved = true;
 
   closeEnrollDialog();
   await loadStudentsPage();
@@ -1172,8 +1239,9 @@ function clearSerial() { document.getElementById('serial-output').innerHTML = ''
 async function serialCmd(cmd) {
   if (currentRole !== 'admin') { alert('Serial commands require the Administrator role.'); return; }
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
+  smAppend(`> ${cmd}`, 'serial-tx');
   const ok = await api().send_serial_command(cmd);
-  if (!ok) alert(`Could not send ${cmd} to the ESP32.`);
+  if (!ok) smAppend(`! ${cmd} was rejected or could not be sent.`, 'serial-sys');
 }
 async function sendSerialCmd() {
   if (currentRole !== 'admin') { alert('Serial commands require the Administrator role.'); return; }
@@ -1182,8 +1250,9 @@ async function sendSerialCmd() {
   if (!val) return;
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
   input.value = '';
+  smAppend(`> ${val}`, 'serial-tx');
   const ok = await api().send_serial_command(val);
-  if (!ok) alert('The command was rejected or could not be sent.');
+  if (!ok) smAppend(`! ${val} was rejected or could not be sent.`, 'serial-sys');
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement.id === 'serial-cmd') sendSerialCmd();
@@ -1343,11 +1412,6 @@ async function saveSettings() {
 function openLogFolder() { api().open_log_folder(); }
 
 // ── User Role ──
-const ROLE_COLORS = {
-  scan: '#1E3A5F:#60A5FA', enroll: '#14532D:#4ADE80', delete: '#7F1D1D:#FCA5A5',
-  wipe: '#7F1D1D:#FCA5A5', export: '#1A1F0A:#A3E635', backup: '#1e1b4b:#a5b4fc',
-  restore: '#1e1b4b:#a5b4fc',
-};
 const ROLE_LABELS = { admin: 'Administrator', teacher: 'Teacher', guest: 'Guest' };
 
 function paintTitlebarRole(key) {
@@ -1368,10 +1432,9 @@ async function applyRole(key) {
   if (select) select.value = key;
   const wrap = document.getElementById('role-permissions');
   if (wrap) {
-    wrap.innerHTML = (res.permissions || []).map(p => {
-      const [bg, fg] = (ROLE_COLORS[p] || '#1F2229:#9CA3AF').split(':');
-      return `<span style="display:inline-block;padding:2px 9px;border-radius:3px;font-size:11px;font-weight:600;background:${bg};color:${fg};">${p}</span>`;
-    }).join('');
+    wrap.innerHTML = (res.permissions || []).map(p =>
+      `<span class="role-permission role-permission-${escapeHtml(p)}">${escapeHtml(p)}</span>`
+    ).join('');
   }
   const permissions = new Set(res.permissions || []);
   const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');

@@ -244,6 +244,7 @@ def init_database() -> None:
 
         _migrate_attendance_event_type(cursor)
 
+        conn.execute("DELETE FROM attendance WHERE fingerprint_id <= 0")
         conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
 
         # Seed a permanent placeholder row for fingerprint_id 0, representing
@@ -531,6 +532,61 @@ def update_student(
         conn.close()
 
 
+def replace_student_fingerprint(
+    old_fingerprint_id: int,
+    new_fingerprint_id: int,
+    student_no: str,
+    student_name: str,
+    grade: str,
+    section: str,
+) -> Tuple[bool, str]:
+    """Move an existing student record to a newly enrolled fingerprint ID."""
+    is_valid, error_msg = validate_student_input(
+        new_fingerprint_id, student_no, student_name, grade, section
+    )
+    if not is_valid:
+        return False, error_msg
+
+    conn = get_connection()
+    try:
+        old_row = conn.execute(
+            "SELECT enrollment_date FROM students WHERE fingerprint_id = ?",
+            (old_fingerprint_id,),
+        ).fetchone()
+        if old_row is None:
+            return False, f"Student fingerprint ID {old_fingerprint_id} was not found."
+        if conn.execute(
+            "SELECT 1 FROM students WHERE fingerprint_id = ?",
+            (new_fingerprint_id,),
+        ).fetchone():
+            return False, f"Fingerprint ID {new_fingerprint_id} is already assigned to a student."
+
+        now = datetime.now().isoformat()
+        temporary_student_no = f"__reenroll_{old_fingerprint_id}_{int(datetime.now().timestamp() * 1000000)}"
+        conn.execute(
+            "INSERT INTO students (fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+            "SELECT ?, ?, student_name, grade, section, enrollment_date, ? FROM students WHERE fingerprint_id = ?",
+            (new_fingerprint_id, temporary_student_no, now, old_fingerprint_id),
+        )
+        conn.execute(
+            "UPDATE attendance SET fingerprint_id = ? WHERE fingerprint_id = ?",
+            (new_fingerprint_id, old_fingerprint_id),
+        )
+        conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (old_fingerprint_id,))
+        conn.execute(
+            "UPDATE students SET student_no = ?, student_name = ?, grade = ?, section = ?, updated_date = ? WHERE fingerprint_id = ?",
+            (student_no, student_name, grade, section, now, new_fingerprint_id),
+        )
+        conn.commit()
+        return True, "OK"
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        log.error(f"Fingerprint migration integrity error: {exc}")
+        return False, "Could not migrate the student fingerprint record."
+    finally:
+        conn.close()
+
+
 def delete_student(fingerprint_id: int) -> None:
     """Remove a student record.
 
@@ -554,6 +610,10 @@ def delete_student(fingerprint_id: int) -> None:
 
     conn = get_connection()
     try:
+        conn.execute(
+            "UPDATE attendance SET fingerprint_id = 0 WHERE fingerprint_id = ?",
+            (fingerprint_id,),
+        )
         conn.execute("DELETE FROM students WHERE fingerprint_id = ?", (fingerprint_id,))
         conn.commit()
     finally:
