@@ -27,6 +27,8 @@ This is a current map of the active DSIS source tree. Historical Qt and CustomTk
 - `python/services/`: higher-level attendance and student operations.
 - `python/gui_web/main_web.py`: native webview window lifecycle.
 - `python/gui_web/api.py`: JavaScript-to-Python bridge for database, serial, settings, reports, and logs.
+- `Api.get_attendance_evaluation()`: day/week/month attendance evaluation and rate categorization.
+- `Api.export_attendance_evaluation_csv()`: permission-gated CSV export for the selected evaluation.
 - `python/gui_web/web/`: active HTML, CSS, and JavaScript interface.
 
 ## Compatibility and reference code
@@ -58,4 +60,4 @@ python -m pytest -q --disable-warnings
 
 Hardware-dependent serial and fingerprint workflows require a connected ESP32 and AS608 sensor. The active build and launcher details are documented in [PORTABLE_BUILD.md](../../PORTABLE_BUILD.md).
 
-Last reviewed: 2026-09-09, against commit `ea3ea7c`.
+Last reviewed: 2026-09-09, against commit `e450433`.

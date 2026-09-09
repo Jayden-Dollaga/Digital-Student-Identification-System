@@ -34,6 +34,8 @@ The system supports the full attendance lifecycle:
 5. review records, generate reports, and export data
 6. maintain backup copies of the database
 
+The Dashboard also provides Attendance Evaluation for a selected day, Monday-to-Sunday week, or calendar month. It counts distinct dates with attendance activity, calculates each student's attendance rate, groups results into four categories, and exports the evaluation as CSV. Reports are available only to roles with `export` or `backup` permission.
+
 Unknown scans are shown as `Unregistered` and persisted through the reserved `fingerprint_id = 0` system row. Roles gate actions in the local UI; they are not user authentication, and a person with access to the settings file can change the stored role.
 
 ## Hardware

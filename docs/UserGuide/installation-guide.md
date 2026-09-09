@@ -149,6 +149,8 @@ When the app starts normally, you should see:
 
 If the firmware is running correctly, the ESP32 will also be ready to respond to scan, enroll, and wipe commands.
 
+The Dashboard's Attendance Evaluation section can be filtered by day, week, or month, sorted by presence, rate, or name, and exported as CSV. It uses observed attendance dates in the selected period as school days; days with no recorded activity are not counted.
+
 ### 2.5 V3 roles and device acceptance
 
 V3 roles are local workflow permissions, not account authentication:

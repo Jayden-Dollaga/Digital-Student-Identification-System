@@ -6,6 +6,7 @@ Unreleased — verified 2026-09-09
 
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
 - UI: Added the v3 light theme stylesheet, expanded webview UI components, and preserved the proven Qt implementation under `python/gui_web/v2_reference/` for parity review (`ea3ea7c`).
+- Feature: Added day/week/month Attendance Evaluation with observed-school-day rate calculation, category bands, sorting, leaderboard display, and permission-gated CSV export (`e450433`).
 - Maintenance: Added versioned `archive/legacy-ui/v1` and `archive/legacy-ui/v2` snapshots, including historical StudentsPage implementations for Qt and CustomTkinter comparison. These files are archival and not part of the supported runtime (`6b44ca8`).
 - Fix: Added defensive Qt shutdown cleanup for `SerialWorker` and its worker thread (`dc22456`).
 - Feat: Renamed project references to Digital Student Identification System (DSIS) (`a50cd04`).

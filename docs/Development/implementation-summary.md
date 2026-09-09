@@ -9,6 +9,7 @@ This historical summary is retained as provenance for the refactoring and workfl
 - `AttendanceProcessor` handles JSON and legacy text input, cooldowns, confidence thresholds, and attendance workflow decisions.
 - SQLite persistence covers students, attendance, reports, backups, and restore validation.
 - The v3 web interface provides enrollment, scanning, student management, reports, logs, settings, role-based local action gating, and connection recovery controls through `python/gui_web/api.py`.
+- The Dashboard provides day/week/month attendance evaluation, category bands, sorting, leaderboard display, and permission-gated CSV export through `Api.get_attendance_evaluation()` and `Api.export_attendance_evaluation_csv()`.
 - The settings store persists COM port, baud rate, theme, cooldown, confidence, auto-reconnect, auto-discovery, logging, role, and backup preferences.
 
 ## Unknown scans
@@ -27,4 +28,4 @@ Run the focused implementation tests from the repository root:
 python -m pytest tests/test_project_structure.py tests/test_qt_enrollment_flow.py tests/test_qt_serial_worker.py
 ```
 
-Serial hardware integration still requires a connected, correctly wired ESP32 and AS608 module. This summary was reviewed against commit `d68a405` on 2026-09-03.
+Serial hardware integration still requires a connected, correctly wired ESP32 and AS608 module. This summary was reviewed against commit `e450433` on 2026-09-09.

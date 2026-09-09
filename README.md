@@ -8,6 +8,7 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
 - SQLite student and attendance records
 - HTML/pywebview dashboard, attendance, students, reports, logs, and settings interface
 - Attendance cooldown handling and confidence-aware scan processing
+- Day, week, and month attendance evaluation with category bands and CSV export
 - CSV/report exports and database backups with role-based UI permissions
 - ESP32 device discovery, connection status, firmware assistance, and serial diagnostics
 
@@ -38,6 +39,8 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
 For packaged Windows deployment, see [Portable Build](PORTABLE_BUILD.md). For connection problems, see [Troubleshooting](docs/TROUBLESHOOTING.md). Contributors should start with [Contributing](CONTRIBUTING.md) and [Release Guide](RELEASE.md).
 
 The PC-to-ESP32 USB serial connection uses **115200 baud**. The separate ESP32-to-AS608 sensor UART uses **57600 baud** internally; do not select 57600 in the desktop app.
+
+The Dashboard includes Attendance Evaluation for day, week, or month windows. It counts distinct attendance dates per student against observed school days, groups rates as Excellent, Good, Needs attention, or Low attendance, and can export the current evaluation as a CSV file. Evaluation and export require the role's `export` or `backup` permission.
 
 ## USB Serial Drivers
 
@@ -113,4 +116,4 @@ See the [documentation index](docs/INDEX.md) for the full map.
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-09, against commit `ea3ea7c`
+Last verified: 2026-09-09, against commit `e450433`

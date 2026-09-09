@@ -39,6 +39,14 @@ The current Python implementation uses a more structured flow than earlier versi
 6. The database layer records the event and the GUI refreshes the attendance view.
 7. Unknown or unregistered scans are displayed and persisted through the reserved `fingerprint_id = 0` system row.
 
+## Attendance evaluation flow
+
+1. The Dashboard selects a day, Monday-to-Sunday week, or calendar month.
+2. The API reads the live attendance table and deduplicates each student's dates.
+3. Dates with any attendance activity define the observed school-day denominator; empty calendar days are excluded.
+4. Each student receives present days, absent days, attendance rate, and an Excellent/Good/Needs attention/Low category.
+5. The Dashboard sorts and displays the result, and authorized roles can export the selected evaluation as CSV.
+
 ## Backup and restore flow
 
 1. The operator selects Backup from the GUI.
