@@ -170,7 +170,7 @@
         </div>
 
         <!-- Recent activity table -->
-        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;gap:6px;">
+        <div style="min-height:200px;max-height:280px;display:flex;flex-direction:column;overflow:hidden;gap:6px;">
           <div class="section-header">Recent Activity</div>
           <div class="data-table-wrap">
             <table class="data-table">
@@ -184,6 +184,30 @@
               </tr></thead>
               <tbody id="activity-tbody"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Attendance Evaluation (Day / Week / Month) -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="section-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span>Attendance Evaluation</span>
+            <div class="toolbar-spacer"></div>
+            <select class="tb-select" id="me-period" onchange="onPeriodChange()" style="height:26px;">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month" selected>Month</option>
+            </select>
+            <input type="month" id="me-date" class="settings-text-input" style="width:150px;height:26px;" onchange="loadAttendanceEvaluation()">
+            <select class="tb-select" id="me-sort" onchange="renderAttendanceEvaluation()" style="height:26px;">
+              <option value="present">Sort: Most Present</option>
+              <option value="rate">Sort: Attendance Rate</option>
+              <option value="name">Sort: Name</option>
+            </select>
+            <button class="hdr-btn" onclick="exportAttendanceEvaluationCsv()">Export CSV</button>
+          </div>
+
+          <div id="me-body">
+            <div class="modal-status" style="padding:10px 0;">Loading…</div>
           </div>
         </div>
       </div>

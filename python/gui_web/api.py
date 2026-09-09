@@ -14,6 +14,7 @@ value (or raises, which pywebview turns into a rejected JS promise).
 
 from __future__ import annotations
 
+import calendar
 import csv
 import io
 import logging
@@ -71,6 +72,16 @@ def _sanitize_csv_cell(value: Any) -> str:
     if text.startswith(_FORMULA_TRIGGER_CHARS):
         return "'" + text
     return text
+
+
+def _attendance_category(rate: float) -> str:
+    if rate >= 90:
+        return "excellent"
+    if rate >= 75:
+        return "good"
+    if rate >= 50:
+        return "attention"
+    return "low"
 
 
 def _student_label(row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -710,6 +721,112 @@ class Api:
         return {"ok": True, "message": f"Exported {len(rows)} rows", "path": str(out_path)}
 
     # -- reports / backups --------------------------------------------------------
+    def get_attendance_evaluation(self, period: str = "month", ref_date: str = "") -> Dict[str, Any]:
+        """Per-student attendance evaluation for a Day / Week / Month window.
+
+        Reads straight from the live database (core.database), the same
+        source every other page uses - not the data/backups folder. Backups
+        are periodic snapshots for disaster recovery, not a second copy of
+        history to read from day to day; the live attendance table already
+        holds every date's records unless the database has been wiped or
+        restored from an older backup, in which case this naturally reflects
+        whatever is currently loaded, same as every other report.
+
+        "Days present" = number of distinct calendar dates within the window
+        that the student has at least one attendance row (multiple scans on
+        the same day still count once - same dedup get_daily_attendance_summary
+        already does). "Total days" = number of distinct dates in the window
+        that ANY student had activity (i.e. observed school days), not every
+        calendar day, so weekends/holidays with no scans at all don't count
+        against anyone. For "day", this naturally collapses to a simple
+        present/absent list for that single date.
+        """
+        if not (permissions.has_permission("export") or permissions.has_permission("backup")):
+            return {"ok": False, "message": "Current role does not have report permission."}
+
+        period = (period or "month").lower()
+        if period not in ("day", "week", "month"):
+            return {"ok": False, "message": "Invalid period."}
+
+        try:
+            anchor = datetime.strptime(ref_date, "%Y-%m-%d") if ref_date else datetime.now()
+        except ValueError:
+            return {"ok": False, "message": "Invalid date."}
+
+        if period == "day":
+            start_dt = end_dt = anchor
+        elif period == "week":
+            start_dt = anchor - timedelta(days=anchor.weekday())  # Monday
+            end_dt = start_dt + timedelta(days=6)  # Sunday
+        else:  # month
+            start_dt = anchor.replace(day=1)
+            last_day = calendar.monthrange(anchor.year, anchor.month)[1]
+            end_dt = anchor.replace(day=last_day)
+
+        start_date = start_dt.strftime("%Y-%m-%d")
+        end_date = end_dt.strftime("%Y-%m-%d")
+
+        summary_rows = db.get_daily_attendance_summary(start_date=start_date, end_date=end_date)
+        school_days = sorted({row["date"] for row in summary_rows})
+        total_days = len(school_days)
+
+        present_dates_by_student: Dict[str, set] = {}
+        for row in summary_rows:
+            key = row["student_no"]
+            if not key or key == "N/A":
+                continue  # unregistered/unknown scans don't belong to any student
+            present_dates_by_student.setdefault(key, set()).add(row["date"])
+
+        students = db.get_all_students()
+        results: List[Dict[str, Any]] = []
+        for student in students:
+            key = student["student_no"]
+            present_dates = present_dates_by_student.get(key, set())
+            days_present = len(present_dates)
+            days_absent = max(0, total_days - days_present)
+            rate = round((days_present / total_days) * 100, 1) if total_days else 0.0
+            results.append({
+                "fingerprint_id": student["fingerprint_id"],
+                "student_no": student["student_no"],
+                "student_name": student["student_name"],
+                "grade": student["grade"],
+                "section": student["section"],
+                "days_present": days_present,
+                "days_absent": days_absent,
+                "attendance_rate": rate,
+                "category": _attendance_category(rate),
+            })
+
+        results.sort(key=lambda r: (-r["days_present"], r["student_name"]))
+        return {
+            "ok": True,
+            "period": period,
+            "start_date": start_date,
+            "end_date": end_date,
+            "total_days": total_days,
+            "school_days": school_days,
+            "rows": results,
+        }
+
+    def export_attendance_evaluation_csv(self, period: str = "month", ref_date: str = "") -> Dict[str, Any]:
+        report = self.get_attendance_evaluation(period, ref_date)
+        if not report.get("ok"):
+            return {"ok": False, "message": report.get("message", "Could not generate report.")}
+        rows = [
+            {
+                "student_no": r["student_no"],
+                "student_name": r["student_name"],
+                "grade": r["grade"],
+                "section": r["section"],
+                "days_present": r["days_present"],
+                "days_absent": r["days_absent"],
+                "attendance_rate": r["attendance_rate"],
+                "category": r["category"],
+            }
+            for r in report["rows"]
+        ]
+        return self._rows_to_csv(rows, f"attendance_evaluation_{report['period']}_{report['start_date']}_to_{report['end_date']}")
+
     def get_statistics_report(self) -> Dict[str, Any]:
         if not (permissions.has_permission("export") or permissions.has_permission("backup")):
             return {"ok": False, "message": "Current role does not have report permission."}

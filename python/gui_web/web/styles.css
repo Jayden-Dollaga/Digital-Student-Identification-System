@@ -664,6 +664,32 @@
   .modal-id { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
+  /* ─ Monthly Attendance Evaluation (Dashboard) ─ */
+  .me-leaderboard {
+    display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px;
+  }
+  .me-lb-card {
+    flex: none; min-width: 130px; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .me-lb-rank { font-size: 10px; font-weight: 700; color: var(--muted); }
+  .me-lb-name { font-size: 12px; font-weight: 600; color: var(--text); margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .me-lb-days { font-size: 11px; color: var(--muted2); }
+  .me-legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted2); padding: 2px 0 6px; flex-wrap: wrap; }
+  .me-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .me-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .me-cat-badge {
+    display: inline-block; padding: 2px 9px; border-radius: 3px; font-size: 11px; font-weight: 600;
+  }
+  .me-cat-excellent { background: #14532D; color: #4ADE80; }
+  .me-cat-good { background: #3A2E12; color: #EAB308; }
+  .me-cat-attention { background: #4A2A0D; color: #FB923C; }
+  .me-cat-low { background: #7F1D1D; color: #FCA5A5; }
+  .me-empty { padding: 14px 0; font-size: 12px; color: var(--muted); }
+  .me-rate-cell { display: flex; align-items: center; gap: 8px; }
+  .me-rate-bar-bg { flex: 1; max-width: 90px; height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
+  .me-rate-bar-fill { height: 100%; border-radius: 3px; }
+
   /* ─ Connection card (Settings page) ─ */
   .conn-card { padding: 14px; }
   .conn-card-header {

@@ -297,6 +297,136 @@ async function loadDashboard() {
   if (connected) {
     document.getElementById('device-info').textContent = `${status.port || '?'} \u00b7 ${status.baud || '?'} baud`;
   }
+  onPeriodChange(true);
+  await loadAttendanceEvaluation();
+}
+
+// ── Attendance Evaluation (Day / Week / Month) ──
+let evalData = null;
+const CATEGORY_META = {
+  excellent: { label: 'Excellent', dot: 'var(--green)', range: '90\u2013100%' },
+  good: { label: 'Good', dot: 'var(--yellow)', range: '75\u201389%' },
+  attention: { label: 'Needs attention', dot: '#FB923C', range: '50\u201374%' },
+  low: { label: 'Low attendance', dot: 'var(--red)', range: 'below 50%' },
+};
+
+function todayStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+// Switches the single date input between type="month" (for Month) and
+// type="date" (for Day/Week) and seeds a sensible default the first time.
+function onPeriodChange(isInitial) {
+  const period = document.getElementById('me-period').value;
+  const input = document.getElementById('me-date');
+  const wantType = period === 'month' ? 'month' : 'date';
+  if (input.type !== wantType) {
+    input.type = wantType;
+    input.value = '';
+  }
+  if (!input.value) {
+    const now = new Date();
+    input.value = wantType === 'month'
+      ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      : todayStr();
+  }
+  if (!isInitial) loadAttendanceEvaluation();
+}
+
+async function loadAttendanceEvaluation() {
+  if (!api()) return;
+  const body = document.getElementById('me-body');
+  const period = document.getElementById('me-period').value;
+  const dateVal = document.getElementById('me-date').value;
+  if (!dateVal) return;
+  const refDate = period === 'month' ? `${dateVal}-01` : dateVal;
+  body.innerHTML = '<div class="modal-status" style="padding:10px 0;">Loading\u2026</div>';
+  const report = await api().get_attendance_evaluation(period, refDate);
+  if (!report.ok) {
+    body.innerHTML = `<div class="me-empty">${report.message || 'Could not load the report.'}</div>`;
+    return;
+  }
+  evalData = report;
+  renderAttendanceEvaluation();
+}
+
+function formatEvalRangeLabel(report) {
+  const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+  const start = new Date(report.start_date + 'T00:00:00');
+  const end = new Date(report.end_date + 'T00:00:00');
+  if (report.period === 'day') return start.toLocaleDateString('en-US', opts);
+  if (report.period === 'month') return start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return `Week of ${start.toLocaleDateString('en-US', opts)} \u2013 ${end.toLocaleDateString('en-US', opts)}`;
+}
+
+function renderAttendanceEvaluation() {
+  if (!evalData) return;
+  const body = document.getElementById('me-body');
+  const rows = [...evalData.rows];
+  const sortBy = document.getElementById('me-sort').value;
+  if (sortBy === 'rate') rows.sort((a, b) => b.attendance_rate - a.attendance_rate || a.student_name.localeCompare(b.student_name));
+  else if (sortBy === 'name') rows.sort((a, b) => a.student_name.localeCompare(b.student_name));
+  else rows.sort((a, b) => b.days_present - a.days_present || a.student_name.localeCompare(b.student_name));
+
+  const rangeLabel = formatEvalRangeLabel(evalData);
+
+  if (!rows.length) {
+    body.innerHTML = `<div class="me-empty">No students enrolled yet.</div>`;
+    return;
+  }
+  if (evalData.total_days === 0) {
+    body.innerHTML = `<div class="me-empty">No attendance activity recorded for ${rangeLabel} yet.</div>`;
+    return;
+  }
+
+  const topFive = [...evalData.rows].sort((a, b) => b.days_present - a.days_present).slice(0, 5);
+  const leaderboard = topFive.map((r, i) =>
+    `<div class="me-lb-card"><div class="me-lb-rank">#${i + 1}</div><div class="me-lb-name">${r.student_name}</div><div class="me-lb-days">${r.days_present} day${r.days_present === 1 ? '' : 's'}</div></div>`
+  ).join('');
+
+  const legend = Object.entries(CATEGORY_META).map(([key, m]) =>
+    `<span><i style="background:${m.dot}"></i>${m.label} \u2014 ${m.range}</span>`
+  ).join('');
+
+  const dayColLabel = evalData.period === 'day' ? 'Present' : 'Days Present';
+  const absentColLabel = evalData.period === 'day' ? 'Absent' : 'Days Absent';
+
+  const tableRows = rows.map(r => {
+    const meta = CATEGORY_META[r.category] || CATEGORY_META.low;
+    return `<tr>
+      <td>${r.student_name}<div style="font-size:10.5px;color:var(--muted);">${r.student_no} \u00b7 Grade ${r.grade} \u2014 ${r.section}</div></td>
+      <td>${r.days_present}</td>
+      <td>${r.days_absent}</td>
+      <td>
+        <div class="me-rate-cell">
+          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${r.attendance_rate}%;background:${meta.dot}"></div></div>
+          <span>${r.attendance_rate}%</span>
+        </div>
+      </td>
+      <td><span class="me-cat-badge me-cat-${r.category}">${meta.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} school day${evalData.total_days === 1 ? '' : 's'} observed</div>
+    <div class="me-leaderboard">${leaderboard}</div>
+    <div class="me-legend">${legend}</div>
+    <div class="data-table-wrap" style="max-height:280px;">
+      <table class="data-table">
+        <thead><tr><th>Student</th><th>${dayColLabel}</th><th>${absentColLabel}</th><th>Attendance Rate</th><th>Category</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
+}
+
+async function exportAttendanceEvaluationCsv() {
+  const period = document.getElementById('me-period').value;
+  const dateVal = document.getElementById('me-date').value;
+  if (!dateVal) return;
+  const refDate = period === 'month' ? `${dateVal}-01` : dateVal;
+  const res = await api().export_attendance_evaluation_csv(period, refDate);
+  alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
 
 async function loadDashboardStats() {
