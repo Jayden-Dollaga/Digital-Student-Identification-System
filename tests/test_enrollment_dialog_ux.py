@@ -436,6 +436,19 @@ class TestEnrollDialogCancel:
         with patch('gui_qt.pages.students_page.cmd_stop') as mock_cmd_stop:
             enroll_dialog._cleanup_before_close()
             mock_cmd_stop.assert_called_once()
+
+    def test_cancel_deletes_stored_fingerprint_before_student_save(self, enroll_dialog):
+        """A successful sensor enrollment must not survive dialog cancel."""
+        enroll_dialog.assigned_id = 22
+        enroll_dialog._enrollment_started = False
+        enroll_dialog._student_saved = False
+
+        with patch('gui_qt.pages.students_page.cmd_stop') as mock_cmd_stop, \
+             patch('gui_qt.pages.students_page.cmd_delete') as mock_cmd_delete:
+            enroll_dialog._cleanup_before_close()
+
+        mock_cmd_stop.assert_called_once()
+        mock_cmd_delete.assert_called_once_with(enroll_dialog.serial_handler, 22)
     
     def test_cancel_disconnects_signals(self, enroll_dialog):
         """Cancel should disconnect signal handlers."""

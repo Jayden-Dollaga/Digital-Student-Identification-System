@@ -47,6 +47,7 @@ class EnrollDialog(QDialog):
         self.assigned_id = None
         self._enrollment_started = False  # Track if enrollment has been signaled to start
         self._saving_in_progress = False  # Prevent duplicate save submissions
+        self._student_saved = False  # Keep hardware and database atomic on cancel
         
         self.setWindowTitle("Enroll Fingerprint")
         self.setMinimumWidth(420)
@@ -246,6 +247,7 @@ class EnrollDialog(QDialog):
             
             log.info("EnrollDialog: Resetting enrollment state variables")
             self.assigned_id = None
+            self._student_saved = False
             self.id_label.setText("Assigned ID: Pending")
             self.log_view.clear()
             self._enrollment_started = True
@@ -304,6 +306,7 @@ class EnrollDialog(QDialog):
             )
             
             if ok:
+                self._student_saved = True
                 self._cleanup_before_close()
                 self.accept()
             else:
@@ -397,6 +400,8 @@ class EnrollDialog(QDialog):
             pass
         if self.serial_handler.is_connected():
             cmd_stop(self.serial_handler)
+            if self.assigned_id and not self._student_saved:
+                cmd_delete(self.serial_handler, int(self.assigned_id))
 
     def on_cancel(self):
         self._cleanup_before_close()

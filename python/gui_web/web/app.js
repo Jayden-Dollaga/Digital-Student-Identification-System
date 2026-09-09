@@ -617,14 +617,28 @@ function openEnrollDialog(existing) {
     <div class="modal-card">
       <div class="modal-title">${existing ? 'Re-enroll Fingerprint' : 'Enroll New Student'}</div>
       <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan.'}</div>
-      <div class="modal-field"><label>Student No.</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"></div>
-      <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"></div>
-      <div class="modal-field-row">
-        <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"></div>
-        <div class="modal-field"><label>Section</label><input id="em-section" type="text" value="${existing ? escapeHtml(existing.section) : ''}"></div>
+      <div class="enroll-layout">
+        <div class="enroll-form">
+          <div class="modal-field"><label>Student No.</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"></div>
+          <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"></div>
+          <div class="modal-field-row">
+            <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"></div>
+            <div class="modal-field"><label>Section</label><input id="em-section" type="text" value="${existing ? escapeHtml(existing.section) : ''}"></div>
+          </div>
+          <div class="modal-status" id="em-status">${connected ? '' : 'Connect to the ESP32 first.'}</div>
+          <div class="modal-id" id="em-id" style="display:none;"></div>
+        </div>
+        <div class="enroll-progress-panel">
+          <div class="enroll-progress-title">Sensor progress</div>
+          <div class="enroll-steps" id="em-steps">
+            <div class="enroll-step" data-step="1"><span>1</span><strong>Place finger</strong><small>First scan</small></div>
+            <div class="enroll-step" data-step="2"><span>2</span><strong>Remove finger</strong><small>Wait for prompt</small></div>
+            <div class="enroll-step" data-step="3"><span>3</span><strong>Scan same finger</strong><small>Second scan</small></div>
+            <div class="enroll-step" data-step="4"><span>4</span><strong>Saved</strong><small>Ready to register</small></div>
+          </div>
+          <div class="enroll-log" id="em-log" aria-live="polite"><div class="enroll-log-line muted">Waiting to start enrollment.</div></div>
+        </div>
       </div>
-      <div class="modal-status" id="em-status">${connected ? '' : 'Connect to the ESP32 first.'}</div>
-      <div class="modal-id" id="em-id" style="display:none;"></div>
       <div class="modal-actions">
         <button class="hdr-btn" onclick="closeEnrollDialog()">Cancel</button>
         <button class="hdr-btn primary" id="em-primary-btn" onclick="enrollPrimaryAction()" ${connected ? '' : 'disabled'}>Start Enrollment</button>
@@ -639,6 +653,8 @@ function closeEnrollDialog() {
   if (overlay) overlay.remove();
   if (enrollState && enrollState.step === 'enrolling' && api()) {
     api().cancel_enroll();
+  } else if (enrollState && enrollState.assignedId && !enrollState.saved && api()) {
+    api().discard_enrollment(enrollState.assignedId);
   }
   enrollState = null;
 }
@@ -684,21 +700,54 @@ function handleEnrollProgress(payload) {
   const btn = document.getElementById('em-primary-btn');
   if (!status || !btn) return;
 
+  const log = document.getElementById('em-log');
+  const appendLog = (message, kind = '') => {
+    if (!log || !message) return;
+    const line = document.createElement('div');
+    line.className = `enroll-log-line ${kind}`.trim();
+    line.textContent = message;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  };
+  const setProgress = (activeStep, completedThrough = activeStep - 1, state = 'active') => {
+    document.querySelectorAll('#em-steps .enroll-step').forEach(step => {
+      const number = Number(step.dataset.step);
+      step.classList.toggle('active', number === activeStep && state === 'active');
+      step.classList.toggle('complete', number <= completedThrough || state === 'success' && number <= 4);
+      step.classList.toggle('error', state === 'error' && number === activeStep);
+    });
+  };
+
   if (payload.event === 'enrolling') {
     status.textContent = `Enrolling as ID #${payload.id}\u2026 follow the prompts on the sensor.`;
+    if (log) log.replaceChildren();
+    appendLog(`Enrolling finger as ID #${payload.id}`, 'active');
+    setProgress(1, 0);
+  } else if (payload.event === 'step') {
+    appendLog(payload.message, 'active');
+    const message = (payload.message || '').toLowerCase();
+    if (message.includes('step 2') || message.includes('remove finger') || message.includes('finger removed')) setProgress(2, 1);
+    else if (message.includes('step 3') || message.includes('same finger')) setProgress(3, 2);
+    else if (message.includes('image taken') || message.includes('image converted')) setProgress(message.includes('converted') ? 1 : 1, 0);
   } else if (payload.event === 'success') {
     enrollState.assignedId = parseInt(payload.id, 10);
     enrollState.step = 'success';
     status.textContent = 'Fingerprint saved on the device.';
+    appendLog(`Success! Finger saved as ID #${payload.id}`, 'success');
+    setProgress(4, 3, 'success');
     idLabel.style.display = 'block';
     idLabel.textContent = `Assigned ID: #${payload.id}`;
     btn.disabled = false;
     btn.textContent = 'Save Student';
   } else if (payload.event === 'cancelled') {
     status.textContent = 'Enrollment was cancelled on the device.';
+    appendLog('Enrollment cancelled.', 'error');
+    setProgress(1, 0, 'error');
     resetEnrollForm();
   } else if (payload.event === 'error') {
     status.textContent = 'The device reported an enrollment error.';
+    appendLog('Enrollment failed. Check the sensor and try again.', 'error');
+    setProgress(1, 0, 'error');
     resetEnrollForm();
   }
 }
@@ -724,6 +773,7 @@ async function saveEnrolledStudent() {
     return;
   }
 
+  enrollState.saved = true;
   // Re-enroll: the device assigned a new slot, so retire the old one instead
   // of leaving a stale duplicate row (and a stale template still on the
   // sensor for that old ID).

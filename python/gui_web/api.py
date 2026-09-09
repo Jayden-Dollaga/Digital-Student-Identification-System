@@ -44,6 +44,7 @@ CONFIG = get_config()
 RE_ENROLLING_AS = re.compile(r"ENROLLING FINGER AS ID #(\d+)", re.IGNORECASE)
 RE_ENROLL_SUCCESS = re.compile(r"SUCCESS!?\s*Finger saved as ID #(\d+)", re.IGNORECASE)
 RE_ENROLL_CANCEL = re.compile(r"ENROLLMENT cancelled|Enrollment cancelled|ENROLL_CANCELLED", re.IGNORECASE)
+RE_ENROLL_STEP = re.compile(r"(?:Step\s*[123]:|Image taken|Image converted|Finger removed|Remove finger|Place the SAME finger|Could not convert image|Fingerprints did not match)", re.IGNORECASE)
 RE_WIPE_START = re.compile(r"Wiping ALL fingerprints", re.IGNORECASE)
 RE_WIPE_SUCCESS = re.compile(r"SUCCESS\s*-\s*All fingerprints deleted", re.IGNORECASE)
 RE_DELETE_START = re.compile(r"Deleting ID #(\d+)", re.IGNORECASE)
@@ -360,6 +361,23 @@ class Api:
         self._pending_enroll = False
         return {"ok": ok, "message": "Enrollment cancelled." if ok else "Could not cancel enrollment on the ESP32."}
 
+    def discard_enrollment(self, fingerprint_id: int) -> Dict[str, Any]:
+        """Remove a device template when enrollment succeeded but was not saved locally."""
+        if not permissions.require_permission("delete"):
+            return {"ok": False, "message": "Current role does not have delete permission."}
+        if not self.serial.is_connected():
+            return {"ok": False, "message": "The ESP32 is disconnected; the unsaved fingerprint could not be removed."}
+        conflict = self._operation_conflict("delete")
+        if conflict:
+            return {"ok": False, "message": conflict}
+        self._pending_delete_id = int(fingerprint_id)
+        cmds.cmd_stop(self.serial)
+        ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
+        if not ok:
+            self._pending_delete_id = None
+            return {"ok": False, "message": "Could not remove the unsaved fingerprint from the ESP32."}
+        return {"ok": True, "message": f"Removing unsaved fingerprint ID {fingerprint_id}."}
+
     # -- deletion (real hardware flow, ported from v2's DeleteDialog) -------------
     def delete_on_device(self, fingerprint_id: int) -> Dict[str, Any]:
         """Send DELETE:<id> to the device and wait for its own confirmation.
@@ -518,6 +536,10 @@ class Api:
         match = RE_ENROLLING_AS.search(message)
         if match:
             self._push("enroll_progress", {"event": "enrolling", "id": match.group(1)})
+            return
+        if self._pending_enroll and RE_ENROLL_STEP.search(message):
+            cleaned = message.lstrip("-> ")
+            self._push("enroll_progress", {"event": "step", "message": cleaned})
             return
         match = RE_ENROLL_SUCCESS.search(message)
         if match:

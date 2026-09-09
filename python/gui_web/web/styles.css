@@ -625,7 +625,7 @@
     z-index: 200;
   }
   .modal-card {
-    width: 360px; background: var(--surface); border: 1px solid var(--border2);
+    width: min(650px, calc(100vw - 28px)); background: var(--surface); border: 1px solid var(--border2);
     border-radius: 8px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,.4);
   }
   .modal-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
@@ -641,6 +641,26 @@
   .modal-field-row { display: flex; gap: 10px; }
   .modal-field-row .modal-field { flex: 1; }
   .modal-status { font-size: 11.5px; color: var(--muted2); min-height: 16px; margin: 6px 0; line-height: 1.5; }
+  .enroll-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; align-items: start; }
+  .enroll-progress-panel { padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; }
+  .enroll-progress-title { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .enroll-steps { display: grid; gap: 8px; }
+  .enroll-step { display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; align-items: center; opacity: .48; }
+  .enroll-step span { grid-row: span 2; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--border2); border-radius: 50%; color: var(--muted); font-size: 10px; font-weight: 700; }
+  .enroll-step strong { color: var(--muted2); font-size: 11px; line-height: 1.2; }
+  .enroll-step small { color: var(--muted); font-size: 10px; line-height: 1.2; }
+  .enroll-step.active, .enroll-step.complete { opacity: 1; }
+  .enroll-step.active span { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .enroll-step.active strong { color: var(--text); }
+  .enroll-step.complete span { border-color: var(--green); color: var(--green); }
+  .enroll-step.complete strong { color: var(--green); }
+  .enroll-step.error span { border-color: var(--red); color: var(--red); }
+  .enroll-log { max-height: 82px; overflow-y: auto; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); font-family: Consolas, monospace; font-size: 10px; line-height: 1.45; }
+  .enroll-log-line { color: var(--muted2); }
+  .enroll-log-line.active { color: var(--text); }
+  .enroll-log-line.success { color: var(--green); }
+  .enroll-log-line.error { color: var(--red); }
+  .enroll-log-line.muted { color: var(--muted); }
   .modal-id { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
@@ -688,7 +708,13 @@
     .data-table-wrap { overflow-x: auto; }
     .data-table { min-width: 680px; }
     .split-layout { min-width: 720px; }
-    .modal-card { width: min(360px, calc(100vw - 28px)); }
+    .modal-card { width: min(650px, calc(100vw - 28px)); }
+    .enroll-layout { grid-template-columns: 1fr; gap: 8px; }
+    .enroll-progress-panel { order: -1; }
+    .enroll-steps { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .enroll-step { display: block; text-align: center; }
+    .enroll-step span { margin: 0 auto 4px; }
+    .enroll-step small { display: none; }
   }
 
   @media (max-width: 720px) {

@@ -193,6 +193,41 @@ class TestBackendPermissionEnforcement:
         assert result["ok"] is False
         assert "report permission" in result["message"]
 
+    def test_enrollment_instructions_are_pushed_as_step_events(self):
+        from gui_web.api import Api
+
+        api = Api()
+        api._pending_enroll = True
+        api._push = MagicMock()
+
+        api._parse_enroll_progress("Step 1: Place finger on sensor...")
+        api._parse_enroll_progress("Step 2: Remove finger...")
+        api._parse_enroll_progress("Step 3: Place the SAME finger again...")
+
+        assert [call.args[0] for call in api._push.call_args_list] == [
+            "enroll_progress",
+            "enroll_progress",
+            "enroll_progress",
+        ]
+        assert api._push.call_args_list[0].args[1]["event"] == "step"
+        assert "Place finger" in api._push.call_args_list[0].args[1]["message"]
+
+    def test_discard_enrollment_removes_unsaved_device_template(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_stop", MagicMock(return_value=True))
+        delete_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_delete", delete_mock)
+
+        result = api.discard_enrollment(22)
+
+        assert result["ok"] is True
+        assert api._pending_delete_id == 22
+        delete_mock.assert_called_once_with(api.serial, 22)
+
 
 class TestAttendanceEventTypeTagging:
     def test_first_scan_of_day_is_tagged_time_in(self, temp_db):
