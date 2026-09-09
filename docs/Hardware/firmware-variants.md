@@ -35,4 +35,4 @@ D990B199010D6DA7875876DBC40A1D7FC848201719FA5BF66BB7FA8B77F097F1
 
 <!-- TODO: verify — ask project owner whether this placeholder should be replaced and which source built the intended binary. -->
 
-Last verified: 2026-09-03, against commit d68a405
+Last verified: 2026-09-10, against commit 69e563b

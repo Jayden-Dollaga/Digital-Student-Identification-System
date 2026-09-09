@@ -54,4 +54,4 @@ The active application is launched with the root `run_web_gui.bat`. The current 
 
 Hardware probes may contain hard-coded COM-port defaults. Confirm the selected port in the script and close Arduino IDE or other serial monitors before running them.
 
-Last verified: 2026-09-03, against commit d68a405
+Last verified: 2026-09-10, against commit 69e563b

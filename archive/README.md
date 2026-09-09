@@ -15,8 +15,8 @@ historical reference and troubleshooting only.
 
 Commit `6b44ca8` added two preserved snapshots under `legacy-ui/`:
 
-- `legacy-ui/v1/` — an earlier PySide6/Qt application tree, including its historical `StudentsPage` enrollment and profile-management flow.
-- `legacy-ui/v2/` — an earlier CustomTkinter application tree, including its historical student-list, edit, delete, enrollment, and permission-gated actions.
+- `legacy-ui/v1/` — the original CustomTkinter application tree, including its historical student-list, edit, delete, enrollment, and permission-gated actions.
+- `legacy-ui/v2/` — the second-generation PySide6/Qt application tree, including its historical `StudentsPage` enrollment and profile-management flow.
 
 These snapshots are useful for comparing previous implementations and recovering historical behavior. They are not imported by the active application, are not supported launchers, and should not be used as a substitute for the current code under `python/`.
 

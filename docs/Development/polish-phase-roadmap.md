@@ -1,6 +1,6 @@
 # Polish Phase Roadmap (Historical)
 
-> Historical planning document. It predates the maintained Qt interface; see [project overview](../UserGuide/project-overview.md) for current status.
+> Historical planning document. It predates the maintained v3 webview interface; see [project overview](../UserGuide/project-overview.md) for current status.
 
 **Status:** Foundation Complete ✅  
 **Phase:** 2.0 — Polish, Stability, Research  

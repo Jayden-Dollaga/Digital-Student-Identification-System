@@ -2,6 +2,8 @@
 
 This folder contains point-in-time audit artifacts generated from repository analysis. These reports are not automatically kept in sync with `main`; consult the active guides under `docs/` for current behavior.
 
+The reports below were generated before the current v3 webview transition and later refactors unless explicitly regenerated. Any Qt, CustomTkinter, or `run_qt_gui` references are historical, not current launch instructions.
+
 `CODE_METRICS.md` and `CODE_METRICS.csv` can be regenerated with:
 
 ```text

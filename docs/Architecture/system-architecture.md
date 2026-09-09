@@ -2,14 +2,14 @@
 
 ## Overview
 
-The Digital Student Identification System (DSIS) is a layered application that combines embedded firmware, a desktop GUI, serial communication, and a local database to support attendance tracking with fingerprint biometrics.
+The Digital Student Identification System (DSIS) is a layered application that combines ESP32/AS608 firmware, a Python backend, a pywebview desktop shell, and a local SQLite database to support attendance tracking with fingerprint biometrics.
 
 The design separates concerns so that each part can be maintained independently, and the recent Python refactor strengthens that separation further. Raw serial data is handled in the communication layer, converted into structured scan outcomes in the attendance processor, persisted through the database layer, and presented through the GUI without overloading the interface with core workflow logic.
 
 - firmware handles fingerprint capture and matching on the ESP32
-- Python manages serial communication, desktop operations, and database access
+- Python manages serial communication, desktop operations, permissions, exports, and database access
 - SQLite stores student and attendance data locally
-- the GUI presents operators with a clear workflow for enrollment, scanning, backup, and reporting
+- the v3 HTML/CSS/JavaScript UI presents operators with workflows for enrollment, scanning, backup, reporting, evaluation, and settings through a pywebview JavaScript-to-Python bridge
 
 ## Objectives
 
@@ -29,7 +29,9 @@ The Python side is organized around a small set of focused responsibilities:
 - [python/core/serial_handler.py](../../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
 - [python/core/attendance.py](../../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
 - [python/core/database.py](../../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
-- [python/gui_qt/main_qt.py](../../python/gui_qt/main_qt.py) is the primary modern Qt entry point and UI orchestrator, delegating business logic to the core modules rather than embedding it directly in the interface.
+- [python/gui_web/main_web.py](../../python/gui_web/main_web.py) creates the active pywebview window, while [python/gui_web/api.py](../../python/gui_web/api.py) exposes serial, database, settings, report, backup, and export operations to the frontend.
+- [python/gui_web/web/](../../python/gui_web/web/) contains the active HTML, CSS, and JavaScript presentation layer.
+- [python/gui_web/v2_reference/](../../python/gui_web/v2_reference/) is a reference-only snapshot of the former PySide6 implementation; it is not imported by v3 at runtime.
 
 This keeps the GUI thinner, improves testability, and makes it easier to evolve the system over time.
 
@@ -41,7 +43,7 @@ This keeps the GUI thinner, improves testability, and makes it easier to evolve 
 | Communication | Opens the serial port and parses responses | python/core/serial_handler.py, python/core/commands.py |
 | Application logic | Processes scan results and coordinates attendance behavior | python/core/attendance.py, python/core/utils.py |
 | Data layer | Stores students, attendance records, and backup snapshots | python/core/database.py |
-| Presentation | Displays the GUI and exposes actions to the operator | python/gui_qt/main_qt.py and related Qt GUI modules (legacy `python/gui/` remains available for compatibility) |
+| Presentation | Displays the web UI and exposes actions through the Python bridge | python/gui_web/main_web.py, python/gui_web/api.py, python/gui_web/web/ |
 | Configuration | Stores defaults for serial settings and permissions | python/config.py, data/settings.json |
 
 ## Core components
@@ -77,7 +79,7 @@ The GUI is organized into specific pages for attendance, student management, sta
 2. The serial handler opens the selected COM port and begins reading device output.
 3. The GUI sends commands for enrollment or scanning.
 4. The firmware reports progress and results over serial.
-5. The Python application updates the UI, stores records, and logs actions.
+5. The Python API updates the web UI, stores records, and logs actions.
 6. If the connection drops, reconnect logic attempts to restore it automatically.
 
 ## Enrollment flow
@@ -94,17 +96,25 @@ The GUI is organized into specific pages for attendance, student management, sta
 3. The Python application receives the result and writes an attendance event.
 4. The GUI refreshes the attendance list and statistics.
 
+## Attendance evaluation flow
+
+1. The operator selects a day, Monday-to-Sunday week, or calendar month.
+2. The API reads the live attendance table and deduplicates each student's active dates.
+3. Dates with any activity form the observed-school-day denominator; empty calendar days do not reduce rates.
+4. The frontend displays days present, days absent, percentage, category, and a leaderboard.
+5. Authorized roles can export the selected evaluation to CSV.
+
 ## Settings and configuration
 
 The application saves persistent preferences for:
 
 - COM port selection
 - baud rate
-- theme mode
+- theme mode (light or dark)
 - cooldown behavior
 - auto-reconnect behavior
 
-These preferences are loaded from a JSON settings file so the app can remember operator choices between sessions.
+These preferences are loaded from a JSON settings file so the app can remember operator choices between sessions. The v3 API also applies persisted auto-reconnect, cooldown, confidence, and backup settings to the active backend.
 
 ## Reliability features
 
@@ -115,6 +125,8 @@ The design includes several safeguards:
 - permissions for destructive or privileged actions
 - backup creation before restore workflows
 - operation logs for troubleshooting and auditing
+- reserved `fingerprint_id = 0` database row for persisted unknown scans
+- device fingerprint-count refresh after connect, wipe, and reconnect
 
 ## Extension points
 

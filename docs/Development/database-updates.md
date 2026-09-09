@@ -30,4 +30,4 @@ Run the database and security tests from the repository root:
 python -m pytest tests/test_database_features.py tests/test_database_reset.py tests/test_database_security.py
 ```
 
-Last reviewed: 2026-09-03, against commit `d68a405`.
+Last reviewed: 2026-09-10, against commit `69e563b`.

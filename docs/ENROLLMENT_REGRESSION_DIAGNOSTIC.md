@@ -61,7 +61,7 @@ This means the button click didn't trigger `_on_primary_action()`.
 - Logs are written to `data/logs/` directory
 - If you see no log files, app may not have write access to data/logs/
 - Try creating test files in that directory manually to verify permissions
-- Check Windows Task Manager to see if `python run_qt_gui.py` is still running
+- Check Windows Task Manager to see if `python run_web_gui.py` is still running
 
 ### Step 5: Manual Verification
 1. Open the Students page

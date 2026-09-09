@@ -1,5 +1,7 @@
 # Architecture Audit
 
+> Historical generated snapshot. Current architecture is documented in `docs/Architecture/system-architecture.md`; the active UI is v3 HTML/pywebview under `python/gui_web/`.
+
 ## System Layers
 
 1. Firmware (ESP32)

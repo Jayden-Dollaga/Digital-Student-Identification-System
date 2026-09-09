@@ -1,9 +1,10 @@
 Change Log
 ==========
 
-Unreleased — verified 2026-09-09
+Unreleased — verified 2026-09-10
 --------------------------------
 
+- Maintenance: Refactored project structure and removed redundant code while preserving the v3 webview runtime and v2 parity reference (`69e563b`).
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
 - UI: Added the v3 light theme stylesheet, expanded webview UI components, and preserved the proven Qt implementation under `python/gui_web/v2_reference/` for parity review (`ea3ea7c`).
 - Feature: Added day/week/month Attendance Evaluation with observed-school-day rate calculation, category bands, sorting, leaderboard display, and permission-gated CSV export (`e450433`).
@@ -26,6 +27,11 @@ Unreleased — verified 2026-09-09
 - Security: Enforced additional student-operation permissions and improved database error logging (`4d87200`).
 - Improve: Refactored theme management, improved hardware-test handling, and added configurable automatic-backup intervals (`215582c`, `849a504`).
 - Fix: Added stale COM-port cleanup and a **Forget saved port** workflow for ESP32 connection recovery (`d68a405`).
+
+v2.5.0 tag note
+---------------
+
+The repository contains a `v2.5.0` tag, but its release contents and provenance are not represented by a dedicated changelog section. Do not infer v2.5.0 feature scope from the tag alone; the current v3 work remains on `main` and unreleased.
 
 v2.4 — 2026-07-17
 -----------------
@@ -93,4 +99,4 @@ v1.0 — Initial release
 Notes
 -----
 
-Last verified: 2026-09-03, against the current `main` branch
+Last verified: 2026-09-10, against commit `69e563b`

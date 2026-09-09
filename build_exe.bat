@@ -1,5 +1,5 @@
 @echo off
-REM Build the active Qt interface into dist\DSIS with PyInstaller.
+REM Build the active v3 HTML/pywebview interface into dist\DSIS with PyInstaller.
 setlocal
 cd /d "%~dp0"
 
@@ -17,5 +17,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Presentation build complete.
+echo V3 webview presentation build complete.
 echo Output: dist\DSIS\DSIS.exe

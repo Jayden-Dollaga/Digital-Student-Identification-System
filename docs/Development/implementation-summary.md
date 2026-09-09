@@ -28,4 +28,4 @@ Run the focused implementation tests from the repository root:
 python -m pytest tests/test_project_structure.py tests/test_qt_enrollment_flow.py tests/test_qt_serial_worker.py
 ```
 
-Serial hardware integration still requires a connected, correctly wired ESP32 and AS608 module. This summary was reviewed against commit `e450433` on 2026-09-09.
+Serial hardware integration still requires a connected, correctly wired ESP32 and AS608 module. This summary was reviewed against commit `69e563b` on 2026-09-10.

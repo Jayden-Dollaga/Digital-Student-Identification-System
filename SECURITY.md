@@ -6,12 +6,14 @@ record (see [the documentation index](docs/INDEX.md)).
 
 ## Supported Versions
 
-The repository currently identifies its release line as `v0.1.0`. Security
-fixes are considered for the current `v0.1.x` line.
+The repository has a `v2.5.0` tag, but current v3 webview work remains
+unreleased. Security fixes are considered for the tagged release line and the
+current `main` branch; no v3 release support window has been published yet.
 
 | Version | Supported |
 | --- | --- |
-| `v0.1.x` | Yes |
+| `v2.5.x` | Yes |
+| `main` | Best effort while v3 remains unreleased |
 | Older or unversioned snapshots | No commitment |
 
 ## Reporting a Vulnerability

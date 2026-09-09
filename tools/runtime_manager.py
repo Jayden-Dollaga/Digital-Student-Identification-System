@@ -1,7 +1,7 @@
 """DSIS Runtime Manager
 
-Small PySide6 GUI to detect a portable Python runtime, verify dependencies,
-and optionally launch the portable interpreter to run DSIS or tests.
+Small PySide6 utility to detect a portable Python runtime, verify v3 webview
+dependencies, and optionally launch the portable interpreter to run DSIS or tests.
 
 This tool is intentionally minimal and does not modify any global state.
 It runs subprocesses against the portable interpreter when available.
@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PORTABLE_PYTHON = REPO_ROOT / "system" / "python" / ("python.exe" if sys.platform.startswith("win") else "python")
 
 RUNTIME_DEPS = [
-    "PySide6",
+    "webview",
     "serial",  # pyserial (import name `serial`)
     "Pillow",
     "matplotlib",
@@ -163,7 +163,7 @@ class RuntimeManager(QWidget):
         if not PORTABLE_PYTHON.exists():
             self.append_output("Cannot run DSIS: portable Python not found.")
             return
-        script = REPO_ROOT / "run_qt_gui.py"
+        script = REPO_ROOT / "run_web_gui.py"
         if not script.exists():
             self.append_output(f"Launcher not found: {script}")
             return

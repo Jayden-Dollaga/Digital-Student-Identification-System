@@ -1,5 +1,7 @@
 # GUI Audit
 
+> Historical generated snapshot. The active interface is v3 HTML/pywebview; the Qt and CustomTkinter stacks described here are archived/reference implementations.
+
 ## Overview
 
 The project includes two desktop user interfaces:

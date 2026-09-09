@@ -1,5 +1,7 @@
 # Testing Audit
 
+> Historical generated snapshot. Current test counts and known failures are maintained in `docs/UserGuide/testing-results.md`.
+
 ## Test coverage areas
 
 The test suite in `tests/` covers the following areas:

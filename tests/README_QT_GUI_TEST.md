@@ -1,9 +1,11 @@
-# Interactive Qt GUI Test
+# Interactive Qt GUI Test (Historical)
 
-This is an interactive smoke test for the maintained PySide6 interface. It
-opens the real application UI without requiring an Arduino or fingerprint
-sensor. The application starts disconnected; click **Connect** only when you
-want to test a real board.
+> This smoke test targets the archived v2 PySide6/Qt interface. The maintained application is the v3 HTML/pywebview interface launched by `run_web_gui.py`.
+
+This is an interactive smoke test for the archived PySide6 v2 interface. It
+opens the historical application UI without requiring an Arduino or fingerprint
+sensor. Use the v3 webview smoke tests and `run_web_gui.py` for the maintained
+application; use this test only for parity or regression comparison.
 
 ## Install dependencies
 
@@ -13,8 +15,8 @@ From the repository root:
 python -m pip install -r requirements.txt
 ```
 
-The active Qt interface requires `PySide6` and `pyserial`. The full requirements
-file also supports reporting and the other project tools.
+The archived Qt interface requires `PySide6` and `pyserial`. The full
+requirements file also supports the active webview application and other tools.
 
 ## Run from the repository
 

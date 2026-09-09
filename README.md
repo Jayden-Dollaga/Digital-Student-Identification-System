@@ -116,4 +116,4 @@ See the [documentation index](docs/INDEX.md) for the full map.
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-09, against commit `e450433`
+Last verified: 2026-09-10, against commit `69e563b`

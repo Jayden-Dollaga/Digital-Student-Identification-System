@@ -1,5 +1,8 @@
 # File Inventory
+
+> Historical generated snapshot. This inventory includes runtime data and obsolete launchers from its generation point; it is not a current repository manifest.
 This file lists repository files and key folders for the documentation audit.
+
 - .gitattributes
 - .gitignore
 - .vscode/settings.json

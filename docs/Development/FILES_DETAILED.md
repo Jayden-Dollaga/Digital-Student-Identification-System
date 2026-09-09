@@ -1,126 +1,49 @@
-FILES_DETAILED.md
-=================
+# Active Python File Guide
 
-This file was generated programmatically. It summarizes each Python source file in the
-repository by extracting the top-level module docstring or leading comment block and
-adding a one-line purpose summary. It is intended as a developer reference.
+This guide replaces the older generated inventory that described the v1/v2 UI trees as current. It summarizes the maintained v3 source tree at commit `69e563b`.
 
----
+## Entry points
 
-1) python/config.py
---------------------
-Doc excerpt:
-"""Configuration helpers for the Digital Student Identification System (DSIS).
+- `run_web_gui.py`: adds the Python and web GUI paths, then launches `gui_web.main_web.main()`.
+- `python/main.py`: compatibility entry point that delegates to the v3 webview launcher.
+- `python/gui_web/main_web.py`: creates the native pywebview window, loads `web/index.html`, connects the API object, and disconnects cleanly when the window closes.
 
-The module now exposes a small config dataclass and environment-aware helpers
-without doing expensive serial discovery during import time.
-"""
+## Web UI and bridge
 
-Purpose: Provide `AppConfig`, environment-aware resolution of runtime paths, and helper
-functions for serial port discovery and default settings.
+- `python/gui_web/api.py`: the JSON-safe bridge exposed as `window.pywebview.api`. It coordinates connection, serial events, enrollment, deletion, wipe, settings, database queries, reports, backups, attendance evaluation, and CSV export.
+- `python/gui_web/web/index.html`: page shell, navigation, dashboard, attendance, students, reports, logs, and settings markup.
+- `python/gui_web/web/app.js`: frontend state, navigation, pywebview readiness, event handling, serial controls, enrollment flow, evaluation rendering, and export actions.
+- `python/gui_web/web/styles.css`: current light/dark theme variables, layout, controls, tables, dialogs, and evaluation components.
+- `python/gui_web/v2_reference/`: reference-only PySide6 source snapshot used to compare workflow and serial contracts; it is not imported by v3.
 
-2) python/settings_store.py
----------------------------
-Doc excerpt: (no module docstring) leading contents show it manages a JSON settings file
-and provides `load_settings()` / `save_settings()` helpers.
+## Backend
 
-Purpose: Persist and load small UI settings JSON file under the project's data directory.
+- `python/config.py`: `AppConfig`, environment overrides, serial defaults, role definitions, logging, backup, and data paths.
+- `python/settings_store.py`: JSON persistence for port, baud, theme, cooldown, confidence, role, auto-detection, reconnect, logging, and backup preferences.
+- `python/core/serial_handler.py`: pyserial boundary, port opening, command writes, buffered reads, handshake metadata, disconnects, and reconnects.
+- `python/core/device_discovery.py`: port scoring, VID/PID hints, boot capture, identity handshake, and candidate probing.
+- `python/core/commands.py`: validated newline-terminated firmware commands.
+- `python/core/attendance.py`: JSON/text parsing, cooldown, confidence handling, and attendance outcomes.
+- `python/core/database.py`: SQLite schema, reserved `fingerprint_id = 0` row, students, attendance, statistics, evaluation inputs, backups, restore validation, and exports.
+- `python/core/permissions.py`: role-based local action checks.
+- `python/core/logger.py`: structured console and per-run file logging.
+- `python/core/utils.py`: JSON parsing, formatting, and shared utility functions.
+- `python/core/firmware_helper.py`: historical firmware candidate and upload helpers; the supported upload path is Arduino IDE with the all-in-one sketch.
 
-3) python/core/__init__.py
--------------------------
-Doc excerpt: """Core package for attendance system logic.
+## Services and archived/reference code
 
-Exports:
-- Database functions for student and attendance management
-- Serial handler for ESP32 communication
-- Command functions for fingerprint operations
-- Logger for application events
-"""
+- `python/services/`: thin compatibility wrappers around database and export operations; the active v3 API calls core functions directly for most workflows.
+- `python/gui/` and `python/gui_qt/`: compatibility/reference packages retained for tests and migration comparison.
+- `archive/legacy-ui/v1/`: historical CustomTkinter application.
+- `archive/legacy-ui/v2/`: historical PySide6/Qt application.
 
-Purpose: Package initializer and short listing of exported core responsibilities.
+## Validation
 
-4) python/core/logger.py
-------------------------
-Doc excerpt: Header comment explaining centralized logging, rotating file output, and
-structured message formatting. Implements `LOG` configuration and helper functions
-(`debug`, `info`, `success`, etc.) and provides `log = LoggerProxy()`.
+- `tests/test_gui_web_smoke.py`: active v3 bridge and UI smoke coverage.
+- `tests/test_database_*.py`: schema, reset, backup, restore, and security coverage.
+- `tests/test_permissions_and_attendance_tagging.py`: role and attendance behavior.
+- `tests/Prototype/`: isolated visual previews, not production workflows.
 
-Purpose: Centralized application logging (console + timed rotating file handlers).
+For the current launch and architecture workflow, see [FILES_OVERVIEW.md](FILES_OVERVIEW.md), [system-architecture.md](../Architecture/system-architecture.md), and [testing-results.md](../UserGuide/testing-results.md).
 
-5) python/core/database.py
---------------------------
-Doc excerpt: """Persistence layer for students, attendance events, reports, and backup helpers.
-
-This module centralizes SQLite access for the Digital Student Identification System (DSIS) and
-keeps the rest of the application focused on workflow logic instead of raw SQL.
-"""
-
-Purpose: Main DB layer — schema initialization, CRUD helpers for students and attendance,
-report generation, and chart/export helpers. Provides `get_connection()` returning a
-`ManagedConnection` context wrapper.
-
-6) python/core/serial_handler.py
---------------------------------
-Doc excerpt: Module docstring: "Serial communication boundary for the ESP32 fingerprint device."
-
-Purpose: Encapsulates `pyserial` usage, reconnect logic, read/write helpers used by GUI workers.
-
-7) python/gui_qt/main_qt.py
--------------------------
-Doc excerpt: Module docstring: Launcher for the PySide6-based Qt interface.
-
-Purpose: Qt entrypoint — loads stylesheet, constructs `MainWindow`, and runs the Qt event loop.
-
-8) python/gui_qt/main_window.py
-------------------------------
-Doc excerpt: (no module docstring) file defines `MainWindow` using PySide6 and composes pages,
-serial worker, and application lifecycle glue.
-
-Purpose: Main UI host for the PySide6 GUI; wires pages, serial worker, and page switching.
-
-9) tools/_database_refactor.py
-------------------------------
-Doc excerpt: (no top docstring) contains a near-copy of DB helper code used during refactors.
-
-Purpose: Developer tool used for refactor work; now delegates `get_connection()` to `core.database`.
-
-10) tools/debug_db_connections.py
----------------------------------
-Doc excerpt: (no top docstring) debug helper that tracks sqlite3 connections and prints counts.
-
-Purpose: Detect unclosed sqlite3 connections during debugging; now safely closes tracked connections.
-
-11) tools/verify_gui_startup.py
-------------------------------
-Doc excerpt: small helper that imports the legacy `customtkinter` app and runs its `main()`
-with the mainloop stubbed out to test startup.
-
-Purpose: Script to detect whether the legacy CTk GUI can be imported and initialized safely.
-
-12) python/testing_area/services/excel_export.py
-----------------------------------------------
-Doc excerpt: file header explaining Excel export helpers for attendance records using `openpyxl`.
-
-Purpose: Example/export helper that writes attendance to XLSX files. Lives in `testing_area`.
-
-13) python/testing_area/services/backup.py
-----------------------------------------
-Doc excerpt: header describing simple copy-based DB backup to data/backups/.
-
-Purpose: Small reference script demonstrating how to copy DB to backups folder.
-
-14) tests/legacy/* (phase2_databasev*.py)
-----------------------------------------
-Doc excerpt: Large header comments in each legacy script explaining how to run a serial-to-sqlite
-phase2 demo; these scripts historically used `sqlite3.connect(DB_FILE)`. They were updated to use
-the project's `core.database.get_connection()` and set `FINGERPRINT_DB_PATH` so they reuse the
-same PRAGMA/settings and ManagedConnection wrapper.
-
-Purpose: Legacy example scripts used for manual instrumented testing with an ESP32 connected.
-
----
-
-If you want the full file-by-file dump of every Python file's top docstring and the first
-non-empty comment line, I can append it below or save it as a more verbose `FILES_EXTRACT.md`.
-
-Next: I will run the entire test suite and fix any failing tests or lingering ResourceWarning traces.
+Last reviewed: 2026-09-10, against commit `69e563b`.
