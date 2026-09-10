@@ -273,6 +273,9 @@ function handleScanResult(payload) {
       `<td><span class="badge ${isMatch ? 'present' : 'absent'}">${escapeHtml(isMatch ? (payload.status || 'PRESENT') : 'UNKNOWN')}</span></td>`;
     tbody.insertBefore(tr, tbody.firstChild);
     loadDashboardStats();
+    // The API commits the attendance row before emitting scan_result. Reload
+    // the selected evaluation window so its rate and leaderboard stay current.
+    loadAttendanceEvaluation();
     attendanceOnScanEvent({
       date: now.toISOString().slice(0, 10),
       time: now.toLocaleTimeString('en-US', { hour12: false }),
@@ -372,11 +375,25 @@ function renderAttendanceEvaluation() {
   const rangeLabel = formatEvalRangeLabel(evalData);
 
   if (!rows.length) {
-    body.innerHTML = `<div class="me-empty">No students enrolled yet.</div>`;
+    body.innerHTML = `
+      <div class="me-empty me-empty-card">
+        <div class="me-empty-icon">◎</div>
+        <div>
+          <div class="me-empty-title">No students enrolled yet</div>
+          <div class="me-empty-sub">Add a student and enroll a fingerprint to start tracking attendance.</div>
+        </div>
+      </div>`;
     return;
   }
   if (evalData.total_days === 0) {
-    body.innerHTML = `<div class="me-empty">No attendance activity recorded for ${rangeLabel} yet.</div>`;
+    body.innerHTML = `
+      <div class="me-empty me-empty-card">
+        <div class="me-empty-icon">◌</div>
+        <div>
+          <div class="me-empty-title">No attendance activity recorded</div>
+          <div class="me-empty-sub">Nothing was scanned for ${rangeLabel} yet.</div>
+        </div>
+      </div>`;
     return;
   }
 
@@ -446,6 +463,12 @@ async function loadDashboardStats() {
 async function loadRecentActivity() {
   const rows = await api().get_recent_activity(25);
   const tbody = document.getElementById('activity-tbody');
+  const panel = document.getElementById('recent-activity-panel');
+  if (panel) panel.classList.toggle('empty', rows.length === 0);
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="recent-activity-empty">No attendance activity yet.</div></td></tr>';
+    return;
+  }
   tbody.innerHTML = rows.map(rowToActivityTr).join('');
 }
 
@@ -612,7 +635,7 @@ async function deleteSelectedStudent() {
   const name = selectedStudent.student_name;
 
   if (!connected) {
-    alert(`Delete ${name}? Connect to the ESP32 first \u2014 deleting while disconnected is disabled so the database and the sensor can't drift out of sync (a deleted ID could get reused during enrollment while its old fingerprint template is still on the sensor).`);
+    alert('Connect to the ESP32 first.');
     return;
   }
   const confirmed = await showDestructiveConfirm(
@@ -800,6 +823,10 @@ let enrollState = null; // { existing, resolveId }
 
 function reenrollSelectedStudent() {
   if (!selectedStudent || !selectedStudent.fingerprint_id) return;
+  if (!connected) {
+    alert('Connect to the ESP32 first.');
+    return;
+  }
   openEnrollDialog(selectedStudent);
 }
 

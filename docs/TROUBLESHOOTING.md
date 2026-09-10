@@ -64,7 +64,7 @@ From the project root, run:
 python -c "from python.core.device_discovery import list_serial_ports; print(list_serial_ports())"
 ```
 
-When reporting a problem, include the output, the Device Manager device name, the selected board, the USB bridge family, and the relevant lines from `data/logs/fingerprint_attendance.log`.
+When reporting a problem, include the output, the Device Manager device name, the selected board, the USB bridge family, and the relevant lines from the latest timestamped file in `data/logs/`.
 
 ## V3 Operation State Problems
 
@@ -77,8 +77,9 @@ If the UI reports a timeout:
 
 1. Close Arduino Serial Monitor and any other serial terminal.
 2. Confirm the firmware responds to `ID?` at 115200 baud.
-3. Disconnect and reconnect the board.
+3. Click the ESP32 **EN/RESET** button to refresh the board. If it still does not connect, unplug the USB cable, wait 5-10 seconds, plug it back in, and wait for Windows to recreate the COM port.
 4. Retry the operation only after the device metadata and fingerprint count appear.
+5. If the connection still fails, open the latest file under `data/logs/` and check for serial, handshake, or permission errors.
 
 ## V3 Role Restrictions
 

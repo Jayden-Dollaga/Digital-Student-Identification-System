@@ -128,7 +128,17 @@ class SerialHandler:
         )
 
         with self._lock:
-            self._reconnect_stop.clear()
+            # A manual or UI-triggered connect supersedes any pending retry.
+            # Leaving the retry worker alive would make it probe an already
+            # adopted COM port and report a misleading access-denied error.
+            self._reconnect_stop.set()
+
+            if self.is_connected():
+                current_port = self.reconnect_port or ""
+                if not port or port.upper() == current_port.upper():
+                    log.info("SerialHandler.connect() reused existing connection", port=current_port, baud=self.reconnect_baud)
+                    return True, "OK (already connected)"
+
             self.device_metadata = None
             self._preferred_port = None
             self._auto_detect_requested = False
