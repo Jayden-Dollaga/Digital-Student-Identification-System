@@ -321,12 +321,11 @@ function todayStr() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-// Switches the single date input between type="month" (for Month) and
-// type="date" (for Day/Week) and seeds a sensible default the first time.
+// Switches the single date input between month, week, and day controls.
 function onPeriodChange(isInitial) {
   const period = document.getElementById('me-period').value;
   const input = document.getElementById('me-date');
-  const wantType = period === 'month' ? 'month' : 'date';
+  const wantType = period === 'month' ? 'month' : period === 'week' ? 'week' : 'date';
   if (input.type !== wantType) {
     input.type = wantType;
     input.value = '';
@@ -335,7 +334,7 @@ function onPeriodChange(isInitial) {
     const now = new Date();
     input.value = wantType === 'month'
       ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      : todayStr();
+      : wantType === 'week' ? currentIsoWeek(now) : todayStr();
   }
   if (!isInitial) loadAttendanceEvaluation();
 }
@@ -346,7 +345,7 @@ async function loadAttendanceEvaluation() {
   const period = document.getElementById('me-period').value;
   const dateVal = document.getElementById('me-date').value;
   if (!dateVal) return;
-  const refDate = period === 'month' ? `${dateVal}-01` : dateVal;
+  const refDate = period === 'month' ? `${dateVal}-01` : period === 'week' ? isoWeekToMonday(dateVal) : dateVal;
   body.innerHTML = '<div class="modal-status" style="padding:10px 0;">Loading\u2026</div>';
   const report = await api().get_attendance_evaluation(period, refDate);
   if (!report.ok) {
@@ -594,12 +593,52 @@ function attendanceOnScanEvent(row) {
   countEl.textContent = `${tbody.children.length} records`;
 }
 
-async function exportAttendanceCsv(mode) {
+function isoWeekToMonday(weekValue) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue || '');
+  if (!match) return '';
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - (jan4.getUTCDay() || 7) + 1 + (week - 1) * 7);
+  return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+}
+
+function currentIsoWeek(date) {
+  const thursday = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((thursday - yearStart) / 86400000) + 1) / 7);
+  return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function formatWeekRange(weekValue) {
+  const monday = isoWeekToMonday(weekValue);
+  if (!monday) return 'Choose a week';
+  const start = new Date(`${monday}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const format = date => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `Week of ${format(start)} – ${format(end)}`;
+}
+
+function updateExportWeekLabel() {
+  const input = document.getElementById('export-week');
+  const label = document.getElementById('export-week-label');
+  if (input && label) label.textContent = formatWeekRange(input.value);
+}
+
+async function exportAttendanceCsv(mode, weekValue = '') {
   if (!guardPermission('export', 'Exporting attendance data')) return;
   if (!api()) return;
   const selected = document.getElementById('att-mode');
   const modeKey = mode || (selected ? (selected.value === 'Recent' ? 'recent' : selected.value === 'Last 30 Days' ? 'last30' : 'today') : 'today');
-  const res = await api().export_attendance_csv(modeKey);
+  const weekStart = modeKey === 'weekly' ? isoWeekToMonday(weekValue) : '';
+  if (modeKey === 'weekly' && !weekStart) {
+    alert('Choose a calendar week first.');
+    return;
+  }
+  const res = await api().export_attendance_csv(modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart);
   alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
 
@@ -628,6 +667,12 @@ async function selectStudent(row, fingerprintId) {
   document.getElementById('det-grade').textContent = `Grade ${student.grade}`;
   document.getElementById('det-section').textContent = student.section;
   document.getElementById('det-fpid').textContent = '#' + student.fingerprint_id;
+  const status = student.attendance_status || 'Absent';
+  const statusBadge = document.getElementById('student-status-today');
+  if (statusBadge) {
+    statusBadge.textContent = status;
+    statusBadge.className = 'badge ' + attendanceBadgeClass(status);
+  }
 }
 
 let pendingDelete = null; // { fingerprintId, resolve }
@@ -1065,6 +1110,11 @@ async function exportStudentsCsv() {
 // ── Reports ──
 async function loadReportsPage() {
   if (!api()) return;
+  const exportWeek = document.getElementById('export-week');
+  if (exportWeek && !exportWeek.value) {
+    exportWeek.value = currentIsoWeek(new Date());
+    updateExportWeekLabel();
+  }
   await generateStatsReport();
   await loadBackupsList();
   const stats = await api().get_dashboard_stats();

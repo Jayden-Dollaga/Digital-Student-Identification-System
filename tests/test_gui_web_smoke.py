@@ -1,6 +1,7 @@
 """Static and bridge-level smoke checks for the V3 HTML/pywebview UI."""
 
 from pathlib import Path
+from datetime import datetime
 import json
 import sys
 from unittest.mock import MagicMock
@@ -32,6 +33,12 @@ def test_v3_web_shell_contains_all_primary_workflows():
     for event in ("connection_status", "mode_changed", "enroll_progress", "delete_progress", "wipe_progress", "data_changed"):
         assert event in script
     assert "<th>Attendance</th>" in html
+    assert "Export Weekly Attendance (CSV)" in html
+    assert '<option>Recent</option>\n            <option>Today</option>' in html
+    assert 'id="export-week"' in html
+    assert 'id="export-week-label"' in html
+    assert "isoWeekToMonday" in script
+    assert "formatWeekRange" in script
     assert "&#9664; Prev" in html
     assert "Next &#9654;" in html
     assert "attendance_status" in script
@@ -40,11 +47,54 @@ def test_v3_web_shell_contains_all_primary_workflows():
 
 def test_v3_web_bundle_uses_native_unicode_display_values():
     script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
 
     assert "repairWebviewMojibake" not in script
     assert "return String(value == null ? '' : value)" in script
     assert "textContent = student.student_name" in script
     assert "${escapeHtml(r.student_name)}" in script
+    assert 'id="student-status-today"' in html
+    assert 'id="set-time-in"' in html
+    assert html.count('id="det-status"') == 0
+    assert "getElementById('student-status-today')" in script
+
+
+def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
+        "fingerprint_id": fingerprint_id,
+        "student_name": "Alice",
+    })
+    monkeypatch.setattr("gui_web.api.datetime", __import__("datetime").datetime)
+    monkeypatch.setattr("gui_web.api.db.get_attendance_by_date", lambda date: [{
+        "fingerprint_id": 7,
+        "event_type": "time_in",
+        "time": "08:20:00",
+    }])
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "time_in": "08:00", "time_out": "17:00",
+        "early_threshold_minutes": 15, "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 60,
+    })
+
+    student = api.get_student(7)
+
+    assert student["attendance_status"] == "Late"
+
+
+def test_v3_student_detail_without_scan_is_absent(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
+        "fingerprint_id": fingerprint_id,
+        "student_name": "Alice",
+    })
+    monkeypatch.setattr("gui_web.api.db.get_attendance_by_date", lambda date: [])
+
+    assert api.get_student(7)["attendance_status"] == "Absent"
 
 
 def test_v3_push_json_round_trips_unicode_names():
@@ -196,6 +246,69 @@ def test_v3_all_students_export_includes_attendance_columns(monkeypatch):
     assert rows[0]["time_out"] == ""
     assert rows[0]["attendance_status"] == "Present"
     assert rows[1]["attendance_status"] == "Absent"
+
+
+def test_v3_recent_export_uses_visible_page(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/recent.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    recent_rows = [{
+        "student_no": "S-1", "student_name": "Alice", "grade": "12", "section": "A",
+        "date": "2026-09-11", "time": "08:00:00", "confidence": 200,
+        "status": "GOOD MATCH", "event_type": "time_in", "fingerprint_id": 1,
+    }]
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.db.get_attendance_paginated", lambda limit, offset: recent_rows)
+    monkeypatch.setattr("gui_web.api.db.export_attendance_rows_with_time_in_out", lambda rows: [{
+        "student_name": rows[0]["student_name"], "time_in": rows[0]["time"], "time_out": "",
+    }])
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range_with_time_in_out", lambda start, end: pytest.fail("Recent must not query a date range"))
+
+    result = api.export_attendance_csv("recent", 100)
+
+    assert result == {"ok": True}
+    assert api._rows_to_csv.call_args.args[0][0]["student_name"] == "Alice"
+
+
+def test_v3_weekly_export_uses_seven_day_date_range(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/weekly.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    captured = {}
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    def export_range(start, end):
+        captured["range"] = (start, end)
+        return [{"student_name": "Alice", "time_in": "08:00:00", "time_out": ""}]
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range_with_time_in_out", export_range)
+
+    result = api.export_attendance_csv("weekly")
+
+    assert result == {"ok": True}
+    start, end = captured["range"]
+    assert (datetime.strptime(end, "%Y-%m-%d") - datetime.strptime(start, "%Y-%m-%d")).days == 6
+
+
+def test_v3_weekly_export_uses_selected_calendar_week(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/weekly.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    captured = {}
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    def export_range(start, end):
+        captured["range"] = (start, end)
+        return [{"time_in": "08:00:00"}]
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range_with_time_in_out", export_range)
+
+    result = api.export_attendance_csv("weekly", week_start="2026-09-07")
+
+    assert result == {"ok": True}
+    assert captured["range"] == ("2026-09-07", "2026-09-13")
 
 
 def test_restore_publishes_v3_data_refresh_event(monkeypatch):

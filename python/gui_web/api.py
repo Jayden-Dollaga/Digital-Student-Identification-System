@@ -746,7 +746,9 @@ class Api:
             )
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
-    def export_attendance_csv(self, mode: str = "today") -> Dict[str, Any]:
+    def export_attendance_csv(
+        self, mode: str = "today", offset: int = 0, week_start: str = ""
+    ) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
             return {"ok": False, "message": "Current role does not have export permission."}
         
@@ -754,18 +756,34 @@ class Api:
         # recent-record fallback, so use that exact visible set when today has
         # no rows instead of exporting an empty current-date range.
         now = datetime.now()
-        if mode == "today":
+        if mode == "recent":
+            visible_rows = db.get_attendance_paginated(limit=100, offset=max(0, int(offset)))
+            rows = db.export_attendance_rows_with_time_in_out(visible_rows)
+        elif mode == "today":
             start = end = now.strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
+        elif mode == "weekly":
+            try:
+                selected_monday = datetime.strptime(week_start, "%Y-%m-%d") if week_start else now - timedelta(days=now.weekday())
+            except ValueError:
+                return {"ok": False, "message": "Invalid calendar week."}
+            if selected_monday.weekday() != 0:
+                return {"ok": False, "message": "Weekly export must start on a Monday."}
+            start = selected_monday.strftime("%Y-%m-%d")
+            end = (selected_monday + timedelta(days=6)).strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
         elif mode == "last30":
             start = (now - timedelta(days=30)).strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
         elif mode == "last7":
             start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
         else:
             start = end = now.strftime("%Y-%m-%d")
-        
-        rows = db.export_attendance_range_with_time_in_out(start, end)
+            rows = db.export_attendance_range_with_time_in_out(start, end)
+
         if not rows and mode == "today":
             visible_rows = db.get_attendance_today()
             rows = db.export_attendance_rows_with_time_in_out(visible_rows)
@@ -787,7 +805,28 @@ class Api:
         return db.get_all_students()
 
     def get_student(self, fingerprint_id: int) -> Dict[str, Any]:
-        return db.get_student(fingerprint_id) or {}
+        student = db.get_student(fingerprint_id)
+        if not student:
+            return {}
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_rows = [
+            row for row in db.get_attendance_by_date(today)
+            if row.get("fingerprint_id") == int(fingerprint_id)
+        ]
+        time_in_row = next(
+            (row for row in today_rows if row.get("event_type") == "time_in"),
+            today_rows[0] if today_rows else None,
+        )
+        student["attendance_status"] = (
+            calculate_attendance_status(
+                time_in_row.get("time", "00:00:00"),
+                "time_in",
+                load_settings(),
+            )
+            if time_in_row
+            else "Absent"
+        )
+        return student
 
     def save_student(
         self,
