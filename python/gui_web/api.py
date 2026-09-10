@@ -17,6 +17,7 @@ from __future__ import annotations
 import calendar
 import csv
 import io
+import json
 import logging
 import os
 import re
@@ -28,11 +29,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import webview
+
 from config import get_config
 from core import commands as cmds
 from core import database as db
 from core import permissions
 from core.attendance import AttendanceProcessor
+from core.attendance_status import calculate_attendance_status
 from core.logger import LOG, LOG_FILE, AppFormatter, log
 from core.serial_handler import SerialHandler, list_serial_ports
 from core.utils import parse_json_line
@@ -55,9 +59,10 @@ RE_STORED_COUNT = re.compile(r"Stored fingerprints:\s*(\d+)", re.IGNORECASE)
 
 
 _FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+_NUMERIC_STUDENT_NUMBER = re.compile(r"^\d{10,}$")
 
 
-def _sanitize_csv_cell(value: Any) -> str:
+def _sanitize_csv_cell(value: Any, force_text: bool = False) -> str:
     """Neutralize CSV/formula-injection payloads (CWE-1236) before writing.
 
     Ported verbatim from archive/legacy-ui/v2/python/gui_qt/pages/reports_page.py.
@@ -69,6 +74,8 @@ def _sanitize_csv_cell(value: Any) -> str:
     v2 explicitly patched.
     """
     text = "" if value is None else str(value)
+    if force_text and _NUMERIC_STUDENT_NUMBER.fullmatch(text):
+        return "'" + text
     if text.startswith(_FORMULA_TRIGGER_CHARS):
         return "'" + text
     return text
@@ -198,6 +205,21 @@ class Api:
     def set_window(self, window) -> None:
         self._window = window
 
+    def _choose_csv_path(self, filename: str) -> Optional[Path]:
+        """Open a native Save As dialog and return the user's selected path."""
+        if self._window is None:
+            return None
+        selected = self._window.create_file_dialog(
+            dialog_type=webview.FileDialog.SAVE,
+            directory=str(CONFIG.export_folder),
+            save_filename=filename,
+            file_types=("CSV files (*.csv)", "All files (*.*)"),
+        )
+        if not selected:
+            return None
+        selected_path = selected[0] if isinstance(selected, (tuple, list)) else selected
+        return Path(selected_path)
+
     def _push(self, event: str, payload: Any) -> None:
         """Fire a JS-side event so the UI updates without polling.
 
@@ -208,10 +230,10 @@ class Api:
         if self._window is None:
             return
         try:
-            import json
-
+            event_json = json.dumps(event, ensure_ascii=True, allow_nan=False)
+            payload_json = json.dumps(payload, default=str, ensure_ascii=True, allow_nan=False)
             self._window.evaluate_js(
-                f"window.dsisEvent && window.dsisEvent({json.dumps(event)}, {json.dumps(payload, default=str)})"
+                f"window.dsisEvent && window.dsisEvent({event_json}, {payload_json})"
             )
         except Exception:
             pass
@@ -547,10 +569,22 @@ class Api:
         if result is None:
             return
         student = self.processor.lookup_student(result["fingerprint_id"]) if result.get("fingerprint_id") else None
+        attendance_status = "Unknown"
+        if result.get("fingerprint_id") and result.get("logged") and result.get("timestamp"):
+            rows = db.get_attendance_by_date(result["timestamp"].strftime("%Y-%m-%d"))
+            matching = [row for row in rows if row.get("fingerprint_id") == result.get("fingerprint_id")]
+            if matching:
+                latest = matching[-1]
+                attendance_status = calculate_attendance_status(
+                    latest.get("time", result["timestamp"].strftime("%H:%M:%S")),
+                    latest.get("event_type"),
+                    load_settings(),
+                )
         payload = {
             "fingerprint_id": result.get("fingerprint_id"),
             "confidence": result.get("confidence"),
             "status": result.get("status"),
+            "attendance_status": attendance_status,
             "logged": result.get("logged"),
             "reason": result.get("reason"),
             "timestamp": result.get("timestamp").isoformat() if result.get("timestamp") else None,
@@ -677,7 +711,16 @@ class Api:
         }
 
     def get_recent_activity(self, limit: int = 25) -> List[Dict[str, Any]]:
-        return db.get_attendance_paginated(limit=limit, offset=0)
+        rows = db.get_attendance_paginated(limit=limit, offset=0)
+        settings = load_settings()
+        for row in rows:
+            row["match_status"] = row.get("status")
+            row["attendance_status"] = (
+                calculate_attendance_status(row.get("time", "00:00:00"), row.get("event_type"), settings)
+                if row.get("fingerprint_id")
+                else "Unknown"
+            )
+        return rows
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
         mode = (mode or "today").lower()
@@ -693,13 +736,51 @@ class Api:
         else:  # recent - paginated, matching v2's AttendancePage Prev/Next
             rows = db.get_attendance_paginated(limit=page_size, offset=offset)
             has_more = len(rows) == page_size
+        settings = load_settings()
+        for row in rows:
+            row["match_status"] = row.get("status")
+            row["attendance_status"] = (
+                calculate_attendance_status(row.get("time", "00:00:00"), row.get("event_type"), settings)
+                if row.get("fingerprint_id")
+                else "Unknown"
+            )
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
     def export_attendance_csv(self, mode: str = "today") -> Dict[str, Any]:
         if not permissions.require_permission("export"):
             return {"ok": False, "message": "Current role does not have export permission."}
-        rows = self.get_attendance(mode)["rows"]
-        return self._rows_to_csv(rows, f"attendance_{mode}")
+        
+        # Calculate date range based on mode. Today can display the database's
+        # recent-record fallback, so use that exact visible set when today has
+        # no rows instead of exporting an empty current-date range.
+        now = datetime.now()
+        if mode == "today":
+            start = end = now.strftime("%Y-%m-%d")
+        elif mode == "last30":
+            start = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            end = now.strftime("%Y-%m-%d")
+        elif mode == "last7":
+            start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            end = now.strftime("%Y-%m-%d")
+        else:
+            start = end = now.strftime("%Y-%m-%d")
+        
+        rows = db.export_attendance_range_with_time_in_out(start, end)
+        if not rows and mode == "today":
+            visible_rows = db.get_attendance_today()
+            rows = db.export_attendance_rows_with_time_in_out(visible_rows)
+        if not rows:
+            return {"ok": False, "message": "No data to export."}
+        settings = load_settings()
+        for row in rows:
+            row["attendance_status"] = calculate_attendance_status(
+                row.get("time_in", "00:00:00"), "time_in", settings
+            )
+        
+        # Prepare file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"attendance_{mode}_{timestamp}.csv"
+        return self._export_csv_rows(rows, filename)
 
     # -- students ---------------------------------------------------------------
     def get_students(self) -> List[Dict[str, Any]]:
@@ -739,21 +820,80 @@ class Api:
     def export_students_csv(self) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
             return {"ok": False, "message": "Current role does not have export permission."}
-        rows = self.get_students()
-        return self._rows_to_csv(rows, "students")
+        students = self.get_students()
+        if not students:
+            return {"ok": False, "message": "No students to export."}
 
-    def _rows_to_csv(self, rows: List[Dict[str, Any]], name_prefix: str) -> Dict[str, Any]:
+        today = datetime.now().strftime("%Y-%m-%d")
+        settings = load_settings()
+        attendance_by_student = {
+            row["student_no"]: row
+            for row in db.export_attendance_range_with_time_in_out(today, today)
+        }
+        rows = []
+        for student in students:
+            attendance = attendance_by_student.get(student["student_no"], {})
+            time_in = attendance.get("time_in", "")
+            rows.append({
+                "student_no": student["student_no"],
+                "student_name": student["student_name"],
+                "grade": student["grade"],
+                "section": student["section"],
+                "date": today,
+                "time_in": time_in,
+                "time_out": attendance.get("time_out", ""),
+                "match_status": attendance.get("match_status", ""),
+                "attendance_status": (
+                    calculate_attendance_status(time_in, "time_in", settings)
+                    if time_in else "Absent"
+                ),
+            })
+        rows.sort(key=lambda row: db.export_name_sort_key(row.get("student_name")))
+        
+        # Prepare file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"students_{timestamp}.csv"
+        return self._export_csv_rows(rows, filename)
+
+    def _export_csv_rows(self, rows: List[Dict[str, Any]], filename: str) -> Dict[str, Any]:
+        """Use the same Save As and UTF-8 CSV path for every export button."""
+        out_path = self._choose_csv_path(filename)
+        if out_path is None:
+            return {"ok": False, "message": "Export cancelled."}
+        return self._rows_to_csv(rows, out_path)
+
+    def _rows_to_csv(self, rows: List[Dict[str, Any]], path_or_prefix: str | Path) -> Dict[str, Any]:
+        """Write rows to CSV file with UTF-8 encoding and proper special character handling.
+        
+        Args:
+            rows: List of dictionaries to write
+            path_or_prefix: Either a Path object (full path) or a string (filename prefix for auto-generation)
+        """
         if not rows:
             return {"ok": False, "message": "No data to export."}
-        export_dir = Path(CONFIG.export_folder)
-        export_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = export_dir / f"{name_prefix}_{timestamp}.csv"
-        with out_path.open("w", newline="", encoding="utf-8") as handle:
+        
+        # Determine output path
+        if isinstance(path_or_prefix, Path):
+            out_path = path_or_prefix
+        else:
+            # Legacy behavior: generate filename
+            export_dir = Path(CONFIG.export_folder)
+            export_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_path = export_dir / f"{path_or_prefix}_{timestamp}.csv"
+        
+        # Ensure parent directory exists
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write CSV with UTF-8 encoding and formula injection protection
+        # utf-8-sig adds a BOM so Excel and other spreadsheet tools detect UTF-8 names correctly.
+        with out_path.open("w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
             writer.writeheader()
             for row in rows:
-                writer.writerow({key: _sanitize_csv_cell(value) for key, value in row.items()})
+                # Sanitize each cell to prevent formula injection
+                writer.writerow({key: _sanitize_csv_cell(value, key == "student_no") for key, value in row.items()})
+        
         return {"ok": True, "message": f"Exported {len(rows)} rows", "path": str(out_path)}
 
     # -- reports / backups --------------------------------------------------------
@@ -858,10 +998,18 @@ class Api:
                 "days_absent": r["days_absent"],
                 "attendance_rate": r["attendance_rate"],
                 "category": r["category"],
+                "attendance_status": "Present" if r["days_present"] else "Absent",
             }
             for r in report["rows"]
         ]
-        return self._rows_to_csv(rows, f"attendance_evaluation_{report['period']}_{report['start_date']}_to_{report['end_date']}")
+        
+        # Sort by student_name alphabetically (already sorted from get_attendance_evaluation, but ensure it)
+        rows.sort(key=lambda r: db.export_name_sort_key(r.get("student_name")))
+        
+        # Prepare file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"attendance_evaluation_{report['period']}_{report['start_date']}_to_{report['end_date']}_{timestamp}.csv"
+        return self._export_csv_rows(rows, filename)
 
     def get_statistics_report(self) -> Dict[str, Any]:
         if not (permissions.has_permission("export") or permissions.has_permission("backup")):
@@ -931,10 +1079,32 @@ class Api:
             cooldown = max(1, min(60, int(settings.get("cooldown", merged.get("cooldown", 10)))))
             confidence = max(1, min(100, int(settings.get("min_confidence", merged.get("min_confidence", 96)))))
             backup_interval = max(1, min(180, int(settings.get("auto_backup_interval_minutes", merged.get("auto_backup_interval_minutes", 25)))))
+            early_threshold = max(0, min(120, int(settings.get("early_threshold_minutes", merged.get("early_threshold_minutes", 15)))))
+            late_threshold = max(0, min(120, int(settings.get("late_threshold_minutes", merged.get("late_threshold_minutes", 15)))))
+            absent_threshold = max(0, min(120, int(settings.get("absent_threshold_minutes", merged.get("absent_threshold_minutes", 0)))))
         except (TypeError, ValueError):
-            return {"ok": False, "message": "Attendance and backup settings must be valid numbers."}
+            return {"ok": False, "message": "Settings must be valid numbers."}
+        
+        # Validate time format (HH:MM)
+        time_in = settings.get("time_in", merged.get("time_in", "08:00"))
+        time_out = settings.get("time_out", merged.get("time_out", "17:00"))
+        try:
+            datetime.strptime(time_in, "%H:%M")
+            datetime.strptime(time_out, "%H:%M")
+        except ValueError:
+            return {"ok": False, "message": "Time In and Time Out must be in HH:MM format."}
+        
         settings = dict(settings)
-        settings.update({"cooldown": cooldown, "min_confidence": confidence, "auto_backup_interval_minutes": backup_interval})
+        settings.update({
+            "cooldown": cooldown,
+            "min_confidence": confidence,
+            "auto_backup_interval_minutes": backup_interval,
+            "early_threshold_minutes": early_threshold,
+            "late_threshold_minutes": late_threshold,
+            "absent_threshold_minutes": absent_threshold,
+            "time_in": time_in,
+            "time_out": time_out,
+        })
         merged.update({k: v for k, v in settings.items() if k in merged})
         save_settings(merged)
 

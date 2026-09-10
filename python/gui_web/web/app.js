@@ -250,8 +250,8 @@ function handleScanResult(payload) {
   document.getElementById('scan-name').textContent = name;
   document.getElementById('scan-meta').textContent = `${meta} \u00b7 ${ts}`;
   const isMatch = !!student.student_no;
-  document.getElementById('scan-tag').textContent = isMatch ? (payload.status || 'PRESENT') : 'UNKNOWN';
-  document.getElementById('scan-tag').className = 'scan-status-tag ' + (isMatch ? 'present' : 'unknown');
+  document.getElementById('scan-tag').textContent = isMatch ? (payload.attendance_status || 'Present') : 'UNKNOWN';
+  document.getElementById('scan-tag').className = 'scan-status-tag ' + (isMatch ? attendanceBadgeClass(payload.attendance_status) : 'unknown');
   document.getElementById('scan-icon-wrap').className = 'scan-icon-wrap' + (isMatch ? ' match' : '');
   const confWrap = document.getElementById('conf-wrap');
   if (payload.confidence != null) {
@@ -270,7 +270,8 @@ function handleScanResult(payload) {
       `<td>${isMatch ? escapeHtml(student.student_name) : '<em style="color:var(--muted)">Unknown fingerprint</em>'}</td>` +
       `<td>${student.grade ? `Grade ${escapeHtml(student.grade)} \u2014 ${escapeHtml(student.section)}` : '\u2014'}</td>` +
       `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '%' : '\u2014')}</td>` +
-      `<td><span class="badge ${isMatch ? 'present' : 'absent'}">${escapeHtml(isMatch ? (payload.status || 'PRESENT') : 'UNKNOWN')}</span></td>`;
+      `<td><span class="badge ${badgeClass(payload.status)}">${escapeHtml(isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN')}</span></td>` +
+      `<td><span class="badge ${attendanceBadgeClass(payload.attendance_status)}">${escapeHtml(payload.attendance_status || '\u2014')}</span></td>`;
     tbody.insertBefore(tr, tbody.firstChild);
     loadDashboardStats();
     // The API commits the attendance row before emitting scan_result. Reload
@@ -285,6 +286,8 @@ function handleScanResult(payload) {
       section: student.section || 'N/A',
       confidence: payload.confidence,
       status: isMatch ? (payload.status || 'PRESENT') : 'UNKNOWN',
+      match_status: isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN',
+      attendance_status: isMatch ? payload.attendance_status : 'Unknown',
     });
   }
 }
@@ -419,7 +422,7 @@ function renderAttendanceEvaluation() {
 
   const topFive = [...evalData.rows].sort((a, b) => b.days_present - a.days_present).slice(0, 5);
   const leaderboard = topFive.map((r, i) =>
-    `<div class="me-lb-card"><div class="me-lb-rank">#${i + 1}</div><div class="me-lb-name">${r.student_name}</div><div class="me-lb-days">${r.days_present} day${r.days_present === 1 ? '' : 's'}</div></div>`
+    `<div class="me-lb-card"><div class="me-lb-rank">#${i + 1}</div><div class="me-lb-name">${escapeHtml(r.student_name)}</div><div class="me-lb-days">${r.days_present} day${r.days_present === 1 ? '' : 's'}</div></div>`
   ).join('');
 
   const legend = Object.entries(CATEGORY_META).map(([key, m]) =>
@@ -432,7 +435,7 @@ function renderAttendanceEvaluation() {
   const tableRows = rows.map(r => {
     const meta = CATEGORY_META[r.category] || CATEGORY_META.low;
     return `<tr>
-      <td>${r.student_name}<div style="font-size:10.5px;color:var(--muted);">${r.student_no} \u00b7 Grade ${r.grade} \u2014 ${r.section}</div></td>
+      <td>${escapeHtml(r.student_name)}<div style="font-size:10.5px;color:var(--muted);">${escapeHtml(r.student_no)} \u00b7 Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}</div></td>
       <td>${r.days_present}</td>
       <td>${r.days_absent}</td>
       <td>
@@ -486,7 +489,7 @@ async function loadRecentActivity() {
   const panel = document.getElementById('recent-activity-panel');
   if (panel) panel.classList.toggle('empty', rows.length === 0);
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="recent-activity-empty">No attendance activity yet.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="recent-activity-empty">No attendance activity yet.</div></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(rowToActivityTr).join('');
@@ -502,7 +505,8 @@ function rowToActivityTr(r) {
     `<td>${known ? escapeHtml(r.student_name) : '<em style="color:var(--muted)">Unknown fingerprint</em>'}</td>` +
     `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
     `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
-    `<td><span class="badge ${badgeClass(r.status)}">${escapeHtml((r.status || 'UNKNOWN').toUpperCase())}</span></td></tr>`;
+    `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
+    `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
 }
 
 function badgeClass(status) {
@@ -510,6 +514,15 @@ function badgeClass(status) {
   if (s.includes('GOOD') || s === 'PRESENT') return 'present';
   if (s === 'LATE') return 'late';
   return 'absent';
+}
+
+function attendanceBadgeClass(status) {
+  const value = (status || '').toLowerCase();
+  if (value === 'unknown') return 'unknown';
+  if (value === 'early') return 'early';
+  if (value === 'late') return 'late';
+  if (value === 'absent') return 'absent';
+  return 'present';
 }
 
 // ── Attendance ──
@@ -542,7 +555,8 @@ function renderAttendanceRows(rows) {
       `<td>${known ? escapeHtml(r.student_name) : 'Unknown fingerprint'}</td>` +
       `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
       `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
-      `<td><span class="badge ${badgeClass(r.status)}">${escapeHtml((r.status || 'UNKNOWN').toUpperCase())}</span></td></tr>`;
+      `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
+      `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
   }).join('');
 }
 
@@ -574,7 +588,8 @@ function attendanceOnScanEvent(row) {
     `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : 'Unknown fingerprint'}</td>` +
     `<td>${isKnownRow(row) ? `Grade ${escapeHtml(row.grade)} \u2014 ${escapeHtml(row.section)}` : '\u2014'}</td>` +
     `<td>${escapeHtml(row.confidence != null ? row.confidence + '%' : '\u2014')}</td>` +
-    `<td><span class="badge ${badgeClass(row.status)}">${escapeHtml((row.status || 'UNKNOWN').toUpperCase())}</span></td></tr>`);
+    `<td><span class="badge ${badgeClass(row.match_status || row.status)}">${escapeHtml((row.match_status || row.status || 'UNKNOWN').toUpperCase())}</span></td>` +
+    `<td><span class="badge ${attendanceBadgeClass(row.attendance_status)}">${escapeHtml(row.attendance_status || '\u2014')}</span></td></tr>`);
   const countEl = document.getElementById('att-count');
   countEl.textContent = `${tbody.children.length} records`;
 }
@@ -1377,6 +1392,12 @@ async function loadSettingsPage() {
   document.getElementById('set-log-folder').textContent = s.log_folder || '\u2014';
   document.getElementById('set-backup-interval').value = s.auto_backup_interval_minutes;
   document.getElementById('set-last-backup').textContent = s.last_backup || 'No backups yet';
+  // Attendance time rules
+  document.getElementById('set-time-in').value = s.time_in || '08:00';
+  document.getElementById('set-time-out').value = s.time_out || '17:00';
+  document.getElementById('set-early-threshold').value = s.early_threshold_minutes || 15;
+  document.getElementById('set-late-threshold').value = s.late_threshold_minutes || 15;
+  document.getElementById('set-absent-threshold').value = s.absent_threshold_minutes || 0;
 
   await refreshConnectedDevicePanel();
   await refreshPortList();
@@ -1448,6 +1469,12 @@ async function saveSettings() {
     enable_debug_logging: document.getElementById('set-debug-logging').classList.contains('on'),
     auto_backup_interval_minutes: parseInt(document.getElementById('set-backup-interval').value, 10),
     current_role: currentRole,
+    // Attendance time rules
+    time_in: document.getElementById('set-time-in').value || '08:00',
+    time_out: document.getElementById('set-time-out').value || '17:00',
+    early_threshold_minutes: parseInt(document.getElementById('set-early-threshold').value, 10) || 15,
+    late_threshold_minutes: parseInt(document.getElementById('set-late-threshold').value, 10) || 15,
+    absent_threshold_minutes: parseInt(document.getElementById('set-absent-threshold').value, 10) || 0,
   };
   const res = await api().save_ui_settings(payload);
   if (!res.ok) { alert(`Settings could not be saved: ${res.message}`); return; }

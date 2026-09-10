@@ -180,7 +180,8 @@
                 <th>Name</th>
                 <th>Grade / Section</th>
                 <th>Confidence</th>
-                <th>Status</th>
+                <th>Match</th>
+                <th>Attendance</th>
               </tr></thead>
               <tbody id="activity-tbody"></tbody>
             </table>
@@ -225,8 +226,8 @@
           <div class="toolbar-spacer"></div>
           <span class="tb-count" id="att-count">8 records</span>
           <div class="toolbar-sep" id="att-page-sep" style="display:none;"></div>
-          <button class="hdr-btn" id="att-prev-btn" style="display:none;" onclick="attendancePrevPage()">\u25c0 Prev</button>
-          <button class="hdr-btn" id="att-next-btn" style="display:none;" onclick="attendanceNextPage()">Next \u25b6</button>
+          <button class="hdr-btn" id="att-prev-btn" style="display:none;" onclick="attendancePrevPage()">&#9664; Prev</button>
+          <button class="hdr-btn" id="att-next-btn" style="display:none;" onclick="attendanceNextPage()">Next &#9654;</button>
           <div class="toolbar-sep"></div>
           <button class="hdr-btn" data-permission="export" onclick="exportAttendanceCsv()">Export CSV</button>
           <button class="hdr-btn primary" onclick="loadAttendancePage()">Refresh</button>
@@ -234,7 +235,7 @@
         <div class="data-table-wrap">
           <table class="data-table">
             <thead><tr>
-              <th>Date</th><th>Time</th><th>Student No.</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Status</th>
+              <th>Date</th><th>Time</th><th>Student No.</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Match</th><th>Attendance</th>
             </tr></thead>
             <tbody id="att-tbody"></tbody>
           </table>
@@ -498,6 +499,45 @@
               <span class="settings-row-label">Log folder</span>
               <span class="settings-row-value" style="font-family:'Consolas',monospace;font-size:11.5px;" id="set-log-folder">—</span>
               <button class="hdr-btn" style="margin-left:auto;" onclick="openLogFolder()">Open Log Folder</button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-title">Attendance Time Rules</div>
+            <div class="settings-group-body">
+              <div class="settings-group-main">
+                <div style="padding: 10px 12px; border-bottom: 1px solid var(--border);">
+                  <div style="font-size: 11px; color: var(--muted2); font-weight: 600; margin-bottom: 8px;">School Day Hours</div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                    <div>
+                      <label style="font-size: 11px; color: var(--muted2); display: block; margin-bottom: 4px;">Time In</label>
+                      <input type="time" id="set-time-in" class="settings-text-input" value="08:00" style="width: 100%;">
+                    </div>
+                    <div>
+                      <label style="font-size: 11px; color: var(--muted2); display: block; margin-bottom: 4px;">Time Out</label>
+                      <input type="time" id="set-time-out" class="settings-text-input" value="17:00" style="width: 100%;">
+                    </div>
+                  </div>
+                </div>
+                <div style="padding: 10px 12px;">
+                  <div style="font-size: 11px; color: var(--muted2); font-weight: 600; margin-bottom: 8px;">Attendance Status Thresholds (minutes)</div>
+                  <div class="settings-row" style="border-bottom: 1px solid var(--border); min-height: 32px;">
+                    <span class="settings-row-label">Early (before Time In)</span>
+                    <input type="number" min="0" max="120" value="15" class="settings-spinner" id="set-early-threshold" style="width: 60px;">
+                  </div>
+                  <div class="settings-row" style="border-bottom: 1px solid var(--border); min-height: 32px;">
+                    <span class="settings-row-label">Late (after Time In)</span>
+                    <input type="number" min="0" max="120" value="15" class="settings-spinner" id="set-late-threshold" style="width: 60px;">
+                  </div>
+                  <div class="settings-row" style="min-height: 32px;">
+                    <span class="settings-row-label">Absent (not within day)</span>
+                    <input type="number" min="0" max="120" value="0" class="settings-spinner" id="set-absent-threshold" style="width: 60px;">
+                  </div>
+                </div>
+              </div>
+              <div class="settings-group-aside">
+                Configure the official school day start and end times, plus the windows for determining if a student is early, present, late, or absent based on their scan time.
+              </div>
             </div>
           </div>
 

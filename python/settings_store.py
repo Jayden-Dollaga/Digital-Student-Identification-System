@@ -35,6 +35,12 @@ def default_settings() -> Dict[str, Any]:
         "current_role": CONFIG.default_user_role,
         # minutes between automatic-backup due-checks (Settings > Backups)
         "auto_backup_interval_minutes": 25,
+        # attendance time rules
+        "time_in": "08:00",
+        "time_out": "17:00",
+        "early_threshold_minutes": 15,
+        "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 0,
     }
 
 

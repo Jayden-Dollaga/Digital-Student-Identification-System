@@ -411,6 +411,9 @@
     letter-spacing: .3px;
   }
   .scan-status-tag.present { background: #14532D; color: #4ADE80; }
+  .scan-status-tag.early   { background: #172554; color: #60A5FA; }
+  .scan-status-tag.late    { background: #431407; color: #FB923C; }
+  .scan-status-tag.absent  { background: #2A1A1A; color: #EF4444; }
   .scan-status-tag.unknown { background: #451A03; color: #FB923C; }
   .scan-status-tag.idle    { background: var(--surface2); color: var(--muted); }
   .confidence-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
@@ -492,8 +495,10 @@
     font-weight: 600;
   }
   .badge.present { background: #14532D; color: #4ADE80; }
+  .badge.early   { background: #172554; color: #60A5FA; }
   .badge.absent  { background: #2A1A1A; color: #EF4444; }
   .badge.late    { background: #431407; color: #FB923C; }
+  .badge.unknown { background: #451A03; color: #FB923C; }
   .badge.admin   { background: #1e1b4b; color: #a5b4fc; }
   .badge.student { background: #162032; color: #60a5fa; }
 

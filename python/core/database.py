@@ -182,6 +182,13 @@ ATTENDANCE_JOIN_QUERY = """
 """
 
 
+def export_name_sort_key(value: Any) -> str:
+    """Return a stable alphabetical key that ignores accents and case."""
+    text = "" if value is None else str(value)
+    normalized = unicodedata.normalize("NFKD", text)
+    return "".join(char for char in normalized if not unicodedata.combining(char)).casefold()
+
+
 def get_connection() -> ManagedConnection:
     """Open and configure a database connection."""
     db_dir = os.path.dirname(DB_PATH)
@@ -190,6 +197,7 @@ def get_connection() -> ManagedConnection:
 
     # Increase timeout to reduce chance of 'database is locked' errors
     connection = sqlite3.connect(DB_PATH, timeout=30)
+    connection.text_factory = str
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return ManagedConnection(connection)
@@ -841,7 +849,7 @@ def get_daily_attendance_summary(
                 "date": row_dict["date"],
                 "time_in": row_dict["time"],
                 "time_out": row_dict["time"],
-                "status": row_dict["status"],
+                "match_status": row_dict["status"],
             },
         )
 
@@ -1025,6 +1033,57 @@ def export_attendance_range(start_date: str, end_date: str) -> List[AttendanceRo
         return _row_dicts(rows)
     finally:
         conn.close()
+
+
+def export_attendance_range_with_time_in_out(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    """Export attendance with separate Time In and Time Out columns, sorted by student name.
+    
+    This function:
+    1. Returns one row per student per day
+    2. Includes separate time_in and time_out columns
+    3. Sorts results alphabetically by student name
+    4. Handles Unicode characters properly for CSV export
+    """
+    query = f"{ATTENDANCE_JOIN_QUERY} WHERE a.date >= ? AND a.date <= ? ORDER BY a.date ASC, a.time ASC, a.timestamp ASC"
+    conn = get_connection()
+    try:
+        rows = conn.execute(query, (start_date, end_date)).fetchall()
+        return export_attendance_rows_with_time_in_out([dict(row) for row in rows])
+    finally:
+        conn.close()
+
+
+def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Group already-loaded attendance rows for the UI's CSV export."""
+    grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for row_dict in rows:
+        key = (row_dict["student_no"], row_dict["date"])
+        if key not in grouped:
+            grouped[key] = {
+                "student_no": row_dict["student_no"],
+                "student_name": row_dict["student_name"],
+                "grade": row_dict["grade"],
+                "section": row_dict["section"],
+                "date": row_dict["date"],
+                "time_in": row_dict["time"],
+                "time_out": "",
+                "confidence": row_dict["confidence"],
+                "status": row_dict["status"],
+            }
+        event_type = row_dict.get("event_type")
+        if event_type == "time_in":
+            grouped[key]["time_in"] = row_dict["time"]
+        elif event_type == "time_out":
+            grouped[key]["time_out"] = row_dict["time"]
+        else:
+            if not grouped[key]["time_in"]:
+                grouped[key]["time_in"] = row_dict["time"]
+            elif not grouped[key]["time_out"]:
+                grouped[key]["time_out"] = row_dict["time"]
+
+    result = list(grouped.values())
+    result.sort(key=lambda row: (export_name_sort_key(row.get("student_name")), row.get("date", "")))
+    return result
 
 
 def generate_statistics_report() -> str:
