@@ -1,0 +1,15 @@
+{
+  "com_port": "COM4",
+  "baud_rate": 115200,
+  "cooldown": 10,
+  "theme": "dark",
+  "auto_reconnect": true,
+  "auto_detect_serial": true,
+  "compact_sidebar": false,
+  "enable_profiler": false,
+  "min_confidence": 100,
+  "log_to_file": true,
+  "enable_debug_logging": false,
+  "current_role": "admin",
+  "auto_backup_interval_minutes": 25
+}

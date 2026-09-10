@@ -695,6 +695,18 @@
   .me-cat-attention { background: #4A2A0D; color: #FB923C; }
   .me-cat-low { background: #7F1D1D; color: #FCA5A5; }
   .me-empty { padding: 14px 0; font-size: 12px; color: var(--muted); }
+  .me-empty-card {
+    display: flex; align-items: center; gap: 12px; min-height: 72px;
+    padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px;
+  }
+  .me-empty-icon {
+    display: grid; place-items: center; flex: none; width: 32px; height: 32px;
+    border: 1px solid var(--border2); border-radius: 50%; color: var(--muted2); font-size: 18px;
+  }
+  .me-empty-icon svg { display: block; }
+  .me-empty-title { color: var(--text); font-size: 12px; font-weight: 600; }
+  .me-empty-sub { margin-top: 3px; color: var(--muted2); font-size: 11px; line-height: 1.4; }
   .me-rate-cell { display: flex; align-items: center; gap: 8px; }
   .me-rate-bar-bg { flex: 1; max-width: 90px; height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
   .me-rate-bar-fill { height: 100%; border-radius: 3px; }

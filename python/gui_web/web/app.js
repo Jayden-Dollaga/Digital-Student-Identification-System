@@ -377,7 +377,17 @@ function renderAttendanceEvaluation() {
   if (!rows.length) {
     body.innerHTML = `
       <div class="me-empty me-empty-card">
-        <div class="me-empty-icon">◎</div>
+        <div class="me-empty-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="10.5" fill="var(--logo-bg)" stroke="var(--logo-accent)" stroke-width="1"/>
+            <path d="M11 6a5 5 0 0 0-5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M11 8a3 3 0 0 0-3 3" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <circle cx="11" cy="11" r="1" fill="var(--logo-accent)"/>
+            <path d="M14 11a3 3 0 0 1-3 3" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M16 11a5 5 0 0 1-5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M11 6a5 5 0 0 1 5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
         <div>
           <div class="me-empty-title">No students enrolled yet</div>
           <div class="me-empty-sub">Add a student and enroll a fingerprint to start tracking attendance.</div>
@@ -388,7 +398,17 @@ function renderAttendanceEvaluation() {
   if (evalData.total_days === 0) {
     body.innerHTML = `
       <div class="me-empty me-empty-card">
-        <div class="me-empty-icon">◌</div>
+        <div class="me-empty-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="10.5" fill="var(--logo-bg)" stroke="var(--logo-accent)" stroke-width="1"/>
+            <path d="M11 6a5 5 0 0 0-5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M11 8a3 3 0 0 0-3 3" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <circle cx="11" cy="11" r="1" fill="var(--logo-accent)"/>
+            <path d="M14 11a3 3 0 0 1-3 3" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M16 11a5 5 0 0 1-5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M11 6a5 5 0 0 1 5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
         <div>
           <div class="me-empty-title">No attendance activity recorded</div>
           <div class="me-empty-sub">Nothing was scanned for ${rangeLabel} yet.</div>
