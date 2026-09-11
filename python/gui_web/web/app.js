@@ -11,6 +11,10 @@ const PAGE_TITLES = {
 let connected = false;
 let scanning = false;
 let selectedStudent = null;
+const selectedStudentIds = new Set();
+const studentNames = new Map();
+let batchDeletePending = null;
+let batchDeleteResult = null;
 let currentRole = 'admin';
 let currentPermissions = new Set(['scan']);
 let deviceFingerprintCount = null;
@@ -59,6 +63,7 @@ window.dsisEvent = function (event, payload) {
   else if (event === 'fingerprint_count') handleFingerprintCount(payload);
   else if (event === 'connection_status') handleConnectionStatus(payload);
   else if (event === 'connection_changed') handleConnectionChanged(payload);
+  else if (event === 'connection_troubleshooting') showSerialTroubleshooting(payload.reason);
   else if (event === 'serial_error') handleSerialError(payload);
   else if (event === 'data_changed') handleDataChanged(payload);
   else if (event === 'mode_changed') handleModeChanged(payload);
@@ -156,6 +161,7 @@ async function toggleConnect() {
       smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
     } else {
       alert('Could not connect: ' + res.message);
+      showSerialTroubleshooting('connect_failed');
     }
   } else {
     await api().disconnect();
@@ -165,6 +171,23 @@ async function toggleConnect() {
     smAppend('--- Serial port closed ---', 'serial-sys');
   }
   refreshConnectedDevicePanel();
+}
+
+async function showSerialTroubleshooting(reason = 'manual') {
+  if (!api()) return;
+  const result = await api().get_serial_troubleshooting();
+  const existing = document.getElementById('serial-troubleshooting-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'serial-troubleshooting-overlay';
+  overlay.className = 'modal-overlay';
+  const heading = reason === 'reconnect_exhausted' ? 'Reconnect attempts exhausted' : 'ESP32 Connection Help';
+  overlay.innerHTML = `<div class="modal-card troubleshooting-modal"><div class="modal-title">${heading}</div><pre class="troubleshooting-message">${escapeHtml(result.message)}</pre><div class="modal-actions"><button class="hdr-btn" data-troubleshoot-close>Close</button><button class="hdr-btn" data-troubleshoot-refresh>Refresh Ports</button><button class="hdr-btn" data-troubleshoot-device>Open Device Manager</button><button class="hdr-btn primary" data-troubleshoot-driver>Open Driver Help</button></div></div>`;
+  overlay.querySelector('[data-troubleshoot-close]').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('[data-troubleshoot-refresh]').addEventListener('click', async () => { await refreshPortList(); await showSerialTroubleshooting('manual'); });
+  overlay.querySelector('[data-troubleshoot-device]').addEventListener('click', async () => { const response = await api().open_device_manager(); if (!response.ok) alert(response.message); });
+  overlay.querySelector('[data-troubleshoot-driver]').addEventListener('click', async () => { const response = await api().open_driver_help(); if (!response.ok) alert(response.message || 'Could not open driver help.'); });
+  document.body.appendChild(overlay);
 }
 
 async function toggleScan() {
@@ -201,10 +224,21 @@ function handleConnectionStatus(status) {
 }
 
 function handleConnectionChanged(payload) {
-  if (payload.connected) return;
+  if (payload.connected) {
+    updateBatchRetryAvailability();
+    return;
+  }
   connected = false;
   scanning = false;
   settlePendingDelete(false);
+  if (batchDeletePending) {
+    const pendingId = batchDeletePending.id;
+    settleBatchDelete({ id: pendingId, kind: 'disconnected' });
+    if (batchDeleteResult && !batchDeleteResult.remainingIds.includes(pendingId)) {
+      batchDeleteResult.remainingIds.unshift(pendingId);
+    }
+  }
+  updateBatchRetryAvailability();
   if (enrollState && enrollState.step === 'enrolling') {
     enrollState.step = 'failed';
     const status = document.getElementById('em-status');
@@ -321,12 +355,11 @@ function todayStr() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-// Switches the single date input between type="month" (for Month) and
-// type="date" (for Day/Week) and seeds a sensible default the first time.
+// Switches the single date input between month, week, and day controls.
 function onPeriodChange(isInitial) {
   const period = document.getElementById('me-period').value;
   const input = document.getElementById('me-date');
-  const wantType = period === 'month' ? 'month' : 'date';
+  const wantType = period === 'month' ? 'month' : period === 'week' ? 'week' : 'date';
   if (input.type !== wantType) {
     input.type = wantType;
     input.value = '';
@@ -335,7 +368,7 @@ function onPeriodChange(isInitial) {
     const now = new Date();
     input.value = wantType === 'month'
       ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      : todayStr();
+      : wantType === 'week' ? currentIsoWeek(now) : todayStr();
   }
   if (!isInitial) loadAttendanceEvaluation();
 }
@@ -346,7 +379,7 @@ async function loadAttendanceEvaluation() {
   const period = document.getElementById('me-period').value;
   const dateVal = document.getElementById('me-date').value;
   if (!dateVal) return;
-  const refDate = period === 'month' ? `${dateVal}-01` : dateVal;
+  const refDate = period === 'month' ? `${dateVal}-01` : period === 'week' ? isoWeekToMonday(dateVal) : dateVal;
   body.innerHTML = '<div class="modal-status" style="padding:10px 0;">Loading\u2026</div>';
   const report = await api().get_attendance_evaluation(period, refDate);
   if (!report.ok) {
@@ -594,12 +627,52 @@ function attendanceOnScanEvent(row) {
   countEl.textContent = `${tbody.children.length} records`;
 }
 
-async function exportAttendanceCsv(mode) {
+function isoWeekToMonday(weekValue) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue || '');
+  if (!match) return '';
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - (jan4.getUTCDay() || 7) + 1 + (week - 1) * 7);
+  return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+}
+
+function currentIsoWeek(date) {
+  const thursday = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((thursday - yearStart) / 86400000) + 1) / 7);
+  return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function formatWeekRange(weekValue) {
+  const monday = isoWeekToMonday(weekValue);
+  if (!monday) return 'Choose a week';
+  const start = new Date(`${monday}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const format = date => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `Week of ${format(start)} – ${format(end)}`;
+}
+
+function updateExportWeekLabel() {
+  const input = document.getElementById('export-week');
+  const label = document.getElementById('export-week-label');
+  if (input && label) label.textContent = formatWeekRange(input.value);
+}
+
+async function exportAttendanceCsv(mode, weekValue = '') {
   if (!guardPermission('export', 'Exporting attendance data')) return;
   if (!api()) return;
   const selected = document.getElementById('att-mode');
   const modeKey = mode || (selected ? (selected.value === 'Recent' ? 'recent' : selected.value === 'Last 30 Days' ? 'last30' : 'today') : 'today');
-  const res = await api().export_attendance_csv(modeKey);
+  const weekStart = modeKey === 'weekly' ? isoWeekToMonday(weekValue) : '';
+  if (modeKey === 'weekly' && !weekStart) {
+    alert('Choose a calendar week first.');
+    return;
+  }
+  const res = await api().export_attendance_csv(modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart);
   alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
 
@@ -608,13 +681,49 @@ async function loadStudentsPage() {
   if (!api()) return;
   const students = await api().get_students();
   const tbody = document.getElementById('stu-tbody');
+  studentNames.clear();
+  students.forEach(s => studentNames.set(Number(s.fingerprint_id), s.student_name || `Fingerprint ID ${s.fingerprint_id}`));
+  const availableIds = new Set(students.map(s => Number(s.fingerprint_id)));
+  selectedStudentIds.forEach(id => { if (!availableIds.has(id)) selectedStudentIds.delete(id); });
   tbody.innerHTML = students.map(s =>
     `<tr onclick="selectStudent(this, ${Number(s.fingerprint_id)})" style="cursor:pointer">` +
+    `<td class="select-col"><input type="checkbox" class="student-select" data-fingerprint-id="${Number(s.fingerprint_id)}" ${selectedStudentIds.has(Number(s.fingerprint_id)) ? 'checked' : ''} onchange="toggleStudentSelection(event, ${Number(s.fingerprint_id)})" aria-label="Select ${escapeHtml(s.student_name || `fingerprint ID ${s.fingerprint_id}`)}"></td>` +
     `<td>${escapeHtml(s.fingerprint_id)}</td><td>${escapeHtml(s.student_no)}</td><td>${escapeHtml(s.student_name)}</td>` +
     `<td>Grade ${escapeHtml(s.grade)}</td><td>${escapeHtml(s.section)}</td></tr>`
   ).join('');
   document.getElementById('stu-count').textContent = `${students.length} students`;
+  updateStudentSelectionUi(students.length);
   if (students.length) selectStudent(tbody.firstElementChild, students[0].fingerprint_id);
+}
+
+function toggleStudentSelection(event, fingerprintId) {
+  event.stopPropagation();
+  const id = Number(fingerprintId);
+  if (event.target.checked) selectedStudentIds.add(id);
+  else selectedStudentIds.delete(id);
+  updateStudentSelectionUi();
+}
+
+function toggleAllStudentSelection(checked) {
+  document.querySelectorAll('#stu-tbody .student-select').forEach(input => {
+    input.checked = checked;
+    const id = Number(input.dataset.fingerprintId);
+    if (checked) selectedStudentIds.add(id);
+    else selectedStudentIds.delete(id);
+  });
+  updateStudentSelectionUi();
+}
+
+function updateStudentSelectionUi(totalStudents) {
+  const count = document.getElementById('stu-selected-count');
+  const deleteButton = document.getElementById('stu-delete-selected');
+  const selectAll = document.getElementById('stu-select-all');
+  if (count) count.textContent = `${selectedStudentIds.size} selected`;
+  if (deleteButton) deleteButton.disabled = selectedStudentIds.size === 0 || !!batchDeletePending;
+  if (selectAll) {
+    selectAll.checked = totalStudents > 0 && selectedStudentIds.size === totalStudents;
+    selectAll.indeterminate = selectedStudentIds.size > 0 && selectedStudentIds.size < totalStudents;
+  }
 }
 
 async function selectStudent(row, fingerprintId) {
@@ -628,6 +737,12 @@ async function selectStudent(row, fingerprintId) {
   document.getElementById('det-grade').textContent = `Grade ${student.grade}`;
   document.getElementById('det-section').textContent = student.section;
   document.getElementById('det-fpid').textContent = '#' + student.fingerprint_id;
+  const status = student.attendance_status || 'Absent';
+  const statusBadge = document.getElementById('student-status-today');
+  if (statusBadge) {
+    statusBadge.textContent = status;
+    statusBadge.className = 'badge ' + attendanceBadgeClass(status);
+  }
 }
 
 let pendingDelete = null; // { fingerprintId, resolve }
@@ -692,6 +807,150 @@ async function deleteSelectedStudent() {
   if (deleted) await loadStudentsPage();
 }
 
+async function deleteSelectedStudents() {
+  if (!guardPermission('delete', 'Deleting students')) return;
+  const ids = Array.from(selectedStudentIds);
+  if (!ids.length) return;
+  if (!connected) {
+    alert('Connect to the ESP32 first.');
+    return;
+  }
+  const confirmed = await showDestructiveConfirm(
+    'Confirm Delete Students',
+    `Delete ${ids.length} selected student${ids.length === 1 ? '' : 's'}? Each fingerprint will be removed from the connected device before its local student record is deleted.`,
+    'Confirm Delete'
+  );
+  if (!confirmed) return;
+  batchDeleteResult = {
+    results: [],
+    remainingIds: ids.slice(),
+    labels: Object.fromEntries(ids.map(id => [id, studentNames.get(id) || `Fingerprint ID ${id}`])),
+    interrupted: false,
+  };
+  await processBatchDelete();
+}
+
+async function processBatchDelete() {
+  if (!batchDeleteResult || batchDeletePending) return;
+  if (!guardPermission('delete', 'Deleting students')) return;
+  batchDeletePending = true;
+  updateStudentSelectionUi();
+  while (batchDeleteResult.remainingIds.length) {
+    if (!connected) {
+      batchDeleteResult.interrupted = true;
+      break;
+    }
+    const fingerprintId = batchDeleteResult.remainingIds.shift();
+    const result = await deleteOneForBatch(fingerprintId);
+    if (result.kind === 'disconnected') {
+      batchDeleteResult.interrupted = true;
+      break;
+    }
+    batchDeleteResult.results.push(result);
+  }
+  batchDeletePending = false;
+  updateStudentSelectionUi();
+  await loadStudentsPage();
+  showBatchDeleteResults();
+}
+
+function deleteOneForBatch(fingerprintId) {
+  return new Promise(async resolve => {
+    if (!connected) {
+      resolve({ id: fingerprintId, kind: 'disconnected' });
+      return;
+    }
+    const wait = waitForBatchDelete(fingerprintId, resolve);
+    try {
+      const response = await api().delete_on_device(fingerprintId);
+      if (!response.ok) {
+        const disconnected = !connected || /disconnect|connect to the ESP32/i.test(response.message || '');
+        if (disconnected && batchDeleteResult && !batchDeleteResult.remainingIds.includes(fingerprintId)) {
+          batchDeleteResult.remainingIds.unshift(fingerprintId);
+        }
+        settleBatchDelete({ id: fingerprintId, kind: disconnected ? 'disconnected' : 'send_failed', message: response.message });
+      }
+    } catch (error) {
+      const disconnected = !connected;
+      if (disconnected && batchDeleteResult && !batchDeleteResult.remainingIds.includes(fingerprintId)) {
+        batchDeleteResult.remainingIds.unshift(fingerprintId);
+      }
+      settleBatchDelete({ id: fingerprintId, kind: disconnected ? 'disconnected' : 'send_failed', message: error && error.message });
+    }
+    await wait;
+  });
+}
+
+function waitForBatchDelete(fingerprintId, resolve, timeoutMs = 15000) {
+  const timer = setTimeout(() => {
+    if (batchDeletePending && batchDeletePending.id === fingerprintId) {
+      batchDeletePending = null;
+      resolve({ id: fingerprintId, kind: 'timeout' });
+    }
+  }, timeoutMs);
+  batchDeletePending = { id: fingerprintId, resolve: result => { clearTimeout(timer); resolve(result); } };
+}
+
+function settleBatchDelete(result) {
+  if (!batchDeletePending) return;
+  const pending = batchDeletePending;
+  batchDeletePending = null;
+  pending.resolve(result);
+}
+
+async function handleBatchDeleteProgress(payload) {
+  if (!batchDeletePending || payload.id !== batchDeletePending.id) return;
+  const id = batchDeletePending.id;
+  if (payload.event === 'success') {
+    try {
+      const response = await api().delete_student(id);
+      settleBatchDelete({ id, kind: response && response.ok ? 'deleted' : 'database_failed', message: response && response.message });
+    } catch (error) {
+      settleBatchDelete({ id, kind: 'database_failed', message: error && error.message });
+    }
+  } else if (payload.event === 'error') {
+    settleBatchDelete({ id, kind: 'device_failed' });
+  }
+}
+
+function showBatchDeleteResults(completed = batchDeleteResult) {
+  if (!completed) return;
+  const existing = document.getElementById('batch-delete-results-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'batch-delete-results-overlay';
+  overlay.className = 'modal-overlay';
+  const rows = completed.results.map(result => {
+    const label = completed.labels[result.id] || studentNames.get(result.id) || `Fingerprint ID ${result.id}`;
+    const text = {
+      deleted: 'Deleted',
+      device_failed: 'Device failed; database unchanged',
+      timeout: 'Timed out; database unchanged',
+      send_failed: 'Command failed; database unchanged',
+      database_failed: 'Device deleted; database update failed',
+    }[result.kind] || result.kind;
+    return `<li><strong>${escapeHtml(label)}</strong> (ID ${result.id}): ${escapeHtml(text)}</li>`;
+  }).join('');
+  const remaining = completed.remainingIds.map(id => `<li><strong>${escapeHtml(completed.labels[id] || studentNames.get(id) || `Fingerprint ID ${id}`)}</strong> (ID ${id}): Waiting for retry</li>`).join('');
+  overlay.innerHTML = `<div class="modal-card batch-results-modal"><div class="modal-title">Delete Results</div><div class="modal-sub">${completed.interrupted ? 'The device disconnected. Successful deletions were kept; remaining students were not changed.' : 'Deletion completed.'}</div><ul class="batch-result-list">${rows}${remaining}</ul><div class="modal-actions"><button class="hdr-btn" data-results-close>Close</button>${completed.remainingIds.length ? '<button class="hdr-btn danger" data-results-retry disabled>Retry remaining</button>' : ''}</div></div>`;
+  overlay.querySelector('[data-results-close]').addEventListener('click', () => { overlay.remove(); if (!completed.remainingIds.length) batchDeleteResult = null; });
+  const retry = overlay.querySelector('[data-results-retry]');
+  if (retry) retry.addEventListener('click', async () => {
+    if (!guardPermission('delete', 'Deleting students')) return;
+    overlay.remove();
+    batchDeleteResult = completed;
+    batchDeleteResult.interrupted = false;
+    await processBatchDelete();
+  });
+  document.body.appendChild(overlay);
+  updateBatchRetryAvailability();
+}
+
+function updateBatchRetryAvailability() {
+  const retry = document.querySelector('[data-results-retry]');
+  if (retry) retry.disabled = !connected || !!batchDeletePending;
+}
+
 function waitForDelete(fingerprintId, timeoutMs = 15000) {
   return new Promise(resolve => {
     const timer = setTimeout(() => {
@@ -716,6 +975,10 @@ function settlePendingDelete(value) {
 }
 
 function handleDeleteProgress(payload) {
+  if (batchDeletePending) {
+    handleBatchDeleteProgress(payload);
+    return;
+  }
   if (!pendingDelete || payload.id !== pendingDelete.fingerprintId) return;
   if (payload.event === 'success') {
     const operation = pendingDelete;
@@ -877,12 +1140,13 @@ function openEnrollDialog(existing) {
       <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan.'}</div>
       <div class="enroll-layout">
         <div class="enroll-form">
-          <div class="modal-field"><label>Student No.</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"></div>
-          <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"></div>
+          <div class="modal-field"><label>Student No.</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>
+          <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"><div class="field-feedback" id="em-name-feedback"></div></div>
           <div class="modal-field-row">
-            <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"></div>
-            <div class="modal-field"><label>Section</label><input id="em-section" type="text" value="${existing ? escapeHtml(existing.section) : ''}"></div>
+            <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"><div class="field-feedback" id="em-grade-feedback"></div></div>
+            <div class="modal-field"><label>Section</label><input id="em-section" type="text" value="${existing ? escapeHtml(existing.section) : ''}"><div class="field-feedback" id="em-section-feedback"></div></div>
           </div>
+          <div class="validation-summary" id="em-validation-summary"></div>
           <div class="modal-status" id="em-status">${connected ? '' : 'Connect to the ESP32 first.'}</div>
           <div class="modal-id" id="em-id" style="display:none;"></div>
         </div>
@@ -904,6 +1168,67 @@ function openEnrollDialog(existing) {
     </div>`;
   document.body.appendChild(overlay);
   enrollState = { existing: existing || null, assignedId: null, step: 'initial' };
+  ['em-sno', 'em-name', 'em-grade', 'em-section'].forEach(id => {
+    document.getElementById(id).addEventListener('input', validateEnrollmentFields);
+  });
+  validateEnrollmentFields();
+}
+
+let enrollmentValidationSequence = 0;
+
+async function validateEnrollmentFields() {
+  if (!enrollState || enrollState.step !== 'initial' || !api()) return false;
+  const sequence = ++enrollmentValidationSequence;
+  const values = {
+    student_no: document.getElementById('em-sno').value,
+    student_name: document.getElementById('em-name').value,
+    grade: document.getElementById('em-grade').value,
+    section: document.getElementById('em-section').value,
+  };
+  try {
+    const result = await api().validate_student_fields(
+      values.student_no, values.student_name, values.grade, values.section
+    );
+    if (sequence !== enrollmentValidationSequence || !enrollState) return false;
+    const mapping = {
+      student_no: 'sno',
+      student_name: 'name',
+      grade: 'grade',
+      section: 'section',
+    };
+    let firstInvalid = null;
+    Object.entries(mapping).forEach(([field, suffix]) => {
+      const input = document.getElementById(`em-${suffix}`);
+      const feedback = document.getElementById(`em-${suffix}-feedback`);
+      const item = result.fields[field];
+      if (!input || !feedback || !item) return;
+      const valid = !!item.valid;
+      input.classList.toggle('field-valid', valid);
+      input.classList.toggle('field-invalid', !valid);
+      feedback.className = `field-feedback ${valid ? 'valid' : 'invalid'}`;
+      feedback.textContent = valid ? 'Valid' : item.message;
+      if (!valid && !firstInvalid) firstInvalid = item.message;
+    });
+    const summary = document.getElementById('em-validation-summary');
+    if (summary) {
+      summary.className = `validation-summary ${result.all_valid ? 'valid' : 'invalid'}`;
+      summary.textContent = result.all_valid ? 'Student information is valid' : firstInvalid || 'Please correct the highlighted fields.';
+    }
+    const button = document.getElementById('em-primary-btn');
+    if (button) button.disabled = !result.all_valid || !connected;
+    return !!result.all_valid;
+  } catch (error) {
+    if (sequence === enrollmentValidationSequence) {
+      const summary = document.getElementById('em-validation-summary');
+      if (summary) {
+        summary.className = 'validation-summary invalid';
+        summary.textContent = 'Validation is unavailable. Please try again.';
+      }
+      const button = document.getElementById('em-primary-btn');
+      if (button) button.disabled = true;
+    }
+    return false;
+  }
 }
 
 function closeEnrollDialog() {
@@ -928,8 +1253,8 @@ async function startEnrollment() {
   const name = document.getElementById('em-name').value.trim();
   const grade = document.getElementById('em-grade').value.trim();
   const section = document.getElementById('em-section').value.trim();
-  if (!sno || !name || !grade || !section) {
-    document.getElementById('em-status').textContent = 'Please fill in all student fields first.';
+  if (!(await validateEnrollmentFields())) {
+    document.getElementById('em-status').textContent = 'Please fill in all student fields with valid data.';
     return;
   }
   enrollState.form = { sno, name, grade, section };
@@ -1065,12 +1390,102 @@ async function exportStudentsCsv() {
 // ── Reports ──
 async function loadReportsPage() {
   if (!api()) return;
+  const exportWeek = document.getElementById('export-week');
+  if (exportWeek && !exportWeek.value) {
+    exportWeek.value = currentIsoWeek(new Date());
+    updateExportWeekLabel();
+  }
   await generateStatsReport();
   await loadBackupsList();
   const stats = await api().get_dashboard_stats();
   document.getElementById('rpt-today-count').textContent = `${stats.scans_today} scans`;
   document.getElementById('rpt-students-count').textContent = `${stats.total_students} records`;
   document.getElementById('rpt-last30-label').textContent = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+async function exportStatisticsReport() {
+  if (!guardPermission('export', 'Exporting reports')) return;
+  const result = await api().export_statistics_report();
+  alert(result.ok ? `Exported to:\n${result.path}` : `Export failed: ${result.message}`);
+}
+
+async function showStatisticsCharts() {
+  if (!guardPermission('export', 'Viewing charts')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'statistics-charts-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal-card chart-modal"><div class="modal-title">Attendance Analytics Charts</div><div class="chart-tabs" role="tablist"><button class="chart-tab active" data-chart-tab="timeline">Timeline</button><button class="chart-tab" data-chart-tab="section">By Section</button><button class="chart-tab" data-chart-tab="grade">By Grade</button></div><div class="chart-content" id="chart-content"><div class="chart-loading">Loading chart data...</div></div><div class="modal-actions"><button class="hdr-btn" data-chart-close>Close</button></div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-chart-close]').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+  overlay.querySelectorAll('[data-chart-tab]').forEach(tab => tab.addEventListener('click', () => {
+    overlay.querySelectorAll('[data-chart-tab]').forEach(item => item.classList.toggle('active', item === tab));
+    renderStatisticsChartTab(overlay, tab.dataset.chartTab);
+  }));
+  try {
+    const report = await api().get_statistics_report();
+    if (!report || report.ok === false) throw new Error(report && report.message ? report.message : 'Charts are unavailable.');
+    overlay._chartReport = report;
+    renderStatisticsChartTab(overlay, 'timeline');
+  } catch (error) {
+    overlay.querySelector('#chart-content').innerHTML = `<div class="chart-state error">${escapeHtml(error && error.message ? error.message : 'Unable to load charts. Please check the application log.')}</div>`;
+  }
+}
+
+function chartEmpty(message) {
+  return `<div class="chart-state">${escapeHtml(message)}</div>`;
+}
+
+function renderStatisticsChartTab(overlay, tab) {
+  const report = overlay._chartReport;
+  const content = overlay.querySelector('#chart-content');
+  if (!report) return;
+  if (tab === 'timeline') {
+    content.innerHTML = renderAttendanceTimeline(report.attendance_timeline || []);
+  } else if (tab === 'section') {
+    content.innerHTML = renderSectionChart(report.students_by_section || []);
+  } else {
+    content.innerHTML = renderAttendanceGradeChart(report.attendance_by_grade || []);
+  }
+}
+
+function renderAttendanceTimeline(rows) {
+  if (!rows.length) return chartEmpty('No attendance records are available for the timeline.');
+  const width = 900, height = 360, left = 58, right = 24, top = 24, bottom = 58;
+  const max = Math.max(...rows.map(row => Number(row.count) || 0), 1);
+  const x = index => left + (rows.length === 1 ? (width - left - right) / 2 : index * (width - left - right) / (rows.length - 1));
+  const y = value => height - bottom - (value / max) * (height - top - bottom);
+  const points = rows.map((row, index) => `${x(index)},${y(Number(row.count) || 0)}`).join(' ');
+  const area = `${left},${height - bottom} ${points} ${x(rows.length - 1)},${height - bottom}`;
+  const labels = rows.map((row, index) => `<text x="${x(index)}" y="${height - 28}" text-anchor="middle" class="chart-axis-label">${escapeHtml(row.date.slice(5))}</text>`).join('');
+  const dots = rows.map((row, index) => `<circle cx="${x(index)}" cy="${y(Number(row.count) || 0)}" r="4" class="chart-point"><title>${escapeHtml(row.date)}: ${escapeHtml(row.count)} scans</title></circle>`).join('');
+  return `<div class="chart-title">Attendance Timeline (Last 30 Dates)</div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Attendance timeline"><line x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" class="chart-axis"/><polygon points="${area}" class="chart-area"/><polyline points="${points}" class="chart-line"/>${dots}${labels}<text x="14" y="${top + 8}" class="chart-axis-label">${max}</text><text x="${left}" y="${height - 8}" class="chart-axis-label">Date</text></svg>`;
+}
+
+function renderSectionChart(rows) {
+  if (!rows.length) return chartEmpty('No enrolled sections are available for the chart.');
+  const max = Math.max(...rows.map(row => Number(row.count) || 0), 1);
+  return `<div class="chart-title">Students by Section</div><div class="chart-bars">${rows.map(row => `<div class="chart-bar-row"><span class="chart-bar-label">${escapeHtml(row.section)}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${Math.round((Number(row.count) || 0) / max * 100)}%"></div></div><strong>${escapeHtml(row.count)}</strong></div>`).join('')}</div>`;
+}
+
+function renderAttendanceGradeChart(rows) {
+  if (!rows.length) return chartEmpty('No attendance records are available by grade.');
+  const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0) || 1;
+  const colors = ['#3B78FF', '#16A34A', '#D97706', '#DC2626', '#7C3AED', '#DB2777'];
+  let offset = 0;
+  const segments = rows.map((row, index) => {
+    const percent = (Number(row.count) || 0) / total;
+    const segment = `${percent * 100} ${100 - percent * 100}`;
+    const result = `<div class="chart-legend-row"><span class="chart-legend-swatch" style="background:${colors[index % colors.length]}"></span><span>${escapeHtml(row.grade)}</span><strong>${escapeHtml(row.count)} (${Math.round(percent * 100)}%)</strong></div>`;
+    offset += percent * 100;
+    return result;
+  }).join('');
+  const gradient = rows.map((row, index) => {
+    const percent = (Number(row.count) || 0) / total * 100;
+    const start = rows.slice(0, index).reduce((sum, item) => sum + (Number(item.count) || 0), 0) / total * 100;
+    return `${colors[index % colors.length]} ${start}% ${start + percent}%`;
+  }).join(',');
+  return `<div class="chart-title">Attendance by Grade</div><div class="chart-pie-layout"><div class="chart-pie" style="background:conic-gradient(${gradient})" role="img" aria-label="Attendance by grade"></div><div class="chart-legend">${segments}</div></div>`;
 }
 
 async function generateStatsReport() {
@@ -1086,6 +1501,8 @@ async function generateStatsReport() {
   const totalGraded = Object.values(report.by_grade).reduce((a, b) => a + b, 0) || 1;
 
   const div = document.getElementById('stats-report');
+  const connection = document.getElementById('stats-connection-summary');
+  if (connection) connection.textContent = `System status: ${report.connected ? 'Connected' : 'Disconnected'}`;
   div.innerHTML = `
     <div class="rpt-root">
       <div class="rpt-metrics">
@@ -1104,6 +1521,14 @@ async function generateStatsReport() {
           <div class="rpt-metric-value">${report.avg_per_student}</div>
           <div class="rpt-metric-sub">Records per enrolled student</div>
         </div>
+      </div>
+
+      <div class="rpt-section-block">
+        <div class="rpt-section-title">Recent Attendance by Date</div>
+        <table class="rpt-table">
+          <thead><tr><th>Date</th><th>Scans</th></tr></thead>
+          <tbody>${report.recent_attendance.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.count)}</td></tr>`).join('')}</tbody>
+        </table>
       </div>
 
       <div class="rpt-section-block">
@@ -1297,6 +1722,44 @@ function toggleSerialPause() {
   if (!serialPaused) { serialBuffer.forEach(e => _smWrite(e.text, e.cls)); serialBuffer = []; }
 }
 function clearSerial() { document.getElementById('serial-output').innerHTML = ''; serialBuffer = []; }
+
+function resetBlockReason() {
+  if (scanning) return 'Stop attendance scanning before resetting the ESP32.';
+  if (enrollState && (enrollState.step === 'enrolling' || (enrollState.assignedId && !enrollState.saved))) {
+    return 'Finish or cancel fingerprint enrollment before resetting the ESP32.';
+  }
+  if (pendingDelete || batchDeletePending) return 'Wait for fingerprint deletion to finish before resetting the ESP32.';
+  if (window._wipeWait) return 'Wait for fingerprint wiping to finish before resetting the ESP32.';
+  return '';
+}
+
+async function resetDevice() {
+  if (currentRole !== 'admin') {
+    alert('Reset Device requires the Administrator role.');
+    return;
+  }
+  if (!connected) {
+    alert('Connect to the ESP32 before resetting it.');
+    return;
+  }
+  const blocked = resetBlockReason();
+  if (blocked) {
+    alert(blocked);
+    return;
+  }
+  const confirmed = await showDestructiveConfirm(
+    'Reset Device',
+    'This will reboot the ESP32 now. Continue?',
+    'Reset Device'
+  );
+  if (!confirmed) return;
+  try {
+    const ok = await api().reset_device();
+    alert(ok ? 'Reset pulse sent. Watch the Serial Monitor for the new boot banner.' : 'Failed to reset device.');
+  } catch (error) {
+    alert(`Failed to reset device: ${error && error.message ? error.message : 'unknown error'}.`);
+  }
+}
 
 async function serialCmd(cmd) {
   if (currentRole !== 'admin') { alert('Serial commands require the Administrator role.'); return; }

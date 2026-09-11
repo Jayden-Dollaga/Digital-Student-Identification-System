@@ -217,8 +217,8 @@
       <div class="page" id="page-attendance">
         <div class="toolbar">
           <select class="tb-select" id="att-mode">
-            <option>Today</option>
             <option>Recent</option>
+            <option>Today</option>
             <option>Last 30 Days</option>
           </select>
           <div class="toolbar-sep"></div>
@@ -248,7 +248,9 @@
           <input class="tb-search" placeholder="Search students…" id="stu-search" oninput="filterTable('stu-tbody','stu-search')">
           <div class="toolbar-sep"></div>
           <span class="tb-count" id="stu-count">0 students</span>
+          <span class="tb-count" id="stu-selected-count">0 selected</span>
           <div class="toolbar-spacer"></div>
+          <button class="hdr-btn danger" id="stu-delete-selected" data-permission="delete" onclick="deleteSelectedStudents()" disabled>Delete Selected</button>
           <button class="hdr-btn danger" data-permission="wipe" onclick="wipeAllFingerprints()">Wipe All Fingerprints</button>
           <button class="hdr-btn primary" data-permission="enroll" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
         </div>
@@ -257,6 +259,7 @@
             <div class="data-table-wrap">
               <table class="data-table">
                 <thead><tr>
+                  <th class="select-col"><input type="checkbox" id="stu-select-all" onchange="toggleAllStudentSelection(this.checked)" aria-label="Select all students"></th>
                   <th>FP ID</th><th>Student No.</th><th>Name</th><th>Grade</th><th>Section</th>
                 </tr></thead>
                 <tbody id="stu-tbody"></tbody>
@@ -298,7 +301,7 @@
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Status Today</div>
-              <div class="detail-field-value"><span class="badge">—</span></div>
+              <div class="detail-field-value"><span class="badge" id="student-status-today">Absent</span></div>
             </div>
             <div class="detail-actions">
               <button class="detail-btn" data-permission="enroll" onclick="editSelectedStudentDetails()">Edit Details</button>
@@ -315,11 +318,13 @@
 
           <!-- Statistics report -->
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Attendance Statistics Report</div>
+          <div class="report-toolbar"><span id="stats-connection-summary">System status: —</span><button class="hdr-btn" onclick="loadReportsPage()">Refresh</button><button class="hdr-btn" data-permission="export" onclick="exportStatisticsReport()">Export Report</button><button class="hdr-btn primary" data-permission="export" onclick="showStatisticsCharts()">Show Charts</button></div>
           <div id="stats-report"></div>
 
           <div style="height:1px;background:var(--border2);margin:4px 0;"></div>
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Exports</div>
           <div class="report-item" onclick="exportAttendanceCsv('today')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Today's Attendance (CSV)</span><span class="report-meta" id="rpt-today-count">—</span></div>
+          <div class="report-item" style="cursor:default"><span class="report-icon">📄</span><span class="report-name">Export Weekly Attendance (CSV)</span><input type="week" id="export-week" class="settings-text-input" onchange="updateExportWeekLabel()"><span class="report-meta" id="export-week-label">Choose a week</span><button class="hdr-btn" onclick="exportAttendanceCsv('weekly', document.getElementById('export-week').value)">Export</button></div>
           <div class="report-item" onclick="exportAttendanceCsv('last30')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Last 30 Days (CSV)</span><span class="report-meta" id="rpt-last30-label">—</span></div>
           <div class="report-item" onclick="exportStudentsCsv()" style="cursor:pointer"><span class="report-icon">📊</span><span class="report-name">Export All Students (CSV)</span><span class="report-meta" id="rpt-students-count">—</span></div>
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Backups</div>
@@ -370,6 +375,7 @@
             </label>
             <button class="hdr-btn" id="sm-pause-btn" onclick="toggleSerialPause()">Pause</button>
             <button class="hdr-btn" onclick="clearSerial()">Clear</button>
+            <button class="hdr-btn danger" id="sm-reset-btn" onclick="resetDevice()">Reset Device</button>
           </div>
           <div id="serial-output" class="log-output serial-output"></div>
           <div class="serial-toolbar">
@@ -411,6 +417,7 @@
                 <div class="conn-port-buttons">
                   <button class="hdr-btn" onclick="forgetSavedPort()">Forget saved port</button>
                   <button class="hdr-btn" onclick="refreshPortList()">Refresh device list</button>
+                  <button class="hdr-btn" onclick="showSerialTroubleshooting('manual')">Troubleshoot connection</button>
                 </div>
               </div>
 
@@ -535,7 +542,7 @@
                   </div>
                 </div>
               </div>
-              <div class="settings-group-aside">
+              <div class="settings-group-aside settings-row-desc">
                 Configure the official school day start and end times, plus the windows for determining if a student is early, present, late, or absent based on their scan time.
               </div>
             </div>
