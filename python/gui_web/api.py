@@ -25,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+import webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -40,6 +41,7 @@ from core.attendance_status import calculate_attendance_status
 from core.logger import LOG, LOG_FILE, AppFormatter, log
 from core.serial_handler import SerialHandler, list_serial_ports
 from core.utils import parse_json_line
+from gui_web.perf_profiler import PerfProfiler
 from settings_store import load_settings, save_settings
 
 CONFIG = get_config()
@@ -161,6 +163,7 @@ class Api:
         self._pending_delete_id: Optional[int] = None
         self._pending_enroll = False
         self._pending_wipe = False
+        self._reconnect_help_emitted = False
 
         try:
             db.init_database()
@@ -172,6 +175,7 @@ class Api:
         # Settings page but never actually applied them to SerialHandler,
         # so the toggles were cosmetic. Mirrors MainWindow.__init__ in v2.
         settings = load_settings()
+        self.profiler = PerfProfiler(enabled=bool(settings.get("enable_profiler", False)), logger=log)
         self.serial.auto_reconnect_enabled = bool(settings.get("auto_reconnect", True))
         try:
             self.processor.cooldown_seconds = max(1, int(settings.get("cooldown", self.processor.cooldown_seconds)))
@@ -383,6 +387,30 @@ class Api:
             return {"ok": False, "message": "Could not send ENROLL command to the ESP32."}
         return {"ok": True, "message": "Sent ENROLL command. Follow the prompts on the sensor."}
 
+    def validate_student_fields(
+        self,
+        student_no: str,
+        student_name: str,
+        grade: str,
+        section: str,
+    ) -> Dict[str, Any]:
+        """Return live enrollment feedback without touching persisted data."""
+        feedback = db.get_student_field_feedback(
+            1, student_no, student_name, grade, section
+        )
+        fields = {
+            name: {
+                "valid": result.valid,
+                "state": result.state.value,
+                "message": result.message,
+            }
+            for name, result in feedback.items()
+        }
+        return {
+            "all_valid": all(result["valid"] for result in fields.values()),
+            "fields": fields,
+        }
+
     def cancel_enroll(self) -> Dict[str, Any]:
         """Cancel an active enrollment before the modal is closed."""
         if not self._pending_enroll:
@@ -502,6 +530,14 @@ class Api:
     def _sync_connection_state(self) -> bool:
         """Publish serial transitions and invalidate device operations on loss."""
         connected = self.serial.is_connected()
+        if connected:
+            self._reconnect_help_emitted = False
+        elif (
+            self.serial.reconnect_count >= CONFIG.reconnect_max_retries
+            and not self._reconnect_help_emitted
+        ):
+            self._reconnect_help_emitted = True
+            self._push("connection_troubleshooting", {"reason": "reconnect_exhausted"})
         if connected == self._observed_connected:
             return connected
 
@@ -515,6 +551,42 @@ class Api:
         self._push("connection_status", self.get_connection_status())
         self._push("connection_changed", {"connected": connected})
         return connected
+
+    def get_serial_troubleshooting(self) -> Dict[str, Any]:
+        ports = self.list_ports()
+        ports_text = ", ".join(ports or ["no COM ports detected"])
+        return {
+            "ports": ports,
+            "message": (
+                "ESP32 not detected.\n"
+                f"Detected ports: {ports_text}\n\n"
+                "Try these steps in order:\n"
+                "1. Plug the ESP32 in with the correct USB cable and press the EN/RST button once.\n"
+                "2. Open Device Manager and look for a COM port under 'Ports (COM & LPT)' or 'USB Serial Device'.\n"
+                "3. If you see 'CP210x' or 'CH340' drivers missing, install the USB-to-serial driver for the board.\n"
+                "4. If the port is still missing, unplug and reconnect the board, then click Refresh.\n"
+                "5. Try a different USB cable or port, especially on laptops with power-saving USB hubs.\n"
+                "6. If this is a new board, make sure the ESP32 board package is installed in Arduino IDE or the board manager."
+            ),
+        }
+
+    def open_device_manager(self) -> Dict[str, Any]:
+        if not sys.platform.startswith("win"):
+            return {"ok": False, "message": "Device Manager is only available on Windows."}
+        try:
+            os.startfile("devmgmt.msc")
+            return {"ok": True}
+        except OSError as exc:
+            log.error(f"Could not open Device Manager: {exc}")
+            return {"ok": False, "message": "Could not open Device Manager."}
+
+    def open_driver_help(self) -> Dict[str, Any]:
+        url = "https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers"
+        try:
+            return {"ok": bool(webbrowser.open(url)), "url": url}
+        except Exception as exc:
+            log.error(f"Could not open driver help: {exc}")
+            return {"ok": False, "message": "Could not open driver help.", "url": url}
 
     def _read_loop(self) -> None:
         while not self._read_stop.is_set():
@@ -1053,11 +1125,13 @@ class Api:
     def get_statistics_report(self) -> Dict[str, Any]:
         if not (permissions.has_permission("export") or permissions.has_permission("backup")):
             return {"ok": False, "message": "Current role does not have report permission."}
-        summary = db.get_daily_attendance_summary()
-        totals: Dict[str, Dict[str, Any]] = {}
-        for row in summary:
-            key = row["student_name"]
-            entry = totals.setdefault(
+        attendance_rows = db.get_attendance_all()
+        attendance_totals: Dict[str, Dict[str, Any]] = {}
+        attendance_by_date: Dict[str, int] = {}
+        attendance_by_grade: Dict[str, int] = {}
+        for row in attendance_rows:
+            key = row.get("student_no") or row.get("student_name")
+            entry = attendance_totals.setdefault(
                 key,
                 {
                     "student_name": row["student_name"],
@@ -1068,19 +1142,71 @@ class Api:
                 },
             )
             entry["count"] += 1
-        students = sorted(totals.values(), key=lambda x: x["count"], reverse=True)
-        total_records = sum(s["count"] for s in students)
+            date = row.get("date")
+            if date:
+                attendance_by_date[date] = attendance_by_date.get(date, 0) + 1
+            grade = row.get("grade") or "Unspecified"
+            attendance_by_grade[grade] = attendance_by_grade.get(grade, 0) + 1
+        enrolled_students = db.get_all_students()
+        students = []
+        for student in enrolled_students:
+            entry = attendance_totals.get(student["student_no"], {})
+            students.append({
+                "fingerprint_id": student["fingerprint_id"],
+                "student_name": student["student_name"],
+                "student_no": student["student_no"],
+                "grade": student["grade"],
+                "section": student["section"],
+                "count": entry.get("count", 0),
+            })
+        students.sort(key=lambda x: (-x["count"], x["student_name"] or ""))
+        total_records = len(attendance_rows)
         by_grade: Dict[str, int] = {}
+        students_by_section: Dict[str, int] = {}
         for s in students:
             by_grade[s["grade"] or "Unknown"] = by_grade.get(s["grade"] or "Unknown", 0) + 1
+            section = s["section"] or "Unspecified"
+            students_by_section[section] = students_by_section.get(section, 0) + 1
+        recent_attendance = [
+            {"date": date, "count": attendance_by_date[date]}
+            for date in sorted(attendance_by_date, reverse=True)[:30]
+        ]
+        attendance_timeline = list(reversed(recent_attendance))
         return {
-            "total_students": db.get_student_count(),
+            "total_students": len(enrolled_students),
             "total_records": total_records,
-            "avg_per_student": round(total_records / len(students), 1) if students else 0,
+            "avg_per_student": round(total_records / len(enrolled_students), 1) if enrolled_students else 0,
             "top_students": students[:10],
             "by_grade": by_grade,
+            "enrolled_by_grade": by_grade,
+            "attendance_by_grade": [
+                {"grade": grade, "count": count}
+                for grade, count in sorted(attendance_by_grade.items(), key=lambda item: (-item[1], item[0]))
+            ],
+            "students_by_section": [
+                {"section": section, "count": count}
+                for section, count in sorted(students_by_section.items(), key=lambda item: (-item[1], item[0]))
+            ],
+            "attendance_timeline": attendance_timeline,
             "all_students": students,
+            "recent_attendance": recent_attendance,
+            "connected": self.serial.is_connected(),
         }
+
+    def export_statistics_report(self) -> Dict[str, Any]:
+        """Export the complete V2-compatible formatted statistics report."""
+        if not permissions.require_permission("export"):
+            return {"ok": False, "message": "Current role does not have export permission."}
+        path = self._choose_csv_path("attendance_report.txt")
+        if path is None:
+            return {"ok": False, "message": "Export cancelled."}
+        try:
+            path = path.with_suffix(".txt")
+            path.write_text(db.generate_statistics_report(), encoding="utf-8")
+            return {"ok": True, "message": "Statistics report exported.", "path": str(path)}
+        except OSError as exc:
+            log.error(f"Could not export statistics report: {exc}")
+            return {"ok": False, "message": "Unable to export the statistics report."}
 
     def list_backups(self) -> List[Dict[str, Any]]:
         if not permissions.require_permission("backup"):

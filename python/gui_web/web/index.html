@@ -248,7 +248,9 @@
           <input class="tb-search" placeholder="Search students…" id="stu-search" oninput="filterTable('stu-tbody','stu-search')">
           <div class="toolbar-sep"></div>
           <span class="tb-count" id="stu-count">0 students</span>
+          <span class="tb-count" id="stu-selected-count">0 selected</span>
           <div class="toolbar-spacer"></div>
+          <button class="hdr-btn danger" id="stu-delete-selected" data-permission="delete" onclick="deleteSelectedStudents()" disabled>Delete Selected</button>
           <button class="hdr-btn danger" data-permission="wipe" onclick="wipeAllFingerprints()">Wipe All Fingerprints</button>
           <button class="hdr-btn primary" data-permission="enroll" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
         </div>
@@ -257,6 +259,7 @@
             <div class="data-table-wrap">
               <table class="data-table">
                 <thead><tr>
+                  <th class="select-col"><input type="checkbox" id="stu-select-all" onchange="toggleAllStudentSelection(this.checked)" aria-label="Select all students"></th>
                   <th>FP ID</th><th>Student No.</th><th>Name</th><th>Grade</th><th>Section</th>
                 </tr></thead>
                 <tbody id="stu-tbody"></tbody>
@@ -315,6 +318,7 @@
 
           <!-- Statistics report -->
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Attendance Statistics Report</div>
+          <div class="report-toolbar"><span id="stats-connection-summary">System status: —</span><button class="hdr-btn" onclick="loadReportsPage()">Refresh</button><button class="hdr-btn" data-permission="export" onclick="exportStatisticsReport()">Export Report</button><button class="hdr-btn primary" data-permission="export" onclick="showStatisticsCharts()">Show Charts</button></div>
           <div id="stats-report"></div>
 
           <div style="height:1px;background:var(--border2);margin:4px 0;"></div>
@@ -371,6 +375,7 @@
             </label>
             <button class="hdr-btn" id="sm-pause-btn" onclick="toggleSerialPause()">Pause</button>
             <button class="hdr-btn" onclick="clearSerial()">Clear</button>
+            <button class="hdr-btn danger" id="sm-reset-btn" onclick="resetDevice()">Reset Device</button>
           </div>
           <div id="serial-output" class="log-output serial-output"></div>
           <div class="serial-toolbar">
@@ -412,6 +417,7 @@
                 <div class="conn-port-buttons">
                   <button class="hdr-btn" onclick="forgetSavedPort()">Forget saved port</button>
                   <button class="hdr-btn" onclick="refreshPortList()">Refresh device list</button>
+                  <button class="hdr-btn" onclick="showSerialTroubleshooting('manual')">Troubleshoot connection</button>
                 </div>
               </div>
 

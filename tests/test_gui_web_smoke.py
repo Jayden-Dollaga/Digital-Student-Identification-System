@@ -26,6 +26,8 @@ def test_v3_web_shell_contains_all_primary_workflows():
         "toggleScan",
         "startEnrollment",
         "deleteSelectedStudent",
+        "deleteSelectedStudents",
+        "processBatchDelete",
         "wipeAllFingerprints",
         "restoreBackup",
     ):
@@ -43,6 +45,120 @@ def test_v3_web_shell_contains_all_primary_workflows():
     assert "Next &#9654;" in html
     assert "attendance_status" in script
     assert "attendanceBadgeClass" in script
+    assert 'id="stu-select-all"' in html
+    assert 'id="stu-delete-selected"' in html
+    assert "handleBatchDeleteProgress" in script
+    assert "Retry remaining" in script
+    assert 'id="sm-reset-btn"' in html
+    assert "function resetDevice" in script
+    assert "function resetBlockReason" in script
+    assert "api().reset_device" in script
+    assert "showStatisticsCharts" in script
+    assert "renderAttendanceTimeline" in script
+    assert "renderSectionChart" in script
+    assert "renderAttendanceGradeChart" in script
+    assert "statistics-charts-overlay" in script
+    assert "showSerialTroubleshooting" in script
+    assert "connection_troubleshooting" in script
+    assert "serial-troubleshooting-overlay" in script
+    assert "Troubleshoot connection" in html
+    assert "exportStatisticsReport" in script
+    assert "Recent Attendance by Date" in script
+    assert 'id="stats-connection-summary"' in html
+    assert "validate_student_fields" in script
+    assert "validateEnrollmentFields" in script
+    assert 'id="em-validation-summary"' in script
+    assert 'id="em-sno-feedback"' in script
+
+
+def test_v3_validation_api_returns_field_feedback(monkeypatch):
+    from gui_web.api import Api
+
+    class Result:
+        def __init__(self, valid, state, message):
+            self.valid = valid
+            self.state = type("State", (), {"value": state})()
+            self.message = message
+
+    monkeypatch.setattr("gui_web.api.db.get_student_field_feedback", lambda *args: {
+        "student_no": Result(False, "missing", "Required field"),
+        "student_name": Result(True, "valid", "Valid"),
+    })
+
+    result = Api().validate_student_fields("", "Alice", "", "")
+
+    assert result["all_valid"] is False
+    assert result["fields"]["student_no"]["message"] == "Required field"
+
+
+def test_v3_statistics_report_includes_students_without_attendance(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.db.get_all_students", lambda: [
+        {"fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001", "grade": "10", "section": "A"},
+        {"fingerprint_id": 2, "student_name": "Bob", "student_no": "S-002", "grade": "10", "section": "A"},
+    ])
+    monkeypatch.setattr("gui_web.api.db.get_attendance_all", lambda: [{
+        "student_name": "Alice", "student_no": "S-001", "grade": "10",
+        "section": "A", "date": "2026-09-10", "status": "Present",
+    }])
+    monkeypatch.setattr(api.serial, "is_connected", lambda: False)
+
+    result = api.get_statistics_report()
+
+    assert result["total_students"] == 2
+    assert result["avg_per_student"] == 0.5
+    assert [student["student_name"] for student in result["all_students"]] == ["Alice", "Bob"]
+    assert result["all_students"][1]["count"] == 0
+    assert result["by_grade"] == {"10": 2}
+    assert result["recent_attendance"] == [{"date": "2026-09-10", "count": 1}]
+    assert result["enrolled_by_grade"] == {"10": 2}
+    assert result["attendance_by_grade"] == [{"grade": "10", "count": 1}]
+    assert result["students_by_section"] == [{"section": "A", "count": 2}]
+    assert result["attendance_timeline"] == [{"date": "2026-09-10", "count": 1}]
+    assert result["connected"] is False
+
+
+def test_v3_serial_troubleshooting_message_uses_detected_ports(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr(api, "list_ports", lambda: ["COM7"])
+
+    result = api.get_serial_troubleshooting()
+
+    assert result["ports"] == ["COM7"]
+    assert "Detected ports: COM7" in result["message"]
+    assert "Device Manager" in result["message"]
+    assert "CP210x" in result["message"]
+
+
+def test_v3_profiler_collects_and_reports_enabled_measurements(capsys):
+    from gui_web.perf_profiler import PerfProfiler
+
+    profiler = PerfProfiler(enabled=True)
+    profiler.start("students.load")
+    profiler.stop("students.load")
+    profiler.stop("missing")
+    profiler.report()
+
+    output = capsys.readouterr().out
+    assert "Performance report (entries=1)" in output
+    assert "students.load" in output
+    assert "count=1" in output
+
+
+def test_v3_profiler_is_inert_when_disabled(capsys):
+    from gui_web.perf_profiler import PerfProfiler
+
+    profiler = PerfProfiler(enabled=False)
+    profiler.start("students.load")
+    profiler.stop("students.load")
+    profiler.report()
+
+    assert capsys.readouterr().out == ""
 
 
 def test_v3_web_bundle_uses_native_unicode_display_values():
