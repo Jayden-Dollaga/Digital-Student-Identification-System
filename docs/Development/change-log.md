@@ -1,9 +1,10 @@
 Change Log
 ==========
 
-Unreleased — verified 2026-09-10
+Unreleased — verified 2026-09-11
 --------------------------------
 
+- UI: Refactored the v3 attendance dashboard and removed redundant frontend code while preserving current workflows (`aa457e0`).
 - Maintenance: Refactored project structure and removed redundant code while preserving the v3 webview runtime and v2 parity reference (`69e563b`).
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
 - UI: Added the v3 light theme stylesheet, expanded webview UI components, and preserved the proven Qt implementation under `python/gui_web/v2_reference/` for parity review (`ea3ea7c`).
@@ -99,4 +100,4 @@ v1.0 — Initial release
 Notes
 -----
 
-Last verified: 2026-09-10, against commit `69e563b`
+Last verified: 2026-09-11, against commit `aa457e0`

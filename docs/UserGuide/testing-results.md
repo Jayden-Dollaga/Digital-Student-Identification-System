@@ -1,15 +1,25 @@
 # Testing Results
 
-The latest full test run was executed against HEAD `69e563b` on 2026-09-10 with Python 3.14.6:
+The latest full test run was executed against HEAD `aa457e0` on 2026-09-11 with Python 3.14.6:
 
-- 213 tests passed
+- 234 tests passed
 - 1 test was skipped
+- 2 web-shell tests failed
 
 The passing suite covers database, security, serial, Qt-reference, webview smoke, permissions, enrollment, reporting, and UI behavior.
 
+## Known refactor regressions
+
+The latest web UI refactor removed the `deleteSelectedStudents` batch-delete function and the `student-status-today` element, but `tests/test_gui_web_smoke.py` still expects both symbols. The failures are:
+
+- `test_v3_web_shell_contains_all_primary_workflows`
+- `test_v3_web_bundle_uses_native_unicode_display_values`
+
+These are current implementation/test-contract mismatches, not documentation failures. They should be resolved by either restoring the workflows/elements or updating the tests to the intentionally changed v3 contract.
+
 ## Test-process caveat
 
-The test cases complete successfully, but the Windows process exits with status `-1073740791` after pytest reports completion. This appears to occur during GUI/Qt teardown rather than during a test assertion. The pass/skip counts above are therefore reliable, but CI should continue investigating the non-zero post-test process exit before treating the suite as fully clean.
+The Windows process exits with status `-1073740791` after pytest reports completion. This appears to occur during GUI/Qt teardown rather than during a test assertion. CI should continue investigating the non-zero post-test process exit.
 
 ## Run the tests
 
@@ -42,4 +52,4 @@ The maintained interface is launched with `run_web_gui.bat` or `python run_web_g
 
 Prototype and archived Qt/CustomTkinter tests do not replace hardware validation. Physical ESP32 behavior still requires the documented board, sensor wiring, USB driver, and a connected device.
 
-Last reviewed: 2026-09-10, against commit `69e563b`.
+Last reviewed: 2026-09-11, against commit `aa457e0`.

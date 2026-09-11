@@ -1,6 +1,8 @@
 # Documentation Index
 
-Use this page to find maintained guidance and clearly labeled historical or generated material.
+Use this page to find current v3 guidance and clearly labeled historical or generated material.
+
+Start with the [documentation map](Development/documentation-map.md), the [v3 workflow guide](UserGuide/v3-workflows.md), or the [v3 architecture](Architecture/v3-system.md).
 
 ## Top-level sections
 
@@ -8,6 +10,7 @@ Use this page to find maintained guidance and clearly labeled historical or gene
 - [Database schema](Architecture/database-schema.md)
 - [Software flow](Architecture/software-flow.md)
 - [System architecture](Architecture/system-architecture.md)
+- [v3 system architecture](Architecture/v3-system.md)
 - [Hardware](Hardware/hardware-connections.md)
 - [Wiring](Hardware/wiring.md)
 - [Firmware variants](Hardware/firmware-variants.md)
@@ -15,6 +18,7 @@ Use this page to find maintained guidance and clearly labeled historical or gene
 - [Installation](UserGuide/installation-guide.md)
 - [Testing results](UserGuide/testing-results.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
+- [Current troubleshooting](Troubleshooting/README.md)
 - [Development changelog](Development/change-log.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Release guide](../RELEASE.md)
@@ -25,6 +29,8 @@ Use this page to find maintained guidance and clearly labeled historical or gene
 - [Tools catalog](Development/tools-catalog.md)
 - [Runtime data](Development/runtime-data.md)
 - [Development TODO](Development/todo.md)
+- [Documentation map](Development/documentation-map.md)
+- [UI lineage](History/ui-lineage.md)
 - [Security audit](SECURITY_AUDIT_REPORT.md)
 - [Security remediation status](SECURITY_REMEDIATION_REPORT.md)
 - [Root security disclosure policy](../SECURITY.md)
@@ -43,7 +49,9 @@ Use this page to find maintained guidance and clearly labeled historical or gene
 - `Architecture/` — system design, data flow, and architecture documentation.
 - `Hardware/` — wiring and physical connection documentation.
 - `UserGuide/` — installation instructions, usage guidance, and testing results.
+- `Troubleshooting/` — concise current recovery and diagnostic guidance.
 - `Development/` — developer notes, change logs, implementation details, and project tracking.
+- `History/` — curated v1/v2/v3 evolution notes.
 - `Research/` — experimental notes, research findings, and exploratory documentation.
 - `API/` — API or interface docs, reserved for future expansion.
 - `generated/` — automatically generated audit reports and repository analysis.
@@ -70,4 +78,4 @@ Historical investigation reports retained for review:
 Generated reports are listed in [generated/INDEX.md](generated/INDEX.md). Archived
 copies and one-off reports are listed in [Dup/README.md](Dup/README.md).
 
-Last verified: 2026-09-10, against commit 69e563b
+Last reviewed: 2026-09-11, against commit `aa457e0`

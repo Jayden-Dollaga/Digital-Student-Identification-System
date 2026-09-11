@@ -12,4 +12,4 @@ The documentation is organized by audience and purpose. Start with the
 
 Research and API folders are reserved for their respective material.
 
-Last verified: 2026-09-10, against commit 69e563b
+Last reviewed: 2026-09-11, against commit `aa457e0`

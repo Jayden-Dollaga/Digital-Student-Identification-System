@@ -36,7 +36,7 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
    run_web_gui.bat
    ```
 
-For packaged Windows deployment, see [Portable Build](PORTABLE_BUILD.md). For connection problems, see [Troubleshooting](docs/TROUBLESHOOTING.md). Contributors should start with [Contributing](CONTRIBUTING.md) and [Release Guide](RELEASE.md).
+For packaged Windows deployment, see [Portable Build](PORTABLE_BUILD.md). For daily workflows, see the [v3 workflow guide](docs/UserGuide/v3-workflows.md). For connection problems, see [Current Troubleshooting](docs/Troubleshooting/README.md). Contributors should start with [Contributing](CONTRIBUTING.md) and [Release Guide](RELEASE.md).
 
 The PC-to-ESP32 USB serial connection uses **115200 baud**. The separate ESP32-to-AS608 sensor UART uses **57600 baud** internally; do not select 57600 in the desktop app.
 
@@ -110,10 +110,10 @@ python tests/Prototype/run_combined_ui.py
 | `docs/` | User, architecture, hardware, development, security, and generated documentation |
 | `archive/` | Historical and experimental material retained for reference |
 
-See the [documentation index](docs/INDEX.md) for the full map.
+See the [documentation index](docs/INDEX.md) and [documentation map](docs/Development/documentation-map.md) for the full map.
 
 ## License
 
 See [LICENSE](LICENSE).
 
-Last verified: 2026-09-10, against commit `69e563b`
+Last reviewed: 2026-09-11, against commit `aa457e0`

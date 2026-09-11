@@ -60,4 +60,4 @@ python -m pytest -q --disable-warnings
 
 Hardware-dependent serial and fingerprint workflows require a connected ESP32 and AS608 sensor. The active build and launcher details are documented in [PORTABLE_BUILD.md](../../PORTABLE_BUILD.md).
 
-Last reviewed: 2026-09-10, against commit `69e563b`.
+Last reviewed: 2026-09-11, against commit `aa457e0`.

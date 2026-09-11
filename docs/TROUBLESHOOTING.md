@@ -1,5 +1,7 @@
 # Troubleshooting DSIS
 
+> Current quick recovery steps are maintained in [Troubleshooting/README.md](Troubleshooting/README.md). This file remains the longer diagnostic reference.
+
 ## No COM Port Appears
 
 1. Connect the ESP32 with a data-capable USB cable.

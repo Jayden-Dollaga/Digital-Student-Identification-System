@@ -1,6 +1,6 @@
 # Active Python File Guide
 
-This guide replaces the older generated inventory that described the v1/v2 UI trees as current. It summarizes the maintained v3 source tree at commit `69e563b`.
+This guide replaces the older generated inventory that described the v1/v2 UI trees as current. It summarizes the maintained v3 source tree at commit `aa457e0`.
 
 ## Entry points
 
@@ -46,4 +46,4 @@ This guide replaces the older generated inventory that described the v1/v2 UI tr
 
 For the current launch and architecture workflow, see [FILES_OVERVIEW.md](FILES_OVERVIEW.md), [system-architecture.md](../Architecture/system-architecture.md), and [testing-results.md](../UserGuide/testing-results.md).
 
-Last reviewed: 2026-09-10, against commit `69e563b`.
+Last reviewed: 2026-09-11, against commit `aa457e0`.

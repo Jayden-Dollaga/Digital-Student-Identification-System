@@ -32,4 +32,4 @@ automatic deletion schedule.
 This is an operational project policy, not legal advice. Institutions deploying
 DSIS remain responsible for their own privacy, retention, security, and
 regulatory decisions.
-Last verified: 2026-09-10, against commit 69e563b
+Last reviewed: 2026-09-11, against commit aa457e0
