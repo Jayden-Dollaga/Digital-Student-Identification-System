@@ -9,11 +9,13 @@ For a quick Windows launch from the repository root:
 run_web_gui.bat
 ```
 
-Install dependencies first with:
+Install dependencies from the repository root with:
 
 ```text
-python -m pip install -r requirements.txt
+install_requirements.bat
 ```
+
+The installer uses an existing `.venv` when present. If none exists, it offers to create `.venv` and installs the requirements into that environment. To install manually, use `python -m venv .venv`, activate it with `.venv\Scripts\activate`, and run `python -m pip install -r requirements.txt`.
 
 Before connecting the board, install the Windows driver matching its USB interface chip. CP210x is only for Silicon Labs CP210x boards; other common families are CH340/CH341, CH9102, and FTDI. Identify the chip in **Device Manager > Ports (COM & LPT)**. See the [driver section in the User Guide](docs/UserGuide/installation-guide.md#41-usb-serial-driver) for vendor links and native-USB notes.
 
@@ -51,5 +53,4 @@ cancellation, disconnect, empty-device wipe, and absent-ID deletion passed.
 Valid-finger attendance capture and successful enrollment still require an
 operator to place a finger on the sensor.
 
-Last verified: 2026-09-09, source build, packaged startup, automated tests, and
-safe physical lifecycle smoke test.
+Last reviewed: 2026-09-16, against commit `d3fb362`.

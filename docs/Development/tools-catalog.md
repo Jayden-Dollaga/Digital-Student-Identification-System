@@ -16,13 +16,11 @@ These scripts support diagnostics, packaging, repository maintenance, and portab
 | `copilot_forensic_search.py` | Collect repository evidence for local forensic audits | May inspect local VS Code/Copilot storage; treat output as sensitive |
 | `archive_unused_python.py` | Identify Python files for archival review | Review results before moving anything |
 | `_database_refactor.py` | Historical database refactor helper | Development-only; verify before running |
-| `list_files.bat` | Produce a recursive file listing | Inventory helper, not an application launcher; writes `list.txt` at the selected/current directory |
+| `tools/list_files.bat` | Produce a recursive file listing | Inventory helper, not an application launcher; writes output to the console |
 
-The root `list_files.bat` creates a formatted `tree` snapshot in `list.txt`.
-`tools/list_files.bat` is a separate utility that prints a recursive absolute-path
-listing to the console. They are not duplicates and both remain available for
-manual inventory work. Existing generated snapshots were archived under
-`docs/Dup/audit-snapshots/list-output/`.
+The former root `list_files.bat` snapshot helper was removed in the latest cleanup.
+`tools/list_files.bat` remains available for manual inventory work. Existing
+generated snapshots were archived under `docs/Dup/audit-snapshots/list-output/`.
 
 ## Metrics Generator
 

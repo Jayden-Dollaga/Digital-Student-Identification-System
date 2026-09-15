@@ -7,7 +7,7 @@ This is a current map of the active DSIS source tree. Historical Qt and CustomTk
 - `README.md` and `INSTALLATION.md`: user onboarding and hardware setup.
 - `requirements.txt`: Python dependencies for the webview application, reporting, testing, and archived interfaces.
 - `run_web_gui.py` and `run_web_gui.bat`: active HTML/pywebview launchers.
-- `DSIS.spec` and `build_exe.bat`: current PyInstaller packaging workflow.
+- `Build/DSIS_v3.spec`: current PyInstaller packaging specification. Obsolete root build scripts and the former v2 package artifact were removed.
 - `firmware/`: Arduino sketches and firmware references.
 - `python/`: application backend and active web UI.
 - `tests/`: automated tests and prototype previews.

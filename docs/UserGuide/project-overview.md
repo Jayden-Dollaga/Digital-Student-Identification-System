@@ -146,7 +146,7 @@ The current system includes:
 
 ## Getting started
 
-1. Install the Python dependencies with [install_requirements.bat](../../install_requirements.bat) or pip.
+1. Install the Python dependencies with [install_requirements.bat](../../install_requirements.bat), which can create and use `.venv`, or install them manually with pip.
 2. Upload the firmware to the ESP32.
 3. Connect the hardware.
 4. Launch the active v3 webview interface with [run_web_gui.bat](../../run_web_gui.bat) or `python run_web_gui.py`.

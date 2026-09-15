@@ -1,0 +1,386 @@
+/* ---------------------------------------------------------
+   Fingerprint Attendance — Qt Stylesheet
+   Dark theme, single accent color. Change ACCENT below (and
+   in theme.py if you templatize it) to re-skin the whole app.
+--------------------------------------------------------- */
+
+* {
+    font-family: "Segoe UI", "Inter", sans-serif;
+    font-size: 13px;
+    color: #E6E8EB;
+}
+
+QMainWindow, QWidget#centralWidget {
+    background-color: #14161A;
+}
+
+/* ---------------- Sidebar ---------------- */
+QWidget#sidebar {
+    background-color: #1B1E24;
+    border-right: 1px solid #262A31;
+}
+
+QLabel#sidebarTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #F2F3F5;
+}
+
+QLabel#brandMark {
+    background-color: #4C8DFF;
+    color: #0B1220;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 8px;
+}
+
+QLabel#sidebarSubtitle {
+    font-size: 11px;
+    font-weight: 500;
+    color: #8A909C;
+    padding: 2px 2px 0 2px;
+}
+
+QFrame#sidebarDivider {
+    background-color: #262A31;
+    border: none;
+}
+
+QPushButton#navButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin: 2px 2px;
+    color: #AEB4BD;
+    font-weight: 500;
+}
+
+QPushButton#navButton:hover {
+    background-color: #24282F;
+    color: #F2F3F5;
+    border: 1px solid #2D3340;
+}
+
+QPushButton#navButton:checked {
+    background-color: #2563EB22;
+    color: #4C8DFF;
+    font-weight: 600;
+    border-left: 3px solid #4C8DFF;
+}
+
+QLineEdit, QComboBox, QTextEdit, QPlainTextEdit {
+    background-color: #171A20;
+    border: 1px solid #2A3038;
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #F2F3F5;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QCheckBox {
+    color: #D8DEE9;
+}
+
+QProgressBar {
+    border: 1px solid #2A3038;
+    border-radius: 8px;
+    text-align: center;
+    background-color: #171A20;
+}
+
+QProgressBar::chunk {
+    background-color: #4C8DFF;
+    border-radius: 7px;
+}
+
+/* ---------------- Header bar ---------------- */
+QWidget#headerBar {
+    background-color: #14161A;
+    border-bottom: 1px solid #262A31;
+}
+
+QLabel#pageTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #F2F3F5;
+}
+
+QLabel#connectionStatus {
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QLabel#connectionStatus[state="connected"] {
+    background-color: #16532422;
+    color: #4ADE80;
+}
+
+QLabel#connectionStatus[state="disconnected"] {
+    background-color: #7F1D1D22;
+    color: #F87171;
+}
+
+QLabel#connectionStatus[state="connecting"] {
+    background-color: #78350F22;
+    color: #FBBF24;
+}
+
+QLabel#scanToast {
+    padding: 10px 24px;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 1px solid #262A31;
+}
+
+QLabel#scanToast[kind="success"] {
+    background-color: #16532233;
+    color: #4ADE80;
+}
+
+QLabel#scanToast[kind="fail"] {
+    background-color: #7F1D1D33;
+    color: #F87171;
+}
+
+QLabel#scanToast[kind="duplicate"] {
+    background-color: #1E3A8A33;
+    color: #60A5FA;
+}
+
+/* ---------------- Cards ---------------- */
+QFrame#card {
+    background-color: #1B1E24;
+    border: 1px solid #262A31;
+    border-radius: 12px;
+}
+
+QLabel#cardLabel {
+    color: #8A909C;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+QLabel#cardValue {
+    color: #F2F3F5;
+    font-size: 26px;
+    font-weight: 700;
+}
+
+/* ---------------- Buttons ---------------- */
+QPushButton#primaryButton {
+    background-color: #4C8DFF;
+    color: #0B0D10;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #6BA1FF;
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: #3A76E0;
+}
+
+QPushButton#dangerButton {
+    background-color: #7F1D1D;
+    color: #FCA5A5;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+
+QPushButton#dangerButton:hover {
+    background-color: #991B1B;
+}
+
+/* Connect/Disconnect button (gui_qt/main_window.py) reuses #primaryButton
+   for layout, but switches to the danger red palette while connected -
+   the button reads "Disconnect" at that point, and red makes it clear
+   that's the action it will take when clicked, matching Stop/Wipe/Delete
+   elsewhere in the app. */
+QPushButton#primaryButton[connectionState="connected"],
+QPushButton#primaryButton[connectionState="connecting"] {
+    background-color: #7F1D1D;
+    color: #FCA5A5;
+}
+
+QPushButton#primaryButton[connectionState="connected"]:hover,
+QPushButton#primaryButton[connectionState="connecting"]:hover {
+    background-color: #991B1B;
+}
+
+QPushButton#secondaryButton {
+    background-color: #2A3038;
+    color: #E6E8EB;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-weight: 600;
+}
+
+QPushButton#secondaryButton:hover {
+    background-color: #343C47;
+}
+
+/* ---------------- Table ---------------- */
+QTableWidget {
+    background-color: #1B1E24;
+    border: 1px solid #262A31;
+    border-radius: 8px;
+    gridline-color: #262A31;
+}
+
+QHeaderView::section {
+    background-color: #1B1E24;
+    color: #8A909C;
+    padding: 8px;
+    border: none;
+    border-bottom: 1px solid #262A31;
+    font-weight: 600;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QTableWidget::item:selected {
+    background-color: #4C8DFF33;
+    color: #F2F3F5;
+}
+
+/* ---------------- Scrollbars ---------------- */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background: #33383F;
+    border-radius: 5px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #43494F;
+}
+
+/* ---------------- Muted / secondary text ---------------- */
+/* Shared role for de-emphasized text (empty states, captions, hints) that
+   used to be scattered as hardcoded inline setStyleSheet() calls across
+   several pages - those calls picked colors tuned for a dark background
+   and stayed fixed even when the app switched to the light theme, which
+   is what made things unreadable there. */
+QLabel#mutedLabel {
+    color: #AEB4BD;
+}
+
+/* ---------------- Warning banner ---------------- */
+/* Used for non-critical "showing older/fallback data" notices (Dashboard,
+   Attendance). Previously hardcoded to a dark amber-on-near-black look
+   that stayed exactly the same in light mode too, appearing as a jarring
+   dark box floating in an otherwise light page. */
+QLabel#warningBanner {
+    color: #F5B942;
+    background-color: #2A2410;
+    border: 1px solid #4A3F1A;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+/* ---------------- Recent activity list (Dashboard) ---------------- */
+QListWidget#recentActivityList {
+    background-color: transparent;
+    border: none;
+}
+
+QListWidget#recentActivityList::item {
+    padding: 6px 2px;
+    border-bottom: 1px solid #22262D;
+    color: #D4D9E0;
+}
+
+/* ---------------- Report preview (Reports page) ---------------- */
+/* This shows formatted report text, not raw diagnostic output, so it
+   should look like normal themed content - not a fixed dark terminal that
+   would look out of place once the surrounding page goes light. */
+QPlainTextEdit#reportView {
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* ---------------- Dialogs & message boxes ---------------- */
+/* QDialog/QMessageBox previously had no rules here at all, so they fell
+   through to the native platform style (e.g. "windowsvista" on Windows),
+   which paints its own white/native background regardless of our dark
+   theme - while the universal `color:` rule above still applied, leaving
+   near-invisible light-grey text on a white box ("No selection",
+   "Confirm Wipe", the Enroll Fingerprint form, etc. in the screenshots).
+   Pairing these rules with Fusion (forced in main_qt.py) makes every
+   dialog and message box match the app regardless of the host PC's own
+   OS theme. */
+QDialog {
+    background-color: #14161A;
+}
+
+QMessageBox {
+    background-color: #1B1E24;
+}
+
+QDialog QLabel,
+QMessageBox QLabel {
+    background-color: transparent;
+    color: #E6E8EB;
+}
+
+/* Default (unnamed) buttons - covers QMessageBox's OK/Yes/No/Cancel
+   buttons and any QDialog button that didn't opt into primaryButton /
+   dangerButton / secondaryButton. Those named buttons keep their own
+   look because an ID selector is more specific than this bare type
+   selector. */
+QPushButton {
+    background-color: #2A3038;
+    color: #E6E8EB;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    min-width: 72px;
+}
+
+QPushButton:hover {
+    background-color: #343C47;
+}
+
+QPushButton:pressed {
+    background-color: #20262E;
+}
+
+QPushButton:disabled {
+    background-color: #1E2229;
+    color: #5B6169;
+}
+
+/* ---------------- Backups list (Reports page) ---------------- */
+QListWidget#backupsList {
+    background-color: #171A20;
+    border: 1px solid #2A3038;
+    border-radius: 8px;
+    color: #9AA4B2;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+
+QListWidget#backupsList::item {
+    padding: 3px 8px;
+}

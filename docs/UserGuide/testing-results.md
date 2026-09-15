@@ -1,21 +1,16 @@
 # Testing Results
 
-The latest full test run was executed against HEAD `aa457e0` on 2026-09-11 with Python 3.14.6:
+The latest full test run was executed against HEAD `d3fb362` on 2026-09-16 with Python 3.14.6:
 
-- 234 tests passed
-- 1 test was skipped
-- 2 web-shell tests failed
+- 233 tests passed
+- 3 tests were skipped
+- 1 test failed
 
 The passing suite covers database, security, serial, Qt-reference, webview smoke, permissions, enrollment, reporting, and UI behavior.
 
-## Known refactor regressions
+## Known test mismatch
 
-The latest web UI refactor removed the `deleteSelectedStudents` batch-delete function and the `student-status-today` element, but `tests/test_gui_web_smoke.py` still expects both symbols. The failures are:
-
-- `test_v3_web_shell_contains_all_primary_workflows`
-- `test_v3_web_bundle_uses_native_unicode_display_values`
-
-These are current implementation/test-contract mismatches, not documentation failures. They should be resolved by either restoring the workflows/elements or updating the tests to the intentionally changed v3 contract.
+`test_v3_today_export_uses_visible_fallback_rows` expects the exported attendance status `Present`, while the current implementation returns the more specific status `Early` for the fixture. This is an implementation/test-contract mismatch, not a documentation failure. Resolve it by aligning the test expectation and product status contract before treating the suite as fully green.
 
 ## Test-process caveat
 
@@ -52,4 +47,4 @@ The maintained interface is launched with `run_web_gui.bat` or `python run_web_g
 
 Prototype and archived Qt/CustomTkinter tests do not replace hardware validation. Physical ESP32 behavior still requires the documented board, sensor wiring, USB driver, and a connected device.
 
-Last reviewed: 2026-09-11, against commit `aa457e0`.
+Last reviewed: 2026-09-16, against commit `d3fb362`.

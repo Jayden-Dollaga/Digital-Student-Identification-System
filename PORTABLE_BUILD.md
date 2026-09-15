@@ -1,26 +1,24 @@
 # Portable Windows Build
 
 The current source application is the HTML/pywebview v3 interface. The
-PyInstaller specification targets `run_web_gui.py` and bundles the V3 web
-assets. The
-specification is [DSIS.spec](DSIS.spec), and the build launcher is
-[build_exe.bat](build_exe.bat).
+PyInstaller specification is [Build/DSIS_v3.spec](Build/DSIS_v3.spec), and it
+bundles the V3 web assets.
 
 ## Build
 
 From the repository root, run:
 
 ```text
-build_exe.bat
+python -m PyInstaller Build\DSIS_v3.spec --clean --noconfirm --workpath Build\build-v3 --distpath Build\DSIS_v3
 ```
 
-The script invokes PyInstaller with `DSIS.spec` and writes the executable to:
+The command invokes PyInstaller with `Build\DSIS_v3.spec` and writes the executable to:
 
 ```text
-dist\DSIS\DSIS.exe
+Build\DSIS_v3\DSIS\DSIS.exe
 ```
 
-The build keeps `data/` external and writable. Copy the generated `dist\DSIS`
+The build keeps `data/` external and writable. Copy the generated `Build\DSIS_v3\DSIS`
 directory together with a writable `data/` directory when testing on another
 machine; settings, the SQLite database, backups, charts, and logs must not be
 written inside the bundled executable area.
@@ -42,8 +40,8 @@ disposable test machine before distribution.
 Before distributing a build:
 
 1. Run `python run_web_gui.py` from the repository root as a source launch smoke test.
-2. Run `build_exe.bat` and confirm `dist\DSIS\DSIS.exe` exists.
-3. Confirm `dist\DSIS\_internal\gui_web\web\index.html`, `app.js`, and `styles.css` exist.
+2. Run the PyInstaller command above and confirm `Build\DSIS_v3\DSIS\DSIS.exe` exists.
+3. Confirm `Build\DSIS_v3\DSIS\_internal\gui_web\web\index.html`, `app.js`, and `styles.css` exist.
 4. Test the executable on a clean Windows machine or USB copy.
 5. Confirm serial connection, enrollment, attendance, backups, and database access.
 6. Confirm `data\settings.json`, `data\attendance.db`, `data\backups`, and `data\logs` remain writable.
@@ -51,4 +49,4 @@ Before distributing a build:
 The source build was validated on 2026-09-09. Clean-machine, USB, and physical
 ESP32 validation still require the target hardware/environment.
 
-Last verified: 2026-09-09, source build and automated smoke checks.
+Last reviewed: 2026-09-16, against commit `d3fb362`.

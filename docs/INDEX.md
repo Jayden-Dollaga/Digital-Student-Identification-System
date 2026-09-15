@@ -30,6 +30,7 @@ Start with the [documentation map](Development/documentation-map.md), the [v3 wo
 - [Runtime data](Development/runtime-data.md)
 - [Development TODO](Development/todo.md)
 - [Documentation map](Development/documentation-map.md)
+- [Documentation overhaul manifest](Documentation-Overhaul.md)
 - [UI lineage](History/ui-lineage.md)
 - [Security audit](SECURITY_AUDIT_REPORT.md)
 - [Security remediation status](SECURITY_REMEDIATION_REPORT.md)

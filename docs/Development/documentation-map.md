@@ -4,6 +4,7 @@ This map separates current operational guidance from historical and generated ma
 
 ## Current guidance
 
+- `../Documentation-Overhaul.md`: complete organization, source-of-truth, and audit manifest.
 - `../README.md`: full v3 system architecture and runtime contract.
 - `../UserGuide/v3-workflows.md`: enrollment, scanning, evaluation, settings, permissions, backup, restore, and hardware workflows.
 - `../Architecture/v3-system.md`: component boundaries and application flow.
@@ -13,7 +14,7 @@ This map separates current operational guidance from historical and generated ma
 - `../Development/FILES_DETAILED.md`: current Python module guide.
 - `../Development/PORTABLE_PYTHON.md`: portable runtime guidance.
 - `../Development/change-log.md`: release history and unreleased development entries.
-- `../../PORTABLE_BUILD.md`: current PyInstaller build process.
+- `../../PORTABLE_BUILD.md`: current PyInstaller build process using `Build/DSIS_v3.spec`.
 - `../../CONTRIBUTING.md`: contribution and validation requirements.
 - `../../RELEASE.md`: release checklist and versioning policy.
 - `../../SECURITY.md`: vulnerability reporting and supported-version policy.
