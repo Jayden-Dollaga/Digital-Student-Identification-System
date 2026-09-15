@@ -53,4 +53,4 @@ cancellation, disconnect, empty-device wipe, and absent-ID deletion passed.
 Valid-finger attendance capture and successful enrollment still require an
 operator to place a finger on the sensor.
 
-Last reviewed: 2026-09-16, against commit `d3fb362`.
+Last reviewed: 2026-09-16, against commit `64d80c9`.

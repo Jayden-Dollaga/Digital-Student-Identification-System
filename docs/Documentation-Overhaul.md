@@ -1,6 +1,6 @@
 # DSIS Documentation Overhaul
 
-This manifest records the repository-wide documentation audit and organization reviewed against commit `d3fb362` on 2026-09-16. It is the entry point for understanding which documents are current, historical, generated, or preserved for research.
+This manifest records the repository-wide documentation audit and organization reviewed against commit `64d80c9` on 2026-09-16. It is the entry point for understanding which documents are current, historical, generated, or preserved for research.
 
 ## Documentation structure
 
@@ -48,6 +48,8 @@ docs/
 └── _inbox/                          Documentation image inbox
 ```
 
+Build artifacts are kept outside `docs/` under `Build/`. `Build/DSIS_v3.spec` is the active v3 packaging specification. The checked-in `Build/DSIS_v3/` and `Build/DSIS_v2/` directories contain generated packaged outputs and PyInstaller analysis artifacts; they are deployment artifacts, not source-of-truth implementation files.
+
 ## Current source of truth
 
 The maintained application is DSIS v3:
@@ -93,6 +95,7 @@ The current documentation set explains:
 - Administrator, teacher, and guest local action gating, with the limitation that roles are not authentication.
 - v1/v2/v3 architecture and the pywebview JavaScript-to-Python event bridge.
 - Build cleanup in `d3fb362`, `.venv` installation behavior, `Build/DSIS_v3.spec`, and `Build/DSIS_v3` output.
+- Build artifact preservation in `64d80c9`, including v2/v3 packaged outputs, PyInstaller analysis files, and `Documentation-Overhaul.md`.
 
 ## Known gaps
 
@@ -102,4 +105,4 @@ The current documentation set explains:
 - Generated reports should be regenerated only after their generators are made reproducible.
 - The current v3 refactor removed some symbols expected by older web smoke tests; tests and implementation need a deliberate contract decision.
 
-Last reviewed: 2026-09-16, against commit `d3fb362`.
+Last reviewed: 2026-09-16, against commit `64d80c9`.

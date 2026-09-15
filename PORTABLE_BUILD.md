@@ -49,4 +49,4 @@ Before distributing a build:
 The source build was validated on 2026-09-09. Clean-machine, USB, and physical
 ESP32 validation still require the target hardware/environment.
 
-Last reviewed: 2026-09-16, against commit `d3fb362`.
+Last reviewed: 2026-09-16, against commit `64d80c9`.
