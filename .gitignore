@@ -19,6 +19,7 @@ env/
 # PyInstaller / portable build output
 dist/portable/
 build/pyinstaller/
+Build/
 *.exe
 
 # Database and local runtime data

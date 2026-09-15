@@ -21,16 +21,15 @@ python run_web_gui.py
 python archive\legacy-ui\v2\run_qt_gui.py
 
 
-Remove-Item -Recurse -Force build, dist
-python -m PyInstaller DSIS.spec --clean
 
 
-Remove-Item -Recurse -Force build-v2, dist-v2 -ErrorAction SilentlyContinue
-python -m PyInstaller DSIS_v2.spec --clean --noconfirm --workpath build-v2 --distpath dist-v2
-
+Remove-Item -Recurse -Force Build\build-v2, Build\DSIS_v2 -ErrorAction SilentlyContinue
+python -m PyInstaller DSIS_v2.spec --clean --noconfirm --workpath Build\build-v2 --distpath Build\DSIS_v2
 
 
 
+Remove-Item -Recurse -Force Build\build-v3, Build\DSIS_v3 -ErrorAction SilentlyContinue
+python -m PyInstaller DSIS_v3.spec --clean --noconfirm --workpath Build\build-v3 --distpath Build\DSIS_v3
 
 
 
