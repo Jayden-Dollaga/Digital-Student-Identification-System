@@ -15,8 +15,42 @@ if errorlevel 1 (
     )
 )
 
-echo Using %PYTHON_CMD% to install dependencies...
-%PYTHON_CMD% -m pip install --quiet -r requirements.txt
+if not exist "requirements.txt" (
+    echo requirements.txt not found in this folder.
+    echo Make sure you're running this from the project root.
+    pause
+    exit /b 1
+)
+
+set VENV_DIR=.venv
+
+if not exist "%VENV_DIR%\Scripts\python.exe" (
+    echo No virtual environment found.
+    set /p USE_VENV="Create one now at .venv? (Y/N): "
+    if /i "!USE_VENV!"=="Y" (
+        echo Creating virtual environment...
+        %PYTHON_CMD% -m venv %VENV_DIR%
+        if errorlevel 1 (
+            echo Failed to create virtual environment.
+            pause
+            exit /b 1
+        )
+    )
+)
+
+if exist "%VENV_DIR%\Scripts\python.exe" (
+    echo Using virtual environment at %VENV_DIR%
+    set PYTHON_CMD=%VENV_DIR%\Scripts\python.exe
+) else (
+    echo Using system %PYTHON_CMD% ^(no venv^)...
+)
+
+%PYTHON_CMD% -m pip install --upgrade pip
+if errorlevel 1 (
+    echo Warning: failed to upgrade pip. Continuing anyway...
+)
+
+%PYTHON_CMD% -m pip install -r requirements.txt
 if errorlevel 1 (
     echo Failed to install requirements.
     echo Please check your Python installation and requirements.txt.
@@ -24,5 +58,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo.
 echo Dependencies installed successfully.
+if exist "%VENV_DIR%\Scripts\python.exe" (
+    echo Remember: activate the venv before running the app with:
+    echo   %VENV_DIR%\Scripts\activate
+)
 pause

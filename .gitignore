@@ -17,10 +17,9 @@ env/
 *.sqlite3
 
 # PyInstaller / portable build output
-dist/portable/
-build/pyinstaller/
-Build/
-*.exe
+
+
+
 
 # Database and local runtime data
 data/attendance.db
