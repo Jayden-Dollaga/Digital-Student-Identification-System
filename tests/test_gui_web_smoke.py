@@ -237,6 +237,7 @@ def test_v3_student_csv_round_trips_unicode(tmp_path):
     )
 
     assert result["ok"] is True
+    assert path.read_text(encoding="utf-8-sig").splitlines()[0] == "student_name,Student LRN"
     assert "Garcia, José R." in path.read_text(encoding="utf-8-sig")
 
 

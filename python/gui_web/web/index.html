@@ -177,7 +177,7 @@
             <table class="data-table">
               <thead><tr>
                 <th>Time</th>
-                <th>Student No.</th>
+                <th>Student LRN</th>
                 <th>Name</th>
                 <th>Grade / Section</th>
                 <th>Confidence</th>
@@ -236,7 +236,7 @@
         <div class="data-table-wrap">
           <table class="data-table">
             <thead><tr>
-              <th>Date</th><th>Time</th><th>Student No.</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Match</th><th>Attendance</th>
+              <th>Date</th><th>Time</th><th>Student LRN</th><th>Name</th><th>Grade/Section</th><th>Confidence</th><th>Match</th><th>Attendance</th>
             </tr></thead>
             <tbody id="att-tbody"></tbody>
           </table>
@@ -252,8 +252,8 @@
           <span class="tb-count" id="stu-selected-count">0 selected</span>
           <div class="toolbar-spacer"></div>
           <button class="hdr-btn danger" id="stu-delete-selected" data-permission="delete" onclick="deleteSelectedStudents()" disabled>Delete Selected</button>
-          <button class="hdr-btn danger" data-permission="wipe" onclick="wipeAllFingerprints()">Wipe All Fingerprints</button>
-          <button class="hdr-btn primary" data-permission="enroll" onclick="openEnrollDialog()">+ Enroll Fingerprint</button>
+          <button class="hdr-btn danger" data-permission="wipe" onclick="wipeAllFingerprints()">Wipe All Metadata</button>
+          <button class="hdr-btn primary" data-permission="enroll" onclick="openEnrollDialog()">+ Enroll Student</button>
         </div>
         <div class="split-layout">
           <div class="split-main">
@@ -261,7 +261,7 @@
               <table class="data-table">
                 <thead><tr>
                   <th class="select-col"><input type="checkbox" id="stu-select-all" onchange="toggleAllStudentSelection(this.checked)" aria-label="Select all students"></th>
-                  <th>FP ID</th><th>Student No.</th><th>Name</th><th>Grade</th><th>Section</th>
+                  <th>FP ID</th><th>Student LRN</th><th>Name</th><th>Grade</th><th>Section</th>
                 </tr></thead>
                 <tbody id="stu-tbody"></tbody>
               </table>
@@ -285,7 +285,7 @@
               <div class="detail-field-value" id="det-name">No student selected</div>
             </div>
             <div class="detail-field">
-              <div class="detail-field-label">Student No.</div>
+              <div class="detail-field-label">Student LRN</div>
               <div class="detail-field-value" id="det-sno">—</div>
             </div>
             <div class="detail-field">
@@ -306,7 +306,7 @@
             </div>
             <div class="detail-actions">
               <button class="detail-btn" data-permission="enroll" onclick="editSelectedStudentDetails()">Edit Details</button>
-              <button class="detail-btn" data-permission="enroll" onclick="reenrollSelectedStudent()">Re-enroll Fingerprint</button>
+              <button class="detail-btn" data-permission="enroll" onclick="reenrollSelectedStudent()">Re-enroll Student</button>
               <button class="detail-btn danger" data-permission="delete" onclick="deleteSelectedStudent()">Delete Student</button>
             </div>
           </div>
@@ -567,9 +567,9 @@
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;">
-            <button class="hdr-btn primary" onclick="saveSettings()">Save Changes</button>
-            <button class="hdr-btn" onclick="loadSettingsPage()">Discard</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="hdr-btn" onclick="restoreDefaultSettings()">Restore Defaults</button>
+            <span id="settings-save-status" class="settings-row-value">Changes save automatically</span>
           </div>
 
         </div>

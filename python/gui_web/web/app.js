@@ -171,6 +171,13 @@ async function submitRoleAuth() {
   applySessionState(result);
 }
 
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target.id === 'role-auth-password') {
+    event.preventDefault();
+    submitRoleAuth();
+  }
+});
+
 async function requestRoleChange(role) {
   if (role === 'guest') { await lockSession(); return; }
   if (role === currentRole) return;
@@ -1134,7 +1141,7 @@ function editSelectedStudentDetails() {
     <div class="modal-card">
       <div class="modal-title">Edit Student Details</div>
       <div class="modal-sub">Updates the student record only \u2014 the fingerprint on the device is unchanged.</div>
-      <div class="modal-field"><label>Student No.</label><input id="edit-sno" type="text" value="${escapeHtml(s.student_no)}"></div>
+      <div class="modal-field"><label>Student LRN</label><input id="edit-sno" type="text" value="${escapeHtml(s.student_no)}"></div>
       <div class="modal-field"><label>Student Name</label><input id="edit-name" type="text" value="${escapeHtml(s.student_name)}"></div>
       <div class="modal-field-row">
         <div class="modal-field"><label>Grade</label><input id="edit-grade" type="text" value="${escapeHtml(s.grade)}"></div>
@@ -1165,12 +1172,12 @@ async function saveEditedStudentDetails(fingerprintId) {
 }
 
 async function wipeAllFingerprints() {
-  if (!guardPermission('wipe', 'Wiping fingerprints')) return;
+  if (!guardPermission('wipe', 'Wiping metadata')) return;
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
   const confirmed = await showDestructiveConfirm(
-    'Confirm Wipe Fingerprints',
-    'Remove every stored fingerprint template from the connected ESP32 and clear the linked student and attendance data.',
-    'Confirm Wipe'
+    'Confirm Wipe Metadata',
+    'Remove all stored identification metadata from the connected ESP32 and clear the linked student and attendance data.',
+    'Confirm Wipe Metadata'
   );
   if (!confirmed) return;
   const wipeWait = waitForWipe();
@@ -1184,13 +1191,13 @@ async function wipeAllFingerprints() {
   if (status) status.textContent = res.message;
   const event = await wipeWait;
   if (event.event === 'timeout') {
-    alert('Timed out waiting for the device to finish wiping fingerprints.');
+    alert('Timed out waiting for the device to finish wiping metadata.');
   } else if (event.event === 'error') {
-    alert(event.message || 'The device could not wipe fingerprints.');
+    alert(event.message || 'The device could not wipe metadata.');
   } else if (event.event === 'success') {
     await Promise.all([loadDashboard(), loadAttendancePage(), loadStudentsPage(), loadReportsPage()]);
     selectedStudent = null;
-    alert(`All fingerprints and linked local data were cleared. Removed ${event.students || 0} student record(s) and ${event.attendance || 0} attendance record(s).`);
+    alert(`All metadata and linked local data were cleared. Removed ${event.students || 0} student record(s) and ${event.attendance || 0} attendance record(s).`);
   }
 }
 
@@ -1246,18 +1253,18 @@ function reenrollSelectedStudent() {
 }
 
 function openEnrollDialog(existing) {
-  if (!guardPermission('enroll', 'Enrollment')) return;
+  if (!guardPermission('enroll', 'Student enrollment')) return;
   closeEnrollDialog();
   const overlay = document.createElement('div');
   overlay.id = 'enroll-modal-overlay';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal-card">
-      <div class="modal-title">${existing ? 'Re-enroll Fingerprint' : 'Enroll New Student'}</div>
+      <div class="modal-title">${existing ? 'Re-enroll Student' : 'Enroll Student'}</div>
       <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan.'}</div>
       <div class="enroll-layout">
         <div class="enroll-form">
-          <div class="modal-field"><label>Student No.</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>
+          <div class="modal-field"><label>Student LRN</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>
           <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"><div class="field-feedback" id="em-name-feedback"></div></div>
           <div class="modal-field-row">
             <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"><div class="field-feedback" id="em-grade-feedback"></div></div>
@@ -1275,12 +1282,12 @@ function openEnrollDialog(existing) {
             <div class="enroll-step" data-step="3"><span>3</span><strong>Scan same finger</strong><small>Second scan</small></div>
             <div class="enroll-step" data-step="4"><span>4</span><strong>Saved</strong><small>Ready to register</small></div>
           </div>
-          <div class="enroll-log" id="em-log" aria-live="polite"><div class="enroll-log-line muted">Waiting to start enrollment.</div></div>
+          <div class="enroll-log" id="em-log" aria-live="polite"><div class="enroll-log-line muted">Waiting to enroll student.</div></div>
         </div>
       </div>
       <div class="modal-actions">
         <button class="hdr-btn" onclick="closeEnrollDialog()">Cancel</button>
-        <button class="hdr-btn primary" id="em-primary-btn" onclick="enrollPrimaryAction()" ${connected ? '' : 'disabled'}>Start Enrollment</button>
+        <button class="hdr-btn primary" id="em-primary-btn" onclick="enrollPrimaryAction()" ${connected ? '' : 'disabled'}>Enroll Student</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -1387,7 +1394,7 @@ async function startEnrollment() {
   if (!res.ok) {
     enrollState.step = 'initial';
     btn.disabled = false;
-    btn.textContent = 'Start Enrollment';
+    btn.textContent = 'Enroll Student';
     ['em-sno', 'em-name', 'em-grade', 'em-section'].forEach(id => document.getElementById(id).disabled = false);
     return;
   }
@@ -1432,7 +1439,7 @@ function handleEnrollProgress(payload) {
   } else if (payload.event === 'success') {
     enrollState.assignedId = parseInt(payload.id, 10);
     enrollState.step = 'success';
-    status.textContent = 'Fingerprint saved on the device.';
+    status.textContent = 'Student enrollment saved on the device.';
     appendLog(`Success! Finger saved as ID #${payload.id}`, 'success');
     setProgress(4, 3, 'success');
     idLabel.style.display = 'block';
@@ -1456,7 +1463,7 @@ function resetEnrollForm() {
   const btn = document.getElementById('em-primary-btn');
   if (!btn) return;
   btn.disabled = false;
-  btn.textContent = 'Start Enrollment';
+  btn.textContent = 'Enroll Student';
   ['em-sno', 'em-name', 'em-grade', 'em-section'].forEach(id => document.getElementById(id).disabled = false);
   if (enrollState) enrollState.step = 'initial';
 }
@@ -1652,7 +1659,7 @@ async function generateStatsReport() {
         <div class="rpt-section-title">Top Students \u2014 By Attendance Count</div>
         <div class="rpt-ts-line">Generated ${ts}</div>
         <table class="rpt-table">
-          <thead><tr><th style="width:32px">#</th><th>Name</th><th>Student No.</th><th>Grade</th><th>Section</th><th class="rpt-bar-cell">Attendance</th></tr></thead>
+          <thead><tr><th style="width:32px">#</th><th>Name</th><th>Student LRN</th><th>Grade</th><th>Section</th><th class="rpt-bar-cell">Attendance</th></tr></thead>
           <tbody>
             ${report.top_students.map((s, i) => `
             <tr>
@@ -1694,7 +1701,7 @@ async function generateStatsReport() {
       <div class="rpt-section-block">
         <div class="rpt-section-title">All Enrolled Students</div>
         <table class="rpt-table">
-          <thead><tr><th>Name</th><th>Student No.</th><th>Grade</th><th>Section</th><th>Records</th></tr></thead>
+          <thead><tr><th>Name</th><th>Student LRN</th><th>Grade</th><th>Section</th><th>Records</th></tr></thead>
           <tbody>
             ${report.all_students.map(s => `
             <tr>
@@ -1983,6 +1990,32 @@ async function loadSettingsPage() {
   if (portInput) portInput.value = s.com_port || '';
 }
 
+let settingsSaveTimer = null;
+const AUTO_SAVE_SETTING_IDS = new Set([
+  'set-port-override', 'set-baud-rate-select', 'set-auto-reconnect', 'set-auto-detect',
+  'set-theme', 'settings-compact-toggle', 'set-cooldown', 'set-confidence',
+  'set-log-to-file', 'set-debug-logging', 'set-time-in', 'set-time-out',
+  'set-early-threshold', 'set-late-threshold', 'set-absent-threshold', 'set-backup-interval',
+]);
+
+function scheduleSettingsSave() {
+  if (currentRole !== 'admin') return;
+  clearTimeout(settingsSaveTimer);
+  const status = document.getElementById('settings-save-status');
+  if (status) status.textContent = 'Saving...';
+  settingsSaveTimer = setTimeout(() => saveSettings(true), 400);
+}
+
+document.addEventListener('input', event => {
+  if (AUTO_SAVE_SETTING_IDS.has(event.target.id)) scheduleSettingsSave();
+});
+document.addEventListener('change', event => {
+  if (AUTO_SAVE_SETTING_IDS.has(event.target.id)) scheduleSettingsSave();
+});
+document.addEventListener('click', event => {
+  if (AUTO_SAVE_SETTING_IDS.has(event.target.id)) scheduleSettingsSave();
+});
+
 async function refreshConnectedDevicePanel() {
   const status = await api().get_connection_status();
   const pill = document.getElementById('conn-device-status');
@@ -2028,9 +2061,8 @@ function populateBaudOptions(current) {
   select.value = current || 115200;
 }
 
-async function saveSettings() {
+async function saveSettings(silent = false) {
   if (currentRole !== 'admin') {
-    alert('Only the Administrator role can save settings.');
     return;
   }
   const payload = {
@@ -2054,10 +2086,29 @@ async function saveSettings() {
     absent_threshold_minutes: parseInt(document.getElementById('set-absent-threshold').value, 10) || 0,
   };
   const res = await api().save_ui_settings(payload);
-  if (!res.ok) { alert(`Settings could not be saved: ${res.message}`); return; }
+  const status = document.getElementById('settings-save-status');
+  if (!res.ok) {
+    if (!silent) alert(`Settings could not be saved: ${res.message}`);
+    if (status) status.textContent = 'Could not save changes';
+    return;
+  }
   applyCompact(payload.compact_sidebar);
   applyTheme(payload.theme);
-  alert('Settings saved.');
+  if (status) status.textContent = 'All changes saved';
+}
+
+async function restoreDefaultSettings() {
+  if (currentRole !== 'admin') {
+    alert('Administrator authentication is required to restore defaults.');
+    return;
+  }
+  if (!await showDestructiveConfirm('Restore Defaults', 'Reset all application settings to their default values?', 'Restore Defaults')) return;
+  const result = await api().restore_default_settings();
+  if (!result.ok) {
+    alert(result.message || 'Could not restore defaults.');
+    return;
+  }
+  await loadSettingsPage();
 }
 
 function openLogFolder() { api().open_log_folder(); }

@@ -43,7 +43,7 @@ from core.logger import LOG, LOG_FILE, AppFormatter, log
 from core.serial_handler import SerialHandler, list_serial_ports
 from core.utils import parse_json_line
 from gui_web.perf_profiler import PerfProfiler
-from settings_store import load_settings, save_settings
+from settings_store import default_settings, load_settings, save_settings
 
 CONFIG = get_config()
 
@@ -1007,11 +1007,17 @@ class Api:
         # Write CSV with UTF-8 encoding and formula injection protection
         # utf-8-sig adds a BOM so Excel and other spreadsheet tools detect UTF-8 names correctly.
         with out_path.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+            source_fields = list(rows[0].keys())
+            fieldnames = ["Student LRN" if key == "student_no" else key for key in source_fields]
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for row in rows:
                 # Sanitize each cell to prevent formula injection
-                writer.writerow({key: _sanitize_csv_cell(value, key == "student_no") for key, value in row.items()})
+                writer.writerow({
+                    "Student LRN" if key == "student_no" else key:
+                    _sanitize_csv_cell(value, key == "student_no")
+                    for key, value in row.items()
+                })
         
         return {"ok": True, "message": f"Exported {len(rows)} rows", "path": str(out_path)}
 
@@ -1303,6 +1309,20 @@ class Api:
         self.processor.min_confidence = confidence
 
         return {"ok": True}
+
+    def restore_default_settings(self) -> Dict[str, Any]:
+        if not permissions.require_role("admin"):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+        current = load_settings()
+        defaults = default_settings()
+        defaults["auth"] = current.get("auth", {})
+        defaults["current_role"] = permissions.get_current_role()
+        save_settings(defaults)
+        self.serial.auto_reconnect_enabled = bool(defaults["auto_reconnect"])
+        self._backup_interval_minutes = float(defaults["auto_backup_interval_minutes"])
+        self.processor.cooldown_seconds = int(defaults["cooldown"])
+        self.processor.min_confidence = int(defaults["min_confidence"])
+        return {"ok": True, "message": "Settings restored to defaults."}
 
     def get_current_role(self) -> str:
         return permissions.get_current_role()
