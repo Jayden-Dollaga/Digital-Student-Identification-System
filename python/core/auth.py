@@ -9,7 +9,7 @@ import secrets
 from typing import Any, Dict, cast
 
 
-DEFAULT_ADMIN_PASSWORD = "dsis-admin"
+DEFAULT_ADMIN_PASSWORD = "admin"
 PBKDF2_ITERATIONS = 310_000
 PASSWORD_HASH_KEY = "password_hash"
 PASSWORD_SALT_KEY = "password_salt"

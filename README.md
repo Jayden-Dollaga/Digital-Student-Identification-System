@@ -37,7 +37,7 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
    ```
 
 The v3 application starts in the Guest role. The shipped administrator password
-is `dsis-admin` as a setup placeholder. Change it immediately from Settings;
+is `admin` as a setup placeholder. Change it immediately from Settings;
 the application stores only a salted PBKDF2-HMAC-SHA256 password hash and never
 stores or logs the plaintext password.
 

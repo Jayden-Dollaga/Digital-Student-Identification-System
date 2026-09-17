@@ -26,7 +26,7 @@ def test_role_hierarchy_is_ordered():
 
 
 def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
-    record = auth.hash_password("dsis-admin")
+    record = auth.hash_password("admin")
     settings = {"auth": record}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
     monkeypatch.setattr(api_module, "save_settings", lambda value: None)
@@ -40,7 +40,7 @@ def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     assert denied["ok"] is False
     assert denied["requires_password"] is True
 
-    authenticated = instance.authenticate_role("admin", "dsis-admin")
+    authenticated = instance.authenticate_role("admin", "admin")
     assert authenticated["ok"] is True
     assert authenticated["role"] == "admin"
 
@@ -71,8 +71,19 @@ def test_teacher_to_admin_requires_password_without_changing_role():
     assert instance.get_current_role() == "teacher"
 
 
+def test_admin_to_admin_does_not_require_password():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("admin", 600.0)
+
+    result = instance.set_current_role("admin")
+
+    assert result["ok"] is True
+    assert result["role"] == "admin"
+
+
 def test_wrong_password_does_not_elevate(monkeypatch):
-    settings = {"auth": auth.hash_password("dsis-admin")}
+    settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
 
     instance = api_module.Api.__new__(api_module.Api)
@@ -85,7 +96,7 @@ def test_wrong_password_does_not_elevate(monkeypatch):
 
 
 def test_lock_and_expiry_return_to_guest(monkeypatch):
-    settings = {"auth": auth.hash_password("dsis-admin")}
+    settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
 
     instance = api_module.Api.__new__(api_module.Api)

@@ -109,6 +109,18 @@ function applySessionState(state) {
   }
   const scanBtn = document.getElementById('scan-btn');
   if (scanBtn) scanBtn.disabled = !hasPermission('scan') || !connected;
+  const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');
+  const reportsNav = document.querySelector('[onclick*="nav(this,\'reports\')"]');
+  const canUseStudents = hasPermission('enroll') || hasPermission('delete') || hasPermission('wipe');
+  const canUseReports = hasPermission('export') || hasPermission('backup') || hasPermission('restore');
+  if (studentsNav) studentsNav.style.display = canUseStudents ? 'flex' : 'none';
+  if (reportsNav) reportsNav.style.display = canUseReports ? 'flex' : 'none';
+  const activePage = document.querySelector('.page.active');
+  if (activePage && ((activePage.id === 'page-students' && !canUseStudents) ||
+      (activePage.id === 'page-reports' && !canUseReports))) {
+    const dashboardNav = document.querySelector('[onclick*="nav(this,\'dashboard\')"]');
+    if (dashboardNav) nav(dashboardNav, 'dashboard');
+  }
   document.querySelectorAll('[data-required-role]').forEach(element => {
     const allowed = hasRole(element.dataset.requiredRole);
     element.classList.toggle('settings-locked', !allowed);
@@ -161,6 +173,7 @@ async function submitRoleAuth() {
 
 async function requestRoleChange(role) {
   if (role === 'guest') { await lockSession(); return; }
+  if (role === currentRole) return;
 
   const result = await api().set_current_role(role);
   if (result.requires_password === true) {
@@ -1949,11 +1962,8 @@ async function loadSettingsPage() {
   applyCompact(!!s.compact_sidebar);
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
-  const titlebarRole = document.getElementById('titlebar-role');
-  if (titlebarRole) titlebarRole.value = s.current_role || 'admin';
-  document.getElementById('role-select').value = s.current_role || 'admin';
-  currentRole = s.current_role || 'admin';
-  applyRole(currentRole);
+  const session = await api().get_session_state();
+  applySessionState(session);
   document.getElementById('set-log-to-file').classList.toggle('on', !!s.log_to_file);
   document.getElementById('set-debug-logging').classList.toggle('on', !!s.enable_debug_logging);
   document.getElementById('set-log-folder').textContent = s.log_folder || '\u2014';
@@ -2062,25 +2072,6 @@ function paintTitlebarRole(key) {
   badge.value = key;
 }
 
-async function applyRole(key) {
-  const res = await api().set_current_role(key);
-  if (!res.ok) return;
-  applySessionState(res);
-  const permissions = new Set(res.permissions || []);
-  const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');
-  const reportsNav = document.querySelector('[onclick*="nav(this,\'reports\')"]');
-  const scanBtn = document.getElementById('scan-btn');
-  if (scanBtn) scanBtn.disabled = !permissions.has('scan') || !connected;
-  if (studentsNav) studentsNav.style.display = permissions.has('enroll') || permissions.has('delete') || permissions.has('wipe') ? 'flex' : 'none';
-  if (reportsNav) reportsNav.style.display = permissions.has('export') || permissions.has('backup') || permissions.has('restore') ? 'flex' : 'none';
-  document.querySelectorAll('[data-permission]').forEach(element => {
-    const allowed = permissions.has(element.dataset.permission);
-    element.disabled = !allowed;
-    element.style.opacity = allowed ? '1' : '0.45';
-    element.title = allowed ? '' : `Requires ${element.dataset.permission} permission`;
-  });
-}
-
 function updateRole() {
   const key = document.getElementById('role-select').value;
   requestRoleChange(key);
@@ -2127,7 +2118,7 @@ whenApiReady(() => {
   });
   api().get_current_role().then(role => {
     currentRole = role || 'guest';
-    applyRole(currentRole);
+    api().get_session_state().then(applySessionState);
   });
   sessionTouchTimer = setInterval(async () => {
     const state = await api().get_session_state();
