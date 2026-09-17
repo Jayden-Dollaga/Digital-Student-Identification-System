@@ -45,12 +45,13 @@ if exist "%VENV_DIR%\Scripts\python.exe" (
     echo Using system %PYTHON_CMD% ^(no venv^)...
 )
 
-%PYTHON_CMD% -m pip install --upgrade pip
+rem Skip the user cache because a stale or inaccessible cached wheel can block installation.
+%PYTHON_CMD% -m pip install --no-cache-dir --upgrade pip
 if errorlevel 1 (
     echo Warning: failed to upgrade pip. Continuing anyway...
 )
 
-%PYTHON_CMD% -m pip install -r requirements.txt
+%PYTHON_CMD% -m pip install --no-cache-dir -r requirements.txt
 if errorlevel 1 (
     echo Failed to install requirements.
     echo Please check your Python installation and requirements.txt.

@@ -4,7 +4,9 @@ openpyxl==3.1.5
 # Matplotlib is used by the reporting/chart functions in `python/core/database.py`.
 matplotlib>=3.6
 PySide6>=6.5
-Pillow>=9.0,<11
+# Pillow 11.3+ provides Windows wheels for current Python releases, including
+# Python 3.14; older versions fall back to a source build on Python 3.14.
+Pillow>=11.3
 pytest==7.4.0
 pyinstaller>=6.15
 pywebview>=5.0
