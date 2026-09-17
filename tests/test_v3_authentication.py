@@ -45,6 +45,32 @@ def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     assert authenticated["role"] == "admin"
 
 
+def test_non_admin_role_switches_are_immediate():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("guest", 600.0)
+
+    teacher = instance.set_current_role("teacher")
+    assert teacher["ok"] is True
+    assert teacher["role"] == "teacher"
+
+    guest = instance.set_current_role("guest")
+    assert guest["ok"] is True
+    assert guest["role"] == "guest"
+
+
+def test_teacher_to_admin_requires_password_without_changing_role():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("teacher", 600.0)
+
+    result = instance.set_current_role("admin")
+
+    assert result["ok"] is False
+    assert result["requires_password"] is True
+    assert instance.get_current_role() == "teacher"
+
+
 def test_wrong_password_does_not_elevate(monkeypatch):
     settings = {"auth": auth.hash_password("dsis-admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))

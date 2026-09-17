@@ -161,11 +161,12 @@ async function submitRoleAuth() {
 
 async function requestRoleChange(role) {
   if (role === 'guest') { await lockSession(); return; }
-  if ((ROLE_LEVELS[role] || 0) > (ROLE_LEVELS[currentRole] || 0)) {
+
+  const result = await api().set_current_role(role);
+  if (result.requires_password === true) {
     openRoleAuthModal(role);
     return;
   }
-  const result = await api().set_current_role(role);
   if (result.ok) applySessionState(result);
 }
 

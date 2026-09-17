@@ -1310,8 +1310,8 @@ class Api:
     def set_current_role(self, role: str) -> Dict[str, Any]:
         if role not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
-        current = permissions.get_current_role()
-        if not permissions.has_role_permission(current, role):
+        # Administrator is currently the only password-authenticated role.
+        if role == "admin":
             return {
                 "ok": False,
                 "status": 401,
