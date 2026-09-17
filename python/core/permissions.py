@@ -15,24 +15,51 @@ settings.json + USER_ROLES config the UI already uses.
 
 from __future__ import annotations
 
+import time
 from typing import Optional
 
 from config import get_config
 from core.logger import log
 
 CONFIG = get_config()
+ROLE_LEVELS = {"guest": 0, "teacher": 1, "admin": 2}
+ATTENDANCE_TIME_RULES_PERMISSION = "admin"
+_session_role: Optional[str] = None
+_session_expires_at: Optional[float] = None
+_session_timeout_seconds = 600.0
+
+
+def set_session_role(role_key: Optional[str], timeout_seconds: Optional[float] = None) -> None:
+    """Set the in-memory role used by the active v3 API session."""
+    global _session_role, _session_expires_at, _session_timeout_seconds
+    _session_role = role_key if role_key in ROLE_LEVELS else "guest"
+    if timeout_seconds is not None:
+        _session_timeout_seconds = max(0.01, float(timeout_seconds))
+    _session_expires_at = time.monotonic() + _session_timeout_seconds if _session_role != "guest" else None
+
+
+def touch_session() -> str:
+    """Refresh the authenticated session and return its effective role."""
+    role = get_current_role()
+    if role != "guest":
+        global _session_expires_at
+        _session_expires_at = time.monotonic() + _session_timeout_seconds
+    return role
 
 
 def get_current_role() -> str:
     """Return the currently active role key (e.g. 'admin', 'teacher', 'guest')."""
     try:
         from settings_store import load_settings
+        if _session_role is not None:
+            if _session_expires_at is not None and time.monotonic() >= _session_expires_at:
+                set_session_role("guest")
+            return _session_role
         settings = load_settings()
-        return settings.get("current_role", CONFIG.default_user_role)
+        return settings.get("current_role", "guest")
     except Exception:
-        # If settings can't be read for any reason, fail safe to the
-        # configured default rather than crashing the caller.
-        return CONFIG.default_user_role
+        # If settings can't be read for any reason, fail safe to Guest.
+        return "guest"
 
 
 def has_permission(action: str, role_key: Optional[str] = None) -> bool:
@@ -54,6 +81,19 @@ def has_permission(action: str, role_key: Optional[str] = None) -> bool:
         log.warning("Permission check against unknown role", role=role_key, action=action)
         return False
     return action in set(role.get("permissions", []))
+
+
+def has_role_permission(current_role: str, required_role: str) -> bool:
+    """Return whether a role meets the required role level."""
+    return ROLE_LEVELS.get(current_role, -1) >= ROLE_LEVELS.get(required_role, 99)
+
+
+def require_role(required_role: str, current_role: Optional[str] = None) -> bool:
+    role = current_role or get_current_role()
+    allowed = has_role_permission(role, required_role)
+    if not allowed:
+        log.warning("Blocked role-gated action", required_role=required_role, role=role)
+    return allowed
 
 
 def require_permission(action: str, role_key: Optional[str] = None) -> bool:

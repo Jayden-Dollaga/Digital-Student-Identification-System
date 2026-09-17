@@ -32,7 +32,7 @@ def default_settings() -> Dict[str, Any]:
         # verbose DEBUG-level logging (noisier, useful for troubleshooting)
         "enable_debug_logging": CONFIG.enable_debug_logging,
         # active user role: gates access to destructive/admin-only actions in the UI
-        "current_role": CONFIG.default_user_role,
+        "current_role": "guest",
         # minutes between automatic-backup due-checks (Settings > Backups)
         "auto_backup_interval_minutes": 25,
         # attendance time rules
@@ -41,6 +41,8 @@ def default_settings() -> Dict[str, Any]:
         "early_threshold_minutes": 15,
         "late_threshold_minutes": 15,
         "absent_threshold_minutes": 0,
+        "idle_timeout_minutes": 10,
+        "auth": {},
     }
 
 
@@ -58,6 +60,8 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     merged = default_settings()
     if isinstance(loaded, dict):
         merged.update({key: value for key, value in loaded.items() if key in merged})
+    if not isinstance(merged.get("auth"), dict):
+        merged["auth"] = {}
     return merged
 
 

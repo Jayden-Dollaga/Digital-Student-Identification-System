@@ -21,6 +21,12 @@ Before connecting the board, install the Windows driver matching its USB interfa
 
 The verified target is an ESP32 WROOM-32 selected as **ESP32 Dev Module** in Arduino IDE. Native-USB ESP32 variants are not verified by this project. The active desktop UI is the v3 HTML/pywebview interface; the earlier Qt and CustomTkinter trees are archived snapshots.
 
+On first launch, the v3 interface opens as Guest. The default administrator
+password is `dsis-admin` for initial setup only. Change this immediately in
+Settings. Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes in the
+existing `data/settings.json` settings store; plaintext passwords are never
+stored or logged.
+
 See [Troubleshooting](docs/TROUBLESHOOTING.md) for COM-port and firmware checks.
 
 ## V3 Workflow Acceptance
@@ -38,7 +44,7 @@ verify the following sequence:
 7. Wipe device fingerprints and confirm the device count reaches zero while student records remain.
 8. Disconnect and reconnect the board; confirm pending operations clear and the count refreshes.
 
-V3 roles are local workflow permissions, not account authentication:
+V3 roles are authenticated local workflow permissions:
 
 | Role | Permissions |
 | --- | --- |

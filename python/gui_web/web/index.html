@@ -25,11 +25,12 @@
     <span class="logo-sub">Digital Student Identification System</span>
   </div>
   <div class="tb-spacer"></div>
-  <select id="titlebar-role" class="tb-role-badge role-admin" title="Active user role" onchange="applyRole(this.value)">
+  <select id="titlebar-role" class="tb-role-badge role-guest" title="Active user role" onchange="requestRoleChange(this.value)">
     <option value="admin">Administrator</option>
     <option value="teacher">Teacher</option>
     <option value="guest">Guest</option>
   </select>
+  <button id="lock-btn" class="hdr-btn" type="button" onclick="lockSession()" title="Return to Guest role">Lock</button>
 </div>
 
 <!-- ── App body ── -->
@@ -453,7 +454,7 @@
             </div>
           </div>
 
-          <div class="settings-group">
+          <div class="settings-group" data-required-role="admin">
             <div class="settings-group-title">Attendance Behavior</div>
             <div class="settings-row">
               <span class="settings-row-label">Scan cooldown</span>
@@ -470,7 +471,7 @@
             </div>
           </div>
 
-          <div class="settings-group">
+          <div class="settings-group" data-required-role="admin">
             <div class="settings-group-title">User Role</div>
             <div class="settings-row">
               <span class="settings-row-label">Active role</span>
@@ -484,8 +485,12 @@
               <span class="settings-row-label" style="padding-top:1px;">Permissions</span>
               <div id="role-permissions" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
             </div>
-            <div style="padding:4px 14px 10px;font-size:11px;color:var(--muted);font-style:italic;">
-              No login is enforced yet — this only hides admin-only pages/actions in the UI.
+            <div class="settings-row" style="display:block;height:auto;">
+              <label class="settings-row-label" for="current-admin-password">Change administrator password</label>
+              <input id="current-admin-password" class="settings-text-input" type="password" placeholder="Current password">
+              <input id="new-admin-password" class="settings-text-input" type="password" placeholder="New password (8+ characters)">
+              <button class="hdr-btn" type="button" onclick="changeAdminPassword()">Change Password</button>
+              <div id="password-change-error" class="auth-error" role="alert"></div>
             </div>
           </div>
 
@@ -509,7 +514,7 @@
             </div>
           </div>
 
-          <div class="settings-group">
+          <div class="settings-group" data-required-role="admin">
             <div class="settings-group-title">Attendance Time Rules</div>
             <div class="settings-group-body">
               <div class="settings-group-main">
@@ -548,7 +553,7 @@
             </div>
           </div>
 
-          <div class="settings-group">
+          <div class="settings-group" data-required-role="admin">
             <div class="settings-group-title">Backups</div>
             <div class="settings-row">
               <span class="settings-row-label">Auto-backup interval</span>
@@ -599,6 +604,18 @@
 </div><!-- /app -->
 
 
+<div id="role-auth-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="role-auth-title">
+    <div class="modal-title" id="role-auth-title">Administrator authentication</div>
+    <div class="modal-sub">Enter the administrator password to elevate this session.</div>
+    <input id="role-auth-password" class="settings-text-input" type="password" autocomplete="current-password" placeholder="Password">
+    <div id="role-auth-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn" type="button" onclick="closeRoleAuthModal()">Cancel</button>
+      <button class="hdr-btn primary" type="button" onclick="submitRoleAuth()">Unlock</button>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

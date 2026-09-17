@@ -15,13 +15,20 @@ const selectedStudentIds = new Set();
 const studentNames = new Map();
 let batchDeletePending = null;
 let batchDeleteResult = null;
-let currentRole = 'admin';
+let currentRole = 'guest';
 let currentPermissions = new Set(['scan']);
+let pendingRole = null;
+let sessionTouchTimer = null;
+const ROLE_LEVELS = { guest: 0, teacher: 1, admin: 2 };
 let deviceFingerprintCount = null;
 let connectionPollTimer = null;
 
 function hasPermission(action) {
   return currentPermissions.has(action);
+}
+
+function hasRole(requiredRole) {
+  return (ROLE_LEVELS[currentRole] || 0) >= (ROLE_LEVELS[requiredRole] || 99);
 }
 
 function guardPermission(action, label) {
@@ -83,6 +90,102 @@ function nav(el, key) {
   else if (key === 'reports') loadReportsPage();
   else if (key === 'logs') loadLogsPage();
   else if (key === 'settings') loadSettingsPage();
+}
+
+function applySessionState(state) {
+  if (!state || !state.ok) return;
+  currentRole = state.role || 'guest';
+  currentPermissions = new Set(state.permissions || ['scan']);
+  paintTitlebarRole(currentRole);
+  const titlebar = document.getElementById('titlebar-role');
+  if (titlebar) titlebar.value = currentRole;
+  const select = document.getElementById('role-select');
+  if (select) select.value = currentRole;
+  const wrap = document.getElementById('role-permissions');
+  if (wrap) {
+    wrap.innerHTML = [...currentPermissions].map(p =>
+      `<span class="role-permission role-permission-${escapeHtml(p)}">${escapeHtml(p)}</span>`
+    ).join('');
+  }
+  const scanBtn = document.getElementById('scan-btn');
+  if (scanBtn) scanBtn.disabled = !hasPermission('scan') || !connected;
+  document.querySelectorAll('[data-required-role]').forEach(element => {
+    const allowed = hasRole(element.dataset.requiredRole);
+    element.classList.toggle('settings-locked', !allowed);
+    element.querySelectorAll('input, select, button, .toggle-switch').forEach(control => {
+      control.disabled = !allowed;
+      control.style.pointerEvents = allowed ? '' : 'none';
+      control.style.opacity = allowed ? '1' : '0.45';
+    });
+  });
+  document.querySelectorAll('[data-permission]').forEach(element => {
+    const allowed = hasPermission(element.dataset.permission);
+    element.disabled = !allowed;
+    element.style.opacity = allowed ? '1' : '0.45';
+    element.title = allowed ? '' : `Requires ${element.dataset.permission} permission`;
+  });
+}
+
+function openRoleAuthModal(role) {
+  pendingRole = role;
+  const modal = document.getElementById('role-auth-modal');
+  const password = document.getElementById('role-auth-password');
+  const error = document.getElementById('role-auth-error');
+  if (!modal || !password) return;
+  error.textContent = '';
+  password.value = '';
+  modal.hidden = false;
+  password.focus();
+}
+
+function closeRoleAuthModal() {
+  pendingRole = null;
+  const modal = document.getElementById('role-auth-modal');
+  if (modal) modal.hidden = true;
+}
+
+async function submitRoleAuth() {
+  if (!pendingRole) return;
+  const password = document.getElementById('role-auth-password').value;
+  const result = await api().authenticate_role(pendingRole, password);
+  if (!result.ok) {
+    document.getElementById('role-auth-error').textContent = result.message || 'Authentication failed.';
+    paintTitlebarRole(currentRole);
+    document.getElementById('titlebar-role').value = currentRole;
+    document.getElementById('role-select').value = currentRole;
+    return;
+  }
+  closeRoleAuthModal();
+  applySessionState(result);
+}
+
+async function requestRoleChange(role) {
+  if (role === 'guest') { await lockSession(); return; }
+  if ((ROLE_LEVELS[role] || 0) > (ROLE_LEVELS[currentRole] || 0)) {
+    openRoleAuthModal(role);
+    return;
+  }
+  const result = await api().set_current_role(role);
+  if (result.ok) applySessionState(result);
+}
+
+async function lockSession() {
+  if (!api()) return;
+  const result = await api().lock_session();
+  applySessionState(result);
+}
+
+async function changeAdminPassword() {
+  if (!hasRole('admin')) return;
+  const current = document.getElementById('current-admin-password').value;
+  const next = document.getElementById('new-admin-password').value;
+  const result = await api().change_admin_password(current, next);
+  const error = document.getElementById('password-change-error');
+  error.textContent = result.ok ? 'Password changed.' : (result.message || 'Password change failed.');
+  if (result.ok) {
+    document.getElementById('current-admin-password').value = '';
+    document.getElementById('new-admin-password').value = '';
+  }
 }
 
 // ── Compact mode ──
@@ -1960,19 +2063,8 @@ function paintTitlebarRole(key) {
 
 async function applyRole(key) {
   const res = await api().set_current_role(key);
-  currentRole = key;
-  currentPermissions = new Set(res.permissions || []);
-  paintTitlebarRole(key);
-  const titlebar = document.getElementById('titlebar-role');
-  if (titlebar) titlebar.value = key;
-  const select = document.getElementById('role-select');
-  if (select) select.value = key;
-  const wrap = document.getElementById('role-permissions');
-  if (wrap) {
-    wrap.innerHTML = (res.permissions || []).map(p =>
-      `<span class="role-permission role-permission-${escapeHtml(p)}">${escapeHtml(p)}</span>`
-    ).join('');
-  }
+  if (!res.ok) return;
+  applySessionState(res);
   const permissions = new Set(res.permissions || []);
   const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');
   const reportsNav = document.querySelector('[onclick*="nav(this,\'reports\')"]');
@@ -1990,7 +2082,7 @@ async function applyRole(key) {
 
 function updateRole() {
   const key = document.getElementById('role-select').value;
-  applyRole(key);
+  requestRoleChange(key);
 }
 
 // ── Clock ──
@@ -2009,6 +2101,20 @@ function filterTable(tbodyId, inputId) {
   });
 }
 
+let lastActivitySentAt = 0;
+function noteUserActivity() {
+  if (!api() || currentRole === 'guest') return;
+  const now = Date.now();
+  if (now - lastActivitySentAt < 30000) return;
+  lastActivitySentAt = now;
+  api().touch_session().then(state => {
+    if (state.role !== currentRole) applySessionState(state);
+  });
+}
+
+document.addEventListener('pointerdown', noteUserActivity);
+document.addEventListener('keydown', noteUserActivity);
+
 // ── Boot ──
 tick();
 setInterval(tick, 1000);
@@ -2019,14 +2125,16 @@ whenApiReady(() => {
     applyCompact(!!s.compact_sidebar);
   });
   api().get_current_role().then(role => {
-    currentRole = role || 'admin';
-    paintTitlebarRole(currentRole);
-    const titlebar = document.getElementById('titlebar-role');
-    if (titlebar) titlebar.value = currentRole;
-    const roleSelect = document.getElementById('role-select');
-    if (roleSelect) roleSelect.value = currentRole;
+    currentRole = role || 'guest';
     applyRole(currentRole);
   });
+  sessionTouchTimer = setInterval(async () => {
+    const state = await api().get_session_state();
+    if (state.role !== currentRole) {
+      applySessionState(state);
+      if (state.role === 'guest') alert('Your session was locked after inactivity.');
+    }
+  }, 10000);
   // Lightweight background refresh so the dashboard/logs pages stay current
   // even if the scan callback happens while the user is on another page.
   connectionPollTimer = setInterval(async () => {

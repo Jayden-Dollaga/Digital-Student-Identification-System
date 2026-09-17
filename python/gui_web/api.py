@@ -35,6 +35,7 @@ import webview
 from config import get_config
 from core import commands as cmds
 from core import database as db
+from core import auth
 from core import permissions
 from core.attendance import AttendanceProcessor
 from core.attendance_status import calculate_attendance_status
@@ -175,6 +176,13 @@ class Api:
         # Settings page but never actually applied them to SerialHandler,
         # so the toggles were cosmetic. Mirrors MainWindow.__init__ in v2.
         settings = load_settings()
+        if not settings.get("auth"):
+            save_settings(auth.ensure_password_record(settings))
+            settings = load_settings()
+        self._session_timeout_seconds = max(
+            60.0, float(settings.get("idle_timeout_minutes", 10)) * 60.0
+        )
+        permissions.set_session_role("guest", self._session_timeout_seconds)
         self.profiler = PerfProfiler(enabled=bool(settings.get("enable_profiler", False)), logger=log)
         self.serial.auto_reconnect_enabled = bool(settings.get("auto_reconnect", True))
         try:
@@ -743,7 +751,7 @@ class Api:
     def send_serial_command(self, cmd: str) -> bool:
         if not cmd or not self.serial.is_connected():
             return False
-        if permissions.get_current_role() != "admin":
+        if not permissions.require_role("admin"):
             return False
         command = cmd.strip().upper()
         if command not in {"LIST", "HELP", "COMMANDS", "STOP", "SCAN", "ID?"}:
@@ -753,7 +761,7 @@ class Api:
     def reset_device(self) -> bool:
         if not self.serial.is_connected():
             return False
-        if permissions.get_current_role() != "admin":
+        if not permissions.require_role("admin"):
             return False
         return self.serial.reset_device()
 
@@ -1230,6 +1238,8 @@ class Api:
     # -- settings -----------------------------------------------------------------
     def get_settings(self) -> Dict[str, Any]:
         settings = load_settings()
+        settings.pop("auth", None)
+        settings["current_role"] = permissions.get_current_role()
         settings["available_ports"] = list_serial_ports()
         settings["log_folder"] = str(CONFIG.log_folder)
         backups = db.list_backups()
@@ -1237,9 +1247,17 @@ class Api:
         return settings
 
     def save_ui_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
-        if permissions.get_current_role() != "admin":
-            return {"ok": False, "message": "Current role does not have settings permission."}
+        if not permissions.require_role("admin"):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required to save settings."}
         merged = load_settings()
+        time_rule_keys = {
+            "time_in", "time_out", "early_threshold_minutes",
+            "late_threshold_minutes", "absent_threshold_minutes",
+        }
+        if time_rule_keys.intersection(settings) and not permissions.require_role(
+            permissions.ATTENDANCE_TIME_RULES_PERMISSION
+        ):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required for attendance time rules."}
         try:
             cooldown = max(1, min(60, int(settings.get("cooldown", merged.get("cooldown", 10)))))
             confidence = max(1, min(100, int(settings.get("min_confidence", merged.get("min_confidence", 96)))))
@@ -1260,6 +1278,8 @@ class Api:
             return {"ok": False, "message": "Time In and Time Out must be in HH:MM format."}
         
         settings = dict(settings)
+        settings.pop("auth", None)
+        settings["current_role"] = permissions.get_current_role()
         settings.update({
             "cooldown": cooldown,
             "min_confidence": confidence,
@@ -1290,10 +1310,57 @@ class Api:
     def set_current_role(self, role: str) -> Dict[str, Any]:
         if role not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
+        current = permissions.get_current_role()
+        if not permissions.has_role_permission(current, role):
+            return {
+                "ok": False,
+                "status": 401,
+                "requires_password": True,
+                "message": "Password authentication is required to elevate this session.",
+            }
+        permissions.set_session_role(role, self._session_timeout_seconds)
+        return self.get_session_state()
+
+    def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
+        if role not in CONFIG.user_roles:
+            return {"ok": False, "message": "Unknown role."}
+        current = permissions.get_current_role()
+        if not permissions.has_role_permission(role, current):
+            return {"ok": False, "message": "Cannot reduce the session role here; use Lock instead."}
         settings = load_settings()
-        settings["current_role"] = role
+        if not auth.verify_password(password, settings.get("auth", {})):
+            return {"ok": False, "message": "Incorrect password."}
+        permissions.set_session_role(role, self._session_timeout_seconds)
+        return self.get_session_state()
+
+    def get_session_state(self) -> Dict[str, Any]:
+        role = permissions.get_current_role()
+        return {
+            "ok": True,
+            "role": role,
+            "permissions": CONFIG.user_roles.get(role, {}).get("permissions", []),
+            "idle_timeout_seconds": self._session_timeout_seconds,
+        }
+
+    def touch_session(self) -> Dict[str, Any]:
+        permissions.touch_session()
+        return self.get_session_state()
+
+    def lock_session(self) -> Dict[str, Any]:
+        permissions.set_session_role("guest", self._session_timeout_seconds)
+        return self.get_session_state()
+
+    def change_admin_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
+        if not permissions.require_role("admin"):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+        if len(new_password) < 8:
+            return {"ok": False, "message": "The new password must be at least 8 characters."}
+        settings = load_settings()
+        if not auth.verify_password(current_password, settings.get("auth", {})):
+            return {"ok": False, "message": "Current password is incorrect."}
+        settings["auth"] = auth.hash_password(new_password)
         save_settings(settings)
-        return {"ok": True, "permissions": CONFIG.user_roles.get(role, {}).get("permissions", [])}
+        return {"ok": True, "message": "Administrator password changed."}
 
     def get_role_permissions(self, role: str) -> List[str]:
         return CONFIG.user_roles.get(role, {}).get("permissions", [])

@@ -36,6 +36,11 @@ DSIS is a Windows desktop attendance system for schools and training centers. An
    run_web_gui.bat
    ```
 
+The v3 application starts in the Guest role. The shipped administrator password
+is `dsis-admin` as a setup placeholder. Change it immediately from Settings;
+the application stores only a salted PBKDF2-HMAC-SHA256 password hash and never
+stores or logs the plaintext password.
+
 For packaged Windows deployment, see [Portable Build](PORTABLE_BUILD.md). The current PyInstaller specification is under `Build/DSIS_v3.spec`; obsolete root build scripts were removed. For daily workflows, see the [v3 workflow guide](docs/UserGuide/v3-workflows.md). For connection problems, see [Current Troubleshooting](docs/Troubleshooting/README.md). Contributors should start with [Contributing](CONTRIBUTING.md) and [Release Guide](RELEASE.md).
 
 The PC-to-ESP32 USB serial connection uses **115200 baud**. The separate ESP32-to-AS608 sensor UART uses **57600 baud** internally; do not select 57600 in the desktop app.
