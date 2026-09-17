@@ -1,5 +1,3 @@
-"""One-off historical utility for normalizing emoji rendering."""
-
 # Read the file
 with open('python/gui/app.py', 'r', encoding='utf-8') as f:
     content = f.read()

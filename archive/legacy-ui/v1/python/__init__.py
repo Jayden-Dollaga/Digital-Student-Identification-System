@@ -1,1 +1,1 @@
-"""Python package for the Digital Student Identification System (DSIS)."""
+"""Python package for the fingerprint attendance system."""

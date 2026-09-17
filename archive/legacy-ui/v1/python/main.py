@@ -1,14 +1,3 @@
-"""Legacy entry point for the Digital Student Identification System (DSIS).
-
-This module wires the console/serial workflow together for the original
-application flow. It initializes the database, connects to the ESP32,
-receives serial output, and dispatches commands such as scan, enroll,
-delete, wipe, and list.
-
-It is kept for compatibility with the original workflow while the newer
-Qt-based GUI lives under python/gui_qt.
-"""
-
 ###############################################################################
 #  main.py
 #  AS608 Fingerprint Attendance System
@@ -39,15 +28,11 @@ PYTHON_ROOT = Path(__file__).resolve().parent
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
-from config import get_config
+from config import COM_PORT, AUTO_SCAN
 from core.database import init_database
-from core.logger import log
-
-CONFIG = get_config()
 from core.serial_handler import SerialHandler
 from core.attendance import AttendanceProcessor
 from core.commands import cmd_scan, cmd_stop, cmd_enroll, cmd_delete, cmd_wipe, cmd_list
-from core.utils import parse_json_line
 
 try:
     from gui.app import main as gui_main
@@ -61,7 +46,6 @@ except ImportError:
 
 def input_thread(handler, stop_event):
     """Background thread — lets you type commands while scanning runs."""
-    log.info("Interactive command input started", commands="scan,stop,list,enroll:X,delete:X,wipe,quit")
     print("\nCommands: scan / stop / list / enroll:X / delete:X / wipe / quit\n")
     while not stop_event.is_set():
         try:
@@ -96,10 +80,8 @@ def input_thread(handler, stop_event):
                 sent = handler.send_command(cmd.strip())
 
             if sent:
-                log.info("Command sent", command=cmd.strip().upper())
                 print(f"[SENT]    : {cmd.strip().upper()}")
             else:
-                log.warning("Command not sent", command=cmd.strip().upper(), reason="not connected")
                 print("[ERROR]   : Not connected to ESP32")
         except EOFError:
             break
@@ -110,18 +92,20 @@ def input_thread(handler, stop_event):
 # ==============================================================================
 
 def main():
-    log.info("Application started", port=CONFIG.com_port, baud=CONFIG.baud_rate)
+    print("=" * 55)
+    print("  AS608 Fingerprint Attendance System")
+    print("=" * 55)
 
     # ── Init database ─────────────────────────────────────────────
     init_database()
 
     # ── Connect to ESP32 ─────────────────────────────────────────
+    print(f"Port      : {COM_PORT}")
     handler = SerialHandler()
-    ok, msg = handler.connect(port=CONFIG.com_port, baud=CONFIG.baud_rate)
+    ok, msg = handler.connect()
 
     if not ok:
-        log.error("ESP32 connection failed", port=CONFIG.com_port, baud=CONFIG.baud_rate, error=msg)
-        print(f"[ERROR]   : Could not connect to {CONFIG.com_port}")
+        print(f"[ERROR]   : Could not connect to {COM_PORT}")
         print(f"Details   : {msg}")
         print("\nFixes:")
         print("  - Close Arduino Serial Monitor")
@@ -129,14 +113,12 @@ def main():
         print("  - Check port in Arduino IDE -> Tools -> Port")
         return
 
-    log.info("ESP32 connected", port=CONFIG.com_port, baud=CONFIG.baud_rate)
     print("Status    : Connected!\n")
 
     # ── Auto-send SCAN ────────────────────────────────────────────
-    if CONFIG.auto_scan:
+    if AUTO_SCAN:
         time.sleep(0.5)
         cmd_scan(handler)
-        log.info("Auto scan requested", command="SCAN")
         print("[SENT]    : SCAN\n")
 
     # ── Start input thread ────────────────────────────────────────
@@ -164,35 +146,14 @@ def main():
                 continue
 
             # ── Mode messages ─────────────────────────────────────
-            parsed_status = parse_json_line(line)
-            if parsed_status is not None and parsed_status.get("type") == "status":
-                state = parsed_status.get("state")
-                if state == "SCAN_MODE":
-                    in_scan_mode = True
-                    log.info("ESP32 entered scan mode")
-                    print("[STATUS]  : ESP32 in SCAN MODE — ready for attendance\n")
-                    continue
-                if state == "CMD_MODE":
-                    in_scan_mode = False
-                    processor.reset()
-                    log.info("ESP32 entered command mode")
-                    print("[STATUS]  : ESP32 in COMMAND MODE\n")
-                    continue
-                if state == "READY":
-                    log.info("ESP32 ready")
-                    print("[STATUS]  : ESP32 online and ready")
-                    continue
-
             if line == "SCAN_MODE":
                 in_scan_mode = True
-                log.info("ESP32 entered scan mode")
                 print("[STATUS]  : ESP32 in SCAN MODE — ready for attendance\n")
                 continue
 
             if line == "CMD_MODE":
                 in_scan_mode = False
                 processor.reset()
-                log.info("ESP32 entered command mode")
                 print("[STATUS]  : ESP32 in COMMAND MODE\n")
                 continue
 
@@ -201,36 +162,30 @@ def main():
                 continue
 
             if line == "READY":
-                log.info("ESP32 ready")
                 print("[STATUS]  : ESP32 online and ready")
                 continue
 
             if line.startswith("Sensor found"):
-                log.info("Sensor message received", message=line)
                 print("[STATUS]  : Fingerprint sensor detected")
                 continue
 
             if line.startswith("Stored fingerprints:"):
-                log.info("ESP32 fingerprint count", message=line)
                 print(f"[INFO]    : {line}")
                 continue
 
             if line.startswith(">> ") or line.startswith("SUCCESS") or \
                line.startswith("Total stored") or line.startswith("Step") or \
                line.startswith("---"):
-                log.info("ESP32 status", message=line)
                 print(f"[ESP32]   : {line}")
                 continue
 
             # ── Unknown / low confidence ──────────────────────────
             if line == "UNKNOWN":
-                log.warning("Unknown fingerprint scan", status="UNKNOWN")
                 print("[SCAN]    : Finger not recognized\n")
                 continue
 
             if line.startswith("LOW_CONFIDENCE:"):
                 conf = line.split(":")[1]
-                log.warning("Low confidence scan ignored", confidence=conf)
                 print(f"[SCAN]    : Weak match ignored (confidence: {conf})\n")
                 continue
 
@@ -239,21 +194,9 @@ def main():
 
             if result:
                 if not result["logged"]:
-                    log.info(
-                        "Scan skipped due to cooldown",
-                        fingerprint_id=result["fingerprint_id"],
-                        reason=result["reason"],
-                    )
                     print(f"[SKIP]    : ID:{result['fingerprint_id']} — {result['reason']}\n")
                 else:
                     ts = result["timestamp"]
-                    log.info(
-                        "Scan logged",
-                        fingerprint_id=result["fingerprint_id"],
-                        confidence=result["confidence"],
-                        status=result["status"],
-                        timestamp=ts.isoformat(),
-                    )
                     print("─" * 48)
                     print(f"  SCAN LOGGED")
                     print("─" * 48)
@@ -271,12 +214,10 @@ def main():
                 print(f"[ESP32]   : {line}")
 
     except KeyboardInterrupt:
-        log.info("Interrupted by user", signal="KeyboardInterrupt")
         print("\nStopped by user (Ctrl+C)")
     finally:
         stop_event.set()
         handler.disconnect()
-        log.info("Application shutdown", reason="user exit")
         print("Connections closed. Goodbye.")
 
 

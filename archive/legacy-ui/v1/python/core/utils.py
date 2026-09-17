@@ -5,34 +5,10 @@
 #  Small helper functions used across modules.
 ###############################################################################
 
-import json
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
 
-from config import get_config
-
-CONFIG = get_config()
-
-
-def parse_json_line(line: str) -> Optional[Dict[str, Any]]:
-    if not isinstance(line, str):
-        return None
-    line = line.strip()
-    if not line:
-        return None
-    # Some serial adapters / FTDI bridges leave a UTF-8 BOM or stray whitespace
-    # in front of JSON payloads. Strip the BOM and any surrounding whitespace
-    # before parsing so a valid ESP32 match event still reaches the attendance
-    # processor in the Qt pipeline.
-    line = line.lstrip("\ufeff\t\r\n ")
-    if not line.startswith("{"):
-        return None
-    try:
-        parsed = json.loads(line)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
+from config import EXPORT_FOLDER
 
 
 def get_export_path(filename):
@@ -41,9 +17,8 @@ def get_export_path(filename):
     Creates the folder if it doesn't exist.
     Example: get_export_path("attendance_today.xlsx")
     """
-    export_folder = CONFIG.export_folder
-    export_folder.mkdir(parents=True, exist_ok=True)
-    return str(export_folder / filename)
+    os.makedirs(EXPORT_FOLDER, exist_ok=True)
+    return os.path.join(EXPORT_FOLDER, filename)
 
 
 def timestamp_filename(prefix, ext):
