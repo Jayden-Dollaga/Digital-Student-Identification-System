@@ -15,13 +15,15 @@ env/
 *.sqlite3
 
 # PyInstaller / portable build output
-Build\build-v1
-Build\build-v2
-Build\build-v3
+Build/build-v1/
+Build/build-v2/
+Build/build-v3/
 
-Build\DSIS_v1
-Build\DSIS_v2
-Build\DSIS_v3
+Build/DSIS_v1/
+Build/DSIS_v2/
+Build/DSIS_v3/
+
+!Build/*.spec
 
 # Database and local runtime data
 data/attendance.db
