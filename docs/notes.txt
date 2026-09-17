@@ -18,17 +18,17 @@ git config --global user.name "Your Name"
 
 python -m pip install openpyxl numpy
 
-python run_web_gui.py
+
 python archive\legacy-ui\v1\python/gui/app.py
 python archive\legacy-ui\v2\run_qt_gui.py
+python run_web_gui.py
 
 
-
+Remove-Item -Recurse -Force Build\build-v1, Build\DSIS_v1 -ErrorAction SilentlyContinue
+python -m PyInstaller Build\DSIS_v1.spec --clean --noconfirm --workpath Build\build-v1 --distpath Build\DSIS_v1
 
 Remove-Item -Recurse -Force Build\build-v2, Build\DSIS_v2 -ErrorAction SilentlyContinue
 python -m PyInstaller Build\DSIS_v2.spec --clean --noconfirm --workpath Build\build-v2 --distpath Build\DSIS_v2
-
-
 
 Remove-Item -Recurse -Force Build\build-v3, Build\DSIS_v3 -ErrorAction SilentlyContinue
 python -m PyInstaller Build\DSIS_v3.spec --clean --noconfirm --workpath Build\build-v3 --distpath Build\DSIS_v3
