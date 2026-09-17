@@ -38,6 +38,8 @@ The Dashboard also provides Attendance Evaluation for a selected day, Monday-to-
 
 Unknown scans are shown as `Unregistered` and persisted through the reserved `fingerprint_id = 0` system row. Roles gate actions in the local UI; they are not user authentication, and a person with access to the settings file can change the stored role.
 
+The user-facing identifier is **Student LRN**. The database field remains `student_no` for compatibility, but web forms, tables, reports, and CSV headers present it as Student LRN.
+
 ## Hardware
 
 | Component | Role |
@@ -138,6 +140,7 @@ The current system includes:
 - serial reconnect handling
 - local role-based action gating in the GUI (not authenticated authorization)
 - backup creation and restore support
+- automatic administrator settings saves and administrator-only restore-to-defaults behavior
 - log output for troubleshooting and operational visibility
 - automatic attendance logging with cooldown protection
 - persistent settings stored locally so COM port, baud rate, theme, cooldown, and auto-reconnect preferences are restored automatically

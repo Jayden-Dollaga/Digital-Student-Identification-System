@@ -1,6 +1,6 @@
 # DSIS Documentation Overhaul
 
-This manifest records the repository-wide documentation audit and organization reviewed against commit `64d80c9` on 2026-09-16. It is the entry point for understanding which documents are current, historical, generated, or preserved for research.
+This manifest records the repository-wide documentation audit and organization reviewed against commit `94cec98` on 2026-09-18. It is the entry point for understanding which documents are current, historical, generated, or preserved for research.
 
 ## Documentation structure
 
@@ -9,6 +9,7 @@ docs/
 ├── INDEX.md                         Navigation index
 ├── README.md                        Documentation orientation
 ├── Documentation-Overhaul.md        This audit and organization manifest
+├── Documentation-Inventory.md        Complete Markdown file classification
 ├── Architecture/
 │   ├── v3-system.md                 Current v3 architecture and bridge flow
 │   ├── system-architecture.md       Layered architecture reference
@@ -96,6 +97,9 @@ The current documentation set explains:
 - v1/v2/v3 architecture and the pywebview JavaScript-to-Python event bridge.
 - Build cleanup in `d3fb362`, `.venv` installation behavior, `Build/DSIS_v3.spec`, and `Build/DSIS_v3` output.
 - Build artifact preservation in `64d80c9`, including v2/v3 packaged outputs, PyInstaller analysis files, and `Documentation-Overhaul.md`.
+- Student-facing terminology now uses **Student LRN**; CSV headers, enrollment/edit forms, reports, and tables map the existing `student_no` database field to that label.
+- Administrator settings save automatically, and **Restore Defaults** resets application settings while preserving authentication and active role state.
+- The v3 wipe workflow is presented as metadata cleanup with linked local-data removal; this wording should remain aligned with the API and tests.
 
 ## Known gaps
 
@@ -105,4 +109,4 @@ The current documentation set explains:
 - Generated reports should be regenerated only after their generators are made reproducible.
 - The current v3 refactor removed some symbols expected by older web smoke tests; tests and implementation need a deliberate contract decision.
 
-Last reviewed: 2026-09-16, against commit `64d80c9`.
+Last reviewed: 2026-09-18, against commit `94cec98`.

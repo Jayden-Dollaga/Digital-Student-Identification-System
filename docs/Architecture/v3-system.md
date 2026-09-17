@@ -64,7 +64,7 @@ The frontend in `python/gui_web/web/app.js` calls methods such as `connect`, `di
 
 Enrollment is a stateful workflow:
 
-1. The operator enters student number, name, grade, and section.
+1. The operator enters Student LRN, name, grade, and section.
 2. Live validation checks the fields before enrollment begins.
 3. The frontend sends `ENROLL` to the ESP32.
 4. The API forwards device progress events such as assigned ID, capture steps, success, cancellation, or failure.
@@ -99,7 +99,9 @@ Roles are local action gating, not authentication:
 - Teacher: scan, export, and backup permissions.
 - Guest: scan permission.
 
-Device wipe and local database clearing are separate operations. A device wipe removes fingerprint templates from the ESP32; local student and attendance records are only changed by the explicit local data operation. Operators should create a backup before destructive maintenance.
+The current v3 wipe workflow removes identification metadata from the ESP32 and clears linked local student and attendance data. Operators should create a backup before destructive maintenance. This behavior is intentionally destructive and differs from a local-only student delete.
+
+Settings changes are automatically saved for administrators. The **Restore Defaults** action requires administrator authentication and restores default application settings while retaining authentication and the current role.
 
 ## v2 reference boundary
 

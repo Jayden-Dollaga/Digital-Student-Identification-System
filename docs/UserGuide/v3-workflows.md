@@ -15,7 +15,7 @@ The PC-to-ESP32 connection uses 115200 baud. COM numbers are assigned by Windows
 ## Enroll a student
 
 1. Open the Students page and choose enrollment.
-2. Enter a valid student number, full name, grade, and section.
+2. Enter a valid Student LRN, full name, grade, and section.
 3. Start enrollment and follow the prompts shown by the device.
 4. Place the finger on the sensor when prompted, usually twice for template capture.
 5. Wait for the success event and assigned fingerprint ID.
@@ -49,7 +49,7 @@ Rates use observed school days: a date counts in the denominator only when at le
 
 Deleting a student while connected sends a device delete command first. The local profile is removed only after the device confirms the deletion. If the board is disconnected, the UI warns that only the local record can be removed.
 
-Wiping the device removes fingerprint templates from the sensor. Use the separate local data controls when database records also need to be cleared. Create a backup before destructive changes.
+Wiping the device removes stored identification metadata from the sensor and clears the linked local student and attendance data through the current v3 wipe workflow. Create a backup before destructive changes.
 
 ## Reports, backup, and restore
 
@@ -69,7 +69,7 @@ The role is stored in local settings. Anyone with access to the settings file ca
 
 ## Themes and settings
 
-Settings supports light and dark themes, compact layout, port and baud preferences, auto-reconnect, auto-discovery, scan cooldown, confidence threshold, logging, and automatic backup interval. Changes are saved with **Save Changes**; **Discard** reloads the stored values.
+Settings supports light and dark themes, compact layout, port and baud preferences, auto-reconnect, auto-discovery, scan cooldown, confidence threshold, logging, and automatic backup interval. Administrator changes save automatically. **Restore Defaults** resets application settings while preserving the authentication settings and active role needed to continue the session.
 
 ## Firmware and hardware
 

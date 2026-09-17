@@ -5,6 +5,7 @@ This map separates current operational guidance from historical and generated ma
 ## Current guidance
 
 - `../Documentation-Overhaul.md`: complete organization, source-of-truth, and audit manifest.
+- `../Documentation-Inventory.md`: every Markdown file classified by purpose and authority.
 - `../README.md`: full v3 system architecture and runtime contract.
 - `../UserGuide/v3-workflows.md`: enrollment, scanning, evaluation, settings, permissions, backup, restore, and hardware workflows.
 - `../Architecture/v3-system.md`: component boundaries and application flow.
