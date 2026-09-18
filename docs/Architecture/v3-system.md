@@ -87,7 +87,7 @@ Enrollment is a stateful workflow:
 
 The dashboard supports day, Monday-to-Sunday week, and calendar-month windows. It counts distinct attendance dates for each student. The denominator is the number of dates on which any attendance activity was observed, so empty weekends or holidays do not automatically reduce every student's rate.
 
-Each row includes days present, days absent, attendance rate, and one of four categories: Excellent, Good, Needs attention, or Low attendance. The frontend supports sorting by presence, rate, or name. Roles with `export` or `backup` permission can export the selected evaluation as CSV.
+Each row includes days present, days absent, attendance rate, and one of four categories: Excellent, Good, Needs attention, or Low attendance. The frontend supports sorting by presence, rate, or name. All current roles have the dedicated `attendance_evaluation` permission; CSV export from other reports remains separately permission-gated.
 
 ## Data, permissions, and destructive operations
 
@@ -95,13 +95,13 @@ The SQLite database is the live source for current reports. Backups are snapshot
 
 Roles are local action gating, not authentication:
 
-- Administrator: full supported workflow permissions.
-- Teacher: scan, export, and backup permissions.
-- Guest: scan permission.
+- Administrator: full supported workflow permissions, including attendance evaluation.
+- Teacher: scan, export, backup, and attendance evaluation permissions.
+- Guest: scan and attendance evaluation permissions.
 
 The current v3 wipe workflow removes identification metadata from the ESP32 and clears linked local student and attendance data. Operators should create a backup before destructive maintenance. This behavior is intentionally destructive and differs from a local-only student delete.
 
-Settings changes are automatically saved for administrators. The **Restore Defaults** action requires administrator authentication and restores default application settings while retaining authentication and the current role.
+Settings changes are automatically saved for administrators. The **Restore Defaults** action requires administrator authentication and restores default application settings while retaining authentication and the current role. The former visible Lock control is no longer part of the v3 title bar.
 
 ## v2 reference boundary
 

@@ -1,6 +1,6 @@
 # DSIS Documentation Inventory
 
-This file is the complete Markdown documentation inventory for commit `94cec98` (2026-09-18). Every Markdown file in the repository is classified below so reviewers can distinguish current guidance from historical, generated, research, duplicate, cache, and reference material.
+This file is the complete Markdown documentation inventory for commit `9ffd69f` (2026-09-18). Every Markdown file in the repository is classified below so reviewers can distinguish current guidance from historical, generated, research, duplicate, cache, and reference material.
 
 ## Classification rules
 
@@ -123,4 +123,4 @@ These files are generated or point-in-time audits. Their paths, test counts, UI 
 
 The implementation audit also covered module docstrings, build comments, firmware comments, and API comments. Current source documentation is concentrated in `python/gui_web/api.py`, `python/gui_web/main_web.py`, `python/core/`, `python/config.py`, `python/settings_store.py`, `Build/DSIS_v3.spec`, and the maintained firmware sketch. Archived v1/v2 source comments remain historical by design.
 
-Last reviewed: 2026-09-18, against commit `94cec98`.
+Last reviewed: 2026-09-18, against commit `9ffd69f`.

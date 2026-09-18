@@ -59,13 +59,13 @@ Restore operations accept supported database files from the configured backup di
 
 ## Roles
 
-Roles are local workflow permissions, not login accounts:
+Roles are local workflow permissions, not login accounts. Attendance Evaluation uses a dedicated `attendance_evaluation` permission:
 
-- Administrator: all supported operations.
-- Teacher: scan, export, and backup.
-- Guest: scan only.
+- Administrator: all supported operations, including attendance evaluation.
+- Teacher: scan, export, backup, and attendance evaluation.
+- Guest: scan and attendance evaluation.
 
-The role is stored in local settings. Anyone with access to the settings file can change it.
+The role is stored in local settings. Anyone with access to the settings file can change it. The former visible Lock button is no longer part of the v3 title bar.
 
 ## Themes and settings
 
