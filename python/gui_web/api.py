@@ -1042,8 +1042,8 @@ class Api:
         against anyone. For "day", this naturally collapses to a simple
         present/absent list for that single date.
         """
-        if not (permissions.has_permission("export") or permissions.has_permission("backup")):
-            return {"ok": False, "message": "Current role does not have report permission."}
+        if not permissions.has_permission("attendance_evaluation"):
+            return {"ok": False, "message": "Current role does not have attendance evaluation permission."}
 
         period = (period or "month").lower()
         if period not in ("day", "week", "month"):

@@ -36,17 +36,17 @@ DEFAULT_IGNORE_PREFIXES: Tuple[str, ...] = ()
 DEFAULT_USER_ROLES: Dict[str, Dict[str, Any]] = {
     "admin": {
         "name": "Administrator",
-        "permissions": ["scan", "enroll", "delete", "wipe", "export", "backup", "restore"],
+        "permissions": ["scan", "enroll", "delete", "wipe", "export", "backup", "restore", "attendance_evaluation"],
         "can_manage_users": True,
     },
     "teacher": {
         "name": "Teacher",
-        "permissions": ["scan", "export", "backup"],
+        "permissions": ["scan", "export", "backup", "attendance_evaluation"],
         "can_manage_users": False,
     },
     "guest": {
         "name": "Guest",
-        "permissions": ["scan"],
+        "permissions": ["scan", "attendance_evaluation"],
         "can_manage_users": False,
     },
 }

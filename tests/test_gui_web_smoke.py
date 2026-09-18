@@ -69,6 +69,8 @@ def test_v3_web_shell_contains_all_primary_workflows():
     assert "validateEnrollmentFields" in script
     assert 'id="em-validation-summary"' in script
     assert 'id="em-sno-feedback"' in script
+    assert 'id="lock-btn"' not in html
+    assert "lockButton.hidden" not in script
 
 
 def test_v3_validation_api_returns_field_feedback(monkeypatch):

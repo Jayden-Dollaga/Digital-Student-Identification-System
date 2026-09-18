@@ -25,6 +25,16 @@ def test_role_hierarchy_is_ordered():
     assert not permissions.has_role_permission("unknown", "guest")
 
 
+def test_all_roles_can_access_attendance_evaluation(monkeypatch):
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [])
+    instance = api_module.Api.__new__(api_module.Api)
+
+    for role in ("admin", "teacher", "guest"):
+        permissions.set_session_role(role, 600.0)
+        assert instance.get_attendance_evaluation()["ok"] is True
+
+
 def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     record = auth.hash_password("admin")
     settings = {"auth": record}
