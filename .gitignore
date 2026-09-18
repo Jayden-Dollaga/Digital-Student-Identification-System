@@ -26,7 +26,7 @@ Build/DSIS_v3/
 !Build/*.spec
 
 # CP210x_Driver
-driver\install\
+driver/install/
 
 
 # Database and local runtime data
