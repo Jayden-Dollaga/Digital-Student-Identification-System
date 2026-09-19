@@ -1,4 +1,13 @@
-# Digital Student Identification System
+<!-- markdownlint-disable MD033 MD041 -->
+<div align="center">
+   <img src="assets/icon/DSIS_LOGO.png" alt="DSIS logo" width="112">
+   <h1>DSIS</h1>
+   <p><strong>Digital Student Identification System</strong></p>
+   <p>ESP32 + AS608 fingerprint attendance for local, school-ready workflows.</p>
+</div>
+
+<br>
+<!-- markdownlint-enable MD033 MD041 -->
 
 DSIS is a Windows desktop attendance system for schools and training centers. An ESP32 and AS608 fingerprint sensor handle enrollment and identification; the Python application manages student records, attendance history, reports, backups, and serial communication.
 

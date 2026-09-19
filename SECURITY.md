@@ -16,6 +16,12 @@ current `main` branch; no v3 release support window has been published yet.
 | `main` | Best effort while v3 remains unreleased |
 | Older or unversioned snapshots | No commitment |
 
+## Authentication model
+
+The maintained v3 application enforces first-run administrator password setup. Passwords are validated and stored as hashes. Role elevation verifies the password and creates an in-memory session with a 600-second idle timeout. Authorization uses the active in-memory session role rather than trusting the stored role value in `data/settings.json`.
+
+Administrator, Teacher, and Guest sessions can access Attendance Evaluation through the dedicated `attendance_evaluation` permission. Other operations remain restricted by their role permission sets.
+
 ## Reporting a Vulnerability
 
 Email vulnerability reports to [jaydendollaga4@gmail.com](mailto:jaydendollaga4@gmail.com). This address is

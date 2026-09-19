@@ -93,7 +93,7 @@ Each row includes days present, days absent, attendance rate, and one of four ca
 
 The SQLite database is the live source for current reports. Backups are snapshots and are not used as a second history source during normal operation. Restore replaces the active database after path and file validation.
 
-Roles are local action gating, not authentication:
+Roles combine password-authenticated in-memory sessions with local action gating:
 
 - Administrator: full supported workflow permissions, including attendance evaluation.
 - Teacher: scan, export, backup, and attendance evaluation permissions.
@@ -102,6 +102,8 @@ Roles are local action gating, not authentication:
 The current v3 wipe workflow removes identification metadata from the ESP32 and clears linked local student and attendance data. Operators should create a backup before destructive maintenance. This behavior is intentionally destructive and differs from a local-only student delete.
 
 Settings changes are automatically saved for administrators. The **Restore Defaults** action requires administrator authentication and restores default application settings while retaining authentication and the current role. The former visible Lock control is no longer part of the v3 title bar.
+
+On first run, `Api.is_first_run_setup_required()` blocks normal startup until `complete_first_run_setup()` validates and hashes an administrator password. `authenticate_role()` verifies that password before elevating to a role allowed by the current session. `permissions.py` stores the effective role and expiry in memory; `settings.json` stores the authentication hash and preferences, but is not consulted directly for authorization decisions.
 
 ## v2 reference boundary
 

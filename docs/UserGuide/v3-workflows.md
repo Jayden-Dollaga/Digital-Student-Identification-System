@@ -65,7 +65,7 @@ Roles are local workflow permissions, not login accounts. Attendance Evaluation 
 - Teacher: scan, export, backup, and attendance evaluation.
 - Guest: scan and attendance evaluation.
 
-The role is stored in local settings. Anyone with access to the settings file can change it. The former visible Lock button is no longer part of the v3 title bar.
+On first launch, DSIS requires an administrator to create a password before the application can be used. Later role elevation requires password authentication. Authenticated roles are held in memory and expire after the configured 600-second idle timeout; the password hash is stored in local settings, not the active role decision. The former visible Lock button is no longer part of the v3 title bar.
 
 ## Themes and settings
 

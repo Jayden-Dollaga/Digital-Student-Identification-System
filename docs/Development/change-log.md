@@ -8,6 +8,7 @@ Unreleased — verified 2026-09-11
 - Build: Added the current v2/v3 packaged build outputs, PyInstaller analysis artifacts, and the documentation overhaul manifest (`64d80c9`).
 - Feature: Renamed user-facing student-number labels to **Student LRN** and added administrator default-settings restoration with automatic settings saves (`94cec98`).
 - Permissions: Added dedicated `attendance_evaluation` access for Administrator, Teacher, and Guest roles and removed the visible v3 Lock button (`9ffd69f`).
+- Security: Enforced first-run administrator password setup, hashed authentication, password-based role elevation, in-memory idle sessions, and CI/test categorization (`3f42ccc`).
 - Maintenance: Refactored project structure and removed redundant code while preserving the v3 webview runtime and v2 parity reference (`69e563b`).
 - UI: Added standalone, hybrid, original-style, and combined Qt interface prototypes for visual comparison; prototypes use mock or display-only data and are not production launchers (`be7a046`).
 - UI: Added the v3 light theme stylesheet, expanded webview UI components, and preserved the proven Qt implementation under `python/gui_web/v2_reference/` for parity review (`ea3ea7c`).
