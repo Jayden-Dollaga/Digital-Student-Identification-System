@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from gui_qt.main_window import MainWindow
+import pytest
+
+pytestmark = pytest.mark.ui_qt
 
 
 class QtMainWindowScanTests(unittest.TestCase):

@@ -138,6 +138,49 @@ function applySessionState(state) {
   });
 }
 
+// Toggles a password input between hidden/visible. Bound via a plain
+// onclick attribute on a real button (not addEventListener), so it's
+// re-evaluated fresh on every click - it can't go stale or stop responding
+// after one use the way the browser's native reveal-password icon did.
+function togglePasswordField(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? 'Show' : 'Hide';
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+}
+
+function openFirstRunSetupModal() {
+  const modal = document.getElementById('first-run-setup-modal');
+  if (!modal) return;
+  document.getElementById('first-run-setup-error').textContent = '';
+  document.getElementById('first-run-password').value = '';
+  document.getElementById('first-run-password-confirm').value = '';
+  modal.hidden = false;
+  document.getElementById('first-run-password').focus();
+}
+
+async function submitFirstRunSetup() {
+  const password = document.getElementById('first-run-password').value;
+  const confirm = document.getElementById('first-run-password-confirm').value;
+  const result = await api().complete_first_run_setup(password, confirm);
+  const error = document.getElementById('first-run-setup-error');
+  if (!result.ok) {
+    error.textContent = result.message || 'Could not create the administrator password.';
+    return;
+  }
+  document.getElementById('first-run-setup-modal').hidden = true;
+  applySessionState(result);
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.target.id === 'first-run-password' || event.target.id === 'first-run-password-confirm')) {
+    event.preventDefault();
+    submitFirstRunSetup();
+  }
+});
+
 function openRoleAuthModal(role) {
   pendingRole = role;
   const modal = document.getElementById('role-auth-modal');
@@ -146,6 +189,9 @@ function openRoleAuthModal(role) {
   if (!modal || !password) return;
   error.textContent = '';
   password.value = '';
+  password.type = 'password';
+  const btn = modal.querySelector('.pw-toggle-btn');
+  if (btn) btn.textContent = 'Show';
   modal.hidden = false;
   password.focus();
 }
@@ -196,17 +242,41 @@ async function lockSession() {
   applySessionState(result);
 }
 
+function openChangePasswordModal() {
+  if (!hasRole('admin')) return;
+  const modal = document.getElementById('change-password-modal');
+  if (!modal) return;
+  document.getElementById('password-change-error').textContent = '';
+  document.getElementById('current-admin-password').value = '';
+  document.getElementById('new-admin-password').value = '';
+  // reset both fields back to hidden + "Show" in case they were left
+  // toggled visible from a previous open of this modal
+  for (const id of ['current-admin-password', 'new-admin-password']) {
+    const input = document.getElementById(id);
+    input.type = 'password';
+    const btn = modal.querySelector(`button[onclick*="${id}"]`);
+    if (btn) btn.textContent = 'Show';
+  }
+  modal.hidden = false;
+  document.getElementById('current-admin-password').focus();
+}
+
+function closeChangePasswordModal() {
+  const modal = document.getElementById('change-password-modal');
+  if (modal) modal.hidden = true;
+}
+
 async function changeAdminPassword() {
   if (!hasRole('admin')) return;
   const current = document.getElementById('current-admin-password').value;
   const next = document.getElementById('new-admin-password').value;
   const result = await api().change_admin_password(current, next);
   const error = document.getElementById('password-change-error');
-  error.textContent = result.ok ? 'Password changed.' : (result.message || 'Password change failed.');
-  if (result.ok) {
-    document.getElementById('current-admin-password').value = '';
-    document.getElementById('new-admin-password').value = '';
+  if (!result.ok) {
+    error.textContent = result.message || 'Password change failed.';
+    return;
   }
+  closeChangePasswordModal();
 }
 
 // ── Compact mode ──
@@ -281,7 +351,7 @@ async function toggleConnect() {
       const meta = res.device_metadata || {};
       document.getElementById('device-info').textContent =
         `${res.port || '?'} \u00b7 ${res.baud || '?'} baud` + (meta.type ? ` \u00b7 ${meta.type}` : '');
-      document.getElementById('sb-device').innerHTML = `<span>${res.port || '?'} \u00b7 ${res.baud || '?'} baud</span>`;
+      document.getElementById('sb-device').innerHTML = `<span>${escapeHtml(res.port || '?')} \u00b7 ${escapeHtml(res.baud || '?')} baud</span>`;
       smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
     } else {
       alert('Could not connect: ' + res.message);
@@ -507,7 +577,7 @@ async function loadAttendanceEvaluation() {
   body.innerHTML = '<div class="modal-status" style="padding:10px 0;">Loading\u2026</div>';
   const report = await api().get_attendance_evaluation(period, refDate);
   if (!report.ok) {
-    body.innerHTML = `<div class="me-empty">${report.message || 'Could not load the report.'}</div>`;
+    body.innerHTML = `<div class="me-empty">${escapeHtml(report.message || 'Could not load the report.')}</div>`;
     return;
   }
   evalData = report;
@@ -2167,9 +2237,15 @@ whenApiReady(() => {
     applyTheme(s.theme);
     applyCompact(!!s.compact_sidebar);
   });
-  api().get_current_role().then(role => {
-    currentRole = role || 'guest';
-    api().get_session_state().then(applySessionState);
+  api().is_first_run_setup_required().then(status => {
+    if (status.required) {
+      openFirstRunSetupModal();
+      return; // don't bother resolving a role yet - there's nothing to log into
+    }
+    api().get_current_role().then(role => {
+      currentRole = role || 'guest';
+      api().get_session_state().then(applySessionState);
+    });
   });
   sessionTouchTimer = setInterval(async () => {
     const state = await api().get_session_state();

@@ -8,6 +8,10 @@ sys.path.insert(0, str(PYTHON_ROOT))
 from core.utils import format_attendance_display
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_format_attendance_display_uses_student_name_when_present():
     record = {
         "fingerprint_id": 3,

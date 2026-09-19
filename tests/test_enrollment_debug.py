@@ -16,6 +16,19 @@ sys.path.insert(0, str(ROOT / "python"))
 from core.serial_handler import SerialHandler
 from core.commands import cmd_enroll, cmd_stop, cmd_list
 from core.logger import log
+from core import permissions
+
+
+pytestmark = pytest.mark.hardware
+# Reclassified from `integration` -> `hardware`: this test's own connectivity
+# check (handler.is_connected()) is unreliable as a "skip if no hardware"
+# guard, because /dev/ttyS0 is a standard Linux virtual serial device node
+# that exists even with zero real hardware attached. So in any Linux
+# container/CI runner, connect() succeeds and the test proceeds instead of
+# skipping, then fails for a reason that looks like a real bug but isn't -
+# there's simply no ESP32 on the other end to answer ENROLL. This is exactly
+# the failure that was showing up as "pre-existing" in every run while
+# setting up CI.
 
 def test_enrollment_flow():
     """Test if cmd_enroll works with the real SerialHandler."""
@@ -41,7 +54,14 @@ def test_enrollment_flow():
         pytest.skip("ESP32 is not connected; hardware enrollment diagnostic skipped")
     
     print("\n[OK] Serial connection successful")
-    
+
+    # cmd_enroll is permission-gated (core.permissions) - it's an
+    # admin/teacher-only action, same as the real app enforces. Without
+    # this, the test would always fail with "cmd_enroll() returned False"
+    # regardless of whether hardware is actually working, because the
+    # session starts as guest by default.
+    permissions.set_session_role("admin")
+
     # Check current fingerprint count
     print("\n3. Querying current fingerprint count...")
     try:

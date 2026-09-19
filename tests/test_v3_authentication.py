@@ -8,6 +8,10 @@ from core import auth, permissions
 from gui_web import api as api_module
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")

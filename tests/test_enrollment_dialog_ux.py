@@ -17,6 +17,9 @@ from gui_qt.pages.students_page import EnrollDialog, EnrollmentState
 from core.database import init_database, clear_all_students
 
 
+
+pytestmark = pytest.mark.ui_qt
+
 @pytest.fixture(scope="module")
 def qapp():
     """Create a QApplication for all tests in this module."""

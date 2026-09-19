@@ -16,6 +16,10 @@ SETTINGS = {
 }
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_time_in_status_boundaries():
     assert calculate_attendance_status("07:44:00", "time_in", SETTINGS) == "Early"
     assert calculate_attendance_status("07:45:00", "time_in", SETTINGS) == "Present"

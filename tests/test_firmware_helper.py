@@ -6,6 +6,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from core.firmware_helper import discover_firmware_candidates, find_firmware_binary
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_discover_firmware_candidates_prefers_bin(tmp_path):
     firmware_dir = tmp_path / "firmware" / "attendance"
     firmware_dir.mkdir(parents=True)

@@ -22,6 +22,9 @@ from core.commands import cmd_enroll, cmd_delete, cmd_wipe
 from core import permissions as permissions_module
 
 
+
+pytestmark = pytest.mark.unit
+
 @pytest.fixture()
 def temp_db(tmp_path, monkeypatch):
     db_path = tmp_path / "attendance_test.db"

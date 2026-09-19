@@ -9,6 +9,10 @@ if str(PYTHON_ROOT) not in sys.path:
 from gui.layout_utils import resolve_dialog_size, resolve_window_size, resolve_sidebar_width, scale_value
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_tk
+
 def test_resolve_window_size_uses_screen_bounds():
     width, height = resolve_window_size(1280, 720)
     assert width <= 1280 - 40

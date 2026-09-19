@@ -176,9 +176,7 @@ class Api:
         # Settings page but never actually applied them to SerialHandler,
         # so the toggles were cosmetic. Mirrors MainWindow.__init__ in v2.
         settings = load_settings()
-        if not settings.get("auth"):
-            save_settings(auth.ensure_password_record(settings))
-            settings = load_settings()
+        self._first_run_setup_required = not auth.has_password_set(settings)
         self._session_timeout_seconds = max(
             60.0, float(settings.get("idle_timeout_minutes", 10)) * 60.0
         )
@@ -1341,6 +1339,32 @@ class Api:
             }
         permissions.set_session_role(role, self._session_timeout_seconds)
         return self.get_session_state()
+
+    def is_first_run_setup_required(self) -> Dict[str, Any]:
+        return {"required": self._first_run_setup_required}
+
+    def complete_first_run_setup(self, password: str, confirm_password: str) -> Dict[str, Any]:
+        if not self._first_run_setup_required:
+            # Already set up elsewhere (e.g. another window/tab beat us to
+            # it). Refuse rather than silently no-op, so the UI can tell
+            # the user to use the normal login instead.
+            return {"ok": False, "message": "Setup has already been completed. Please log in."}
+        error = auth.validate_new_password(password, confirm_password)
+        if error:
+            return {"ok": False, "message": error}
+        settings = load_settings()
+        try:
+            settings = auth.set_initial_password(settings, password)
+        except ValueError as exc:
+            self._first_run_setup_required = False
+            return {"ok": False, "message": str(exc)}
+        save_settings(settings)
+        self._first_run_setup_required = False
+        # The person who just created the password is, by definition, the
+        # first administrator - elevate this session immediately instead of
+        # making them "log in" again to a password they entered 2 seconds ago.
+        permissions.set_session_role("admin", self._session_timeout_seconds)
+        return {"ok": True, **self.get_session_state()}
 
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
         if role not in CONFIG.user_roles:

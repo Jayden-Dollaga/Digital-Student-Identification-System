@@ -5,6 +5,10 @@ from unittest.mock import patch
 import customtkinter as ctk
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_bfeas_app2_script_runs_without_module_path_errors():
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "python" / "gui" / "legacy" / "bfeas_app2.py"

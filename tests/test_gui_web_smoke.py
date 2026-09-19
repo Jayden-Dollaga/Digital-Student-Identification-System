@@ -15,6 +15,9 @@ if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
 
+
+pytestmark = pytest.mark.integration
+
 def test_v3_web_shell_contains_all_primary_workflows():
     html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
     script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")

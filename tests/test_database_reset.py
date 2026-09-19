@@ -11,6 +11,10 @@ import core.database as database
 import core.permissions as permissions
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_clear_all_data_clears_students_and_attendance():
     # clear_all_data() now enforces the "wipe" permission at the DB layer
     # (see SECURITY FIX note on the function) - pin the role explicitly so

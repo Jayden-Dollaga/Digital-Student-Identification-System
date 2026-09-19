@@ -8,6 +8,10 @@ from core import database as db_module
 from gui.app import FingerprintApp
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_start_scan_resets_mode_state(monkeypatch):
     app = object.__new__(FingerprintApp)
     app.enroll_dialog = None

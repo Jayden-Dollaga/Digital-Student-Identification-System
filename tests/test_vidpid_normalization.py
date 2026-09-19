@@ -3,6 +3,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 class TestVidPidNormalization(unittest.TestCase):
     def test_get_default_com_port_prefers_known_vidpid(self):
         # Create a fake port object with known VID:PID (1a86:7523)

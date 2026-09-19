@@ -64,6 +64,9 @@ def _skip_or_fail(reason: str) -> bool:
     return False
 
 
+
+pytestmark = pytest.mark.integration
+
 @pytest.mark.skipif(
     os.environ.get("DSIS_RUN_HARDWARE_TESTS") != "1",
     reason=(

@@ -484,12 +484,9 @@
               <span class="settings-row-label" style="padding-top:1px;">Permissions</span>
               <div id="role-permissions" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
             </div>
-            <div class="settings-row" style="display:block;height:auto;">
-              <label class="settings-row-label" for="current-admin-password">Change administrator password</label>
-              <input id="current-admin-password" class="settings-text-input" type="password" placeholder="Current password">
-              <input id="new-admin-password" class="settings-text-input" type="password" placeholder="New password (8+ characters)">
-              <button class="hdr-btn" type="button" onclick="changeAdminPassword()">Change Password</button>
-              <div id="password-change-error" class="auth-error" role="alert"></div>
+            <div class="settings-row">
+              <span class="settings-row-label">Administrator password</span>
+              <button class="hdr-btn" type="button" onclick="openChangePasswordModal()">Change Password</button>
             </div>
           </div>
 
@@ -603,15 +600,57 @@
 </div><!-- /app -->
 
 
+<div id="first-run-setup-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-setup-title">
+    <div class="modal-title" id="first-run-setup-title">First-time setup</div>
+    <div class="modal-sub">Create an administrator password before continuing. There is no default password - this is the only way in.</div>
+    <div class="pw-field-wrap">
+      <input id="first-run-password" class="settings-text-input" type="password" autocomplete="new-password" placeholder="Create administrator password">
+      <button type="button" class="pw-toggle-btn" aria-label="Show password" onclick="togglePasswordField('first-run-password', this)">Show</button>
+    </div>
+    <div class="pw-field-wrap">
+      <input id="first-run-password-confirm" class="settings-text-input" type="password" autocomplete="new-password" placeholder="Confirm password">
+      <button type="button" class="pw-toggle-btn" aria-label="Show password" onclick="togglePasswordField('first-run-password-confirm', this)">Show</button>
+    </div>
+    <div id="first-run-setup-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn primary" type="button" onclick="submitFirstRunSetup()">Create administrator account</button>
+    </div>
+  </div>
+</div>
+
 <div id="role-auth-modal" class="modal-overlay" hidden>
   <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="role-auth-title">
     <div class="modal-title" id="role-auth-title">Administrator authentication</div>
     <div class="modal-sub">Enter the administrator password to elevate this session.</div>
-    <input id="role-auth-password" class="settings-text-input" type="password" autocomplete="current-password" placeholder="Password">
+    <div class="pw-field-wrap">
+      <input id="role-auth-password" class="settings-text-input" type="password" autocomplete="current-password" placeholder="Password">
+      <button type="button" class="pw-toggle-btn" aria-label="Show password" onclick="togglePasswordField('role-auth-password', this)">Show</button>
+    </div>
     <div id="role-auth-error" class="auth-error" role="alert"></div>
     <div class="modal-actions">
       <button class="hdr-btn" type="button" onclick="closeRoleAuthModal()">Cancel</button>
       <button class="hdr-btn primary" type="button" onclick="submitRoleAuth()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<div id="change-password-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
+    <div class="modal-title" id="change-password-title">Change administrator password</div>
+    <div class="modal-sub">Enter your current password, then choose a new one.</div>
+    <div class="pw-field-wrap">
+      <input id="current-admin-password" class="settings-text-input" type="password" autocomplete="current-password" placeholder="Current password">
+      <button type="button" class="pw-toggle-btn" aria-label="Show password" onclick="togglePasswordField('current-admin-password', this)">Show</button>
+    </div>
+    <div class="pw-field-wrap">
+      <input id="new-admin-password" class="settings-text-input" type="password" autocomplete="new-password" placeholder="New password (8+ characters)">
+      <button type="button" class="pw-toggle-btn" aria-label="Show password" onclick="togglePasswordField('new-admin-password', this)">Show</button>
+    </div>
+    <div id="password-change-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn" type="button" onclick="closeChangePasswordModal()">Cancel</button>
+      <button class="hdr-btn primary" type="button" onclick="changeAdminPassword()">Change Password</button>
     </div>
   </div>
 </div>

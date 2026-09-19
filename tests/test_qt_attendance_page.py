@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT / "python"))
 from core import database
 from core import permissions
 from gui_qt.pages.attendance_page import AttendancePage
+import pytest
+
+pytestmark = pytest.mark.ui_qt
 
 
 class QtAttendancePageTest(unittest.TestCase):

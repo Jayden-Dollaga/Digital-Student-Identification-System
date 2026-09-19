@@ -1,0 +1,100 @@
+name: Tests
+
+# Runs on every push/PR touching code that could affect the test suite.
+# `hardware`-marked tests are the only ones skipped entirely, since they
+# need a physically connected ESP32 + AS608 sensor that obviously doesn't
+# exist on a GitHub-hosted runner. `ui_tk` and `ui_qt` (archived v1/v2 UI
+# tests) DO run here, each in its own step, under QT_QPA_PLATFORM=offscreen.
+# ui_qt additionally needs --forked (pytest-forked) - see that step's
+# comment for why; this was found and fixed while validating this workflow
+# locally, not a theoretical concern.
+# See pytest.ini for marker definitions and tests/_reference for the
+# manual/interactive test guides these markers replace.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "python/**"
+      - "firmware/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "pytest.ini"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "python/**"
+      - "firmware/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "pytest.ini"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install system dependencies
+        # python3-tk (tkinter) backs the archived v1 UI (customtkinter) and
+        # isn't a pip package - it has to come from apt. Without it, every
+        # test that imports anything under archive/legacy-ui/v1 fails to
+        # even collect.
+        run: sudo apt-get update && sudo apt-get install -y python3-tk
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Byte-compile the active source tree
+        # Fast, cheap smoke test: catches syntax errors / bad imports in any
+        # .py file, including ones no test happens to import yet. Skips
+        # `archive/` on purpose - that's historical code kept for reference,
+        # not something this CI is meant to gate on. (firmware/ is Arduino
+        # .ino sketches, not Python - nothing to compile there.)
+        run: python -m compileall -q python
+
+      - name: Run tests (unit + integration + unmarked)
+        # Includes unit + integration + anything nobody has tagged yet, so
+        # a newly-added test can't silently skip CI just because it wasn't
+        # marked.
+        env:
+          PYTHONPATH: python
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -m "not ui_qt and not ui_tk and not hardware" -v
+
+      - name: Run tests (ui_tk - archived v1, customtkinter)
+        env:
+          PYTHONPATH: python
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -m "ui_tk" -v
+
+      - name: Run tests (ui_qt - archived v2, PySide6)
+        # MUST run with --forked (pytest-forked), and MUST be its own step
+        # separate from ui_tk. PySide6 has a known segfault-on-interpreter-
+        # exit bug under a headless/offscreen display: confirmed locally by
+        # running this exact marker selection 10 times without --forked (4-8
+        # out of 10 runs crashed the whole pytest process with "Segmentation
+        # fault" / "malloc_consolidate(): unaligned fastbin chunk detected"
+        # AFTER printing "all tests passed") vs 10/10 clean runs with
+        # --forked, which isolates each test's teardown into its own
+        # subprocess so a crash there can't take down the job or corrupt
+        # other tests' results.
+        env:
+          PYTHONPATH: python
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -m "ui_qt" --forked -v

@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT / "python"))
 from core.database import validate_student_input, add_student, update_student, init_database, clear_all_students
 
 
+
+pytestmark = pytest.mark.unit
+
 class TestStudentInputValidation:
     """Test student input validation."""
     

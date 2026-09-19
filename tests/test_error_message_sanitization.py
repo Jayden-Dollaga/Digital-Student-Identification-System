@@ -17,6 +17,9 @@ sys.path.insert(0, str(ROOT / "python"))
 import core.database as database
 
 
+
+pytestmark = pytest.mark.unit
+
 class TestReportGenerationErrorSanitization:
     def test_generate_statistics_report_hides_raw_exception_on_failure(self):
         """Force an internal failure and confirm the returned report text

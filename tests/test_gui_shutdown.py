@@ -4,6 +4,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
+import pytest
+
+pytestmark = pytest.mark.ui_tk
 
 try:
     import tkinter as tk

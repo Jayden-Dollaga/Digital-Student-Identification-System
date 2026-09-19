@@ -13,6 +13,9 @@ sys.path.insert(0, str(ROOT / "python"))
 from core.database import restore_database
 
 
+
+pytestmark = pytest.mark.integration
+
 class TestRestoreDatabasePathTraversal:
     """Test that restore_database prevents path traversal attacks."""
     

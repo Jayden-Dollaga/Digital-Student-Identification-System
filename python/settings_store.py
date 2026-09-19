@@ -31,7 +31,11 @@ def default_settings() -> Dict[str, Any]:
         "log_to_file": CONFIG.log_to_file,
         # verbose DEBUG-level logging (noisier, useful for troubleshooting)
         "enable_debug_logging": CONFIG.enable_debug_logging,
-        # active user role: gates access to destructive/admin-only actions in the UI
+        # last-known active user role, persisted ONLY for UI display continuity
+        # (e.g. showing the right badge on next launch). This value is never
+        # read for authorization decisions - see core.permissions, which is
+        # backed exclusively by an in-memory session. Do not gate anything
+        # off this field.
         "current_role": "guest",
         # minutes between automatic-backup due-checks (Settings > Backups)
         "auto_backup_interval_minutes": 25,

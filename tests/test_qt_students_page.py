@@ -13,6 +13,9 @@ from core import database
 from core import permissions
 from gui_qt.pages.reports_page import ReportsPage
 from gui_qt.pages.students_page import StudentsPage, ConfirmDeleteDialog
+import pytest
+
+pytestmark = pytest.mark.ui_qt
 
 
 class QtStudentsPageTest(unittest.TestCase):

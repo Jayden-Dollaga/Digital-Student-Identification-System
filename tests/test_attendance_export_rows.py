@@ -7,6 +7,10 @@ sys.path.insert(0, str(ROOT / "python"))
 from core.database import export_attendance_rows_with_time_in_out
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_export_rows_leave_time_out_empty_for_single_time_in():
     rows = export_attendance_rows_with_time_in_out([{
         "student_no": "123456789012",

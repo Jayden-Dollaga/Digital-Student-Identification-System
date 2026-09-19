@@ -21,6 +21,10 @@ app = QApplication.instance() or QApplication([])
 from gui_qt.pages.students_page import StudentsPage, EnrollDialog, EnrollmentState
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_qt
+
 def test_button_click_in_studentpage():
     """Test button click works when dialog is instantiated from StudentsPage."""
     

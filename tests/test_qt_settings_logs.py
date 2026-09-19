@@ -10,6 +10,9 @@ sys.path.insert(0, str(ROOT / "python"))
 from core.serial_handler import SerialHandler
 from gui_qt.pages.logs_page import LogsPage
 from gui_qt.pages.settings_page import SettingsPage
+import pytest
+
+pytestmark = pytest.mark.ui_qt
 
 
 class QtSettingsLogsTest(unittest.TestCase):

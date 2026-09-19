@@ -8,6 +8,10 @@ from core.database import add_student, get_student, get_all_students
 from core.serial_handler import SerialHandler, list_serial_ports
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_core_database_and_serial_helpers_have_type_hints():
     add_student_hints = get_type_hints(add_student)
     get_student_hints = get_type_hints(get_student)

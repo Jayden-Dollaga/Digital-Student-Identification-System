@@ -11,6 +11,9 @@ from gui_qt.widgets.sidebar import Sidebar
 from gui_qt.main_window import MainWindow
 from gui_qt.pages.dashboard_page import DashboardPage
 from gui_qt.pages.reports_page import ReportsPage
+import pytest
+
+pytestmark = pytest.mark.ui_qt
 
 
 class QtShellTest(unittest.TestCase):

@@ -16,6 +16,10 @@ from core.attendance import AttendanceProcessor
 from gui_qt.workers.serial_worker import SerialWorker
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_qt
+
 class TestSerialWorkerMessageParsing(unittest.TestCase):
     """Verify SerialWorker parses enrollment and wipe messages correctly."""
 

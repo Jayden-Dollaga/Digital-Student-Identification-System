@@ -9,8 +9,17 @@ functions directly - or who edited data/settings.json to set
 "current_role": "admin" - could bypass the UI gating entirely.
 
 This module gives core.commands (and anything else that needs it) a single
-source of truth for "is this action allowed right now", based on the same
-settings.json + USER_ROLES config the UI already uses.
+source of truth for "is this action allowed right now".
+
+IMPORTANT: the current role is ALWAYS the in-memory session role set via
+set_session_role() (established at password login, expired by idle timeout).
+settings.json is never consulted for authorization - it only stores the
+*password hash* (checked by core.auth) and, separately, a "current_role"
+field that exists purely for display/UX continuity in the settings page.
+Editing that field by hand does nothing: any code path that calls
+get_current_role() before a session has been established (e.g. a script
+that imports this module directly without going through gui_web.api.Api)
+gets "guest", never an escalated role read from disk.
 """
 
 from __future__ import annotations
@@ -48,18 +57,21 @@ def touch_session() -> str:
 
 
 def get_current_role() -> str:
-    """Return the currently active role key (e.g. 'admin', 'teacher', 'guest')."""
-    try:
-        from settings_store import load_settings
-        if _session_role is not None:
-            if _session_expires_at is not None and time.monotonic() >= _session_expires_at:
-                set_session_role("guest")
-            return _session_role
-        settings = load_settings()
-        return settings.get("current_role", "guest")
-    except Exception:
-        # If settings can't be read for any reason, fail safe to Guest.
+    """Return the currently active role key (e.g. 'admin', 'teacher', 'guest').
+
+    This is ALWAYS derived from the in-memory session, never from
+    settings.json. If no session has been established yet (e.g. this is
+    called before gui_web.api.Api has initialized one, or from a script
+    that never calls set_session_role()), the effective role is "guest" -
+    full stop. There is no disk-backed escalation path.
+    """
+    global _session_role
+    if _session_role is None:
+        # No session established yet anywhere in this process - guest.
         return "guest"
+    if _session_expires_at is not None and time.monotonic() >= _session_expires_at:
+        set_session_role("guest")
+    return _session_role
 
 
 def has_permission(action: str, role_key: Optional[str] = None) -> bool:

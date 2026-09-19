@@ -147,6 +147,21 @@
   }
   .auth-modal { width: min(360px, calc(100vw - 32px)); }
   .auth-error { min-height: 18px; margin-top: 6px; color: var(--red); font-size: 12px; }
+
+  /* ─ Password field show/hide toggle ─
+     Custom-built because relying on the browser's native reveal-password
+     icon (the little eye Edge WebView2 draws on its own) was unreliable -
+     it would only toggle once and then stop responding. This is a normal
+     button we control fully, so it always works the same way every time. */
+  .pw-field-wrap { position: relative; }
+  .pw-field-wrap .settings-text-input,
+  .pw-field-wrap input { padding-right: 34px; }
+  .pw-toggle-btn {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 12px; padding: 5px 7px; line-height: 1; border-radius: 3px;
+  }
+  .pw-toggle-btn:hover { color: var(--text); background: var(--surface2); }
   .settings-text-input { box-sizing: border-box; width: 100%; margin: 4px 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface2); color: var(--text); }
 
   /* ── App body ── */

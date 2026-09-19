@@ -6,6 +6,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from settings_store import default_settings, load_settings, save_settings
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 def test_settings_round_trip(tmp_path):
     settings_path = tmp_path / "settings.json"
     settings = {

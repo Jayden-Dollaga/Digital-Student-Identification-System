@@ -8,6 +8,7 @@ PySide6>=6.5
 # Python 3.14; older versions fall back to a source build on Python 3.14.
 Pillow>=11.3
 pytest==7.4.0
+pytest-forked>=1.6
 pyinstaller>=6.15
 pywebview>=5.0
 
@@ -18,4 +19,10 @@ pywebview>=5.0
 #   `archive/legacy-ui/v2/python/gui_qt/`.
 # - `customtkinter` is used by the archived v1 UI under
 #   `archive/legacy-ui/v1/python/gui/`.
+# - `pytest-forked` runs each test in its own subprocess via `--forked`.
+#   Needed specifically for the archived v2 Qt UI tests: PySide6 has a
+#   known segfault-on-interpreter-exit issue under a headless/offscreen
+#   display (confirmed while setting up CI - see .github/workflows/tests.yml).
+#   Forking isolates that crash to one subprocess instead of taking down
+#   the whole test run and reporting a false failure.
 # - If you only run v3, you can omit PySide6 and customtkinter.

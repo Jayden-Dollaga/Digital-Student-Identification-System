@@ -9,6 +9,10 @@ sys.path.insert(0, str(PYTHON_ROOT))
 from gui import dialogs
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_tk
+
 def test_wipe_dialog_uses_real_confirmation_flow(monkeypatch):
     app = SimpleNamespace(
         serial_handler=SimpleNamespace(connected=True),

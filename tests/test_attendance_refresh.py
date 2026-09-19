@@ -6,6 +6,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from gui.app import FingerprintApp
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_schedule_attendance_refresh_uses_main_thread_callback():
     app = object.__new__(FingerprintApp)
     app._closing = False

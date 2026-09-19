@@ -13,6 +13,10 @@ from services.student_service import StudentService
 from PySide6.QtWidgets import QApplication
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_qt
+
 class TestQtEnrollmentFlow(unittest.TestCase):
     """Verify enrollment dialog → save → database → table refresh flow."""
 

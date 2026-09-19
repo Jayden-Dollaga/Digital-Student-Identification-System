@@ -79,6 +79,9 @@ IDENTITY_JSON = (
 READY_JSON = '{"type":"status","state":"READY"}'
 
 
+
+pytestmark = pytest.mark.integration
+
 @pytest.fixture()
 def fake_serial_module(monkeypatch):
     def _install(lines):

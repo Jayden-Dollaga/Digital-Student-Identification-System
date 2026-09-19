@@ -207,6 +207,22 @@ def _row_dicts(rows: Iterable[sqlite3.Row]) -> List[RowDict]:
     return [dict(row) for row in rows]
 
 
+# Explicit column list for `students`, kept in one place so every query
+# below stays in sync with the CREATE TABLE statement instead of relying on
+# `SELECT *` (which silently reshapes every caller's rows the moment a
+# column like email/phone/photo/status gets added later).
+STUDENT_COLUMNS = (
+    "fingerprint_id",
+    "student_no",
+    "student_name",
+    "grade",
+    "section",
+    "enrollment_date",
+    "updated_date",
+)
+_STUDENT_COLUMNS_SQL = ", ".join(STUDENT_COLUMNS)
+
+
 def init_database() -> None:
     """Create database tables and indexes if they do not already exist."""
     conn = get_connection()
@@ -647,7 +663,7 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT * FROM students WHERE fingerprint_id = ?",
+            f"SELECT {_STUDENT_COLUMNS_SQL} FROM students WHERE fingerprint_id = ?",
             (fingerprint_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -661,7 +677,9 @@ def get_all_students() -> List[StudentRow]:
         # fingerprint_id 0 is the reserved "Unregistered" placeholder used to
         # satisfy the attendance table's FK for unknown-fingerprint scans
         # (see init_database()) - it is not a real enrolled student.
-        rows = conn.execute("SELECT * FROM students WHERE fingerprint_id > 0 ORDER BY fingerprint_id").fetchall()
+        rows = conn.execute(
+            f"SELECT {_STUDENT_COLUMNS_SQL} FROM students WHERE fingerprint_id > 0 ORDER BY fingerprint_id"
+        ).fetchall()
         return _row_dicts(rows)
     finally:
         conn.close()
@@ -942,7 +960,7 @@ def get_students_by_grade_section(grade: str, section: str) -> List[StudentRow]:
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT * FROM students WHERE grade = ? AND section = ? ORDER BY student_name",
+            f"SELECT {_STUDENT_COLUMNS_SQL} FROM students WHERE grade = ? AND section = ? ORDER BY student_name",
             (grade, section),
         ).fetchall()
         return _row_dicts(rows)

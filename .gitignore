@@ -30,14 +30,7 @@ driver/install/
 
 
 # Database and local runtime data
-data/attendance.db
-data/backups/
-data/exports/
-data/logs/
-data/settings.json
-Backups/
-*.db
-*.db-journal
+data/
 
 # VS Code / editors
 .vscode/

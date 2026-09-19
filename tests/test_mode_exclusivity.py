@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from gui import app as gui_app
+import pytest
+
+pytestmark = pytest.mark.ui_tk
 
 
 class ModeExclusivityTest(unittest.TestCase):

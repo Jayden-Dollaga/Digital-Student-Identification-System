@@ -34,6 +34,10 @@ class DummySerialHandler:
         return self.ports
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 def test_common_port_candidates_include_common_values():
     candidates = build_common_port_candidates(["COM3", "COM4"])
     assert "COM3" in candidates

@@ -9,6 +9,10 @@ if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_reports_page_can_import_database_helper():
     from core.database import get_daily_attendance_summary
     import importlib.util

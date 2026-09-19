@@ -9,6 +9,10 @@ if str(PYTHON_ROOT) not in sys.path:
 from gui.serial_troubleshooting import build_serial_troubleshooting_message
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 def test_troubleshooting_message_mentions_common_drivers_and_steps():
     message = build_serial_troubleshooting_message([])
     assert "CP210x" in message

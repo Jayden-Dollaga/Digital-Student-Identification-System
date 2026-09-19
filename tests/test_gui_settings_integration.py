@@ -18,6 +18,10 @@ from unittest.mock import MagicMock, patch
 from settings_store import save_settings, load_settings
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 def test_app_applies_auto_reconnect_setting():
     """Verify app applies auto_reconnect setting on startup."""
     with tempfile.TemporaryDirectory() as tmpdir:

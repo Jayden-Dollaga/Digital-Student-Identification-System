@@ -14,6 +14,9 @@ import pytest
 from core.database import validate_student_input, get_student_field_feedback
 
 
+
+pytestmark = pytest.mark.unit
+
 class TestStudentInputValidationRegressions:
     """Test cases for punctuation preservation regression fix."""
     

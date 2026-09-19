@@ -21,6 +21,10 @@ from unittest.mock import MagicMock, patch
 from settings_store import default_settings, load_settings, save_settings
 
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 def test_default_settings():
     """Verify default settings include all toggle flags."""
     defaults = default_settings()

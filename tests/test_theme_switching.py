@@ -20,6 +20,10 @@ class DummyApp:
         return None
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_tk
+
 def test_apply_appearance_mode_schedules_safe_theme_change(monkeypatch):
     calls = []
 

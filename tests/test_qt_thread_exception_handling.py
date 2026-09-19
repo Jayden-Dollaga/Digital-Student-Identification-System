@@ -10,6 +10,10 @@ if str(PYTHON_ROOT) not in sys.path:
 from gui_qt import main_qt
 
 
+import pytest
+
+pytestmark = pytest.mark.ui_qt
+
 def test_handle_thread_exception_without_thread(monkeypatch):
     captured = {}
 
