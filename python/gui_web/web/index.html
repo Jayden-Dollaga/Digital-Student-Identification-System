@@ -68,6 +68,12 @@
     </div>
 
     <div class="nav-section-label" style="margin-top:6px;">System</div>
+    <div class="nav-item" onclick="nav(this,'calendar')" data-tip="Calendar">
+      <span class="nav-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6h13" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 1.5v2M11.5 1.5v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><rect x="4" y="8" width="2" height="2" rx="0.4"/><rect x="7" y="8" width="2" height="2" rx="0.4"/><rect x="10" y="8" width="2" height="2" rx="0.4"/></svg>
+      </span>
+      <span class="nav-label">Calendar</span>
+    </div>
     <div class="nav-item" onclick="nav(this,'logs')" data-tip="Logs">
       <span class="nav-icon">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="6" width="10" height="2" rx="1"/><rect x="1" y="10" width="12" height="2" rx="1"/><rect x="1" y="14" width="7" height="2" rx="1"/></svg>
@@ -571,7 +577,30 @@
         </div>
       </div>
 
+      <div class="page" id="page-calendar">
+        <div class="cal-page-inner">
+          <div class="cal-header">
+            <button class="hdr-btn" type="button" onclick="calendarShiftMonth(-1)" aria-label="Previous month">&#9664;</button>
+            <input type="month" id="cal-month-input" class="cal-month-input" onchange="onCalendarMonthInputChange()">
+            <button class="hdr-btn" type="button" onclick="calendarShiftMonth(1)" aria-label="Next month">&#9654;</button>
+            <button class="hdr-btn" type="button" onclick="calendarGoToday()" style="margin-left:auto;">Today</button>
+          </div>
+
+          <div class="cal-legend">
+            <span class="cal-legend-item"><span class="cal-dot cal-dot-holiday"></span>Holiday</span>
+            <span class="cal-legend-item"><span class="cal-dot cal-dot-suspension"></span>Class Suspension</span>
+            <span class="cal-legend-item"><span class="cal-dot cal-dot-half_day"></span>Half-day Class</span>
+          </div>
+
+          <div class="cal-grid-header">
+            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+      </div>
+
     </div><!-- /page-content -->
+
 
     <!-- ── Status bar ── -->
     <div id="statusbar">
@@ -651,6 +680,33 @@
     <div class="modal-actions">
       <button class="hdr-btn" type="button" onclick="closeChangePasswordModal()">Cancel</button>
       <button class="hdr-btn primary" type="button" onclick="changeAdminPassword()">Change Password</button>
+    </div>
+  </div>
+</div>
+
+<div id="calendar-entry-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-entry-title">
+    <div class="modal-title" id="calendar-entry-title">Mark this day</div>
+    <div class="modal-sub" id="calendar-entry-date-label">September 19, 2026</div>
+
+    <div class="cal-type-options">
+      <label class="cal-type-option"><input type="radio" name="cal-entry-type" value="holiday" onchange="onCalendarEntryTypeChange()"> Holiday</label>
+      <label class="cal-type-option"><input type="radio" name="cal-entry-type" value="suspension" onchange="onCalendarEntryTypeChange()"> Class Suspension</label>
+      <label class="cal-type-option"><input type="radio" name="cal-entry-type" value="half_day" onchange="onCalendarEntryTypeChange()"> Half-day Class</label>
+    </div>
+
+    <input id="cal-entry-label" class="settings-text-input" type="text" maxlength="200" placeholder="Label (optional) e.g. Christmas Day, Typhoon signal #2">
+
+    <div id="cal-half-day-times" hidden style="display:flex;gap:8px;">
+      <input id="cal-entry-time-in" class="settings-text-input" type="time" placeholder="Time in">
+      <input id="cal-entry-time-out" class="settings-text-input" type="time" placeholder="Time out">
+    </div>
+
+    <div id="calendar-entry-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn" type="button" id="cal-entry-remove-btn" onclick="removeCalendarEntry()" hidden style="margin-right:auto;color:var(--red);">Remove</button>
+      <button class="hdr-btn" type="button" onclick="closeCalendarEntryModal()">Cancel</button>
+      <button class="hdr-btn primary" type="button" onclick="saveCalendarEntry()">Save</button>
     </div>
   </div>
 </div>

@@ -5,7 +5,7 @@
 
 const PAGE_TITLES = {
   dashboard: 'Dashboard', attendance: 'Attendance', students: 'Students',
-  reports: 'Reports', logs: 'Logs', settings: 'Settings',
+  reports: 'Reports', logs: 'Logs', settings: 'Settings', calendar: 'Calendar',
 };
 
 let connected = false;
@@ -90,6 +90,7 @@ function nav(el, key) {
   else if (key === 'reports') loadReportsPage();
   else if (key === 'logs') loadLogsPage();
   else if (key === 'settings') loadSettingsPage();
+  else if (key === 'calendar') loadCalendarPage();
 }
 
 function applySessionState(state) {
@@ -111,13 +112,17 @@ function applySessionState(state) {
   if (scanBtn) scanBtn.disabled = !hasPermission('scan') || !connected;
   const studentsNav = document.querySelector('[onclick*="nav(this,\'students\')"]');
   const reportsNav = document.querySelector('[onclick*="nav(this,\'reports\')"]');
+  const calendarNav = document.querySelector('[onclick*="nav(this,\'calendar\')"]');
   const canUseStudents = hasPermission('enroll') || hasPermission('delete') || hasPermission('wipe');
   const canUseReports = hasPermission('export') || hasPermission('backup') || hasPermission('restore');
+  const canUseCalendar = hasPermission('manage_calendar');
   if (studentsNav) studentsNav.style.display = canUseStudents ? 'flex' : 'none';
   if (reportsNav) reportsNav.style.display = canUseReports ? 'flex' : 'none';
+  if (calendarNav) calendarNav.style.display = canUseCalendar ? 'flex' : 'none';
   const activePage = document.querySelector('.page.active');
   if (activePage && ((activePage.id === 'page-students' && !canUseStudents) ||
-      (activePage.id === 'page-reports' && !canUseReports))) {
+      (activePage.id === 'page-reports' && !canUseReports) ||
+      (activePage.id === 'page-calendar' && !canUseCalendar))) {
     const dashboardNav = document.querySelector('[onclick*="nav(this,\'dashboard\')"]');
     if (dashboardNav) nav(dashboardNav, 'dashboard');
   }
@@ -542,6 +547,12 @@ const CATEGORY_META = {
   good: { label: 'Good', dot: 'var(--yellow)', range: '75\u201389%' },
   attention: { label: 'Needs attention', dot: '#FB923C', range: '50\u201374%' },
   low: { label: 'Low attendance', dot: 'var(--red)', range: 'below 50%' },
+  // Deliberately NOT on the red/orange severity scale - this means "no
+  // eligible school days for this student in this period" (enrolled after
+  // the period ended, or the period itself has zero data), not "this
+  // student has bad attendance". Neutral gray so it doesn't visually read
+  // as a warning next to the real low-attendance rows.
+  no_data: { label: 'No data', dot: 'var(--muted)', range: 'not enrolled yet / no data' },
 };
 
 function todayStr() {
@@ -598,9 +609,14 @@ function renderAttendanceEvaluation() {
   const body = document.getElementById('me-body');
   const rows = [...evalData.rows];
   const sortBy = document.getElementById('me-sort').value;
-  if (sortBy === 'rate') rows.sort((a, b) => b.attendance_rate - a.attendance_rate || a.student_name.localeCompare(b.student_name));
+  // no_data rows (attendance_rate === null) always sort last, regardless of
+  // sort mode - they're not "0%", they're "not applicable", and burying
+  // them at the bottom of a rate-sorted list would be misleading (reads as
+  // "worst attendance" instead of "no data").
+  const byNoDataLast = (a, b) => (a.attendance_rate === null) - (b.attendance_rate === null);
+  if (sortBy === 'rate') rows.sort((a, b) => byNoDataLast(a, b) || (b.attendance_rate - a.attendance_rate) || a.student_name.localeCompare(b.student_name));
   else if (sortBy === 'name') rows.sort((a, b) => a.student_name.localeCompare(b.student_name));
-  else rows.sort((a, b) => b.days_present - a.days_present || a.student_name.localeCompare(b.student_name));
+  else rows.sort((a, b) => byNoDataLast(a, b) || b.days_present - a.days_present || a.student_name.localeCompare(b.student_name));
 
   const rangeLabel = formatEvalRangeLabel(evalData);
 
@@ -661,16 +677,21 @@ function renderAttendanceEvaluation() {
 
   const tableRows = rows.map(r => {
     const meta = CATEGORY_META[r.category] || CATEGORY_META.low;
-    return `<tr>
-      <td>${escapeHtml(r.student_name)}<div style="font-size:10.5px;color:var(--muted);">${escapeHtml(r.student_no)} \u00b7 Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}</div></td>
-      <td>${r.days_present}</td>
-      <td>${r.days_absent}</td>
-      <td>
-        <div class="me-rate-cell">
+    const hasRate = r.attendance_rate !== null && r.attendance_rate !== undefined;
+    const rateCell = hasRate
+      ? `<div class="me-rate-cell">
           <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${r.attendance_rate}%;background:${meta.dot}"></div></div>
           <span>${r.attendance_rate}%</span>
-        </div>
-      </td>
+        </div>`
+      : `<div class="me-rate-cell">
+          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:0%;background:${meta.dot}"></div></div>
+          <span style="color:var(--muted);">\u2014</span>
+        </div>`;
+    return `<tr>
+      <td>${escapeHtml(r.student_name)}<div style="font-size:10.5px;color:var(--muted);">${escapeHtml(r.student_no)} \u00b7 Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}</div></td>
+      <td>${hasRate ? r.days_present : '\u2014'}</td>
+      <td>${hasRate ? r.days_absent : '\u2014'}</td>
+      <td>${rateCell}</td>
       <td><span class="me-cat-badge me-cat-${r.category}">${meta.label}</span></td>
     </tr>`;
   }).join('');
@@ -2030,6 +2051,162 @@ function applyTheme(theme) {
   const select = document.getElementById('set-theme');
   if (select) select.value = t;
 }
+// ── Calendar page (holidays / suspensions / half-days) ──
+let calendarViewYear = null;
+let calendarViewMonth = null; // 1-12
+let calendarEntries = {}; // date -> entry, for the currently-viewed month
+let calendarSelectedDate = null;
+
+function calendarShiftMonth(delta) {
+  let y = calendarViewYear, m = calendarViewMonth + delta;
+  if (m < 1) { m = 12; y -= 1; }
+  if (m > 12) { m = 1; y += 1; }
+  calendarViewYear = y; calendarViewMonth = m;
+  renderCalendarMonth();
+}
+
+function calendarGoToday() {
+  const now = new Date();
+  calendarViewYear = now.getFullYear();
+  calendarViewMonth = now.getMonth() + 1;
+  renderCalendarMonth();
+}
+
+// Fired when the user picks a month/year directly from the native picker
+// (clicking the "September 2026" title) instead of stepping with the
+// prev/next arrows.
+function onCalendarMonthInputChange() {
+  const value = document.getElementById('cal-month-input').value; // "YYYY-MM"
+  if (!value) return;
+  const [y, m] = value.split('-').map(Number);
+  if (!y || !m) return;
+  calendarViewYear = y;
+  calendarViewMonth = m;
+  renderCalendarMonth();
+}
+
+async function loadCalendarPage() {
+  if (!api()) return;
+  if (calendarViewYear === null) {
+    const now = new Date();
+    calendarViewYear = now.getFullYear();
+    calendarViewMonth = now.getMonth() + 1;
+  }
+  await renderCalendarMonth();
+}
+
+async function renderCalendarMonth() {
+  const grid = document.getElementById('cal-grid');
+  const monthInput = document.getElementById('cal-month-input');
+  if (!grid || !monthInput) return;
+  monthInput.value = `${calendarViewYear}-${String(calendarViewMonth).padStart(2, '0')}`;
+
+  const result = await api().get_calendar_month(calendarViewYear, calendarViewMonth);
+  calendarEntries = (result && result.ok) ? result.entries : {};
+
+  const firstOfMonth = new Date(calendarViewYear, calendarViewMonth - 1, 1);
+  const startWeekday = firstOfMonth.getDay(); // 0 = Sunday
+  const daysInMonth = new Date(calendarViewYear, calendarViewMonth, 0).getDate();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  let html = '';
+  for (let i = 0; i < startWeekday; i++) html += '<div class="cal-day cal-day-empty"></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calendarViewYear}-${String(calendarViewMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const entry = calendarEntries[dateStr];
+    const isToday = dateStr === todayStr;
+    let badge = '';
+    if (entry) {
+      const typeLabel = entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday';
+      const shown = entry.label ? escapeHtml(entry.label) : typeLabel;
+      badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${escapeHtml(shown)}">${shown}</span>`;
+    }
+    html += `<div class="cal-day${isToday ? ' cal-day-today' : ''}" onclick="openCalendarEntryModal('${dateStr}')">` +
+            `<span>${day}</span>${badge}</div>`;
+  }
+  const totalCells = startWeekday + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for (let i = 0; i < trailing; i++) html += '<div class="cal-day cal-day-empty"></div>';
+
+  grid.innerHTML = html;
+}
+
+function openCalendarEntryModal(dateStr) {
+  if (!hasPermission('manage_calendar')) return;
+  calendarSelectedDate = dateStr;
+  const modal = document.getElementById('calendar-entry-modal');
+  if (!modal) return;
+
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const niceDate = new Date(y, m - 1, d).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('calendar-entry-date-label').textContent = niceDate;
+  document.getElementById('calendar-entry-error').textContent = '';
+
+  const entry = calendarEntries[dateStr];
+  const removeBtn = document.getElementById('cal-entry-remove-btn');
+  document.querySelectorAll('input[name="cal-entry-type"]').forEach(r => { r.checked = false; });
+
+  if (entry) {
+    const radio = document.querySelector(`input[name="cal-entry-type"][value="${entry.type}"]`);
+    if (radio) radio.checked = true;
+    document.getElementById('cal-entry-label').value = entry.label || '';
+    document.getElementById('cal-entry-time-in').value = entry.time_in || '';
+    document.getElementById('cal-entry-time-out').value = entry.time_out || '';
+    removeBtn.hidden = false;
+  } else {
+    document.querySelector('input[name="cal-entry-type"][value="holiday"]').checked = true;
+    document.getElementById('cal-entry-label').value = '';
+    document.getElementById('cal-entry-time-in').value = '';
+    document.getElementById('cal-entry-time-out').value = '';
+    removeBtn.hidden = true;
+  }
+  onCalendarEntryTypeChange();
+  modal.hidden = false;
+}
+
+function closeCalendarEntryModal() {
+  const modal = document.getElementById('calendar-entry-modal');
+  if (modal) modal.hidden = true;
+  calendarSelectedDate = null;
+}
+
+function onCalendarEntryTypeChange() {
+  const selected = document.querySelector('input[name="cal-entry-type"]:checked');
+  const timesWrap = document.getElementById('cal-half-day-times');
+  timesWrap.hidden = !selected || selected.value !== 'half_day';
+}
+
+async function saveCalendarEntry() {
+  if (!calendarSelectedDate) return;
+  const selected = document.querySelector('input[name="cal-entry-type"]:checked');
+  const error = document.getElementById('calendar-entry-error');
+  if (!selected) { error.textContent = 'Choose a type.'; return; }
+
+  const label = document.getElementById('cal-entry-label').value;
+  const timeIn = document.getElementById('cal-entry-time-in').value;
+  const timeOut = document.getElementById('cal-entry-time-out').value;
+
+  const result = await api().set_calendar_entry(calendarSelectedDate, selected.value, label, timeIn, timeOut);
+  if (!result.ok) {
+    error.textContent = result.message || 'Could not save this entry.';
+    return;
+  }
+  closeCalendarEntryModal();
+  await renderCalendarMonth();
+}
+
+async function removeCalendarEntry() {
+  if (!calendarSelectedDate) return;
+  const result = await api().remove_calendar_entry(calendarSelectedDate);
+  if (!result.ok) {
+    document.getElementById('calendar-entry-error').textContent = result.message || 'Could not remove this entry.';
+    return;
+  }
+  closeCalendarEntryModal();
+  await renderCalendarMonth();
+}
+
 async function loadSettingsPage() {
   if (!api()) return;
   const s = await api().get_settings();

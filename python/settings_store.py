@@ -47,6 +47,15 @@ def default_settings() -> Dict[str, Any]:
         "absent_threshold_minutes": 0,
         "idle_timeout_minutes": 10,
         "auth": {},
+        # Admin-managed exceptions to the normal school day, keyed by
+        # "YYYY-MM-DD". Only exception dates are stored here - a normal
+        # school day needs no entry at all. See core/attendance_calendar.py
+        # for the entry shape and how each type is used.
+        #   "2026-12-25": {"type": "holiday", "label": "Christmas Day"}
+        #   "2026-11-14": {"type": "suspension", "label": "Typhoon signal #2"}
+        #   "2026-08-30": {"type": "half_day", "label": "Foundation Day",
+        #                   "time_in": "07:00", "time_out": "12:00"}
+        "school_calendar": {},
     }
 
 

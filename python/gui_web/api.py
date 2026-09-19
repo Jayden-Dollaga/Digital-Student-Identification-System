@@ -36,6 +36,7 @@ from config import get_config
 from core import commands as cmds
 from core import database as db
 from core import auth
+from core import attendance_calendar
 from core import permissions
 from core.attendance import AttendanceProcessor
 from core.attendance_status import calculate_attendance_status
@@ -84,7 +85,13 @@ def _sanitize_csv_cell(value: Any, force_text: bool = False) -> str:
     return text
 
 
-def _attendance_category(rate: float) -> str:
+def _attendance_category(rate: Optional[float]) -> str:
+    if rate is None:
+        # No school days were observed in this student's eligible window at
+        # all (empty period, or every school day fell before they
+        # enrolled) - that's an absence of DATA, not evidence of poor
+        # attendance, and showing it as "low" would be actively misleading.
+        return "no_data"
     if rate >= 90:
         return "excellent"
     if rate >= 75:
@@ -1034,10 +1041,21 @@ class Api:
         "Days present" = number of distinct calendar dates within the window
         that the student has at least one attendance row (multiple scans on
         the same day still count once - same dedup get_daily_attendance_summary
-        already does). "Total days" = number of distinct dates in the window
-        that ANY student had activity (i.e. observed school days), not every
-        calendar day, so weekends/holidays with no scans at all don't count
-        against anyone. For "day", this naturally collapses to a simple
+        already does). "Total days" (the report-wide header figure) = number
+        of distinct dates in the window that ANY student had activity AND
+        that isn't marked holiday/suspension in the school calendar (see
+        core.attendance_calendar) - so weekends/declared holidays don't
+        count against anyone, and a single stray scan on a holiday can't
+        manufacture a school day that then flags everyone else absent.
+
+        Each student's own denominator is further narrowed to school days
+        on or after their enrollment_date, so a student enrolled mid-month
+        isn't counted absent for days before they existed in the system.
+        If a student's eligible window has zero school days (enrolled after
+        the whole period, or the period itself is empty), attendance_rate
+        is None and category is "no_data" - distinct from an actual 0%
+        rate, so an empty period doesn't display as "everyone has terrible
+        attendance". For "day", this naturally collapses to a simple
         present/absent list for that single date.
         """
         if not permissions.has_permission("attendance_evaluation"):
@@ -1066,7 +1084,18 @@ class Api:
         end_date = end_dt.strftime("%Y-%m-%d")
 
         summary_rows = db.get_daily_attendance_summary(start_date=start_date, end_date=end_date)
-        school_days = sorted({row["date"] for row in summary_rows})
+        settings = load_settings()
+
+        # A date only counts as an observed school day if activity happened
+        # on it AND it isn't explicitly marked holiday/suspension. Without
+        # this, a single stray scan on a declared non-school day (a teacher
+        # testing the device, a guard walking past the sensor) would count
+        # that day as "school happened" and then mark every OTHER student
+        # absent for correctly staying home.
+        school_days = sorted({
+            row["date"] for row in summary_rows
+            if not attendance_calendar.is_non_school_day(settings, row["date"])
+        })
         total_days = len(school_days)
 
         present_dates_by_student: Dict[str, set] = {}
@@ -1074,16 +1103,30 @@ class Api:
             key = row["student_no"]
             if not key or key == "N/A":
                 continue  # unregistered/unknown scans don't belong to any student
+            if row["date"] not in school_days:
+                continue  # holiday/suspension activity doesn't count as "present" either
             present_dates_by_student.setdefault(key, set()).add(row["date"])
 
         students = db.get_all_students()
         results: List[Dict[str, Any]] = []
         for student in students:
             key = student["student_no"]
+            # A student can't be "absent" on a day before they were even
+            # enrolled - only count school days from their enrollment date
+            # onward against them. enrollment_date is stored as a full
+            # ISO timestamp; compare on the date portion only.
+            enrollment_date = str(student.get("enrollment_date") or "")[:10]
+            eligible_days = (
+                [d for d in school_days if d >= enrollment_date]
+                if enrollment_date
+                else school_days
+            )
+            eligible_total = len(eligible_days)
+
             present_dates = present_dates_by_student.get(key, set())
-            days_present = len(present_dates)
-            days_absent = max(0, total_days - days_present)
-            rate = round((days_present / total_days) * 100, 1) if total_days else 0.0
+            days_present = len({d for d in present_dates if d in eligible_days})
+            days_absent = max(0, eligible_total - days_present)
+            rate = round((days_present / eligible_total) * 100, 1) if eligible_total else None
             results.append({
                 "fingerprint_id": student["fingerprint_id"],
                 "student_no": student["student_no"],
@@ -1119,9 +1162,12 @@ class Api:
                 "section": r["section"],
                 "days_present": r["days_present"],
                 "days_absent": r["days_absent"],
-                "attendance_rate": r["attendance_rate"],
+                "attendance_rate": r["attendance_rate"] if r["attendance_rate"] is not None else "",
                 "category": r["category"],
-                "attendance_status": "Present" if r["days_present"] else "Absent",
+                "attendance_status": (
+                    "No data" if r["category"] == "no_data"
+                    else "Present" if r["days_present"] else "Absent"
+                ),
             }
             for r in report["rows"]
         ]
@@ -1133,6 +1179,57 @@ class Api:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"attendance_evaluation_{report['period']}_{report['start_date']}_to_{report['end_date']}_{timestamp}.csv"
         return self._export_csv_rows(rows, filename)
+
+    # -- school calendar (holidays / suspensions / half-days) ---------------------
+    def get_calendar_month(self, year: int, month: int) -> Dict[str, Any]:
+        """Return every calendar entry for one month, keyed by date.
+
+        Read-only, so it doesn't require manage_calendar - it's what the
+        report pages and the calendar grid's initial render both need, and
+        neither of those is an admin-only view.
+        """
+        try:
+            year = int(year)
+            month = int(month)
+            if not (1 <= month <= 12):
+                raise ValueError
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "Invalid year/month."}
+
+        settings = load_settings()
+        full_calendar = attendance_calendar.get_calendar(settings)
+        prefix = f"{year:04d}-{month:02d}-"
+        entries = {date: entry for date, entry in full_calendar.items() if date.startswith(prefix)}
+        return {"ok": True, "year": year, "month": month, "entries": entries}
+
+    def set_calendar_entry(
+        self,
+        date: str,
+        entry_type: str,
+        label: str = "",
+        time_in: str = "",
+        time_out: str = "",
+    ) -> Dict[str, Any]:
+        if not permissions.has_permission("manage_calendar"):
+            return {"ok": False, "message": "Current role does not have calendar management permission."}
+        settings = load_settings()
+        try:
+            attendance_calendar.set_entry(
+                settings, date, entry_type, label,
+                time_in or None, time_out or None,
+            )
+        except ValueError as exc:
+            return {"ok": False, "message": str(exc)}
+        save_settings(settings)
+        return {"ok": True, "date": date, "entry": attendance_calendar.get_entry(settings, date)}
+
+    def remove_calendar_entry(self, date: str) -> Dict[str, Any]:
+        if not permissions.has_permission("manage_calendar"):
+            return {"ok": False, "message": "Current role does not have calendar management permission."}
+        settings = load_settings()
+        attendance_calendar.remove_entry(settings, date)
+        save_settings(settings)
+        return {"ok": True, "date": date}
 
     def get_statistics_report(self) -> Dict[str, Any]:
         if not (permissions.has_permission("export") or permissions.has_permission("backup")):
