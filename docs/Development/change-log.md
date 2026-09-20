@@ -1,6 +1,17 @@
 Change Log
 ==========
 
+Unreleased — documentation accuracy pass 2026-09-20
+----------------------------------------------------
+
+- Docs: expanded the v3 architecture, software flow, database schema, hardware wiring, firmware/protocol, installation, user workflow, troubleshooting, runtime-data, logging, source-tree, tools, and API references.
+- Docs: corrected stale authentication wording; v3 has no built-in administrator password and first-run setup creates the password.
+- Docs: corrected role documentation so Administrator, Teacher, and Guest receive the configured `attendance_evaluation` permission.
+- Docs: clarified that Python confidence 100 is a classification threshold; recorded 50-99 matches are labeled `WEAK MATCH` rather than rejected.
+- Docs: clarified device-first deletion and the coordinated device-wipe/local-data workflow.
+- Docs: established `docs/API/README.md` as the current JavaScript-to-Python bridge reference.
+- Docs: separated Research material from the operational product-documentation path and classified historical/generated material as non-authoritative.
+
 Unreleased — verified 2026-09-11
 --------------------------------
 
