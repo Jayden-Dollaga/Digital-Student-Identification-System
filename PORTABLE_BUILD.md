@@ -46,7 +46,6 @@ Before distributing a build:
 5. Confirm serial connection, enrollment, attendance, backups, and database access.
 6. Confirm `data\settings.json`, `data\attendance.db`, `data\backups`, and `data\logs` remain writable.
 
-The source build was validated on 2026-09-09. Clean-machine, USB, and physical
-ESP32 validation still require the target hardware/environment.
+The source build was validated on 2026-09-09. A clean-machine package test and physical ESP32/AS608 validation still require the target hardware/environment. See the [Testing and Validation](docs/UserGuide/testing-results.md) record for documented hardware checks.
 
 Last reviewed: 2026-09-16, against commit `64d80c9`.
