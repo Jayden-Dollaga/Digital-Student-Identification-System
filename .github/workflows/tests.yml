@@ -53,7 +53,7 @@ jobs:
         # isn't a pip package - it has to come from apt. Without it, every
         # test that imports anything under archive/legacy-ui/v1 fails to
         # even collect.
-        run: sudo apt-get update && sudo apt-get install -y python3-tk
+        run: sudo apt-get update && sudo apt-get install -y python3-tk libegl1
 
       - name: Install Python dependencies
         run: |
