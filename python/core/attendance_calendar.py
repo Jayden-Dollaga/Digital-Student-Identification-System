@@ -45,6 +45,11 @@ def _is_valid_time_string(value: str) -> bool:
         return False
 
 
+def _minutes(value: str) -> int:
+    parsed = datetime.strptime(value, "%H:%M")
+    return parsed.hour * 60 + parsed.minute
+
+
 def get_calendar(settings: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
     calendar = settings.get("school_calendar")
     return calendar if isinstance(calendar, dict) else {}
@@ -90,6 +95,8 @@ def validate_entry(
             return "Half-day entries need a valid time_in (HH:MM)."
         if not time_out or not _is_valid_time_string(time_out):
             return "Half-day entries need a valid time_out (HH:MM)."
+        if _minutes(time_out) <= _minutes(time_in):
+            return "Half-day time_out must be later than time_in."
     return None
 
 
