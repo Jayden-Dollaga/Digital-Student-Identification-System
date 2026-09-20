@@ -1,44 +1,61 @@
-# Documentation Map
+# DSIS Documentation Map
 
-This map separates current operational guidance from historical and generated material.
+This map defines the role of each documentation area and which material should be treated as authoritative for the maintained v3 application.
 
-## Current guidance
+## Source-of-truth order
 
-- `../Documentation-Overhaul.md`: complete organization, source-of-truth, and audit manifest.
-- `../Documentation-Inventory.md`: every Markdown file classified by purpose and authority.
-- `../README.md`: full v3 system architecture and runtime contract.
-- `../UserGuide/v3-workflows.md`: enrollment, scanning, evaluation, settings, permissions, backup, restore, and hardware workflows.
-- `../Architecture/v3-system.md`: component boundaries and application flow.
-- `../Hardware/`: ESP32, AS608, wiring, firmware variants, and serial requirements.
-- `../Troubleshooting/README.md`: concise current recovery and diagnostics.
-- `../Development/FILES_OVERVIEW.md`: current source-tree map.
-- `../Development/FILES_DETAILED.md`: current Python module guide.
-- `../Development/PORTABLE_PYTHON.md`: portable runtime guidance.
-- `../Development/change-log.md`: release history and unreleased development entries.
-- `../../PORTABLE_BUILD.md`: current PyInstaller build process using `Build/DSIS_v3.spec`.
-- `../../CONTRIBUTING.md`: contribution and validation requirements.
-- `../../RELEASE.md`: release checklist and versioning policy.
-- `../../SECURITY.md`: vulnerability reporting and supported-version policy.
+1. Current source code and automated tests.
+2. Current v3 documentation.
+3. Root installation/release/security/contribution documents.
+4. Historical/reference documents.
+5. Generated reports and snapshots.
 
-## Historical material
+Generated or historical material must not override current implementation behavior.
 
-- `../History/`: curated v1/v2/v3 evolution notes.
-- `../../archive/legacy-ui/v1/`: historical CustomTkinter application.
-- `../../archive/legacy-ui/v2/`: historical PySide6/Qt application.
-- `../Dup/`: preserved duplicates and superseded investigations.
-- `../Research/`: concept and research material, not runtime guarantees.
+## Current product documentation
 
-## Generated material
+| Area | Purpose | Primary references |
+| --- | --- | --- |
+| Root | Public project entry point and deployment policies | `README.md`, `INSTALLATION.md`, `PORTABLE_BUILD.md` |
+| Architecture | Internal design and runtime behavior | `Architecture/v3-system.md`, `Architecture/system-architecture.md`, `Architecture/software-flow.md`, `Architecture/database-schema.md` |
+| Hardware | ESP32/AS608 wiring and firmware | `Hardware/hardware-connections.md`, `Hardware/wiring.md`, `Hardware/firmware-variants.md` |
+| UserGuide | Installation, operation, and validation | `UserGuide/installation-guide.md`, `UserGuide/v3-workflows.md`, `UserGuide/project-overview.md`, `UserGuide/testing-results.md` |
+| Troubleshooting | Current recovery procedures | `Troubleshooting/README.md`, `TROUBLESHOOTING.md` |
+| Development | Source maps, database, logs, runtime data, prototypes | `Development/FILES_DETAILED.md`, `database-updates.md`, `logging-guide.md`, `runtime-data.md`, `ui-prototypes.md` |
+| API | Browser-to-Python bridge reference | `API/README.md` |
 
-`../generated/` contains point-in-time audits, metrics, inventories, and forensic reports. They are evidence snapshots and may contain paths or architecture descriptions that were true when generated but are no longer current. Do not use them as installation instructions.
+## Research boundary
 
-## Validation rule
+`Research/` contains concept-paper and research material. It is intentionally outside the operational product documentation path.
 
-When documentation conflicts, prefer this order:
+Research may explain why DSIS was proposed, its study context, or future concepts, but it does not define current software or hardware behavior.
 
-1. Active source code and tests at the current commit.
-2. Current guidance listed above.
-3. Tagged release documentation.
-4. Archive and generated reports as historical evidence.
+## Historical boundary
 
-Last reviewed: 2026-09-11, against commit `aa457e0`.
+`History/`, `Dup/`, legacy UI directories, old investigation reports, and old implementation notes preserve project evolution or troubleshooting provenance. They should be treated as historical when their behavior differs from v3.
+
+## Generated boundary
+
+`generated/`, metrics, inventories, and audit snapshots are point-in-time evidence. Regenerate them deliberately and direct readers back to current documentation for runtime behavior.
+
+## Documentation quality rules
+
+Current technical documents should include, where relevant:
+
+- purpose and scope;
+- exact paths and commands;
+- current defaults and protocol values;
+- prerequisites and failure conditions;
+- examples or diagrams for non-obvious behavior;
+- links to source-of-truth implementation files;
+- a review date.
+
+Do not document a behavior as current merely because it existed in v1/v2 or in a generated report.
+
+## Current application boundary
+
+The maintained runtime is `run_web_gui.py` / `run_web_gui.bat` -> `python/gui_web/` -> `python/core/` + local data -> ESP32/AS608.
+
+Legacy Qt/CustomTkinter code and UI prototypes are not current launchers.
+
+Last reviewed: 2026-09-20.
