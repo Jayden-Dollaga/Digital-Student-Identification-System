@@ -1,49 +1,121 @@
-# Active Python File Guide
+# DSIS Active Python File Guide
 
-This guide replaces the older generated inventory that described the v1/v2 UI trees as current. It summarizes the maintained v3 source tree at commit `aa457e0`.
+This guide maps the maintained Python v3 implementation to the repository files that own each responsibility. Historical and reference code is identified separately.
 
 ## Entry points
 
-- `run_web_gui.py`: adds the Python and web GUI paths, then launches `gui_web.main_web.main()`.
-- `python/main.py`: compatibility entry point that delegates to the v3 webview launcher.
-- `python/gui_web/main_web.py`: creates the native pywebview window, loads `web/index.html`, connects the API object, and disconnects cleanly when the window closes.
+| File | Role |
+| --- | --- |
+| `run_web_gui.py` | Root launcher for the maintained webview application |
+| `python/main.py` | Compatibility entry point |
+| `python/gui_web/main_web.py` | Native pywebview window lifecycle |
 
-## Web UI and bridge
+## Web UI
 
-- `python/gui_web/api.py`: the JSON-safe bridge exposed as `window.pywebview.api`. It coordinates connection, serial events, enrollment, deletion, wipe, settings, database queries, reports, backups, attendance evaluation, and CSV export.
-- `python/gui_web/web/index.html`: page shell, navigation, dashboard, attendance, students, reports, logs, and settings markup.
-- `python/gui_web/web/app.js`: frontend state, navigation, pywebview readiness, event handling, serial controls, enrollment flow, evaluation rendering, and export actions.
-- `python/gui_web/web/styles.css`: current light/dark theme variables, layout, controls, tables, dialogs, and evaluation components.
-- `python/gui_web/v2_reference/`: reference-only PySide6 source snapshot used to compare workflow and serial contracts; it is not imported by v3.
+| Path | Responsibility |
+| --- | --- |
+| `python/gui_web/web/index.html` | Application pages and markup |
+| `python/gui_web/web/app.js` | Frontend state, navigation, API calls, live events |
+| `python/gui_web/web/styles.css` | Layout, themes, controls, tables, dialogs |
+| `python/gui_web/api.py` | Browser-to-Python application bridge |
 
-## Backend
+Current pages include Dashboard, Attendance, Students, Reports, Logs, Settings, and Calendar.
 
-- `python/config.py`: `AppConfig`, environment overrides, serial defaults, role definitions, logging, backup, and data paths.
-- `python/settings_store.py`: JSON persistence for port, baud, theme, cooldown, confidence, role, auto-detection, reconnect, logging, and backup preferences.
-- `python/core/serial_handler.py`: pyserial boundary, port opening, command writes, buffered reads, handshake metadata, disconnects, and reconnects.
-- `python/core/device_discovery.py`: port scoring, VID/PID hints, boot capture, identity handshake, and candidate probing.
-- `python/core/commands.py`: validated newline-terminated firmware commands.
-- `python/core/attendance.py`: JSON/text parsing, cooldown, confidence handling, and attendance outcomes.
-- `python/core/database.py`: SQLite schema, reserved `fingerprint_id = 0` row, students, attendance, statistics, evaluation inputs, backups, restore validation, and exports.
-- `python/core/permissions.py`: role-based local action checks.
-- `python/core/logger.py`: structured console and per-run file logging.
-- `python/core/utils.py`: JSON parsing, formatting, and shared utility functions.
-- `python/core/firmware_helper.py`: historical firmware candidate and upload helpers; the supported upload path is Arduino IDE with the all-in-one sketch.
+## Core backend
 
-## Services and archived/reference code
+| Module | Responsibility |
+| --- | --- |
+| `python/config.py` | Runtime defaults, environment overrides, paths, role definitions |
+| `python/settings_store.py` | Persistent JSON settings and setup state |
+| `python/core/device_discovery.py` | COM-port enumeration, candidate scoring, DSIS identity handshake |
+| `python/core/serial_handler.py` | pyserial connection, buffering, commands, disconnect/reconnect |
+| `python/core/commands.py` | Permission-aware firmware command wrappers |
+| `python/core/attendance.py` | JSON/text scan parsing, cooldown, confidence classification |
+| `python/core/attendance_status.py` | Time-in/time-out status evaluation |
+| `python/core/attendance_calendar.py` | Holiday, suspension, and half-day schedule rules |
+| `python/core/database.py` | SQLite schema, students, attendance, reports, charts, backups, restore |
+| `python/core/auth.py` | First-run password creation and verification |
+| `python/core/permissions.py` | In-memory role sessions and action checks |
+| `python/core/logger.py` | Structured console and per-run file logging |
+| `python/core/utils.py` | JSON parsing and shared helpers |
 
-- `python/services/`: thin compatibility wrappers around database and export operations; the active v3 API calls core functions directly for most workflows.
-- `python/gui/` and `python/gui_qt/`: compatibility/reference packages retained for tests and migration comparison.
-- `archive/legacy-ui/v1/`: historical CustomTkinter application.
-- `archive/legacy-ui/v2/`: historical PySide6/Qt application.
+## Runtime flow by module
 
-## Validation
+```text
+run_web_gui.py
+   -> gui_web.main_web
+   -> gui_web.api.Api
+      -> settings_store
+      -> core.auth / core.permissions
+      -> core.database
+      -> core.serial_handler
+         -> core.device_discovery
+      -> core.attendance
+      -> core.attendance_status / attendance_calendar
+      -> core.logger
+```
 
-- `tests/test_gui_web_smoke.py`: active v3 bridge and UI smoke coverage.
-- `tests/test_database_*.py`: schema, reset, backup, restore, and security coverage.
-- `tests/test_permissions_and_attendance_tagging.py`: role and attendance behavior.
-- `tests/Prototype/`: isolated visual previews, not production workflows.
+The browser never opens SQLite or pyserial directly. Those operations remain behind the Python API bridge.
 
-For the current launch and architecture workflow, see [FILES_OVERVIEW.md](FILES_OVERVIEW.md), [system-architecture.md](../Architecture/system-architecture.md), and [testing-results.md](../UserGuide/testing-results.md).
+## Current configuration
 
-Last reviewed: 2026-09-11, against commit `aa457e0`.
+| Setting | Default |
+| --- | --- |
+| Host baud | 115200 |
+| Application cooldown | 10 seconds |
+| Application min confidence | 100 |
+| Auto-detect serial | Enabled |
+| Auto-reconnect | Enabled |
+| Reconnect retries | 5 |
+| Reconnect base delay | 2 seconds |
+| Automatic backup interval | 25 minutes |
+| Theme | Dark |
+| Log file output | Enabled |
+
+## Hardware-facing source
+
+The maintained firmware is `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`.
+
+Hardware constants in the current sketch include:
+
+- sensor TX -> ESP32 GPIO14;
+- sensor RX -> ESP32 GPIO27;
+- host serial -> 115200 baud;
+- AS608 UART -> 57600 baud;
+- real fingerprint IDs -> 1-127.
+
+## Authentication and permissions
+
+Authentication is implemented by `core.auth` and sessions by `core.permissions`.
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, export, backup, attendance evaluation |
+| Guest | scan, attendance evaluation |
+
+The persisted `current_role` field is not an authorization source.
+
+## Tests relevant to v3
+
+Important current test areas include:
+
+- `tests/test_gui_web_smoke.py` — webview bridge/UI contract checks;
+- `tests/test_v3_authentication.py` — password and session behavior;
+- `tests/test_permissions_and_attendance_tagging.py` — permissions, wipe lifecycle, event tagging;
+- `tests/test_attendance_status.py` — time-based attendance rules;
+- `tests/test_database_*.py` — database, reset, backup, restore, and security behavior;
+- `tests/physical_esp32_smoke.py` — guarded physical hardware checks.
+
+## Historical/reference code
+
+The following paths are not part of the supported v3 runtime:
+
+- `archive/legacy-ui/v1/` — CustomTkinter;
+- `archive/legacy-ui/v2/` — PySide6/Qt;
+- `python/gui_web/v2_reference/` — v2 reference snapshot;
+- `tests/Prototype/` — isolated UI previews.
+
+Use these only when comparing historical behavior or researching regressions.
+
+Last reviewed: 2026-09-20.
