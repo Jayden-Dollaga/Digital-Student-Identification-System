@@ -1,38 +1,122 @@
-# Firmware Variants
+# DSIS Firmware and Hardware Variants
 
-DSIS contains one maintained firmware sketch and several historical utilities. The sketches use an ESP32 with an AS608 fingerprint sensor on UART2, with sensor TX connected to GPIO14 and sensor RX connected to GPIO27.
+## Current firmware
 
-## Supported Workflow
+The maintained firmware is:
 
-Use [ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) for the current DSIS application. It combines enrollment, deletion, wipe, listing, and attendance scan modes, so it is flashed once and controlled by serial commands. The Qt application communicates with this protocol.
+`firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`
 
-## Historical Sketches
+It is a single all-in-one sketch intended to remain flashed on the ESP32 while DSIS switches between device operations.
 
-| Sketch | Purpose | Status |
-| --- | --- | --- |
-| `firmware/attendance/attendance.ino` | Older attendance-only scanner using the earlier text protocol | Historical compatibility; not the primary DSIS firmware |
-| `firmware/enroll/enroll.ino` | Standalone serial enrollment utility | Historical utility; use `ENROLL` through the all-in-one sketch for DSIS |
-| `firmware/delete/delete.ino` | Standalone deletion/list/wipe utility | Historical utility; use `DELETE`, `LIST`, and `WIPE` through the all-in-one sketch |
-| `firmware/test/fingerprint_check/fingerprint_check.ino` | Manual sensor and UART test | Hardware troubleshooting only |
-| `firmware/prebuilt/attendance_v1.0.bin` | Placeholder file bundled by the legacy portable spec | Not a verified firmware image; do not flash |
+Current firmware metadata embedded in the sketch:
 
-The older sketches should not be mixed with the current host protocol without verifying their serial output and command format.
+| Field | Value |
+| --- | --- |
+| Device identifier | Digital Student Identification System |
+| Board | ESP32 |
+| Firmware | 1.0.10 |
+| Sensor | AS608 |
+| Protocol | 1 |
+| Host baud | 115200 |
+| Sensor UART baud | 57600 |
+| Fingerprint ID range | 1-127 |
 
-## Flashing Guidance
+## Supported commands
 
-Upload the all-in-one `.ino` sketch with Arduino IDE for a source build. Keep the Python application and Arduino Serial Monitor from opening the same COM port simultaneously. The current host default baud rate is 115200; the sensor UART is configured separately by the firmware.
+| Command | Purpose |
+| --- | --- |
+| `ID?` | Return device identity metadata |
+| `SCAN` | Enter fingerprint attendance scan mode |
+| `STOP` | Leave scan mode and return to command mode |
+| `LIST` | Report the number of stored fingerprint templates |
+| `ENROLL` | Enroll using the next free fingerprint ID |
+| `ENROLL:<id>` | Enroll into a specific ID from 1-127 |
+| `DELETE:<id>` | Delete a specific fingerprint template |
+| `WIPE` | Delete all stored fingerprint templates |
+| `STATUS:<state>` | Accept host status information for the firmware LED state |
+| JSON status | Accept a status object containing `type=status` and `state` |
 
-The file named `attendance_v1.0.bin` is retained as an historical placeholder.
-Git records its content as the literal text `BIN_PLACEHOLDER`, not a compiled
-binary. No source sketch, compiler version, board setting, or upload procedure
-can be established from repository history. It must not be flashed.
+Commands are line-oriented and handled on the ESP32 host serial port.
 
-Its current SHA-256 is:
+## Firmware events
 
-```text
-D990B199010D6DA7875876DBC40A1D7FC848201719FA5BF66BB7FA8B77F097F1
+The firmware emits human-readable compatibility messages and structured JSON.
+
+Examples:
+
+```json
+{"device":"Digital Student Identification System","board":"ESP32","firmware":"1.0.10","sensor":"AS608","protocol":1,"serial_number":"..."}
 ```
 
-<!-- TODO: verify — ask project owner whether this placeholder should be replaced and which source built the intended binary. -->
+```json
+{"type":"status","state":"SCAN_MODE"}
+```
 
-Last reviewed: 2026-09-11, against commit aa457e0
+```json
+{"type":"attendance","event":"match","id":1,"confidence":223}
+```
+
+```json
+{"type":"attendance","event":"unknown"}
+```
+
+```json
+{"type":"attendance","event":"low_confidence","confidence":42}
+```
+
+## Enrollment behavior
+
+Enrollment:
+
+1. selects the next available ID when `ENROLL` is used;
+2. accepts explicit IDs 1-127 with `ENROLL:<id>`;
+3. captures the first fingerprint image;
+4. asks for the finger to be removed;
+5. captures the same finger again;
+6. creates the fingerprint model;
+7. stores the model in the selected ID.
+
+If the two captures do not match, enrollment reports a mismatch and the device does not store the new template.
+
+During enrollment, `STOP` cancels the operation and returns the firmware to command mode.
+
+## Scanning behavior
+
+The firmware:
+
+1. waits for a finger;
+2. captures the image;
+3. converts the image to a template;
+4. searches the sensor database;
+5. emits a match, unknown, or low-confidence event;
+6. applies the firmware's 2-second post-scan delay before another scan cycle.
+
+The current firmware-level minimum confidence is **50**. The desktop application independently classifies matches using its configurable `min_confidence` setting (default 100) as either `GOOD MATCH` or `WEAK MATCH`.
+
+A weak application classification is still a recorded scan; the current attendance processor does not reject it solely because it is below 100. This distinction is important when interpreting attendance data.
+
+## Deletion fix
+
+The maintained firmware calls `loadModel()` before `deleteModel()` so an absent fingerprint slot does not incorrectly report a successful deletion on sensor/library combinations that return an overly permissive delete result.
+
+## LED states
+
+The onboard LED is used as a local device-status indicator. The current sketch defines states for boot, ready, scan, success, enrollment, firmware, error, database error, communication error, host connected, host disconnected, and sleep.
+
+The LED is informational; the PC should use the serial/device state as the authoritative connection signal.
+
+## Historical firmware
+
+| Path | Status |
+| --- | --- |
+| `firmware/attendance/attendance.ino` | Historical attendance-only sketch |
+| `firmware/enroll/enroll.ino` | Historical standalone enrollment utility |
+| `firmware/delete/delete.ino` | Historical standalone deletion/list/wipe utility |
+| `firmware/test/fingerprint_check/fingerprint_check.ino` | Manual sensor/UART troubleshooting sketch |
+| `firmware/prebuilt/attendance_v1.0.bin` | Placeholder, not a verified binary |
+
+The placeholder file contains `BIN_PLACEHOLDER` and must not be flashed.
+
+Use the all-in-one firmware for the supported v3 application workflow.
+
+Last reviewed: 2026-09-20.
