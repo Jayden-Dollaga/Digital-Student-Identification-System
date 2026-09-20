@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent if "__file__" in globals() else Path.cwd().resolve()
 V2_ROOT = ROOT / "archive" / "legacy-ui" / "v2"
 V2_PYTHON = V2_ROOT / "python"
+LOGO_ICO = ROOT / "assets" / "icon" / "DSIS_LOGO.ico"
 
 block_cipher = None
 
@@ -14,6 +15,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(V2_ROOT / "data"), "data"),
+        (str(LOGO_ICO), "assets/icon"),
         (str(V2_PYTHON / "gui_qt" / "theme.qss"), "gui_qt"),
         (str(V2_PYTHON / "gui_qt" / "theme_light.qss"), "gui_qt"),
     ],
@@ -60,6 +62,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=True,
+    icon=str(LOGO_ICO),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

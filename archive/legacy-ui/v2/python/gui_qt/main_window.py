@@ -1,9 +1,12 @@
 import logging
+import sys
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget, QLabel, QPushButton
 )
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import QObject, Signal, QTimer
 
 import threading
@@ -37,11 +40,19 @@ PAGE_TITLES = {
 }
 
 
+def _logo_path():
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[5]))
+    return bundle_root / "assets" / "icon" / "DSIS_LOGO.ico"
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         LOG.info("MainWindow initialization started")
         self.setWindowTitle("Fingerprint Attendance System")
+        logo_path = _logo_path()
+        if logo_path.exists():
+            self.setWindowIcon(QIcon(str(logo_path)))
         self.resize(1180, 720)
         self.setMinimumSize(860, 560)
 

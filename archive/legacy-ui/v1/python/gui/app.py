@@ -4,7 +4,7 @@ import time
 import re
 from pathlib import Path
 from datetime import datetime
-from tkinter import messagebox, filedialog
+from tkinter import TclError, messagebox, filedialog
 
 PYTHON_ROOT = Path(__file__).resolve().parents[1]
 if str(PYTHON_ROOT) not in sys.path:
@@ -85,10 +85,19 @@ RE_CONFIDENCE = re.compile(r"^CONFIDENCE[:\s]+(\d+)\s*$", re.IGNORECASE)
 RE_UNKNOWN = re.compile(r"^UNKNOWN\s*$", re.IGNORECASE)
 
 
+def _logo_path() -> Path:
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[5]))
+    return bundle_root / "assets" / "icon" / "DSIS_LOGO.ico"
+
+
 class FingerprintApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Fingerprint Attendance System")
+        try:
+            self.iconbitmap(str(_logo_path()))
+        except (OSError, TclError):
+            pass
         self.geometry("1440x900")
         self.minsize(1200, 760)
 

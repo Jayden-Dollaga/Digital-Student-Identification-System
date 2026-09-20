@@ -9,6 +9,7 @@ else:
 
 V1_ROOT = ROOT / "archive" / "legacy-ui" / "v1"
 V1_PYTHON = V1_ROOT / "python"
+LOGO_ICO = ROOT / "assets" / "icon" / "DSIS_LOGO.ico"
 
 block_cipher = None
 
@@ -18,6 +19,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(V1_ROOT / "data"), "data"),
+        (str(LOGO_ICO), "assets/icon"),
     ],
     hiddenimports=collect_submodules("customtkinter") + collect_submodules("PIL") + [
         "config",
@@ -64,6 +66,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon=str(LOGO_ICO),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

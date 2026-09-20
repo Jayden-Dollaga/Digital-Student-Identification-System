@@ -22,6 +22,11 @@ from api import Api
 from core.logger import log
 
 
+def _logo_path() -> Path:
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    return bundle_root / "assets" / "icon" / "DSIS_LOGO.ico"
+
+
 def _handle_uncaught_exception(exc_type, exc_value, exc_traceback) -> None:
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
@@ -71,7 +76,7 @@ def main() -> None:
 
     window.events.closed += _on_closed
 
-    webview.start(debug=False)
+    webview.start(debug=False, icon=str(_logo_path()))
 
 
 if __name__ == "__main__":

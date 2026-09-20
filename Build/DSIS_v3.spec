@@ -8,6 +8,7 @@ if "__file__" in globals():
 else:
     ROOT = Path(os.getcwd()).resolve()
 
+LOGO_ICO = ROOT / "assets" / "icon" / "DSIS_LOGO.ico"
 block_cipher = None
 
 # Active V3 HTML/pywebview entry point.
@@ -17,6 +18,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(ROOT / "python" / "gui_web" / "web"), "gui_web/web"),
+        (str(LOGO_ICO), "assets/icon"),
     ],
     hiddenimports=collect_submodules("webview") + [
         "webview",
@@ -54,6 +56,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon=str(LOGO_ICO),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
