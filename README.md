@@ -32,7 +32,7 @@
 
 The system combines an **ESP32 + AS608 fingerprint sensor** with a Windows desktop application. The hardware performs fingerprint enrollment and identification, while the desktop application manages student records, attendance history, reports, backups, permissions, device communication, and diagnostics.
 
-The current maintained interface is the **v3 HTML/pywebview application**.
+The current maintained interface is the **v3 HTML/pywebview application**. The browser UI communicates with Python through `window.pywebview.api`; the application does not require a local web server.
 
 > **Project status:** Active development. Hardware, firmware, desktop software, and documentation are maintained together in this repository.
 
@@ -192,7 +192,7 @@ or:
 python run_web_gui.py
 ```
 
-The application starts in the **Guest** role. The shipped administrator password is `admin` as a setup placeholder. **Change it immediately from Settings** before using the system in a real deployment.
+The application starts in the **Guest** role. On first run, DSIS requires the operator to create an administrator password; there is no built-in default administrator password. The password must be at least 8 characters and is stored as a salted PBKDF2-HMAC-SHA256 hash.
 
 For packaged Windows deployment, see the [Portable Build Guide](PORTABLE_BUILD.md).
 
@@ -232,7 +232,7 @@ The evaluation system:
 4. Groups results into the application's attendance categories.
 5. Allows the current evaluation to be exported as CSV.
 
-Evaluation and export features are controlled by the application's `export` and `backup` permissions.
+Attendance Evaluation uses the dedicated `attendance_evaluation` permission. In the default role configuration, Administrator, Teacher, and Guest can view evaluation data; CSV export remains controlled by the `export` permission.
 
 For the detailed workflow, see the [v3 Workflow Guide](docs/UserGuide/v3-workflows.md).
 
