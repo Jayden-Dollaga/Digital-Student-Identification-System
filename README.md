@@ -36,6 +36,8 @@ The current maintained interface is the **v3 HTML/pywebview application**. The b
 
 > **Project status:** Active development. Hardware, firmware, desktop software, and documentation are maintained together in this repository.
 
+> **Documentation status:** The canonical current guides are grouped under [`docs/`](docs/README.md): User Guide, Architecture, Hardware, Development, Troubleshooting, History, and API. v1 CustomTkinter and v2 Qt material is retained for lineage and comparison; it is not the supported launch path. Generated and forensic reports are scoped to their recorded snapshot.
+
 ## Features
 
 ### Student Identification
@@ -204,7 +206,7 @@ Windows requires a driver for the USB interface used by the ESP32 development bo
 
 Check:
 
-**Device Manager → Ports (COM & LPT)**
+### Device Manager: Ports (COM & LPT)
 
 If the board is not detected, identify the USB bridge chip and install its corresponding driver.
 

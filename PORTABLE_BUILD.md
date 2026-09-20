@@ -1,5 +1,7 @@
 # Portable Windows Build
 
+> Packaging documents describe the current v3 build boundary. A packaged application still requires the supported Windows USB serial driver and a separately flashed ESP32 firmware device.
+
 The current source application is the HTML/pywebview v3 interface. The
 PyInstaller specification is [Build/DSIS_v3.spec](Build/DSIS_v3.spec), and it
 bundles the V3 web assets.

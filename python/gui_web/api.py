@@ -10,6 +10,11 @@ dict/list/str/bool values that can cross the JS bridge as JSON.
 Every public method on Api() is callable from JavaScript as
 ``pywebview.api.method_name(args...)`` and returns a JSON-serializable
 value (or raises, which pywebview turns into a rejected JS promise).
+
+The bridge is an integration boundary, not an authorization boundary:
+permission checks remain in this module and the shared core even when the
+frontend hides the corresponding control. Python-originated updates are
+published as events consumed by ``window.dsisEvent`` in the web application.
 """
 
 from __future__ import annotations

@@ -1,5 +1,7 @@
 # Contributing to DSIS
 
+> Contributions should update the canonical guide named in `docs/Development/documentation-authority.md` when behavior changes. Preserve historical audit reports rather than rewriting their original snapshot claims.
+
 ## Branches and pull requests
 
 - `main` is the integration branch.

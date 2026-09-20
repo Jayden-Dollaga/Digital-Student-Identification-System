@@ -1,5 +1,17 @@
 # DSIS Documentation
 
+> **Documentation authority:** The maintained product is DSIS v3, the HTML frontend hosted by pywebview and backed by the shared Python core. Start with [the documentation authority map](Development/documentation-authority.md) when two documents appear to describe the same topic. Files under `History/`, `generated/`, `Research/`, `Dup/`, and the repository audit locations preserve provenance or analysis; they do not override current source behavior.
+
+## Current documentation structure
+
+- [User Guide](UserGuide/README.md): installation, first-run setup, and day-to-day operation.
+- [Architecture](Architecture/README.md): v3 runtime, data flow, bridge, persistence, and security boundaries.
+- [Hardware](Hardware/README.md): ESP32/AS608 wiring, firmware, and serial protocol.
+- [Development](Development/README.md): source tree, testing, logging, runtime data, and contribution references.
+- [Troubleshooting](Troubleshooting/README.md): connection, enrollment, attendance, database, and recovery procedures.
+- [History](History/README.md): v1 CustomTkinter, v2 Qt, and v3 migration boundaries.
+- [API](API/README.md): the Python/web bridge exposed to the frontend.
+
 Welcome to the **Digital Student Identification System (DSIS)** documentation.
 
 This documentation set is organized around the actual v3 application, its hardware/firmware stack, operational workflows, development internals, and historical material. The goal is to make the repository understandable to someone who has never worked on DSIS before.

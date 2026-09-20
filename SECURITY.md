@@ -1,5 +1,7 @@
 # Security Policy
 
+> The active security model is the v3 local desktop model: backend permission checks, first-run administrator password creation, salted PBKDF2-HMAC-SHA256 verification, and local SQLite protection. The application has no built-in default administrator password.
+
 This file describes how to report a vulnerability in DSIS. It is separate from
 the [security audit history](docs/SECURITY_AUDIT_REPORT.md) and remediation
 record (see [the documentation index](docs/INDEX.md)).

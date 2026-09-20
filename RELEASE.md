@@ -1,5 +1,7 @@
 # DSIS Release Guide
 
+> Release documentation is authoritative only for a tagged or explicitly named commit. The current repository may contain unreleased v3 work; do not describe `main` as a published v3 release without a tag and validated artifact.
+
 ## Versioning
 
 Use a version tag in the form `vMAJOR.MINOR.PATCH`. Update `docs/Development/change-log.md` before tagging, moving the verified unreleased entries under the new version heading. Keep `SECURITY.md`, build documentation, and release notes on the same supported release line.

@@ -1,5 +1,7 @@
 # DSIS Installation Guide
 
+> This guide covers the maintained v3 HTML/pywebview runtime. Qt and CustomTkinter instructions found under archive paths are historical reference only.
+
 This is the repository-level installation guide for the maintained **DSIS v3 HTML/pywebview application**.
 
 For the most detailed operator walkthrough, see [docs/UserGuide/installation-guide.md](docs/UserGuide/installation-guide.md).
@@ -69,7 +71,7 @@ Windows needs a driver for the board's USB interface. The driver depends on the 
 
 Check:
 
-**Device Manager → Ports (COM & LPT)**
+### Device Manager: Ports (COM & LPT)
 
 Common families:
 

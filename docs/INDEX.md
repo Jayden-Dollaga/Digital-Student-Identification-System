@@ -1,5 +1,7 @@
 # DSIS Documentation Index
 
+> **Start here:** [Documentation authority and boundaries](Development/documentation-authority.md). The current implementation is v3 HTML/pywebview. Historical Qt and CustomTkinter documents remain available for provenance and comparison, but are not operating instructions for the current application.
+
 Welcome to the **Digital Student Identification System (DSIS)** documentation hub.
 
 The current documentation describes the maintained v3 application, the ESP32/AS608 hardware stack, operational workflows, developer interfaces, data model, troubleshooting, and release/deployment process.
@@ -22,19 +24,24 @@ The current documentation describes the maintained v3 application, the ESP32/AS6
 
 ## Architecture
 
+- [Architecture section guide](Architecture/README.md)
 - [v3 System Architecture](Architecture/v3-system.md)
+- [v3 Runtime Contract](Architecture/runtime-contract.md)
 - [System Architecture](Architecture/system-architecture.md)
 - [Software Flow](Architecture/software-flow.md)
 - [Database Schema](Architecture/database-schema.md)
 
 ## Hardware
 
+- [Hardware section guide](Hardware/README.md)
 - [Hardware Connections](Hardware/hardware-connections.md)
 - [Wiring](Hardware/wiring.md)
 - [Firmware Variants](Hardware/firmware-variants.md)
+- [Serial Protocol](Hardware/serial-protocol.md)
 
 ## User and operator guides
 
+- [User Guide section](UserGuide/README.md)
 - [Project Overview](UserGuide/project-overview.md)
 - [Installation Guide](UserGuide/installation-guide.md)
 - [v3 Workflows](UserGuide/v3-workflows.md)
@@ -44,6 +51,8 @@ The current documentation describes the maintained v3 application, the ESP32/AS6
 
 ## Development
 
+- [Development section guide](Development/README.md)
+- [Documentation Authority](Development/documentation-authority.md)
 - [Documentation Map](Development/documentation-map.md)
 - [Documentation Inventory](Documentation-Inventory.md)
 - [Documentation Overhaul](Documentation-Overhaul.md)
@@ -67,6 +76,7 @@ The current documentation describes the maintained v3 application, the ESP32/AS6
 
 ## History
 
+- [History section guide](History/README.md)
 - [UI Lineage](History/ui-lineage.md)
 - [Archive](../archive/README.md)
 - [Duplicate/Superseded Material](Dup/README.md)
