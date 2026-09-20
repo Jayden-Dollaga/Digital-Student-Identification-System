@@ -333,7 +333,7 @@ DSIS is designed around a local-first workflow. Student and attendance informati
 Administrators should still apply appropriate safeguards when deploying DSIS in a school environment, including:
 
 - Protecting the Windows machine running DSIS
-- Changing the default administrator password
+- Using a strong administrator password created during first-run setup
 - Restricting access to application backups and database files
 - Following applicable school data-protection and privacy requirements
 - Avoiding the distribution of real student data in public development builds
