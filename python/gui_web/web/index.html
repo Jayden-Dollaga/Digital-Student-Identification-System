@@ -634,7 +634,8 @@
 
 
 <div id="first-run-setup-modal" class="modal-overlay" hidden>
-  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-setup-title">
+  <div class="modal-card auth-modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-setup-title">
+    <div class="wizard-progress" id="wizard-progress-password"></div>
     <div class="modal-title" id="first-run-setup-title">First-time setup</div>
     <div class="modal-sub">Create an administrator password before continuing. There is no default password - this is the only way in.</div>
     <div class="pw-field-wrap">
@@ -653,8 +654,8 @@
 </div>
 
 <div id="setup-device-modal" class="modal-overlay" hidden>
-  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-device-title">
-    <div class="modal-step-label">Step 2 of 4</div>
+  <div class="modal-card auth-modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="setup-device-title">
+    <div class="wizard-progress" id="wizard-progress-device"></div>
     <div class="modal-title" id="setup-device-title">Connect your device</div>
     <div class="modal-sub">Connect the ESP32 fingerprint scanner now, or skip this and connect it later from the top bar.</div>
     <div id="setup-device-status" class="setup-status-line">Not connected yet.</div>
@@ -668,8 +669,8 @@
 </div>
 
 <div id="setup-schedule-modal" class="modal-overlay" hidden>
-  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-schedule-title">
-    <div class="modal-step-label">Step 3 of 4</div>
+  <div class="modal-card auth-modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="setup-schedule-title">
+    <div class="wizard-progress" id="wizard-progress-schedule"></div>
     <div class="modal-title" id="setup-schedule-title">Set your school schedule</div>
     <div class="modal-sub">Used to flag scans as Present, Late, Early, or Absent. You can change this anytime in Settings.</div>
     <div style="display:flex;gap:8px;">
@@ -698,14 +699,15 @@
     </div>
     <div id="setup-schedule-error" class="auth-error" role="alert"></div>
     <div class="modal-actions">
+      <button class="hdr-btn" type="button" onclick="wizardGoToPreviousStep('device')">Previous</button>
       <button class="hdr-btn primary" type="button" onclick="completeSetupScheduleStep()">Continue</button>
     </div>
   </div>
 </div>
 
 <div id="setup-branding-modal" class="modal-overlay" hidden>
-  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-branding-title">
-    <div class="modal-step-label">Step 4 of 4</div>
+  <div class="modal-card auth-modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="setup-branding-title">
+    <div class="wizard-progress" id="wizard-progress-branding"></div>
     <div class="modal-title" id="setup-branding-title">Customize your setup</div>
     <div class="modal-sub">This is shown in the sidebar and header. You can change it anytime in Settings.</div>
     <label class="settings-row-label" for="setup-school-name">School name (optional)</label>
@@ -717,6 +719,7 @@
     </div>
     <div id="setup-branding-error" class="auth-error" role="alert"></div>
     <div class="modal-actions">
+      <button class="hdr-btn" type="button" onclick="wizardGoToPreviousStep('schedule')">Previous</button>
       <button class="hdr-btn primary" type="button" onclick="completeSetupBrandingStep()">Finish setup</button>
     </div>
   </div>

@@ -157,9 +157,52 @@ function togglePasswordField(inputId, btn) {
   btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
 }
 
+const WIZARD_STEPS = [
+  { key: 'password', label: 'Password' },
+  { key: 'device', label: 'Device' },
+  { key: 'schedule', label: 'Schedule' },
+  { key: 'branding', label: 'Finish' },
+];
+
+// Renders a Huawei-router-style step progress bar (circles connected by a
+// line, current step highlighted, completed steps checked) into the given
+// container id. Called once per step-open so it always reflects where the
+// user currently is.
+function renderWizardProgress(containerId, activeKey) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const activeIndex = WIZARD_STEPS.findIndex(s => s.key === activeKey);
+  let html = '<div class="wizard-progress-row">';
+  WIZARD_STEPS.forEach((step, i) => {
+    const state = i < activeIndex ? 'done' : i === activeIndex ? 'active' : 'upcoming';
+    html += `<div class="wizard-progress-step wizard-step-${state}">
+      <div class="wizard-progress-circle">${state === 'done' ? '\u2713' : i + 1}</div>
+      <div class="wizard-progress-label">${escapeHtml(step.label)}</div>
+    </div>`;
+    if (i < WIZARD_STEPS.length - 1) {
+      html += `<div class="wizard-progress-line${i < activeIndex ? ' wizard-line-done' : ''}"></div>`;
+    }
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// "Previous" only ever targets device/schedule (never password - once the
+// administrator account is created there's nothing to go "back" to, the
+// wizard router would just send them right back to this step anyway).
+function wizardGoToPreviousStep(targetKey) {
+  ['first-run-setup-modal', 'setup-device-modal', 'setup-schedule-modal', 'setup-branding-modal'].forEach(id => {
+    const modal = document.getElementById(id);
+    if (modal) modal.hidden = true;
+  });
+  if (targetKey === 'device') openSetupDeviceStep();
+  else if (targetKey === 'schedule') openSetupScheduleStep();
+}
+
 function openFirstRunSetupModal() {
   const modal = document.getElementById('first-run-setup-modal');
   if (!modal) return;
+  renderWizardProgress('wizard-progress-password', 'password');
   document.getElementById('first-run-setup-error').textContent = '';
   document.getElementById('first-run-password').value = '';
   document.getElementById('first-run-password-confirm').value = '';
@@ -197,26 +240,30 @@ async function runSetupWizardRouter() {
 function openSetupDeviceStep() {
   const modal = document.getElementById('setup-device-modal');
   if (!modal) return;
+  renderWizardProgress('wizard-progress-device', 'device');
   updateSetupDeviceStatus();
   modal.hidden = false;
 }
 
 async function setupDeviceConnectClick() {
   await toggleConnect();
-  updateSetupDeviceStatus();
+  await updateSetupDeviceStatus();
 }
 
-function updateSetupDeviceStatus() {
+async function updateSetupDeviceStatus() {
   const statusEl = document.getElementById('setup-device-status');
   const continueBtn = document.getElementById('setup-device-continue-btn');
   if (!statusEl || !continueBtn) return;
   if (connected) {
-    statusEl.textContent = 'Connected.';
-    statusEl.style.color = 'var(--green)';
+    const status = await api().get_connection_status();
+    const lines = formatDeviceStatusLines(status);
+    statusEl.innerHTML = `<div class="setup-status-connected">\u25cf Connected</div>` +
+      (lines.length
+        ? `<div class="setup-status-detail">${lines.map(escapeHtml).join('<br>')}</div>`
+        : `<div class="setup-status-detail">Connected, but the device hasn\u2019t reported its metadata yet.</div>`);
     continueBtn.textContent = 'Continue';
   } else {
-    statusEl.textContent = 'Not connected yet.';
-    statusEl.style.color = 'var(--muted)';
+    statusEl.innerHTML = `<span style="color:var(--muted);">Not connected yet.</span>`;
     continueBtn.textContent = "Skip \u2014 I'll connect it later";
   }
 }
@@ -230,6 +277,7 @@ async function completeSetupDeviceStep() {
 function openSetupScheduleStep() {
   const modal = document.getElementById('setup-schedule-modal');
   if (!modal) return;
+  renderWizardProgress('wizard-progress-schedule', 'schedule');
   document.getElementById('setup-schedule-error').textContent = '';
   modal.hidden = false;
 }
@@ -257,6 +305,7 @@ async function completeSetupScheduleStep() {
 function openSetupBrandingStep() {
   const modal = document.getElementById('setup-branding-modal');
   if (!modal) return;
+  renderWizardProgress('wizard-progress-branding', 'branding');
   document.getElementById('setup-branding-error').textContent = '';
   modal.hidden = false;
 }
@@ -465,6 +514,7 @@ async function toggleConnect() {
         document.getElementById('sb-device').innerHTML = `<span>${escapeHtml(res.port || '?')} \u00b7 ${escapeHtml(res.baud || '?')} baud</span>`;
         smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
       } else {
+        setStatus('disconnected');
         alert('Could not connect: ' + res.message);
         showSerialTroubleshooting('connect_failed');
       }
@@ -491,12 +541,19 @@ async function toggleConnect() {
 // serial ports, and NEITHER ever completes. (Confirmed: this exact failure
 // mode showed up in real logs - six overlapping connect() calls, zero of
 // them ever finishing.)
+//
+// Deliberately does NOT restore any remembered label when busy=false -
+// only setStatus() (called right before this, in every code path above)
+// owns the top-bar button's text ("Connect" vs "Disconnect"). An earlier
+// version of this function snapshotted and restored the pre-click label
+// here, which silently overwrote setStatus()'s correct "Disconnect" label
+// back to "Connect" immediately after a successful connection - found by
+// tracing the exact order these two calls ran in.
 function setConnectButtonsBusy(busy) {
   const topBarBtn = document.getElementById('connect-btn');
   if (topBarBtn) {
     topBarBtn.disabled = busy;
-    if (busy) topBarBtn.dataset.prevLabel = topBarBtn.textContent;
-    topBarBtn.textContent = busy ? 'Connecting\u2026' : (topBarBtn.dataset.prevLabel || 'Connect');
+    if (busy) topBarBtn.textContent = 'Connecting\u2026';
   }
   const wizardBtn = document.querySelector('#setup-device-modal button[onclick="setupDeviceConnectClick()"]');
   if (wizardBtn) {
@@ -2397,6 +2454,23 @@ document.addEventListener('click', event => {
   if (AUTO_SAVE_SETTING_IDS.has(event.target.id)) scheduleSettingsSave();
 });
 
+// Shared by the Settings page's connection panel AND the setup wizard's
+// device step, so both show identical detail instead of two different
+// (and potentially drifting) renderings of the same connection info.
+function formatDeviceStatusLines(status) {
+  const meta = status.device_metadata || {};
+  const lines = [];
+  if (status.port) lines.push(`Port: ${status.port}`);
+  if (status.baud) lines.push(`Baud: ${status.baud}`);
+  if (meta.device) lines.push(`Device: ${meta.device}`);
+  if (meta.board) lines.push(`Board: ${meta.board}`);
+  if (meta.firmware) lines.push(`Firmware: ${meta.firmware}`);
+  if (meta.protocol !== undefined && meta.protocol !== null) lines.push(`Protocol: ${meta.protocol}`);
+  if (meta.sensor) lines.push(`Sensor: ${meta.sensor}`);
+  if (meta.serial_number) lines.push(`Serial Number: ${meta.serial_number}`);
+  return lines;
+}
+
 async function refreshConnectedDevicePanel() {
   const status = await api().get_connection_status();
   const pill = document.getElementById('conn-device-status');
@@ -2404,16 +2478,7 @@ async function refreshConnectedDevicePanel() {
   if (status.connected) {
     pill.textContent = '\u25cf Connected';
     pill.className = 'conn-status-pill connected';
-    const meta = status.device_metadata || {};
-    const lines = [];
-    if (status.port) lines.push(`Port: ${status.port}`);
-    if (status.baud) lines.push(`Baud: ${status.baud}`);
-    if (meta.device) lines.push(`Device: ${meta.device}`);
-    if (meta.board) lines.push(`Board: ${meta.board}`);
-    if (meta.firmware) lines.push(`Firmware: ${meta.firmware}`);
-    if (meta.protocol !== undefined && meta.protocol !== null) lines.push(`Protocol: ${meta.protocol}`);
-    if (meta.sensor) lines.push(`Sensor: ${meta.sensor}`);
-    if (meta.serial_number) lines.push(`Serial Number: ${meta.serial_number}`);
+    const lines = formatDeviceStatusLines(status);
     detail.textContent = lines.length ? lines.join('\n') : 'Connected, but the device hasn\u2019t reported its metadata yet.';
   } else {
     pill.textContent = '\u25cf Disconnected';
