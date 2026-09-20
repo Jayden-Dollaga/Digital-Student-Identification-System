@@ -125,7 +125,7 @@ Back up the database before schema changes or upgrades.
 
 Because attendance rows reference student fingerprint IDs, student deletion must be coordinated with attendance retention behavior in the application.
 
-Device deletion and local record deletion are separate operations: the v3 UI sends a device delete command and updates the local profile only after the device reports successful deletion.
+Device deletion and local record deletion are coordinated operations. The v3 UI sends a device delete command and removes the local profile only after the device reports successful deletion. Before deleting the student row, the database updates that student's existing attendance rows to reserved `fingerprint_id = 0`, preserving the attendance history while marking the historical owner as `Unregistered`.
 
 ## Backups
 
