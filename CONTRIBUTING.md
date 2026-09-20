@@ -11,16 +11,19 @@
 
 Use an imperative subject with a simple category when useful, for example `Docs: clarify CP210x setup` or `Fix: handle serial reconnect`. Keep each commit focused and explain behavior changes in the body when the subject is not sufficient.
 
-Documentation changes should update the relevant changelog entry. Do not rewrite published history; amend only a local, unpublished commit before opening a pull request.
+Documentation changes should update the relevant changelog entry. Keep `docs/INDEX.md`, `docs/Documentation-Inventory.md`, and the nearest technical/user guide synchronized when reorganizing documentation. Do not rewrite published history; amend only a local, unpublished commit before opening a pull request.
 
 ## Validation
 
 Before opening a pull request:
 
 ```powershell
-python -m pytest
+python -m pytest -q
 python -m compileall python
+node --check python/gui_web/web/app.js
 ```
+
+For documentation-only changes, still verify links/paths and update the nearest Current documentation. For firmware or hardware changes, the physical validation checklist below is required when hardware is available.
 
 For hardware changes, also record the ESP32 board, USB bridge, sensor module revision, firmware sketch, and whether the host handshake succeeded at 115200 baud. The internal AS608 UART is 57600 baud and is not a host setting.
 
