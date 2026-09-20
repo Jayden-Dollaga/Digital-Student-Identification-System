@@ -37,6 +37,7 @@ from core import commands as cmds
 from core import database as db
 from core import auth
 from core import attendance_calendar
+from core import setup_wizard
 from core import permissions
 from core.attendance import AttendanceProcessor
 from core.attendance_status import calculate_attendance_status
@@ -1381,6 +1382,8 @@ class Api:
         settings = dict(settings)
         settings.pop("auth", None)
         settings["current_role"] = permissions.get_current_role()
+        if "school_name" in settings:
+            settings["school_name"] = str(settings.get("school_name") or "").strip()[:100]
         settings.update({
             "cooldown": cooldown,
             "min_confidence": confidence,
@@ -1462,6 +1465,73 @@ class Api:
         # making them "log in" again to a password they entered 2 seconds ago.
         permissions.set_session_role("admin", self._session_timeout_seconds)
         return {"ok": True, **self.get_session_state()}
+
+    def get_setup_wizard_step(self) -> Dict[str, Any]:
+        """Router: which first-run wizard step (if any) should show right now.
+
+        Called on every boot. Returns {"step": "password"|"device"|
+        "schedule"|"branding"|None}. None means the wizard is fully done and
+        the app should go straight to the Dashboard, same as any normal
+        launch after today.
+        """
+        settings = load_settings()
+        step = setup_wizard.get_next_step(settings, has_password=auth.has_password_set(settings))
+        return {"step": step}
+
+    def complete_setup_device_step(self, connected: bool = False) -> Dict[str, Any]:
+        """Mark the device-connection wizard step done.
+
+        `connected` is only for the setup log / future analytics - either a
+        real connection or an explicit "I'll connect it later" click
+        completes this step identically, since the wizard shouldn't be able
+        to hard-block someone who doesn't have hardware on hand yet.
+        """
+        if permissions.get_current_role() != "admin":
+            return {"ok": False, "message": "Administrator session required."}
+        settings = load_settings()
+        settings["setup_device_step_done"] = True
+        save_settings(settings)
+        log.info(f"Setup wizard: device step completed (connected={bool(connected)})")
+        return {"ok": True}
+
+    def complete_setup_schedule_step(
+        self,
+        time_in: str,
+        time_out: str,
+        early_threshold_minutes: int = 15,
+        late_threshold_minutes: int = 15,
+        absent_threshold_minutes: int = 0,
+    ) -> Dict[str, Any]:
+        if permissions.get_current_role() != "admin":
+            return {"ok": False, "message": "Administrator session required."}
+        # Delegate to the existing, already-tested save_ui_settings
+        # validation/apply logic rather than re-implementing HH:MM parsing
+        # and threshold clamping a second time.
+        result = self.save_ui_settings({
+            "time_in": time_in,
+            "time_out": time_out,
+            "early_threshold_minutes": early_threshold_minutes,
+            "late_threshold_minutes": late_threshold_minutes,
+            "absent_threshold_minutes": absent_threshold_minutes,
+        })
+        if not result.get("ok"):
+            return result
+        settings = load_settings()
+        settings["setup_schedule_step_done"] = True
+        save_settings(settings)
+        return {"ok": True}
+
+    def complete_setup_branding_step(self, school_name: str = "", theme: str = "dark") -> Dict[str, Any]:
+        if permissions.get_current_role() != "admin":
+            return {"ok": False, "message": "Administrator session required."}
+        if theme not in ("dark", "light"):
+            return {"ok": False, "message": "Invalid theme."}
+        settings = load_settings()
+        settings["school_name"] = (school_name or "").strip()[:100]
+        settings["theme"] = theme
+        settings["setup_branding_step_done"] = True
+        save_settings(settings)
+        return {"ok": True}
 
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
         if role not in CONFIG.user_roles:

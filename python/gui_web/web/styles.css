@@ -380,6 +380,8 @@
     white-space: nowrap;
   }
   .hdr-btn:hover { background: var(--border2); }
+  .hdr-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .hdr-btn:disabled:hover { background: var(--surface2); }
   .hdr-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .hdr-btn.primary:hover { background: var(--accent-d); border-color: var(--accent-d); }
   .hdr-btn.danger { background: #7F1D1D; border-color: #991B1B; color: #FCA5A5; }
@@ -701,6 +703,8 @@
   }
   .modal-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
   .modal-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .modal-step-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .setup-status-line { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
   .modal-field { margin-bottom: 10px; }
   .modal-field label { display: block; font-size: 11px; color: var(--muted2); margin-bottom: 4px; }
   .modal-field input {

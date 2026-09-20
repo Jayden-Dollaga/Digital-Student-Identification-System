@@ -22,7 +22,7 @@
       <path d="M11 6a5 5 0 0 1 5 5" stroke="var(--logo-accent)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
     </svg>
     <span class="logo-text">DSIS</span>
-    <span class="logo-sub">Digital Student Identification System</span>
+    <span class="logo-sub" id="logo-sub-text">Digital Student Identification System</span>
   </div>
   <div class="tb-spacer"></div>
   <select id="titlebar-role" class="tb-role-badge role-guest" title="Active user role" onchange="requestRoleChange(this.value)">
@@ -406,7 +406,7 @@
                 <span class="conn-card-title">Connected Device</span>
                 <span class="conn-status-pill" id="conn-device-status">\u25cf Disconnected</span>
               </div>
-              <div class="conn-detail" id="conn-device-detail">No device connected yet. Connect from the top bar \u2014 this panel will fill in automatically once a device responds.</div>
+              <div class="conn-detail" id="conn-device-detail">No device connected yet. Connect from the top bar — this panel will fill in automatically once a device responds.</div>
 
               <div class="conn-divider"></div>
 
@@ -440,12 +440,16 @@
                 <div class="toggle-switch" id="set-auto-detect" onclick="this.classList.toggle('on')"></div>
               </div>
 
-              <div class="conn-hint">Only needed if auto-discovery can't find your device. Otherwise leave this alone \u2014 the app finds the ESP32 on its own and the panel above will show it once connected.</div>
+              <div class="conn-hint">Only needed if auto-discovery can't find your device. Otherwise leave this alone — the app finds the ESP32 on its own and the panel above will show it once connected.</div>
             </div>
           </div>
 
           <div class="settings-group">
             <div class="settings-group-title">Appearance</div>
+            <div class="settings-row">
+              <span class="settings-row-label">School name</span>
+              <input class="settings-text-input" id="set-school-name" type="text" maxlength="100" style="max-width:220px;" placeholder="e.g. Naic National High School">
+            </div>
             <div class="settings-row">
               <span class="settings-row-label">Theme</span>
               <select class="settings-text-input" id="set-theme" style="max-width:160px;" onchange="applyTheme(this.value)">
@@ -644,6 +648,76 @@
     <div id="first-run-setup-error" class="auth-error" role="alert"></div>
     <div class="modal-actions">
       <button class="hdr-btn primary" type="button" onclick="submitFirstRunSetup()">Create administrator account</button>
+    </div>
+  </div>
+</div>
+
+<div id="setup-device-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-device-title">
+    <div class="modal-step-label">Step 2 of 4</div>
+    <div class="modal-title" id="setup-device-title">Connect your device</div>
+    <div class="modal-sub">Connect the ESP32 fingerprint scanner now, or skip this and connect it later from the top bar.</div>
+    <div id="setup-device-status" class="setup-status-line">Not connected yet.</div>
+    <div class="modal-actions" style="justify-content:flex-start;margin-bottom:14px;">
+      <button class="hdr-btn" type="button" onclick="setupDeviceConnectClick()">Connect</button>
+    </div>
+    <div class="modal-actions">
+      <button class="hdr-btn primary" type="button" id="setup-device-continue-btn" onclick="completeSetupDeviceStep()">Skip — I'll connect it later</button>
+    </div>
+  </div>
+</div>
+
+<div id="setup-schedule-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-schedule-title">
+    <div class="modal-step-label">Step 3 of 4</div>
+    <div class="modal-title" id="setup-schedule-title">Set your school schedule</div>
+    <div class="modal-sub">Used to flag scans as Present, Late, Early, or Absent. You can change this anytime in Settings.</div>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;">
+        <label class="settings-row-label" for="setup-time-in">Time in</label>
+        <input id="setup-time-in" class="settings-text-input" type="time" value="08:00">
+      </div>
+      <div style="flex:1;">
+        <label class="settings-row-label" for="setup-time-out">Time out</label>
+        <input id="setup-time-out" class="settings-text-input" type="time" value="17:00">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <div style="flex:1;">
+        <label class="settings-row-label" for="setup-early-threshold">Early if before (min)</label>
+        <input id="setup-early-threshold" class="settings-text-input" type="number" min="0" max="120" value="15">
+      </div>
+      <div style="flex:1;">
+        <label class="settings-row-label" for="setup-late-threshold">Late if after (min)</label>
+        <input id="setup-late-threshold" class="settings-text-input" type="number" min="0" max="120" value="15">
+      </div>
+      <div style="flex:1;">
+        <label class="settings-row-label" for="setup-absent-threshold">Absent if after (min, 0=off)</label>
+        <input id="setup-absent-threshold" class="settings-text-input" type="number" min="0" max="120" value="0">
+      </div>
+    </div>
+    <div id="setup-schedule-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn primary" type="button" onclick="completeSetupScheduleStep()">Continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="setup-branding-modal" class="modal-overlay" hidden>
+  <div class="modal-card auth-modal" role="dialog" aria-modal="true" aria-labelledby="setup-branding-title">
+    <div class="modal-step-label">Step 4 of 4</div>
+    <div class="modal-title" id="setup-branding-title">Customize your setup</div>
+    <div class="modal-sub">This is shown in the sidebar and header. You can change it anytime in Settings.</div>
+    <label class="settings-row-label" for="setup-school-name">School name (optional)</label>
+    <input id="setup-school-name" class="settings-text-input" type="text" maxlength="100" placeholder="e.g. Naic National High School">
+    <label class="settings-row-label" style="margin-top:10px;display:block;">Theme</label>
+    <div class="cal-type-options" style="flex-direction:row;gap:16px;">
+      <label class="cal-type-option"><input type="radio" name="setup-theme" value="dark" checked> Dark</label>
+      <label class="cal-type-option"><input type="radio" name="setup-theme" value="light"> Light</label>
+    </div>
+    <div id="setup-branding-error" class="auth-error" role="alert"></div>
+    <div class="modal-actions">
+      <button class="hdr-btn primary" type="button" onclick="completeSetupBrandingStep()">Finish setup</button>
     </div>
   </div>
 </div>

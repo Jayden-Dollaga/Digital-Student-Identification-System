@@ -9,6 +9,7 @@ const PAGE_TITLES = {
 };
 
 let connected = false;
+let connectAttemptInFlight = false;
 let scanning = false;
 let selectedStudent = null;
 const selectedStudentIds = new Set();
@@ -176,7 +177,103 @@ async function submitFirstRunSetup() {
     return;
   }
   document.getElementById('first-run-setup-modal').hidden = true;
-  applySessionState(result);
+  runSetupWizardRouter();
+}
+
+// Single router used both at boot and after each wizard step completes -
+// asks the backend which step (if any) is still outstanding and shows it,
+// or falls through to the normal app state once nothing is left.
+async function runSetupWizardRouter() {
+  const result = await api().get_setup_wizard_step();
+  if (result.step === 'password') { openFirstRunSetupModal(); return; }
+  if (result.step === 'device') { openSetupDeviceStep(); return; }
+  if (result.step === 'schedule') { openSetupScheduleStep(); return; }
+  if (result.step === 'branding') { openSetupBrandingStep(); return; }
+  const session = await api().get_session_state();
+  currentRole = session.role || 'guest';
+  applySessionState(session);
+}
+
+function openSetupDeviceStep() {
+  const modal = document.getElementById('setup-device-modal');
+  if (!modal) return;
+  updateSetupDeviceStatus();
+  modal.hidden = false;
+}
+
+async function setupDeviceConnectClick() {
+  await toggleConnect();
+  updateSetupDeviceStatus();
+}
+
+function updateSetupDeviceStatus() {
+  const statusEl = document.getElementById('setup-device-status');
+  const continueBtn = document.getElementById('setup-device-continue-btn');
+  if (!statusEl || !continueBtn) return;
+  if (connected) {
+    statusEl.textContent = 'Connected.';
+    statusEl.style.color = 'var(--green)';
+    continueBtn.textContent = 'Continue';
+  } else {
+    statusEl.textContent = 'Not connected yet.';
+    statusEl.style.color = 'var(--muted)';
+    continueBtn.textContent = "Skip \u2014 I'll connect it later";
+  }
+}
+
+async function completeSetupDeviceStep() {
+  await api().complete_setup_device_step(connected);
+  document.getElementById('setup-device-modal').hidden = true;
+  runSetupWizardRouter();
+}
+
+function openSetupScheduleStep() {
+  const modal = document.getElementById('setup-schedule-modal');
+  if (!modal) return;
+  document.getElementById('setup-schedule-error').textContent = '';
+  modal.hidden = false;
+}
+
+async function completeSetupScheduleStep() {
+  const timeIn = document.getElementById('setup-time-in').value;
+  const timeOut = document.getElementById('setup-time-out').value;
+  const early = Number(document.getElementById('setup-early-threshold').value || 15);
+  const late = Number(document.getElementById('setup-late-threshold').value || 15);
+  const absent = Number(document.getElementById('setup-absent-threshold').value || 0);
+  const error = document.getElementById('setup-schedule-error');
+  if (!timeIn || !timeOut) {
+    error.textContent = 'Time in and time out are required.';
+    return;
+  }
+  const result = await api().complete_setup_schedule_step(timeIn, timeOut, early, late, absent);
+  if (!result.ok) {
+    error.textContent = result.message || 'Could not save the schedule.';
+    return;
+  }
+  document.getElementById('setup-schedule-modal').hidden = true;
+  runSetupWizardRouter();
+}
+
+function openSetupBrandingStep() {
+  const modal = document.getElementById('setup-branding-modal');
+  if (!modal) return;
+  document.getElementById('setup-branding-error').textContent = '';
+  modal.hidden = false;
+}
+
+async function completeSetupBrandingStep() {
+  const schoolName = document.getElementById('setup-school-name').value;
+  const themeChoice = document.querySelector('input[name="setup-theme"]:checked');
+  const theme = themeChoice ? themeChoice.value : 'dark';
+  const result = await api().complete_setup_branding_step(schoolName, theme);
+  if (!result.ok) {
+    document.getElementById('setup-branding-error').textContent = result.message || 'Could not save.';
+    return;
+  }
+  applyTheme(theme);
+  applySchoolName(schoolName);
+  document.getElementById('setup-branding-modal').hidden = true;
+  runSetupWizardRouter();
 }
 
 document.addEventListener('keydown', event => {
@@ -293,6 +390,11 @@ function applyCompact(value) {
   const settingsToggle = document.getElementById('settings-compact-toggle');
   if (settingsToggle) settingsToggle.classList.toggle('on', compact);
 }
+function applySchoolName(name) {
+  const el = document.getElementById('logo-sub-text');
+  if (!el) return;
+  el.textContent = (name && name.trim()) ? name.trim() : 'Digital Student Identification System';
+}
 function toggleCompact() {
   applyCompact(!compact);
 }
@@ -344,23 +446,31 @@ function setStatus(state) {
 
 async function toggleConnect() {
   if (!api()) return;
+  if (connectAttemptInFlight) return; // a discovery pass is already running - don't start a second one on top of it
   if (!connected) {
-    const settings = await api().get_settings();
-    const port = (settings.com_port || '').trim();
-    const baud = Number(settings.baud_rate || 0);
-    const autoDetect = !!settings.auto_detect_serial;
-    const res = await api().connect(port, baud, autoDetect);
-    if (res.connected) {
-      connected = true;
-      setStatus('connected');
-      const meta = res.device_metadata || {};
-      document.getElementById('device-info').textContent =
-        `${res.port || '?'} \u00b7 ${res.baud || '?'} baud` + (meta.type ? ` \u00b7 ${meta.type}` : '');
-      document.getElementById('sb-device').innerHTML = `<span>${escapeHtml(res.port || '?')} \u00b7 ${escapeHtml(res.baud || '?')} baud</span>`;
-      smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
-    } else {
-      alert('Could not connect: ' + res.message);
-      showSerialTroubleshooting('connect_failed');
+    connectAttemptInFlight = true;
+    setConnectButtonsBusy(true);
+    try {
+      const settings = await api().get_settings();
+      const port = (settings.com_port || '').trim();
+      const baud = Number(settings.baud_rate || 0);
+      const autoDetect = !!settings.auto_detect_serial;
+      const res = await api().connect(port, baud, autoDetect);
+      if (res.connected) {
+        connected = true;
+        setStatus('connected');
+        const meta = res.device_metadata || {};
+        document.getElementById('device-info').textContent =
+          `${res.port || '?'} \u00b7 ${res.baud || '?'} baud` + (meta.type ? ` \u00b7 ${meta.type}` : '');
+        document.getElementById('sb-device').innerHTML = `<span>${escapeHtml(res.port || '?')} \u00b7 ${escapeHtml(res.baud || '?')} baud</span>`;
+        smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
+      } else {
+        alert('Could not connect: ' + res.message);
+        showSerialTroubleshooting('connect_failed');
+      }
+    } finally {
+      connectAttemptInFlight = false;
+      setConnectButtonsBusy(false);
     }
   } else {
     await api().disconnect();
@@ -370,6 +480,29 @@ async function toggleConnect() {
     smAppend('--- Serial port closed ---', 'serial-sys');
   }
   refreshConnectedDevicePanel();
+}
+
+// Disables every "Connect" entry point (top bar + wizard device step) while
+// a connection attempt is running, and shows a "Connecting..." label.
+// ESP32 discovery probes multiple COM ports in sequence with multi-second
+// timeouts each, so a full pass can easily take 10-20+ seconds - without
+// this, a first-time user re-clicking "Connect" out of impatience spawns a
+// second discovery thread on top of the first, they fight over the same
+// serial ports, and NEITHER ever completes. (Confirmed: this exact failure
+// mode showed up in real logs - six overlapping connect() calls, zero of
+// them ever finishing.)
+function setConnectButtonsBusy(busy) {
+  const topBarBtn = document.getElementById('connect-btn');
+  if (topBarBtn) {
+    topBarBtn.disabled = busy;
+    if (busy) topBarBtn.dataset.prevLabel = topBarBtn.textContent;
+    topBarBtn.textContent = busy ? 'Connecting\u2026' : (topBarBtn.dataset.prevLabel || 'Connect');
+  }
+  const wizardBtn = document.querySelector('#setup-device-modal button[onclick="setupDeviceConnectClick()"]');
+  if (wizardBtn) {
+    wizardBtn.disabled = busy;
+    wizardBtn.textContent = busy ? 'Connecting\u2026' : 'Connect';
+  }
 }
 
 async function showSerialTroubleshooting(reason = 'manual') {
@@ -2214,6 +2347,7 @@ async function loadSettingsPage() {
   document.getElementById('set-auto-detect').classList.toggle('on', !!s.auto_detect_serial);
   applyTheme(s.theme);
   applyCompact(!!s.compact_sidebar);
+  document.getElementById('set-school-name').value = s.school_name || '';
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
   const session = await api().get_session_state();
@@ -2316,6 +2450,7 @@ async function saveSettings(silent = false) {
     com_port: document.getElementById('set-port-override').value.trim(),
     baud_rate: parseInt(document.getElementById('set-baud-rate-select').value, 10),
     theme: document.getElementById('set-theme').value,
+    school_name: document.getElementById('set-school-name').value.trim(),
     auto_reconnect: document.getElementById('set-auto-reconnect').classList.contains('on'),
     auto_detect_serial: document.getElementById('set-auto-detect').classList.contains('on'),
     compact_sidebar: document.getElementById('settings-compact-toggle').classList.contains('on'),
@@ -2341,6 +2476,7 @@ async function saveSettings(silent = false) {
   }
   applyCompact(payload.compact_sidebar);
   applyTheme(payload.theme);
+  applySchoolName(payload.school_name);
   if (status) status.textContent = 'All changes saved';
 }
 
@@ -2413,17 +2549,9 @@ whenApiReady(() => {
   api().get_settings().then(s => {
     applyTheme(s.theme);
     applyCompact(!!s.compact_sidebar);
+    applySchoolName(s.school_name);
   });
-  api().is_first_run_setup_required().then(status => {
-    if (status.required) {
-      openFirstRunSetupModal();
-      return; // don't bother resolving a role yet - there's nothing to log into
-    }
-    api().get_current_role().then(role => {
-      currentRole = role || 'guest';
-      api().get_session_state().then(applySessionState);
-    });
-  });
+  runSetupWizardRouter();
   sessionTouchTimer = setInterval(async () => {
     const state = await api().get_session_state();
     if (state.role !== currentRole) {

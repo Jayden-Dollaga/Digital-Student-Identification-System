@@ -56,6 +56,23 @@ def default_settings() -> Dict[str, Any]:
         #   "2026-08-30": {"type": "half_day", "label": "Foundation Day",
         #                   "time_in": "07:00", "time_out": "12:00"}
         "school_calendar": {},
+        # Display name shown in the sidebar/header instead of the generic
+        # "DSIS" label. Empty string = not yet set (first-run wizard step 4).
+        "school_name": "",
+        # First-run setup wizard progress. Password (step 1) isn't tracked
+        # here - its own existence (auth.has_password_set) is the signal for
+        # that step. These three track the REMAINING steps so the router
+        # (Api.get_first_run_setup_status) knows exactly where to resume if
+        # the app is closed mid-wizard, instead of restarting from step 1
+        # every time.
+        #   device_step_done: user either connected successfully, or
+        #     explicitly clicked "I'll connect it later"
+        #   schedule_step_done: user confirmed or adjusted the school
+        #     schedule on the wizard's schedule step
+        #   branding_step_done: user confirmed theme + school_name
+        "setup_device_step_done": False,
+        "setup_schedule_step_done": False,
+        "setup_branding_step_done": False,
     }
 
 
