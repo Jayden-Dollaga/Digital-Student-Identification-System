@@ -382,6 +382,13 @@ def test_v3_all_students_export_uses_attendance_date(monkeypatch):
         "time_in": "08:00", "time_out": "17:00",
         "early_threshold_minutes": 15, "late_threshold_minutes": 15,
         "absent_threshold_minutes": 60,
+        "school_calendar": {
+            "2026-09-19": {
+                "type": "half_day",
+                "time_in": "13:00",
+                "time_out": "17:00",
+            }
+        },
     })
     monkeypatch.setattr("gui_web.api.db.get_all_students", lambda: [
         {
@@ -406,7 +413,7 @@ def test_v3_all_students_export_uses_attendance_date(monkeypatch):
 
     assert result == {"ok": True}
     exported = api._rows_to_csv.call_args.args[0][0]
-    assert exported["attendance_status"] == "Absent"
+    assert exported["attendance_status"] == "Early"
 
 
 def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
@@ -444,6 +451,17 @@ def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
 
     api = Api()
     monkeypatch.setattr("gui_web.api.permissions.require_role", lambda required_role: True)
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "time_in": "08:00",
+        "time_out": "17:00",
+        "cooldown": 10,
+        "min_confidence": 96,
+        "auto_backup_interval_minutes": 25,
+        "early_threshold_minutes": 15,
+        "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 0,
+    })
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: None)
     result = api.save_ui_settings({
         "time_in": "17:00",
         "time_out": "08:00",
