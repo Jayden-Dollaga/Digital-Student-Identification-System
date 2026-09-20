@@ -1,50 +1,124 @@
-# Testing Results
+# DSIS Testing and Validation
 
-The latest full test run was executed against HEAD `d3fb362` on 2026-09-16 with Python 3.14.6:
+This document records the current documented validation state. Test results are point-in-time evidence; source code and active tests remain authoritative when behavior changes.
 
-- 233 tests passed
-- 3 tests were skipped
-- 1 test failed
+## Latest documented full run
 
-The passing suite covers database, security, serial, Qt-reference, webview smoke, permissions, enrollment, reporting, and UI behavior.
+The latest documented full repository test run in this file was executed against HEAD `d3fb362` on 2026-09-16 with Python 3.14.6:
 
-## Known test mismatch
+| Result | Count |
+| --- | ---: |
+| Passed | 233 |
+| Skipped | 3 |
+| Failed | 1 |
 
-`test_v3_today_export_uses_visible_fallback_rows` expects the exported attendance status `Present`, while the current implementation returns the more specific status `Early` for the fixture. This is an implementation/test-contract mismatch, not a documentation failure. Resolve it by aligning the test expectation and product status contract before treating the suite as fully green.
+The failing test was an attendance-export contract mismatch: `test_v3_today_export_uses_visible_fallback_rows` expects `Present`, while the current implementation returns the more specific `Early` status for that fixture.
 
-## Test-process caveat
+Until that test and product contract are aligned, this documented run should not be described as fully green.
 
-The Windows process exits with status `-1073740791` after pytest reports completion. This appears to occur during GUI/Qt teardown rather than during a test assertion. CI should continue investigating the non-zero post-test process exit.
+## Documented hardware validation
 
-## Run the tests
+A physical ESP32/AS608 validation was recorded on 2026-09-09 using COM4. The test device identified itself as DSIS / ESP32 / AS608 with protocol 1.
 
-From the repository root:
+Documented checks included:
+
+- serial auto-discovery;
+- device connection;
+- fingerprint-count traffic;
+- scan-mode entry/exit;
+- enrollment cancellation;
+- disconnect handling;
+- empty-device wipe;
+- deletion of an absent fingerprint ID.
+
+These checks do not substitute for testing successful enrollment or successful attendance with a real fingerprint placed on the sensor.
+
+## Firmware validation note
+
+The maintained firmware validates a fingerprint template with `loadModel()` before `deleteModel()` so an absent fingerprint slot is less likely to be reported as a successful delete.
+
+## Recommended software validation
 
 ```powershell
-python -m pytest -q --disable-warnings
+python -m pytest -q
+python -m compileall python
+node --check python/gui_web/web/app.js
 ```
 
-For the webview-specific smoke tests:
+## Targeted test groups
 
 ```powershell
 python -m pytest tests/test_gui_web_smoke.py
+python -m pytest tests/test_permissions_and_attendance_tagging.py
+python -m pytest tests/test_database_features.py tests/test_database_reset.py tests/test_database_security.py
 ```
+
+## Guarded hardware smoke test
+
+```powershell
+$env:DSIS_RUN_HARDWARE = "1"
+$env:PYTHONPATH = "$PWD\python"
+python -m pytest -q tests/physical_esp32_smoke.py
+```
+
+Run hardware tests only against an approved test device/data set. Do not perform destructive checks against production fingerprint templates or student records.
 
 ## Manual v3 acceptance
 
-The maintained interface is launched with `run_web_gui.bat` or `python run_web_gui.py`. With an ESP32 and AS608 connected, verify:
+### Connection
 
-1. Connect and confirm the port, baud rate, device metadata, and fingerprint count.
-2. Start and stop scanning and confirm the device mode and scan button agree.
-3. Scan a registered fingerprint and confirm the attendance row and dashboard count update.
-4. Scan an unknown fingerprint and confirm it is shown as `Unregistered` and persisted through reserved `fingerprint_id = 0`.
-5. Open Attendance Evaluation, switch between day, week, and month, and confirm rates use observed attendance dates rather than every calendar day.
-6. Export the selected evaluation as CSV and confirm the output contains student, presence, absence, rate, and category columns.
-7. Start, cancel, and complete enrollment; save the student only after device success is reported.
-8. Delete a student and confirm the local profile is removed only after device deletion succeeds.
-9. Wipe device fingerprints and confirm the device count reaches zero while student records remain.
-10. Disconnect and reconnect and confirm pending operations clear and the count refreshes.
+- ESP32 appears as a Windows serial device;
+- DSIS discovers or opens the intended port;
+- `ID?` returns valid DSIS metadata;
+- fingerprint count is reported.
 
-Prototype and archived Qt/CustomTkinter tests do not replace hardware validation. Physical ESP32 behavior still requires the documented board, sensor wiring, USB driver, and a connected device.
+### Scan
 
-Last reviewed: 2026-09-16, against commit `d3fb362`.
+- SCAN enters scan mode;
+- registered fingerprint events reach the application;
+- confidence is displayed/classified correctly;
+- repeated scans are subject to firmware and application cooldown;
+- unknown scans use reserved ID 0 / `Unregistered`.
+
+### Enrollment
+
+- valid student fields are accepted;
+- enrollment captures two fingerprint images;
+- mismatched captures fail;
+- cancellation returns to command mode;
+- the student profile is saved only after device success.
+
+### Delete
+
+- delete requires the correct permission;
+- `DELETE:<id>` is sent to the device;
+- local profile deletion follows confirmed device success;
+- failed device deletion does not silently remove the local profile.
+
+### Wipe
+
+- create a backup first;
+- device `WIPE` is confirmed;
+- linked local student/attendance cleanup is confirmed;
+- fingerprint count refreshes;
+- partial hardware/local cleanup failure is surfaced.
+
+### Evaluation and reports
+
+- day/week/month evaluation loads;
+- distinct attendance dates are counted;
+- category bands match the current UI;
+- sorting works;
+- authorized CSV export succeeds and contains the expected columns.
+
+## Known test-process caveat
+
+The historical documented run reported Windows process exit status `-1073740791` after pytest output, attributed in the existing notes to GUI/Qt teardown rather than an assertion failure. This should be retested against current HEAD before being treated as a current failure.
+
+## Test scope boundaries
+
+Software-only tests can verify parsing, permissions, database behavior, API contracts, and frontend syntax. They cannot prove physical fingerprint capture, sensor power stability, USB signal quality, or real template matching.
+
+Legacy v1/v2 tests are retained for historical/reference coverage and do not establish that the v3 launcher is correct.
+
+Last reviewed: 2026-09-20.
