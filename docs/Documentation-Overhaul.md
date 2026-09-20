@@ -96,6 +96,8 @@ The current documentation set explains:
 - Administrator, teacher, and guest local action gating, with the limitation that roles are not authentication.
 - Dedicated `attendance_evaluation` permission for Administrator, Teacher, and Guest roles; the visible v3 Lock button was removed.
 - Secure first-run administrator password setup, hashed password storage, password-based role elevation, and 600-second in-memory idle sessions.
+- First-run setup wizard with password, device, schedule, and branding steps that resumes from persisted completion flags.
+- First-run setup is implemented by `python/core/setup_wizard.py`, routed through the v3 API, and rendered in the web UI before Dashboard access.
 - v1/v2/v3 architecture and the pywebview JavaScript-to-Python event bridge.
 - Build cleanup in `d3fb362`, `.venv` installation behavior, `Build/DSIS_v3.spec`, and `Build/DSIS_v3` output.
 - Build artifact preservation in `64d80c9`, including v2/v3 packaged outputs, PyInstaller analysis files, and `Documentation-Overhaul.md`.
@@ -111,4 +113,4 @@ The current documentation set explains:
 - Generated reports should be regenerated only after their generators are made reproducible.
 - The current v3 refactor removed some symbols expected by older web smoke tests; tests and implementation need a deliberate contract decision.
 
-Last reviewed: 2026-09-19, against commit `3f42ccc`.
+Last reviewed: 2026-09-20, against commit `4ef82ea`.

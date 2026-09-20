@@ -1,6 +1,6 @@
 # DSIS Documentation Inventory
 
-This file is the complete Markdown documentation inventory for commit `3f42ccc` (2026-09-19). Every Markdown file in the repository is classified below so reviewers can distinguish current guidance from historical, generated, research, duplicate, cache, and reference material.
+This file is the complete Markdown documentation inventory for commit `4ef82ea` (2026-09-20). Every Markdown file in the repository is classified below so reviewers can distinguish current guidance from historical, generated, research, duplicate, cache, and reference material.
 
 ## Classification rules
 
@@ -30,6 +30,7 @@ When documents conflict, prefer current source code and tests, then Current docu
 - `docs/Documentation-Overhaul.md` — Reorganization manifest and source-of-truth summary.
 - `docs/Documentation-Inventory.md` — This complete file-by-file classification.
 - `docs/Architecture/v3-system.md` — Authoritative v3 architecture, bridge, flow, synchronization, permissions, and data behavior.
+- `python/core/setup_wizard.py` — Current first-run setup decision flow for password, device, schedule, and branding steps.
 - `docs/Architecture/system-architecture.md` — Layered architecture reference, updated to v3.
 - `docs/Architecture/software-flow.md` — Runtime, enrollment, scanning, backup, permissions, and evaluation flow.
 - `docs/Architecture/database-schema.md` — SQLite schema, foreign keys, event types, and reserved unknown-scan row.
@@ -123,4 +124,4 @@ These files are generated or point-in-time audits. Their paths, test counts, UI 
 
 The implementation audit also covered module docstrings, build comments, firmware comments, and API comments. Current source documentation is concentrated in `python/gui_web/api.py`, `python/gui_web/main_web.py`, `python/core/`, `python/config.py`, `python/settings_store.py`, `Build/DSIS_v3.spec`, and the maintained firmware sketch. Archived v1/v2 source comments remain historical by design.
 
-Last reviewed: 2026-09-19, against commit `3f42ccc`.
+Last reviewed: 2026-09-20, against commit `4ef82ea`.

@@ -2,6 +2,17 @@
 
 This guide describes the maintained HTML/pywebview application. Start it with `run_web_gui.bat` or `python run_web_gui.py` from the repository root.
 
+## First-run setup wizard
+
+The first launch presents a setup wizard before the normal Dashboard. It resumes at the first incomplete step:
+
+1. **Password**: create the initial administrator password. Password completion is determined by the stored password hash, not by a separate completion flag.
+2. **Device**: select or auto-detect the ESP32 and validate the DSIS handshake.
+3. **Schedule**: configure the attendance schedule and thresholds used by the v3 attendance presentation.
+4. **Branding**: configure the school/application branding values used by the interface.
+
+Steps 2-4 are saved individually in `settings.json`, so closing the application resumes the wizard at the unfinished step. The wizard must complete before normal Dashboard use.
+
 ## Connect the device
 
 1. Connect the ESP32 with a data-capable USB cable.

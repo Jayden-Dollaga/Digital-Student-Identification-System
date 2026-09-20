@@ -44,8 +44,8 @@ The frontend in `python/gui_web/web/app.js` calls methods such as `connect`, `di
 1. `run_web_gui.py` adds the Python paths and calls `gui_web.main_web.main()`.
 2. `main_web.py` creates the pywebview window and `Api` object.
 3. `Api` creates `SerialHandler` and `AttendanceProcessor`, initializes the database, applies saved settings, attaches live logging, and starts the automatic-backup loop.
-4. The web page becomes ready and loads settings, dashboard data, role state, ports, and current connection status.
-5. The operator clicks **Connect**. The API asks `SerialHandler` to use the saved/manual port or auto-detect.
+4. The web page checks the first-run setup router. If incomplete, it shows password, device, schedule, and branding steps in order; otherwise it loads settings, dashboard data, role state, ports, and connection status.
+5. The operator completes setup or clicks **Connect**. The API asks `SerialHandler` to use the saved/manual port or auto-detect.
 6. Device discovery validates the DSIS identity handshake before the connection is adopted.
 7. A background reader receives complete serial lines. API parsers update the web UI through event pushes.
 8. Database changes trigger page refreshes. A successful scan refreshes the current attendance evaluation window without changing its selected period.
