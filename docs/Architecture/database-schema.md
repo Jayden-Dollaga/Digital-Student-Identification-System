@@ -1,14 +1,32 @@
-# Database Schema
+# DSIS SQLite Database Schema
 
 ## Overview
 
-The application uses SQLite as its local persistence layer. The schema is intentionally simple so that attendance events and student records can be reviewed quickly without requiring a separate database server.
+DSIS uses a local SQLite database as the system of record for student profiles and attendance events.
 
-## Tables
+The active implementation is `python/core/database.py`.
 
-### students
+The database is created automatically when needed. Connections enable SQLite foreign-key enforcement and use a 30-second connection timeout.
 
-The students table stores the main enrollment profile for each person.
+Default path:
+
+```text
+data/attendance.db
+```
+
+## Entity model
+
+```text
+students
+   │
+   │ fingerprint_id
+   │
+   └──────────────< attendance
+```
+
+A student's AS608 template ID is the link between the physical device and the local student profile.
+
+## students
 
 ```sql
 CREATE TABLE students (
@@ -22,9 +40,22 @@ CREATE TABLE students (
 );
 ```
 
-### attendance
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `fingerprint_id` | INTEGER | AS608 template slot; normal student IDs are 1-127 |
+| `student_no` | TEXT | Internal database field presented to users as **Student LRN** |
+| `student_name` | TEXT | Student's display name |
+| `grade` | TEXT | Grade/class level |
+| `section` | TEXT | Section/class identifier |
+| `enrollment_date` | TEXT | Enrollment timestamp |
+| `updated_date` | TEXT | Last profile update timestamp |
 
-The attendance table stores attendance events for enrolled students and unknown scans. The database seeds a permanent `fingerprint_id = 0` student row named `Unregistered`, allowing unknown events to satisfy the attendance foreign key.
+Indexes:
+
+- `idx_student_no` on `student_no`
+- `idx_grade_section` on (`grade`, `section`)
+
+## attendance
 
 ```sql
 CREATE TABLE attendance (
@@ -40,18 +71,90 @@ CREATE TABLE attendance (
 );
 ```
 
-## Design notes
+| Column | Meaning |
+| --- | --- |
+| `id` | Database event identifier |
+| `fingerprint_id` | Fingerprint slot associated with the scan |
+| `date` | Local calendar date |
+| `time` | Local time shown in attendance records |
+| `confidence` | AS608 match confidence supplied by the firmware |
+| `status` | Application attendance/match classification |
+| `timestamp` | Full timestamp used for event ordering |
+| `event_type` | Explicit `time_in` / `time_out` tagging where assigned |
 
-- Fingerprint ID 0 is a reserved system row for unknown or unregistered scans. It is created by `init_database()` and must not be edited or deleted as a normal student profile.
-- Unknown attendance events may be persisted with `fingerprint_id = 0` and are displayed as `Unregistered`.
-- The database is used for both operational history and reporting.
+Indexes:
 
-## Backup behavior
+- `idx_attendance_fingerprint_id`
+- `idx_attendance_date`
+- `idx_attendance_timestamp`
 
-Backups are stored as timestamped database snapshots inside the data/backups directory. This provides a simple restore path if files are deleted, corrupted, or need to be rolled back.
+## Reserved fingerprint ID 0
 
-## Data integrity considerations
+`fingerprint_id = 0` is reserved for the permanent `Unregistered` system row.
 
-- student IDs should remain unique and positive
-- attendance events should be written with valid timestamps
-- destructive actions should be used deliberately because they affect the local history store
+This row exists because the attendance table has a foreign key. Unknown scans can therefore be recorded without inventing a real student profile.
+
+Normal student-management operations must use IDs 1-127 and must not treat ID 0 as an ordinary student.
+
+## Validation
+
+The database validates:
+
+- fingerprint ID is an integer from 1 through 127 for real student records
+- student number is required, unique, and limited to supported characters
+- student name is required and supports Unicode letters plus safe punctuation
+- grade and section are required and limited to supported characters and length
+
+## Event tagging and migration
+
+Older databases may have an attendance table without `event_type`.
+
+During initialization, DSIS:
+
+1. checks the existing attendance schema;
+2. adds `event_type` when necessary;
+3. backfills missing values using fingerprint ID and date ordering;
+4. treats the first scan for a student/date as `time_in`;
+5. treats subsequent scans on that same date as `time_out`.
+
+The migration is intentionally conservative. It does not attempt to reconstruct arbitrary missing historical schema changes.
+
+Back up the database before schema changes or upgrades.
+
+## Deletion and foreign keys
+
+Because attendance rows reference student fingerprint IDs, student deletion must be coordinated with attendance retention behavior in the application.
+
+Device deletion and local record deletion are separate operations: the v3 UI sends a device delete command and updates the local profile only after the device reports successful deletion.
+
+## Backups
+
+Backup files are stored under:
+
+```text
+data/backups/
+```
+
+Restore is permission-gated and validates the selected backup path and `.db` extension before replacing the active database.
+
+A restore is a replacement of the active database, not a merge.
+
+## Reporting
+
+Reports read from the live SQLite database.
+
+Attendance Evaluation supports:
+
+- Day
+- Monday-Sunday Week
+- Calendar Month
+
+It counts distinct attendance dates for each student within the selected period.
+
+## Data safety
+
+The database is local and unencrypted at rest. Access to the Windows machine and runtime data directory should therefore be restricted appropriately.
+
+Do not commit real student records or production database files to source control.
+
+Last reviewed: 2026-09-20.
