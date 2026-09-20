@@ -77,11 +77,11 @@ The current maintained interface is the **v3 HTML/pywebview application**.
 
 ### Dashboard
 
-![DSIS Dashboard](docs/UserGuide/images/Screenshot_2026-08-28_014145.png)
+![DSIS Dashboard](docs/UserGuide/images/151746.png)
 
 ### Attendance / Fingerprint Report
 
-![DSIS Fingerprint Report](docs/UserGuide/images/Screenshot_2026-08-28_014206.png)
+![DSIS Fingerprint Report](docs/UserGuide/images/151826.png)
 
 > Screenshots show the current application interface and may change as DSIS continues to evolve.
 
