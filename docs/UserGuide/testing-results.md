@@ -2,6 +2,12 @@
 
 This document records the current documented validation state. Test results are point-in-time evidence; source code and active tests remain authoritative when behavior changes.
 
+## Current GitHub Actions status
+
+The latest visible `Tests` workflow run on **2026-09-20** was triggered from commit `4ef82ea` and concluded **failure** on both Python 3.11 and 3.12 jobs. Repository checkout, dependency installation, and byte-compilation completed successfully; the failure occurred in the unit/integration/unmarked test step. Archived UI test jobs were skipped. This is a CI status for that commit, not a claim about the documentation-only commits made afterward.
+
+The workflow should be rerun against the current `main` when code changes are ready for validation.
+
 ## Latest documented full run
 
 The latest documented full repository test run in this file was executed against HEAD `d3fb362` on 2026-09-16 with Python 3.14.6:
