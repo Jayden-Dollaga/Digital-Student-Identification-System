@@ -85,17 +85,26 @@ The current code already contains important security controls: salted PBKDF2-HMA
 
 ## Phase 2 — scan status
 
-The online environment available for this audit could inspect GitHub repository contents but could not resolve `github.com` from the local command environment. A local `git clone` therefore failed before a working tree could be created.
+### Static scan
 
-As a result, these commands were **not executable locally** in this environment:
+The GitHub-connected environment was used for repository mapping and static searches for imports, serial constants, SQL construction, exception handling, TODO/FIXME markers, runtime paths, firmware references, documentation drift, and tracked runtime/build artifacts.
+
+### Windows execution validation
+
+The project was subsequently validated by the maintainer in a real Windows development environment on 2026-09-20:
 
 ```text
 python -m compileall python
+PASS — Python source tree compiled without errors.
+
 python -m pytest -q
+PASS — 236 passed, 1 skipped in 24.06s.
+
 node --check python/gui_web/web/app.js
+PASS — JavaScript syntax check completed without errors.
 ```
 
-Static GitHub search/review was used instead for imports, serial constants, SQL construction, exception handling, TODO/FIXME searches, runtime paths, firmware references, and documentation drift. The repository's CI workflow remains the authoritative executable validation once the branch is pushed.
+The single skipped pytest is retained as a hardware-dependent test and requires the physical ESP32 + AS608 setup. The automated test suite otherwise completed successfully.
 
 ## Phase 3 — safe fixes
 
@@ -130,4 +139,4 @@ A real Windows machine with the target hardware is still required to validate:
 
 ## Audit conclusion
 
-The repository is internally consistent on the key active runtime path after these documentation/CI fixes. No confirmed active critical/high code issue was found in the static pass. The remaining meaningful validation is execution of the test suite and JavaScript syntax check in CI plus physical Windows/ESP32/AS608 testing.
+The repository is internally consistent on the key active runtime path after these documentation/CI fixes. No confirmed active critical/high code issue was found in the static pass. Windows validation now confirms Python compilation, the automated test suite, and JavaScript syntax. The remaining meaningful validation is physical ESP32/AS608 testing and packaged Windows runtime testing.
