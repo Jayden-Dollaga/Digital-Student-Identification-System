@@ -1,116 +1,268 @@
-# DSIS Documentation Overhaul
+# DSIS Documentation Architecture & Maintenance Guide
 
-This manifest records the repository-wide documentation audit and organization reviewed against commit `9ffd69f` on 2026-09-18. It is the entry point for understanding which documents are current, historical, generated, or preserved for research.
+> **Purpose:** Explain how the entire `docs/` tree is organized, which material is authoritative, and where a reader should go for a particular kind of information.
 
-## Documentation structure
+The DSIS repository contains more than user instructions. It contains architecture references, hardware documentation, development notes, troubleshooting records, historical investigations, generated audits, and concept/research material. This document keeps those purposes separate so the repository can remain information-rich without becoming misleading.
+
+## Documentation principles
+
+DSIS documentation follows four rules:
+
+1. **Current implementation comes first.** Documentation should describe the maintained v3 application unless explicitly marked otherwise.
+2. **Historical material is preserved, not silently treated as current.** Old investigations and UI implementations remain useful for provenance and debugging.
+3. **Generated reports are evidence, not contracts.** A generated audit describes the repository at the time it was produced.
+4. **Research is separate from technical product documentation.** Concept papers may explain why or how DSIS was conceived, but they do not define runtime behavior.
+
+When documents conflict, use this priority:
+
+```text
+Current source code + tests
+          │
+          ▼
+Current v3 documentation
+          │
+          ▼
+Release / deployment documentation
+          │
+          ▼
+Historical investigations
+          │
+          ▼
+Generated snapshots / audits
+```
+
+## Documentation tree
 
 ```text
 docs/
-├── INDEX.md                         Navigation index
-├── README.md                        Documentation orientation
-├── Documentation-Overhaul.md        This audit and organization manifest
-├── Documentation-Inventory.md        Complete Markdown file classification
-├── Architecture/
-│   ├── v3-system.md                 Current v3 architecture and bridge flow
-│   ├── system-architecture.md       Layered architecture reference
-│   ├── software-flow.md             Runtime workflow reference
-│   └── database-schema.md           SQLite schema and data rules
-├── Hardware/
-│   ├── hardware-connections.md      ESP32 and AS608 connections
-│   ├── wiring.md                    Pin and power notes
-│   └── firmware-variants.md         Maintained and historical firmware
-├── UserGuide/
-│   ├── v3-workflows.md              Current daily-use workflows
-│   ├── installation-guide.md        Full Windows setup guide
-│   ├── project-overview.md          Product and feature overview
-│   └── testing-results.md           Current automated/manual validation
-├── Troubleshooting/
-│   └── README.md                    Current concise troubleshooting guide
-├── Development/
-│   ├── documentation-map.md         Current/historical/generated map
-│   ├── FILES_OVERVIEW.md            Current source-tree overview
-│   ├── FILES_DETAILED.md            Current Python module guide
-│   ├── change-log.md                Feature and release history
-│   ├── database-updates.md          Database migration notes
-│   ├── implementation-summary.md    Current implementation summary
-│   ├── logging-guide.md             Active logging guidance
-│   ├── PORTABLE_PYTHON.md           Portable runtime guidance
-│   ├── tools-catalog.md             Developer tools
-│   ├── ui-prototypes.md             Prototype UI guidance
-│   ├── runtime-data.md              Runtime data policy
-│   ├── structure.txt                Historical structure tracker
-│   └── FILES_DETAILED.md            Historical inventory replacement
-├── History/
-│   └── ui-lineage.md                v1/v2/v3 evolution
-├── generated/                       Point-in-time generated reports
-├── Dup/                             Preserved duplicates and investigations
-├── Research/                        Concept and research material
-├── API/                             Reserved API documentation area
-└── _inbox/                          Documentation image inbox
+│
+├── README.md                         Documentation homepage
+├── INDEX.md                          Detailed navigation index
+├── Documentation-Overhaul.md         This maintenance guide
+├── Documentation-Inventory.md        File classification / inventory
+│
+├── Architecture/                     HOW THE SYSTEM WORKS
+│   ├── v3-system.md                  Current runtime architecture
+│   ├── system-architecture.md        Layered architecture
+│   ├── software-flow.md              Runtime/data flow
+│   └── database-schema.md            SQLite structure and rules
+│
+├── Hardware/                         PHYSICAL DEVICE
+│   ├── hardware-connections.md       Hardware architecture + wiring
+│   ├── wiring.md                     Pin and power reference
+│   └── firmware-variants.md          Firmware lineage and variants
+│
+├── UserGuide/                        HOW TO INSTALL AND USE DSIS
+│   ├── project-overview.md           Product/system overview
+│   ├── installation-guide.md         Installation and setup
+│   ├── v3-workflows.md               Daily workflows
+│   └── testing-results.md            Validation results
+│
+├── Troubleshooting/                  WHEN SOMETHING BREAKS
+│   └── README.md                     Current quick recovery guide
+│
+├── Development/                     HOW TO DEVELOP AND MAINTAIN DSIS
+│   ├── documentation-map.md          Documentation rules
+│   ├── FILES_OVERVIEW.md             Source-tree overview
+│   ├── FILES_DETAILED.md             Python/module guide
+│   ├── database-updates.md           Database maintenance
+│   ├── implementation-summary.md     Implementation state
+│   ├── logging-guide.md              Logging
+│   ├── runtime-data.md               Runtime-data policy
+│   ├── tools-catalog.md              Developer tools
+│   ├── ui-prototypes.md              Non-production prototypes
+│   └── ...                           Historical development notes
+│
+├── History/                          VERSION / UI EVOLUTION
+│   └── ui-lineage.md                 v1 → v2 → v3 history
+│
+├── generated/                        AUTOMATED SNAPSHOTS
+│
+├── Dup/                              PRESERVED DUPLICATES / SUPERSEDED MATERIAL
+│
+├── Research/                         CONCEPT / SCHOOL RESEARCH
+│
+└── _inbox/                           DOCUMENTATION ASSET INBOX
 ```
 
-Build artifacts are kept outside `docs/` under `Build/`. `Build/DSIS_v3.spec` is the active v3 packaging specification. The checked-in `Build/DSIS_v3/` and `Build/DSIS_v2/` directories contain generated packaged outputs and PyInstaller analysis artifacts; they are deployment artifacts, not source-of-truth implementation files.
+## Current v3 source of truth
 
-## Current source of truth
+The maintained application is the v3 HTML/JavaScript interface hosted in pywebview.
 
-The maintained application is DSIS v3:
+| Layer | Source |
+| --- | --- |
+| Launcher | `run_web_gui.py`, `run_web_gui.bat` |
+| Native shell | `python/gui_web/main_web.py` |
+| Python ↔ JavaScript bridge | `python/gui_web/api.py` |
+| Frontend | `python/gui_web/web/` |
+| Core backend | `python/core/` |
+| Compatibility services | `python/services/` |
+| Database | SQLite under `data/` |
+| Settings | Local JSON settings |
+| Logs | `data/logs/` |
+| Firmware | `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` |
+| Packaging | `Build/DSIS_v3.spec` |
 
-- Launcher: `run_web_gui.py` or `run_web_gui.bat`.
-- Native shell: `python/gui_web/main_web.py`.
-- Python bridge: `python/gui_web/api.py`.
-- Frontend: `python/gui_web/web/index.html`, `app.js`, and `styles.css`.
-- Backend: `python/core/` and selected `python/services/` wrappers.
-- Storage: SQLite under `data/attendance.db`, JSON settings, backups, logs, exports, and charts.
-- Hardware: `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` with ESP32 WROOM-32 and AS608.
+The v3 runtime uses this primary communication path:
 
-## Documentation groups
+```text
+HTML/CSS/JavaScript
+        │
+        │ window.pywebview.api
+        ▼
+Python API bridge
+        │
+        ├── device discovery
+        ├── serial handler
+        ├── attendance processor
+        ├── permissions/authentication
+        ├── database
+        ├── backups/reports
+        └── logging
+        │
+        │ USB serial 115200
+        ▼
+ESP32
+        │
+        │ UART 57600
+        ▼
+AS608
+```
 
-### Current documentation
+## What the documentation covers
 
-Root README, installation/build/security/release/contribution files, the v3 architecture and workflow guides, hardware guides, troubleshooting, current file maps, database notes, testing results, and logging/runtime guidance are intended to describe HEAD and must be reviewed when source behavior changes.
+### Architecture
 
-### Historical documentation
+The architecture documentation should answer:
 
-`History/`, `archive/legacy-ui/`, `docs/Dup/`, historical investigations, old roadmaps, and old implementation reports preserve prior behavior. They must be labeled as historical and must not be used as current installation instructions.
+- What components exist?
+- Which component owns each responsibility?
+- How does JavaScript call Python?
+- How does Python discover and validate the ESP32?
+- How are serial events parsed?
+- How does enrollment become a student record?
+- How does a scan become an attendance event?
+- How are permissions enforced?
+- How does the database relate to backups and reports?
 
-The UI lineage is:
+Start with [v3 System Architecture](Architecture/v3-system.md).
 
-- v1: CustomTkinter under `archive/legacy-ui/v1/`.
-- v2: PySide6/Qt under `archive/legacy-ui/v2/` and `python/gui_web/v2_reference/`.
-- v3: HTML/CSS/JavaScript in pywebview under `python/gui_web/`.
+### Hardware
 
-### Generated documentation
+The hardware documentation should answer:
 
-`docs/generated/` contains audit reports, inventories, metrics, and forensic snapshots. These are evidence from their generation point. They may contain old launchers, old UI descriptions, old test counts, runtime files, or stale paths. The generated index explicitly directs readers to current docs for authoritative behavior.
+- Which ESP32 target is verified?
+- Which AS608 connections are required?
+- Which GPIO pins are used?
+- Which baud rate belongs to each serial link?
+- What power assumptions are safe?
+- How can a hardware fault be separated from a software fault?
 
-## Covered implementation topics
+Start with [Hardware Reference](Hardware/hardware-connections.md).
 
-The current documentation set explains:
+### User operation
 
-- ESP32 and AS608 wiring, power, drivers, and baud rates.
-- Device discovery, identity handshake, port ranking, stale-port recovery, reconnects, reset/replug recovery, and fingerprint-count synchronization.
-- Enrollment validation, device-assigned IDs, cancellation, disconnect handling, and save-after-success behavior.
-- JSON and compatibility text scanning, confidence thresholds, duplicate cooldown, unknown ID 0 persistence, and attendance evaluation.
-- Day/week/month evaluation, observed-school-day calculation, categories, sorting, leaderboard behavior, and CSV export permissions.
-- SQLite schema, backups, restore validation, local data clearing, logs, charts, reports, and export paths.
-- Administrator, teacher, and guest local action gating, with the limitation that roles are not authentication.
-- Dedicated `attendance_evaluation` permission for Administrator, Teacher, and Guest roles; the visible v3 Lock button was removed.
-- Secure first-run administrator password setup, hashed password storage, password-based role elevation, and 600-second in-memory idle sessions.
-- First-run setup wizard with password, device, schedule, and branding steps that resumes from persisted completion flags.
-- First-run setup is implemented by `python/core/setup_wizard.py`, routed through the v3 API, and rendered in the web UI before Dashboard access.
-- v1/v2/v3 architecture and the pywebview JavaScript-to-Python event bridge.
-- Build cleanup in `d3fb362`, `.venv` installation behavior, `Build/DSIS_v3.spec`, and `Build/DSIS_v3` output.
-- Build artifact preservation in `64d80c9`, including v2/v3 packaged outputs, PyInstaller analysis files, and `Documentation-Overhaul.md`.
-- Student-facing terminology now uses **Student LRN**; CSV headers, enrollment/edit forms, reports, and tables map the existing `student_no` database field to that label.
-- Administrator settings save automatically, and **Restore Defaults** resets application settings while preserving authentication and active role state.
-- The v3 wipe workflow is presented as metadata cleanup with linked local-data removal; this wording should remain aligned with the API and tests.
+The user documentation should answer:
 
-## Known gaps
+- How do I upload firmware?
+- How do I launch DSIS?
+- How do I connect the device?
+- How do I enroll a student?
+- How does scanning work?
+- How are attendance evaluations calculated?
+- How do I export or back up data?
+- What should I do when the device disconnects?
 
-- The latest full test run reports 233 passed, 3 skipped, and 1 attendance-export contract failure where the test expects `Present` but the current implementation returns `Early`.
-- Pytest may exit with a Windows GUI teardown status after reporting results; this requires separate CI/runtime investigation.
-- Physical ESP32/AS608 validation and clean-machine packaging validation require target hardware and a clean Windows environment.
-- Generated reports should be regenerated only after their generators are made reproducible.
-- The current v3 refactor removed some symbols expected by older web smoke tests; tests and implementation need a deliberate contract decision.
+Start with [Installation Guide](UserGuide/installation-guide.md) and [v3 Workflows](UserGuide/v3-workflows.md).
 
-Last reviewed: 2026-09-20, against commit `4ef82ea`.
+### Development
+
+Developer documentation should explain source ownership, runtime data, database behavior, logging, packaging, tests, prototypes, and maintenance conventions. It should link directly to source files where a reader needs to inspect implementation details.
+
+## Research is intentionally separate
+
+`docs/Research/` contains **concept papers and research-oriented material**. It is not part of the operational or technical source-of-truth chain.
+
+Research documents can explain:
+
+- the original problem being addressed;
+- project motivation;
+- proposed concepts;
+- research methodology or school requirements;
+- future ideas that have not been implemented.
+
+They should **not** be used to determine whether a feature exists in the current application.
+
+This separation is intentional: someone installing DSIS should not need to read the concept paper, while someone evaluating the project's research background should still be able to find it.
+
+## Historical material
+
+Historical documents are valuable because DSIS has evolved through multiple UI generations:
+
+```text
+v1 ── CustomTkinter
+ │
+ ▼
+v2 ── PySide6 / Qt
+ │
+ ▼
+v3 ── HTML/CSS/JavaScript + pywebview
+```
+
+The current runtime is v3. Historical v1/v2 implementations are retained for provenance and comparison under `archive/legacy-ui/` and related reference paths.
+
+Historical documents should therefore be labeled with their scope rather than deleted merely because they are old.
+
+## Generated material
+
+`docs/generated/` contains reports produced from a particular repository state. Examples include architecture audits, database inventories, GUI reports, firmware inventories, testing summaries, and repository forensic reports.
+
+Generated documents are useful for:
+
+- auditing;
+- comparing repository states;
+- reviewing historical implementation details;
+- identifying documentation gaps.
+
+They are not suitable as primary installation instructions because their paths, counts, test results, or implementation descriptions can become stale.
+
+## Documentation quality standard
+
+A high-quality DSIS document should contain, where applicable:
+
+- **Purpose** — why the document exists.
+- **Scope** — current v3, historical version, hardware revision, or generated snapshot.
+- **Audience** — user, administrator, developer, reviewer, or researcher.
+- **Prerequisites** — hardware/software assumptions.
+- **Procedure** — ordered steps for tasks.
+- **Expected result** — what success looks like.
+- **Failure modes** — common symptoms and likely causes.
+- **Source links** — direct paths to relevant implementation files.
+- **Cross-links** — related documentation instead of duplicated explanations.
+- **Last reviewed date** — so stale material can be identified.
+
+## Maintenance workflow
+
+When a feature changes:
+
+1. Update the implementation and tests.
+2. Update the relevant architecture document if system behavior changed.
+3. Update the user workflow if the operator experience changed.
+4. Update hardware/firmware documentation if device behavior changed.
+5. Update troubleshooting guidance if the failure mode or recovery procedure changed.
+6. Update the documentation inventory when a document changes classification.
+7. Regenerate generated reports only when their generator and source state are known.
+
+## Known documentation boundaries
+
+Some documents intentionally remain outside the current source-of-truth path:
+
+- `Research/` — concept/research material.
+- `generated/` — generated snapshots.
+- `Dup/` — preserved duplicates/superseded documents.
+- historical investigations — provenance and debugging context.
+- archived UI documentation — v1/v2 reference.
+
+Keeping these materials is useful. Presenting them as current implementation documentation is not.
+
+Last reviewed: 2026-09-20.
