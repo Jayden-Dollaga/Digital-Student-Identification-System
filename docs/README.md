@@ -14,6 +14,7 @@ This documentation set is organized around the actual v3 application, its hardwa
 | **Setting up the ESP32/AS608** | [Hardware](Hardware/hardware-connections.md) and [Wiring](Hardware/wiring.md) |
 | **Trying to understand the software** | [v3 System Architecture](Architecture/v3-system.md) |
 | **Working on the database** | [Database Schema](Architecture/database-schema.md) |
+| **Using the web/Python bridge** | [API Reference](API/README.md) |
 | **Debugging a connection/problem** | [Current Troubleshooting](Troubleshooting/README.md) |
 | **Developing or contributing** | [Documentation Map](Development/documentation-map.md) and [Contributing](../CONTRIBUTING.md) |
 | **Packaging DSIS for Windows** | [Portable Build](../PORTABLE_BUILD.md) |
@@ -63,6 +64,10 @@ The [Documentation Map](Development/documentation-map.md) and [Documentation Inv
 - [Testing Results](UserGuide/testing-results.md) — documented validation and test observations.
 - [Current Troubleshooting](Troubleshooting/README.md) — concise recovery and diagnostics.
 
+### API
+
+- [v3 API Reference](API/README.md) — public JavaScript-to-Python bridge methods, events, permissions, and workflow contracts.
+
 ### Development and maintenance
 
 - [Documentation Map](Development/documentation-map.md)
@@ -73,6 +78,10 @@ The [Documentation Map](Development/documentation-map.md) and [Documentation Inv
 - [UI Prototypes](Development/ui-prototypes.md)
 - [Tools Catalog](Development/tools-catalog.md)
 - [Development Changelog](Development/change-log.md)
+
+## Research boundary
+
+The `Research/` directory contains concept and study material. It is intentionally outside the operational product-documentation path and does not define current application behavior.
 
 ## Important distinction: current vs. historical
 
