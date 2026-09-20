@@ -1,253 +1,231 @@
-# DSIS v3 Project Overview
+# DSIS Project Overview
 
-> **Document status:** Current v3 reference  
-> **Audience:** Users, teachers, administrators, developers, reviewers, and maintainers
+## Identity
 
-The **Digital Student Identification System (DSIS)** is a local-first student identification and attendance platform built around an **ESP32**, an **AS608 fingerprint sensor**, and a **Windows desktop application**.
+**Digital Student Identification System (DSIS)** is a local Windows application for student identification and attendance using an ESP32 controller and AS608 fingerprint sensor.
 
-DSIS is designed to replace repetitive manual attendance workflows with a controlled digital process: identify a student, record an attendance event, evaluate attendance over a selected period, and export or back up the resulting records.
+Current maintained generation: **v3**.
 
-## At a glance
+Current desktop stack: **Python + HTML/CSS/JavaScript + pywebview**.
 
-| Area | Current implementation |
-| --- | --- |
-| Desktop platform | Windows |
-| Application UI | HTML/CSS/JavaScript in pywebview |
-| Backend | Python |
-| Database | SQLite |
-| Device controller | ESP32 WROOM-32 |
-| Fingerprint sensor | AS608 |
-| PC ↔ ESP32 | USB serial, 115200 baud |
-| ESP32 ↔ AS608 | UART, 57600 baud |
-| Identification | Fingerprint template matching |
-| Reports | Attendance history, evaluation, CSV export |
-| Backup | Local database snapshots |
-| Authentication | Administrator password + role session |
-| Configuration | Local JSON settings |
+Current persistent storage: **SQLite + local JSON settings**.
 
 ## What DSIS does
 
-The maintained v3 application covers the following lifecycle:
+DSIS covers the operational attendance lifecycle:
 
 ```text
-Configure system
-      │
-      ▼
-Connect ESP32
-      │
-      ▼
-Enroll student ────────► Fingerprint template stored on sensor
-      │
-      ▼
-Scan fingerprint
-      │
-      ├── Match ───────► Student resolved ───────► Attendance saved
-      │
-      └── Unknown ─────► Unregistered event
-                                      │
-                                      ▼
-                              Reports / Evaluation
-                                      │
-                                      ▼
-                                CSV / Backup
+Student enrollment
+      ↓
+Fingerprint template stored in AS608
+      ↓
+Student profile linked to fingerprint ID
+      ↓
+Fingerprint scan
+      ↓
+Attendance event
+      ↓
+SQLite persistence
+      ↓
+Dashboard / Attendance / Reports
+      ↓
+Day / Week / Month evaluation + CSV export
 ```
 
-## Core capabilities
+The application also provides device discovery, serial diagnostics, settings, role-based actions, database backup/restore, logs, and calendar-based attendance configuration.
 
-### Student records
+## Current runtime
 
-- Student LRN is the user-facing identifier.
-- The database retains `student_no` for compatibility.
-- Student name, grade, section, fingerprint ID, and related profile information are stored locally.
-- A fingerprint ID is assigned by the ESP32 during successful enrollment.
-- A student record is not finalized until the device reports successful enrollment.
+The supported launcher is `run_web_gui.py` or `run_web_gui.bat`.
 
-### Identification and attendance
+`python/gui_web/main_web.py` creates the native pywebview window. `python/gui_web/api.py` exposes the Python application to JavaScript. The frontend is under `python/gui_web/web/`.
 
-- Fingerprint scans are processed by the ESP32 and reported to the desktop application.
-- Matching events include fingerprint identity and confidence information where supplied by the device.
-- A configurable minimum confidence threshold can reject weak matches.
-- Attendance cooldown logic prevents rapid duplicate events from becoming multiple attendance records.
-- Unknown scans use the reserved `fingerprint_id = 0` / `Unregistered` system row.
-- Attendance records contain explicit date/time information and event metadata.
-
-### Attendance evaluation
-
-The Dashboard provides evaluation for:
-
-- a selected day;
-- a Monday-to-Sunday week; or
-- a calendar month.
-
-The evaluation counts **distinct dates with observed attendance activity** in the selected window. It calculates days present, days absent, and attendance rate, then assigns the application's attendance category. Sorting can be performed by presence, rate, or name.
-
-CSV export is separate from the live SQLite database and should be treated as an exported report, not a second source of truth.
-
-## Roles and permissions
-
-Roles are local application permissions combined with an authenticated administrator session. They should not be interpreted as a full school identity-management system.
-
-| Role | Typical access |
-| --- | --- |
-| **Administrator** | Full supported workflow: device operations, enrollment, deletion, wipe, reports, export, backup/restore, settings, and maintenance |
-| **Teacher** | Scanning, reporting/export, backup, and attendance evaluation |
-| **Guest** | Scanning and attendance evaluation |
-
-Protected operations are checked by the Python bridge rather than relying only on hiding frontend buttons.
-
-## Architecture
-
-DSIS is separated into runtime layers so hardware, business logic, presentation, and persistence can evolve independently.
-
-```text
-┌───────────────────────────────────────────┐
-│             Web UI / Browser Layer        │
-│ HTML · CSS · JavaScript · app.js          │
-└───────────────────┬───────────────────────┘
-                    │ window.pywebview.api
-┌───────────────────▼───────────────────────┐
-│              Python API Bridge             │
-│ python/gui_web/api.py                     │
-└───────────────────┬───────────────────────┘
-                    │
-       ┌────────────┼──────────────┐
-       ▼            ▼              ▼
-   Attendance   Serial/device   Permissions
-   processor      services        + auth
-       │            │              │
-       └────────────┼──────────────┘
-                    ▼
-             SQLite / backups
-                    │
-                    │ USB serial
-                    ▼
-                 ESP32
-                    │ UART
-                    ▼
-              AS608 sensor
-```
-
-See the detailed [v3 System Architecture](../Architecture/v3-system.md) for component responsibilities, protocol behavior, synchronization rules, and lifecycle details.
+No local web server is required for the normal application.
 
 ## Hardware
 
-| Component | Role | Important notes |
-| --- | --- | --- |
-| ESP32 WROOM-32 | Controller and serial bridge | Verified firmware target: ESP32 Dev Module |
-| AS608 | Fingerprint acquisition/matching | Exact power requirements depend on module revision |
-| USB cable | PC power + serial transport | Must support data, not charge-only |
-| Breadboard/jumpers | Sensor wiring | Secure connections are important for reliable UART |
-| Windows PC | Runs DSIS and stores local data | Hosts the Python/pywebview application |
-
-### Maintained wiring
-
-| AS608 | ESP32 |
+| Component | Role |
 | --- | --- |
-| TX | GPIO14 / UART2 RX |
-| RX | GPIO27 / UART2 TX |
-| GND | GND |
-| V+ | Sensor-revision-appropriate regulated supply |
+| ESP32 WROOM-32 | Device controller and PC serial endpoint |
+| AS608 | Fingerprint capture, model creation, search, delete, wipe |
+| Windows PC | Runs DSIS and stores local data |
+| USB connection | PC ↔ ESP32 power and serial transport |
 
-TX/RX are intentionally crossed. See [Hardware Connections](../Hardware/hardware-connections.md) and [Wiring](../Hardware/wiring.md) before changing the physical setup.
+Verified signal arrangement:
 
-## Software stack
+| Connection | Configuration |
+| --- | --- |
+| PC ↔ ESP32 | 115200 baud |
+| ESP32 ↔ AS608 | UART2, 57600 baud |
+| AS608 TX → ESP32 | GPIO14 |
+| AS608 RX → ESP32 | GPIO27 |
 
-- Python 3.10+; 64-bit Windows is recommended.
-- pywebview for the native desktop window.
-- HTML/CSS/JavaScript for the active interface.
-- PySerial for device communication.
-- SQLite for local persistence.
-- Matplotlib for charts.
-- OpenPyXL for spreadsheet export support.
-- Pillow for image helpers and retained legacy functionality.
-- Arduino IDE / Arduino CLI for firmware development and upload.
+See [Hardware Connections](../Hardware/hardware-connections.md) and [Wiring](../Hardware/wiring.md).
 
-Qt/PySide6 and CustomTkinter are **historical interfaces** retained under `archive/legacy-ui/`. They are not the maintained v3 launcher.
+## Software architecture
 
-## Data locations
+The Python implementation is divided into focused responsibilities:
 
-The application uses the `data/` directory for runtime state such as:
+| Component | Responsibility |
+| --- | --- |
+| `core/device_discovery.py` | Port ranking and DSIS identity handshake |
+| `core/serial_handler.py` | Serial connection, buffering, reconnect |
+| `core/attendance.py` | Scan parsing, cooldown, confidence classification |
+| `core/attendance_status.py` | Time-based attendance status |
+| `core/attendance_calendar.py` | Holiday/suspension/half-day schedule rules |
+| `core/database.py` | SQLite, reports, backups, restore, charts |
+| `core/auth.py` | Password hashing and verification |
+| `core/permissions.py` | In-memory role authorization |
+| `core/logger.py` | Console/file logging |
+| `gui_web/api.py` | UI/backend bridge |
 
-- SQLite database;
-- JSON settings;
-- timestamped logs;
+## Student data model
+
+The user-facing identifier is **Student LRN**. The database field remains `student_no` for compatibility.
+
+A normal student record contains:
+
+- fingerprint ID;
+- Student LRN (`student_no`);
+- full name;
+- grade;
+- section;
+- enrollment timestamp;
+- update timestamp.
+
+Normal fingerprint IDs are 1-127. Fingerprint ID 0 is reserved for the `Unregistered` system row used by unknown scans.
+
+## Attendance model
+
+Attendance rows record:
+
+- fingerprint ID;
+- date;
+- time;
+- confidence;
+- status;
+- full timestamp;
+- event type when assigned.
+
+Older databases can be migrated to add the `event_type` field. The migration backfills legacy rows so the first scan for a fingerprint/date is `time_in` and later scans are `time_out`.
+
+## Scan confidence and duplicate handling
+
+The firmware's hardware-level match floor is 50 confidence.
+
+The Python application uses a configurable default threshold of 100 for status classification:
+
+| Score | Application status |
+| ---: | --- |
+| >= 100 | `GOOD MATCH` |
+| 50-99 | `WEAK MATCH` |
+
+A weak match is currently still stored by the Python attendance processor. The application threshold is not a second rejection gate.
+
+Duplicate protection is provided by both the firmware's approximately 2-second post-scan delay and the application's default 10-second per-fingerprint cooldown.
+
+## Attendance evaluation
+
+Evaluation supports Day, Monday-Sunday Week, and Calendar Month.
+
+Each student's result includes days present, days absent, attendance rate, and a category:
+
+| Rate | Category |
+| ---: | --- |
+| 90-100% | Excellent |
+| 75-89% | Good |
+| 50-74% | Needs attention |
+| below 50% | Low attendance |
+
+The denominator uses observed attendance dates in the selected range. A date with no attendance activity is not automatically treated as a school day by this evaluation.
+
+## Roles
+
+Default role permissions:
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, export, backup, attendance evaluation |
+| Guest | scan, attendance evaluation |
+
+Non-guest authenticated sessions expire after 600 seconds of inactivity by default.
+
+The persisted `current_role` value in `data/settings.json` is for UI continuity. Backend authorization uses the in-memory session role.
+
+## Authentication
+
+There is no built-in default administrator password.
+
+First-run password creation requires at least 8 characters. The authentication implementation uses PBKDF2-HMAC-SHA256 with a random 16-byte salt and 310,000 iterations.
+
+## Settings
+
+DSIS persists configuration for:
+
+- COM port and baud rate;
+- auto-detection and auto-reconnect;
+- theme and compact sidebar;
+- scan cooldown and minimum confidence;
+- logging;
+- automatic backup interval;
+- attendance schedule;
+- calendar exceptions;
+- school/application name;
+- first-run setup progress.
+
+## Backup and restore
+
+`data/attendance.db` is the live database.
+
+Backups are timestamped snapshots under `data/backups/`.
+
+Restore replaces the active database after permission and file/path validation. It is not a merge operation.
+
+Before destructive operations such as device wipe or database restore, create a fresh backup.
+
+## Security and privacy
+
+DSIS uses local storage and does not require a cloud service for normal operation.
+
+No encryption-at-rest claim is made. Deployers are responsible for securing the Windows host, database, settings, logs, and backup files and for meeting applicable institutional privacy requirements.
+
+Do not place real student records, production databases, passwords, or sensitive logs into public commits.
+
+## Reliability
+
+Current reliability mechanisms include:
+
+- device identity handshake before adopting a COM port;
+- stale saved-port detection and fallback discovery;
+- automatic reconnect;
+- serial line buffering;
+- JSON plus compatibility text parsing;
+- operation-state cleanup after disconnect;
 - database backups;
-- generated exports and charts where applicable.
-
-Do not commit real student information, passwords, fingerprint data, or deployment backups to the public repository.
-
-See [Runtime Data](../Development/runtime-data.md) for retention and sensitivity guidance.
-
-## Reliability behavior
-
-The v3 application includes:
-
-- automatic/manual serial discovery;
-- DSIS identity handshake validation;
-- serial reconnect handling;
-- persistent operator settings;
-- attendance cooldown processing;
-- backup and restore workflows;
-- device fingerprint-count refresh;
-- operation-state cleanup after disconnects;
 - structured logging;
-- permission checks at the Python bridge;
-- first-run administrator setup.
+- backend permission checks.
 
-## First-run behavior
+## Historical generations
 
-A new installation uses a setup router before normal operation. The setup flow establishes the administrator password and can guide device, schedule, and branding configuration.
+DSIS has multiple generations of UI code:
 
-The administrator password is hashed before being stored. The effective role is maintained as an in-memory session rather than being treated as a value that can simply be changed in the UI configuration file.
+| Generation | Implementation | Status |
+| --- | --- | --- |
+| v1 | CustomTkinter | Archived |
+| v2 | PySide6 / Qt | Archived/reference |
+| v3 | HTML/CSS/JavaScript + pywebview | Maintained |
 
-## Repository structure
+Historical implementations are kept for regression comparison and project history. They are not the supported v3 launcher.
 
-```text
-Digital-Student-Identification-System/
-├── firmware/                 # Maintained ESP32 firmware
-├── python/                   # Active Python backend and v3 web UI
-├── data/                     # Runtime database, settings, logs, backups
-├── docs/                     # User, architecture, hardware and developer docs
-├── tests/                    # Automated and hardware validation
-├── tools/                    # Diagnostics and maintenance tools
-├── archive/                  # Historical implementations and diagnostics
-├── Build/                    # Packaging specifications
-├── run_web_gui.py            # v3 launcher
-├── run_web_gui.bat           # Windows launcher
-└── README.md                 # Repository entry point
-```
+## Further documentation
 
-## Recommended reading order
-
-**New user:**
-
-1. [Installation Guide](installation-guide.md)
-2. [Hardware Connections](../Hardware/hardware-connections.md)
-3. [v3 Workflows](v3-workflows.md)
-4. [Troubleshooting](../Troubleshooting/README.md)
-
-**Developer:**
-
-1. [v3 System Architecture](../Architecture/v3-system.md)
-2. [Database Schema](../Architecture/database-schema.md)
-3. [Source/File Overview](../Development/FILES_OVERVIEW.md)
-4. [Detailed Module Guide](../Development/FILES_DETAILED.md)
-5. [Logging Guide](../Development/logging-guide.md)
-6. [Contributing](../../CONTRIBUTING.md)
-
-## Current limitations and future expansion
-
-The current identification path is fingerprint-based. The architecture is intentionally modular so additional identification mechanisms can be evaluated later, including RFID/card-based workflows or multiple device support.
-
-Potential future work should preserve the separation between device communication, attendance processing, persistence, permissions, and presentation instead of coupling new functionality directly to the web UI.
-
-## Source of truth
-
-When this document conflicts with the implementation, prefer:
-
-1. current source code and tests;
-2. current v3 architecture documentation;
-3. current user/hardware guides;
-4. historical or generated reports only for context.
+- [v3 Workflows](v3-workflows.md)
+- [Installation Guide](installation-guide.md)
+- [v3 System Architecture](../Architecture/v3-system.md)
+- [Database Schema](../Architecture/database-schema.md)
+- [Hardware Connections](../Hardware/hardware-connections.md)
+- [Troubleshooting](../Troubleshooting/README.md)
+- [Testing Results](testing-results.md)
 
 Last reviewed: 2026-09-20.
