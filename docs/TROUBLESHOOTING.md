@@ -79,6 +79,7 @@ If the UI reports a timeout:
 
 1. Close Arduino Serial Monitor and any other serial terminal.
 2. Confirm the firmware responds to `ID?` at 115200 baud.
+3. If a scan is reported as `WEAK MATCH`, note that the current application still records the event; `min_confidence` is a classification threshold.
 3. Click the ESP32 **EN/RESET** button to refresh the board. If it still does not connect, unplug the USB cable, wait 5-10 seconds, plug it back in, and wait for Windows to recreate the COM port.
 4. Retry the operation only after the device metadata and fingerprint count appear.
 5. If the connection still fails, open the latest file under `data/logs/` and check for serial, handshake, or permission errors.
