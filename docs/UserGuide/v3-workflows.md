@@ -180,7 +180,7 @@ ESP32 confirmation
 local student profile removed
 ```
 
-If device deletion fails, the local profile remains.
+If device deletion fails, the local profile remains. If deletion succeeds, existing attendance rows are re-linked to the reserved ID 0 `Unregistered` row so historical attendance events are preserved without keeping the deleted student profile.
 
 ## 8. Device wipe
 
