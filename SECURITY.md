@@ -18,7 +18,7 @@ current `main` branch; no v3 release support window has been published yet.
 
 ## Authentication model
 
-The maintained v3 application enforces first-run administrator password setup. Passwords are validated and stored as hashes. Role elevation verifies the password and creates an in-memory session with a 600-second idle timeout. Authorization uses the active in-memory session role rather than trusting the stored role value in `data/settings.json`.
+The maintained v3 application requires first-run administrator password creation; there is no built-in default/fallback administrator password. New passwords must be at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a random salt and 310,000 iterations. Role elevation verifies the password and creates an in-memory session with a 600-second idle timeout. Authorization uses the active in-memory session role rather than trusting the stored role value in `data/settings.json`.
 
 First-run setup also gates normal application use until the device, schedule, and branding steps are completed. Device setup validates the DSIS handshake; schedule and branding completion flags are persisted in settings so an interrupted wizard can resume.
 
