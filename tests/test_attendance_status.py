@@ -36,3 +36,28 @@ def test_time_out_status_boundaries():
 def test_zero_absent_threshold_keeps_late_status():
     settings = {**SETTINGS, "absent_threshold_minutes": 0}
     assert calculate_attendance_status("09:00:00", "time_in", settings) == "Late"
+
+def test_half_day_schedule_is_used_for_time_out():
+    settings = dict(SETTINGS)
+    settings["school_calendar"] = {
+        "2026-09-20": {
+            "type": "half_day",
+            "label": "Half day",
+            "time_in": "08:00",
+            "time_out": "12:00",
+        }
+    }
+    assert calculate_attendance_status("12:00:00", "time_out", settings, "2026-09-20") == "Present"
+    assert calculate_attendance_status("11:44:00", "time_out", settings, "2026-09-20") == "Early"
+
+
+def test_invalid_half_day_schedule_is_rejected():
+    from core import attendance_calendar
+    settings = {}
+    try:
+        attendance_calendar.set_entry(
+            settings, "2026-09-20", "half_day", "Bad", "12:00", "08:00"
+        )
+    except ValueError:
+        return
+    raise AssertionError("Expected invalid half-day time ordering to be rejected")

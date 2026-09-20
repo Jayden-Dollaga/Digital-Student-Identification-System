@@ -665,6 +665,7 @@ class Api:
                     latest.get("time", result["timestamp"].strftime("%H:%M:%S")),
                     latest.get("event_type"),
                     load_settings(),
+                    latest.get("date") or result["timestamp"].strftime("%Y-%m-%d"),
                 )
         payload = {
             "fingerprint_id": result.get("fingerprint_id"),
@@ -802,7 +803,12 @@ class Api:
         for row in rows:
             row["match_status"] = row.get("status")
             row["attendance_status"] = (
-                calculate_attendance_status(row.get("time", "00:00:00"), row.get("event_type"), settings)
+                calculate_attendance_status(
+                    row.get("time", "00:00:00"),
+                    row.get("event_type"),
+                    settings,
+                    row.get("date"),
+                )
                 if row.get("fingerprint_id")
                 else "Unknown"
             )
@@ -878,7 +884,10 @@ class Api:
         settings = load_settings()
         for row in rows:
             row["attendance_status"] = calculate_attendance_status(
-                row.get("time_in", "00:00:00"), "time_in", settings
+                row.get("time_in", "00:00:00"),
+                "time_in",
+                settings,
+                row.get("date"),
             )
         
         # Prepare file name
@@ -908,6 +917,7 @@ class Api:
                 time_in_row.get("time", "00:00:00"),
                 "time_in",
                 load_settings(),
+                time_in_row.get("date") or today,
             )
             if time_in_row
             else "Absent"
@@ -969,7 +979,7 @@ class Api:
                 "time_out": attendance.get("time_out", ""),
                 "match_status": attendance.get("match_status", ""),
                 "attendance_status": (
-                    calculate_attendance_status(time_in, "time_in", settings)
+                    calculate_attendance_status(time_in, "time_in", settings, row.get("date"))
                     if time_in else "Absent"
                 ),
             })
@@ -1534,15 +1544,21 @@ class Api:
         return {"ok": True}
 
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
+        """Authenticate a role that requires credentials."""
         if role not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
-        current = permissions.get_current_role()
-        if not permissions.has_role_permission(role, current):
-            return {"ok": False, "message": "Cannot reduce the session role here; use Lock instead."}
+
+        if role != "admin":
+            current = permissions.get_current_role()
+            if not permissions.has_role_permission(current, role):
+                return {"ok": False, "message": "This role change does not use password elevation."}
+            permissions.set_session_role(role, self._session_timeout_seconds)
+            return self.get_session_state()
+
         settings = load_settings()
         if not auth.verify_password(password, settings.get("auth", {})):
             return {"ok": False, "message": "Incorrect password."}
-        permissions.set_session_role(role, self._session_timeout_seconds)
+        permissions.set_session_role("admin", self._session_timeout_seconds)
         return self.get_session_state()
 
     def get_session_state(self) -> Dict[str, Any]:

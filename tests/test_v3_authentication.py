@@ -96,6 +96,19 @@ def test_admin_to_admin_does_not_require_password():
     assert result["role"] == "admin"
 
 
+def test_guest_can_elevate_to_admin_with_correct_password(monkeypatch):
+    settings = {"auth": auth.hash_password("admin")}
+    monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("guest", 600.0)
+
+    result = instance.authenticate_role("admin", "admin")
+    assert result["ok"] is True
+    assert result["role"] == "admin"
+
+
 def test_wrong_password_does_not_elevate(monkeypatch):
     settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
