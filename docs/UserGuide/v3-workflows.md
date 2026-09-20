@@ -1,91 +1,265 @@
 # DSIS v3 User Workflows
 
-This guide describes the maintained HTML/pywebview application. Start it with `run_web_gui.bat` or `python run_web_gui.py` from the repository root.
+This is the operator guide for the maintained DSIS v3 HTML/pywebview application.
 
-## First-run setup wizard
+## Launch
 
-The first launch presents a setup wizard before the normal Dashboard. It resumes at the first incomplete step:
+From the repository root:
 
-1. **Password**: create the initial administrator password. Password completion is determined by the stored password hash, not by a separate completion flag.
-2. **Device**: select or auto-detect the ESP32 and validate the DSIS handshake.
-3. **Schedule**: configure the attendance schedule and thresholds used by the v3 attendance presentation.
-4. **Branding**: configure the school/application branding values used by the interface.
+```text
+run_web_gui.bat
+```
 
-Steps 2-4 are saved individually in `settings.json`, so closing the application resumes the wizard at the unfinished step. The wizard must complete before normal Dashboard use.
+or:
 
-## Connect the device
+```powershell
+python run_web_gui.py
+```
+
+The supported v3 interface is a native pywebview window. Arduino IDE is needed for firmware work, not for ordinary daily operation.
+
+## 1. First-run setup
+
+The first-run wizard must complete before normal Dashboard use.
+
+### Step 1 — Password
+
+Create the initial administrator password.
+
+- Minimum length: 8 characters
+- Confirmation must match
+- There is no built-in default administrator password
+- Passwords are stored using PBKDF2-HMAC-SHA256
+- Current implementation: random 16-byte salt and 310,000 iterations
+
+### Step 2 — Device
+
+Connect the ESP32 or choose to continue and connect it later.
+
+DSIS can auto-detect the board or use a manual COM port. A device is accepted only after the firmware responds to `ID?` with valid DSIS identity metadata.
+
+### Step 3 — Schedule
+
+| Setting | Default |
+| --- | --- |
+| Time in | 08:00 |
+| Time out | 17:00 |
+| Early threshold | 15 minutes |
+| Late threshold | 15 minutes |
+| Absent threshold | 0 minutes |
+
+### Step 4 — Branding
+
+Set the school/application name and theme.
+
+Device, schedule, and branding completion flags persist so an interrupted setup can resume.
+
+## 2. Connect the ESP32
 
 1. Connect the ESP32 with a data-capable USB cable.
-2. Close Arduino Serial Monitor and other serial terminals.
-3. Open DSIS and click **Connect**.
-4. Leave auto-discovery enabled unless you need a manual port override.
-5. Confirm that the status shows the ESP32 metadata and fingerprint count.
+2. Close Arduino Serial Monitor and other serial-terminal applications.
+3. Start DSIS.
+4. Leave auto-detection enabled unless a manual port is required.
+5. Click **Connect**.
+6. Confirm device metadata and fingerprint count.
 
-The PC-to-ESP32 connection uses 115200 baud. COM numbers are assigned by Windows and may change after reconnecting a board. If the saved port is stale, use **Forget saved port** and connect again.
+The host-to-ESP32 connection uses **115200 baud**. The internal ESP32-to-AS608 UART uses **57600 baud** and is configured by the firmware.
 
-## Enroll a student
+### Stale COM port
 
-1. Open the Students page and choose enrollment.
-2. Enter a valid Student LRN, full name, grade, and section.
-3. Start enrollment and follow the prompts shown by the device.
-4. Place the finger on the sensor when prompted, usually twice for template capture.
-5. Wait for the success event and assigned fingerprint ID.
-6. Save the student record only after device enrollment succeeds.
+Windows may assign a different COM number after the board is moved. Use **Forget saved port** and reconnect with auto-detection.
 
-Canceling enrollment or losing the connection clears the pending operation. A student profile is not created for an enrollment that did not complete successfully.
+## 3. Enroll a student
 
-## Scan attendance
+Use the Students workflow with the `enroll` permission.
 
-1. Connect the ESP32 and confirm its metadata is visible.
-2. Click **SCAN**.
-3. Place a registered finger on the AS608 sensor.
-4. Review the result, confidence, student information, and attendance status.
-5. Click **STOP** before enrollment, deletion, or wipe operations.
+Required profile fields:
 
-The cooldown suppresses repeated scans for the same fingerprint during the configured interval. The minimum confidence setting rejects matches below the configured threshold. Unknown scans appear as `Unregistered` and use the reserved fingerprint ID 0 database row.
+- Student LRN
+- Full name
+- Grade
+- Section
 
-## Attendance Evaluation
+### Enrollment sequence
 
-The Dashboard contains Attendance Evaluation controls:
+1. Start enrollment.
+2. Place the finger on the AS608.
+3. Remove the finger.
+4. Place the same finger again.
+5. The ESP32 creates the fingerprint model.
+6. The ESP32 stores the model in an ID from 1-127.
+7. DSIS receives device success.
+8. DSIS saves the student profile.
 
-- **Day**: evaluates one calendar date.
-- **Week**: evaluates Monday through Sunday for the selected date.
-- **Month**: evaluates the selected calendar month.
-- **Sort**: orders rows by presence, attendance rate, or name.
-- **Export CSV**: writes the selected evaluation to a CSV file for authorized roles.
+`ENROLL` chooses the next available ID; `ENROLL:<id>` requests a specific ID from 1-127.
 
-Rates use observed school days: a date counts in the denominator only when at least one attendance event exists. A new successful scan refreshes the current evaluation automatically without changing the selected period or date.
+The local student profile is saved only after the device confirms successful fingerprint storage.
 
-## Students and device synchronization
+## 4. Scan attendance
 
-Deleting a student while connected sends a device delete command first. The local profile is removed only after the device confirms the deletion. If the board is disconnected, the UI warns that only the local record can be removed.
+1. Confirm the ESP32 is connected.
+2. Start **SCAN**.
+3. Place a registered finger on the AS608.
+4. Review student information, confidence, and attendance status.
+5. Press **STOP** before enrollment, deletion, or wipe.
 
-Wiping the device removes stored identification metadata from the sensor and clears the linked local student and attendance data through the current v3 wipe workflow. Create a backup before destructive changes.
+### Confidence behavior
 
-## Reports, backup, and restore
+The firmware emits a hardware match when AS608 confidence is at least **50**.
 
-Reports read the live SQLite database. CSV exports are generated by the Python API and sanitize spreadsheet formula triggers. Automatic backups run according to the saved interval and are stored under `data/backups/`.
+The Python attendance processor applies a separate configurable `min_confidence`, default **100**, to label the scan:
 
-Restore operations accept supported database files from the configured backup directory. A successful restore refreshes dashboard, attendance, students, reports, and settings views.
+| Confidence | Application status | Recorded? |
+| ---: | --- | --- |
+| >= 100 | `GOOD MATCH` | Yes |
+| 50-99 | `WEAK MATCH` | Yes |
+| < 50 | No hardware match event | No |
 
-## Roles
+A `WEAK MATCH` is still recorded by the current processor. The application threshold classifies the match; it does not reject it.
 
-Roles are local workflow permissions, not login accounts. Attendance Evaluation uses a dedicated `attendance_evaluation` permission:
+### Duplicate protection
 
-- Administrator: all supported operations, including attendance evaluation.
-- Teacher: scan, export, backup, and attendance evaluation.
-- Guest: scan and attendance evaluation.
+- firmware post-scan delay: approximately 2 seconds;
+- application per-fingerprint cooldown: 10 seconds by default.
 
-On first launch, DSIS requires an administrator to create a password before the application can be used. Later role elevation requires password authentication. Authenticated roles are held in memory and expire after the configured 600-second idle timeout; the password hash is stored in local settings, not the active role decision. The former visible Lock button is no longer part of the v3 title bar.
+### Unknown fingerprint
 
-## Themes and settings
+Unknown scans are stored using the reserved row:
 
-Settings supports light and dark themes, compact layout, port and baud preferences, auto-reconnect, auto-discovery, scan cooldown, confidence threshold, logging, and automatic backup interval. Administrator changes save automatically. **Restore Defaults** resets application settings while preserving the authentication settings and active role needed to continue the session.
+```text
+fingerprint_id = 0
+student = Unregistered
+```
 
-## Firmware and hardware
+## 5. Attendance status and calendar
 
-Use the maintained all-in-one sketch at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. For the documented ESP32 WROOM-32 setup, select **ESP32 Dev Module** in Arduino IDE. AS608 TX connects to ESP32 GPIO14 and AS608 RX connects to GPIO27. Verify the power requirement for the exact AS608 module revision.
+Time-based attendance presentation uses the configured schedule.
 
-The Windows USB driver must match the board's USB interface chip. CP210x, CH340/CH341, CH9102, FTDI, and native USB boards do not all use the same driver.
+Supported calendar exception types are `holiday`, `suspension`, and `half_day`.
 
-Last reviewed: 2026-09-11, against commit `aa457e0`.
+A half-day can provide its own time-in/time-out values.
+
+Calendar management requires the `manage_calendar` permission and is therefore an Administrator workflow in the default role configuration.
+
+## 6. Attendance Evaluation
+
+The Dashboard supports:
+
+| Window | Range |
+| --- | --- |
+| Day | Selected calendar date |
+| Week | Monday through Sunday |
+| Month | Selected calendar month |
+
+For each student, DSIS calculates distinct days present, days absent within the evaluation denominator, attendance rate, and category.
+
+Current category bands:
+
+| Attendance rate | Category |
+| ---: | --- |
+| 90-100% | Excellent |
+| 75-89% | Good |
+| 50-74% | Needs attention |
+| below 50% | Low attendance |
+
+The observed-day denominator is based on dates with attendance activity in the selected range. Completely empty calendar dates are not automatically counted as school days by this evaluation.
+
+Results can be sorted by presence, attendance rate, or name. Authorized roles can export the selected evaluation as CSV.
+
+## 7. Student deletion
+
+Deletion is device-first:
+
+```text
+DELETE request
+    ↓
+DELETE:<fingerprint_id>
+    ↓
+ESP32 confirmation
+    ↓
+local student profile removed
+```
+
+If device deletion fails, the local profile remains.
+
+## 8. Device wipe
+
+**WIPE is destructive. Back up first.**
+
+The v3 workflow sends `WIPE`, waits for confirmed device success, clears linked local student/attendance data, and refreshes the fingerprint count and affected views.
+
+If hardware wipe succeeds but local cleanup fails, the API reports the partial state instead of claiming both phases succeeded.
+
+## 9. Reports and CSV export
+
+Reports read the live SQLite database.
+
+CSV output is sanitized against spreadsheet formula-triggering values before writing.
+
+Attendance Evaluation export uses the currently selected day/week/month window.
+
+Export actions require the `export` permission.
+
+## 10. Backup and restore
+
+Manual backups are timestamped SQLite snapshots under `data/backups/`.
+
+The application also runs an automatic backup due-check loop. The default saved interval is 25 minutes.
+
+Restore requires the `restore` permission and replaces the active database with the selected supported backup. It is not a merge operation.
+
+Create a fresh backup before restoring.
+
+## 11. Roles and permissions
+
+The effective role is held in an in-memory session. The persisted `current_role` setting is not trusted for authorization.
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, export, backup, attendance evaluation |
+| Guest | scan, attendance evaluation |
+
+Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
+
+## 12. Settings
+
+Persisted settings include COM port, baud rate, auto-detection, auto-reconnect, theme, compact sidebar, minimum confidence, scan cooldown, logging, automatic backup interval, attendance schedule, calendar exceptions, school name, and first-run progress.
+
+Administrator-protected settings are enforced by the backend permission layer rather than only by disabled UI controls.
+
+**Restore Defaults** restores application preferences and does not bypass authentication.
+
+## 13. Normal shutdown
+
+Close DSIS normally. The v3 shell invokes the API disconnect path and releases the serial connection.
+
+Close DSIS before flashing firmware or opening Arduino Serial Monitor.
+
+## Daily sequence
+
+```text
+Start DSIS
+  ↓
+Connect ESP32
+  ↓
+Verify metadata + fingerprint count
+  ↓
+Enroll / maintain students
+  ↓
+SCAN
+  ↓
+Review Attendance
+  ↓
+Evaluation / Reports
+  ↓
+Backup
+  ↓
+STOP
+  ↓
+Close DSIS
+```
+
+See [v3 System Architecture](../Architecture/v3-system.md) for technical details and [Troubleshooting](../Troubleshooting/README.md) for recovery procedures.
+
+Last reviewed: 2026-09-20.
