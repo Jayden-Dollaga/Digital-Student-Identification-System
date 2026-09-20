@@ -370,6 +370,135 @@ def test_v3_all_students_export_includes_attendance_columns(monkeypatch):
     assert rows[1]["attendance_status"] == "Absent"
 
 
+def test_v3_all_students_export_uses_attendance_date(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/students.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.datetime", MagicMock(now=lambda: __import__("datetime").datetime(2026, 9, 20)))
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "time_in": "08:00", "time_out": "17:00",
+        "early_threshold_minutes": 15, "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 60,
+        "school_calendar": {
+            "2026-09-19": {
+                "type": "half_day",
+                "time_in": "13:00",
+                "time_out": "17:00",
+            }
+        },
+    })
+    monkeypatch.setattr("gui_web.api.db.get_all_students", lambda: [
+        {
+            "student_no": "1",
+            "student_name": "Alice",
+            "grade": "12",
+            "section": "A",
+        },
+    ])
+    monkeypatch.setattr(
+        "gui_web.api.db.export_attendance_range_with_time_in_out",
+        lambda start, end: [{
+            "student_no": "1",
+            "date": "2026-09-19",
+            "time_in": "12:00:00",
+            "time_out": "",
+            "match_status": "GOOD MATCH",
+        }],
+    )
+
+    result = api.export_students_csv()
+
+    assert result == {"ok": True}
+    exported = api._rows_to_csv.call_args.args[0][0]
+    assert exported["attendance_status"] == "Early"
+
+
+def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range", lambda start, end: [{
+        "fingerprint_id": 1,
+        "date": "2026-09-20",
+        "time": "12:00:00",
+        "event_type": "time_out",
+        "status": "GOOD MATCH",
+    }])
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "time_in": "08:00", "time_out": "17:00",
+        "early_threshold_minutes": 15, "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 60,
+        "school_calendar": {
+            "2026-09-20": {
+                "type": "half_day",
+                "time_in": "08:00",
+                "time_out": "12:00",
+            }
+        },
+    })
+
+    result = api.get_attendance(mode="last30")
+
+    assert result["rows"][0]["attendance_status"] == "Present"
+
+
+def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda required_role: True)
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "time_in": "08:00",
+        "time_out": "17:00",
+        "cooldown": 10,
+        "min_confidence": 96,
+        "auto_backup_interval_minutes": 25,
+        "early_threshold_minutes": 15,
+        "late_threshold_minutes": 15,
+        "absent_threshold_minutes": 0,
+    })
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: None)
+    result = api.save_ui_settings({
+        "time_in": "17:00",
+        "time_out": "08:00",
+    })
+
+    assert result["ok"] is False
+    assert "Time Out must be later than Time In." == result["message"]
+
+
+def test_v3_attendance_evaluation_ignores_weekend_activity(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: {
+        "school_calendar": {},
+    })
+    monkeypatch.setattr("gui_web.api.db.get_daily_attendance_summary", lambda start_date, end_date: [
+        {"student_no": "1", "date": "2026-09-19"},
+        {"student_no": "1", "date": "2026-09-20"},
+    ])
+    monkeypatch.setattr("gui_web.api.db.get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_no": "1",
+        "student_name": "Alice",
+        "grade": "12",
+        "section": "A",
+        "enrollment_date": "2026-09-01T00:00:00",
+    }])
+
+    result = api.get_attendance_evaluation("week", "2026-09-20")
+
+    assert result["school_days"] == []
+    assert result["total_days"] == 0
+    assert result["rows"][0]["attendance_rate"] is None
+
+
 def test_v3_recent_export_uses_visible_page(monkeypatch):
     from gui_web.api import Api
 
