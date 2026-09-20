@@ -1,88 +1,113 @@
-# Logging Guide
+# DSIS Logging Guide
 
-The project uses a centralized Python logger so events from the GUI, serial handler, and database layer are captured in one place.
+DSIS uses a centralized Python logger shared by the web UI, serial layer, attendance processor, database layer, and runtime launcher.
 
-## Where logs go
+## Log destinations
 
-- Console output: shown in the terminal or app console
-- File output: written to the data logs folder when enabled in the configuration
+| Destination | Purpose |
+| --- | --- |
+| Console | Immediate runtime feedback and debugging |
+| `data/logs/` | Per-run persistent logs when file logging is enabled |
 
-Default log location:
+Default per-run filename pattern:
 
-- `data/logs/fingerprint_attendance_YYYYMMDD_HHMMSS.log` when file logging is enabled
+`fingerprint_attendance_YYYYMMDD_HHMMSS.log`
 
 ## Configuration
 
-The logger behavior is controlled in [python/config.py](../python/config.py).
+Logging is controlled through `python/config.py` and persisted settings where exposed by the UI.
 
-Key settings:
+Important settings include:
 
-- LOG_TO_FILE: enable or disable file logging
-- LOG_FOLDER: directory for log files
-- ENABLE_DEBUG_LOGGING: include extra debug messages
+- `log_to_file` — enable file output;
+- `enable_debug_logging` — enable verbose DEBUG messages;
+- log directory and file-name settings;
+- log retention count.
 
-## How to use it
+The default retention behavior keeps the most recent **7** matching per-run files. Old files are pruned when a new logging session starts.
 
-Import the shared logger:
+## Logger API
+
+Core code uses the shared proxy:
 
 ```python
 from core.logger import log
+
+log.debug("Detailed diagnostic")
+log.info("Normal lifecycle event")
+log.success("Operation completed")
+log.warning("Recoverable problem")
+log.error("Operation failed")
+log.critical("Severe failure")
 ```
 
-Common usage:
+The formatter includes a timestamp, log level, source category, and message. Structured key/value context may also be attached to a log entry.
 
-```python
-log.info("System started")
-log.success("Fingerprint saved")
-log.warning("Low confidence score")
-log.error("Connection failed")
+## Source categories
+
+| Source | Typical components |
+| --- | --- |
+| SERIAL | serial handler and device discovery |
+| ATTENDANCE | attendance processing |
+| DATABASE | SQLite and database operations |
+| GUI | UI/worker components |
+| SYSTEM | launcher/logger/runtime events |
+
+## What is logged
+
+Typical operational events include:
+
+- application startup and shutdown;
+- serial discovery, connection, disconnection, and reconnect attempts;
+- device identity metadata and fingerprint-count activity;
+- scan results and attendance writes;
+- enrollment/delete/wipe progress and failures;
+- database backup and restore results;
+- permission-denied events;
+- unexpected exceptions.
+
+Passwords are not intended to be logged. Runtime logs should still be treated as sensitive operational data.
+
+## Reconnect diagnostics
+
+During intermittent serial failures, search for sequences such as:
+
+```text
+Attempting reconnect
+Auto-reconnect attempt ... failed
+Auto-reconnect successful
+Auto-reconnect failed after ... attempts
 ```
 
-## What gets logged
+The sequence helps distinguish a transient device disconnect from a persistent port, driver, or firmware problem.
 
-Typical entries include:
+## Backup and restore diagnostics
 
-- ESP32 connection events
-- Scan results and attendance saves
-- Enrollment progress and cancellations
-- Database resets and backup actions
-- Errors from serial communication or GUI actions
+Successful backup and restore operations log their outcome and path. Restore messages are particularly important because restore replaces the active database.
 
-### Reconnect / Connection status
+Recommended support evidence:
 
-The serial layer logs reconnect attempts and outcomes. Typical messages you will see:
+1. the relevant timestamped log file;
+2. the backup filename/path;
+3. the COM port and firmware metadata;
+4. the operation that was running when the failure occurred.
 
-- `log.warning("Attempting reconnect ({n}/{max}) in {delay}s...")` — scheduled retry with backoff
-- `log.warning("Auto-reconnect attempt {n} failed: {msg}")` — a retry failed
-- `log.success("Auto-reconnect successful")` — reconnect succeeded
-- `log.error("Auto-reconnect failed after {max} attempts")` — max retries reached
+## Debug logging
 
-The GUI also reflects reconnect progress by observing `serial_handler.reconnect_count` and writing user-oriented messages via `log_message()` (which delegates to the shared logger).
+Enable DEBUG logging only while investigating difficult issues. It can produce significantly more serial and reconnect detail.
 
-When troubleshooting intermittent disconnects, enable `ENABLE_DEBUG_LOGGING` and review the sequence of reconnect warnings and any underlying serial exceptions. These entries usually reveal whether the device is unreachable, the port closed unexpectedly, or the firmware is spamming unexpected output.
+After troubleshooting, disable debug output when it is no longer needed.
 
-### Backup & Restore
+## Safe sharing
 
-Backup and restore operations are logged at the time they run. Example messages:
+Before sending logs outside the project, review them for:
 
-- `log.success(f"Database backed up to {path}")` — successful backup (includes full path)
-- `log.error(f"Database backup failed: {e}")` — failure during backup
-- `log.success(f"Database restored from {backup_path}")` — successful restore
-- `log.error(f"Database restore failed: {e}")` — restore failure
+- student identifiers;
+- machine-specific paths;
+- COM-port/device information;
+- database/backup filenames;
+- other environment-specific details.
 
-The GUI surfaces these outcomes in dialogs but you should always check the log file for the full exception text on failures. Restores replace the active DB file; therefore successful restore entries are critical to confirm data state changes.
+Logs should be redacted as appropriate before public issue reports.
 
-### Recommended log levels
-
-- `DEBUG`: Low-level serial I/O, detailed reconnect backoff timing (enable only when troubleshooting)
-- `INFO` / `SUCCESS`: Normal lifecycle events (connect, disconnect, backup created, restore completed)
-- `WARNING`: Reconnect attempts, recoverable sensor warnings
-- `ERROR` / `CRITICAL`: Failed commands, unrecoverable IO errors, failed backups/restores
-
-## Useful tips
-
-- Keep log files for troubleshooting and audits
-- Review the daily log if a scan or enrollment fails
-- Enable debug logging when investigating serial or firmware issues
-- When investigating reconnects, search for `Attempting reconnect` and follow the subsequent `failed`/`successful` messages in the same log file
-- For backup/restore issues, copy the timestamped log lines around the operation and include the backup filename when requesting support
+Last reviewed: 2026-09-20.
