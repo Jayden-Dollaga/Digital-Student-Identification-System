@@ -832,7 +832,12 @@ class Api:
         for row in rows:
             row["match_status"] = row.get("status")
             row["attendance_status"] = (
-                calculate_attendance_status(row.get("time", "00:00:00"), row.get("event_type"), settings)
+                calculate_attendance_status(
+                    row.get("time", "00:00:00"),
+                    row.get("event_type"),
+                    settings,
+                    row.get("date"),
+                )
                 if row.get("fingerprint_id")
                 else "Unknown"
             )
@@ -979,7 +984,12 @@ class Api:
                 "time_out": attendance.get("time_out", ""),
                 "match_status": attendance.get("match_status", ""),
                 "attendance_status": (
-                    calculate_attendance_status(time_in, "time_in", settings, row.get("date"))
+                    calculate_attendance_status(
+                        time_in,
+                        "time_in",
+                        settings,
+                        attendance.get("date") or today,
+                    )
                     if time_in else "Absent"
                 ),
             })
@@ -1105,7 +1115,8 @@ class Api:
         # absent for correctly staying home.
         school_days = sorted({
             row["date"] for row in summary_rows
-            if not attendance_calendar.is_non_school_day(settings, row["date"])
+            if datetime.strptime(row["date"], "%Y-%m-%d").weekday() < 5
+            and not attendance_calendar.is_non_school_day(settings, row["date"])
         })
         total_days = len(school_days)
 
@@ -1384,10 +1395,12 @@ class Api:
         time_in = settings.get("time_in", merged.get("time_in", "08:00"))
         time_out = settings.get("time_out", merged.get("time_out", "17:00"))
         try:
-            datetime.strptime(time_in, "%H:%M")
-            datetime.strptime(time_out, "%H:%M")
+            parsed_time_in = datetime.strptime(time_in, "%H:%M")
+            parsed_time_out = datetime.strptime(time_out, "%H:%M")
         except ValueError:
             return {"ok": False, "message": "Time In and Time Out must be in HH:MM format."}
+        if parsed_time_out <= parsed_time_in:
+            return {"ok": False, "message": "Time Out must be later than Time In."}
         
         settings = dict(settings)
         settings.pop("auth", None)
