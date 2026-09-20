@@ -1,139 +1,204 @@
-# System Architecture
+# DSIS v3 System Architecture
 
-## Overview
+This is the technical architecture reference for the maintained DSIS v3 implementation.
 
-The Digital Student Identification System (DSIS) is a layered application that combines ESP32/AS608 firmware, a Python backend, a pywebview desktop shell, and a local SQLite database to support attendance tracking with fingerprint biometrics.
+## System boundary
 
-The design separates concerns so that each part can be maintained independently, and the recent Python refactor strengthens that separation further. Raw serial data is handled in the communication layer, converted into structured scan outcomes in the attendance processor, persisted through the database layer, and presented through the GUI without overloading the interface with core workflow logic.
+DSIS is a local-first Windows application made of five cooperating parts:
+1. ESP32 firmware
+2. AS608 fingerprint sensor
+3. Python backend
+4. HTML/CSS/JavaScript frontend rendered in a native pywebview window
+5. SQLite and JSON local storage
 
-- firmware handles fingerprint capture and matching on the ESP32
-- Python manages serial communication, desktop operations, permissions, exports, and database access
-- SQLite stores student and attendance data locally
-- the v3 HTML/CSS/JavaScript UI presents operators with workflows for enrollment, scanning, backup, reporting, evaluation, and settings through a pywebview JavaScript-to-Python bridge
+No application web server is required.
 
-## Objectives
+## Runtime components
 
-The architecture is intended to support:
+### Launcher
 
-- reliable fingerprint enrollment and scan workflows
-- easy deployment on Windows workstations
-- maintainable code organization
-- persistent runtime settings
-- backup and restore for data safety
-- clear separation between UI, logic, and hardware communication
+`run_web_gui.py` prepares the runtime import paths and delegates to the active web GUI. `run_web_gui.bat` is the Windows convenience launcher.
 
-## Refactored Python architecture
+### Native application shell
 
-The Python side is organized around a small set of focused responsibilities:
+`python/gui_web/main_web.py` creates the pywebview window, attaches the `Api`, installs exception hooks, and disconnects the hardware when the window closes.
 
-- [python/core/serial_handler.py](../../python/core/serial_handler.py) manages serial connections, reads, reconnect handling, and device-state awareness.
-- [python/core/attendance.py](../../python/core/attendance.py) converts incoming ESP32 output into structured scan results and applies cooldown and confidence rules.
-- [python/core/database.py](../../python/core/database.py) remains the persistence layer for students, attendance records, reporting helpers, and backup-related operations.
-- [python/gui_web/main_web.py](../../python/gui_web/main_web.py) creates the active pywebview window, while [python/gui_web/api.py](../../python/gui_web/api.py) exposes serial, database, settings, report, backup, and export operations to the frontend.
-- [python/gui_web/web/](../../python/gui_web/web/) contains the active HTML, CSS, and JavaScript presentation layer.
-- [python/gui_web/v2_reference/](../../python/gui_web/v2_reference/) is a reference-only snapshot of the former PySide6 implementation; it is not imported by v3 at runtime.
+The active HTML interface is loaded from `python/gui_web/web/index.html`. JavaScript communicates with Python through `window.pywebview.api`.
 
-This keeps the GUI thinner, improves testability, and makes it easier to evolve the system over time.
+### Python API bridge
 
-## Layered structure
+`python/gui_web/api.py` is the supported bridge for setup, session state, serial operations, students, attendance, reports, settings, calendar management, backup/restore, logging, and exports.
 
-| Layer | Purpose | Main files |
-| --- | --- | --- |
-| Firmware | Reads fingerprints and responds to serial commands | firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino |
-| Communication | Opens the serial port and parses responses | python/core/serial_handler.py, python/core/commands.py |
-| Application logic | Processes scan results and coordinates attendance behavior | python/core/attendance.py, python/core/utils.py |
-| Data layer | Stores students, attendance records, and backup snapshots | python/core/database.py |
-| Presentation | Displays the web UI and exposes actions through the Python bridge | python/gui_web/main_web.py, python/gui_web/api.py, python/gui_web/web/ |
-| Configuration | Stores defaults for serial settings and permissions | python/config.py, data/settings.json |
+The backend pushes asynchronous changes to the frontend through `window.dsisEvent(event, payload)`.
 
-## Core components
+### Device discovery
 
-### Firmware component
+`python/core/device_discovery.py` enumerates COM ports, scores likely candidates using descriptions and known USB VID:PID values, sends `ID?`, and validates the DSIS identifier and supported protocol version.
 
-The ESP32 sketch implements the embedded fingerprint workflow. It accepts commands such as scan, stop, enroll, delete, wipe, and list. When a fingerprint is matched or enrolled, it emits structured text over serial so the Python application can interpret the result.
+| Property | Current value |
+| --- | --- |
+| Device identifier | Digital Student Identification System |
+| Minimum protocol | 1 |
+| Handshake | `ID?` |
+| Host baud | 115200 |
+| Handshake timeout | 3 seconds |
 
-### Communication component
+### Serial handler
 
-The serial layer opens the selected COM port, reads incoming lines from the device, and reports connection state. It also handles reconnect attempts after disconnections and exposes the current state to the GUI so the interface can update its status consistently.
+`python/core/serial_handler.py` owns the live pyserial connection, buffered reads, command writes, metadata, disconnect handling, stale-port recovery, and automatic reconnect.
 
-### Application logic component
+### Attendance processor
 
-The application logic translates raw fingerprint events into attendance entries, validates them, and coordinates interactions with the database. It also applies role-based permission checks before sensitive actions are allowed.
+`python/core/attendance.py` parses structured JSON and compatibility text, applies the application cooldown, classifies confidence, looks up students, and records attendance.
 
-### Data layer component
+### Attendance status and calendar
 
-The database layer is responsible for:
+`python/core/attendance_status.py` evaluates time-based attendance state. `python/core/attendance_calendar.py` resolves date-specific schedule exceptions. Supported exception types are `holiday`, `suspension`, and `half_day`.
 
-- storing student enrollment records
-- writing attendance events
-- supporting backup and restore operations
-- providing helpful queries for reports and dashboards
+### Database
 
-### Presentation component
+`python/core/database.py` owns SQLite initialization, schema migration, student and attendance records, reporting helpers, charts, backups, restore validation, and exports.
 
-The GUI is organized into specific pages for attendance, student management, statistics, logs, and settings. This separation keeps the main window controller focused on workflow orchestration rather than every UI detail.
+### Authentication and permissions
 
-## Runtime workflow
+`python/core/auth.py` implements first-run password creation and PBKDF2-HMAC-SHA256 verification. `python/core/permissions.py` holds the effective role in memory and fails closed for unknown roles.
 
-1. The operator launches the app and clicks Connect.
-2. The serial handler opens the selected COM port and begins reading device output.
-3. The GUI sends commands for enrollment or scanning.
-4. The firmware reports progress and results over serial.
-5. The Python API updates the web UI, stores records, and logs actions.
-6. If the connection drops, reconnect logic attempts to restore it automatically.
+The persisted `current_role` setting is for UI continuity and is not used as the authorization source.
 
-## Enrollment flow
+## Architecture diagram
 
-1. The operator starts Enrollment from the GUI.
-2. The GUI sends an enrollment command to the ESP32.
-3. The firmware captures the new fingerprint template.
-4. The Python application stores the student profile in the SQLite database.
+```text
+                         Operator
+                            |
+                            v
+                 +-----------------------+
+                 |     DSIS v3 Web UI    |
+                 | HTML / CSS / JS       |
+                 +-----------+-----------+
+                             |
+                   window.pywebview.api
+                             |
+                             v
+                 +-----------------------+
+                 |      Python API       |
+                 | python/gui_web/api.py |
+                 +-----+------------+----+
+                       |            |
+                       |            +------> SQLite / JSON / backups / logs
+                       |
+                       v
+                +--------------+
+                | Core modules |
+                | discovery    |
+                | serial       |
+                | attendance   |
+                | auth/roles   |
+                | calendar     |
+                | database     |
+                +------+-------+
+                       |
+                 USB Serial 115200
+                       |
+                       v
+                    +------+
+                    | ESP32 |
+                    +--+---+
+                       |
+                 UART2 57600
+                       |
+                       v
+                    +------+
+                    | AS608|
+                    +------+
+```
 
-## Attendance flow
+## Host protocol
 
-1. The operator starts scan mode.
-2. The firmware compares the presented fingerprint to stored templates.
-3. The Python application receives the result and writes an attendance event.
-4. The GUI refreshes the attendance list and statistics.
+The PC-to-ESP32 connection is a newline-delimited serial protocol at **115200 baud**.
 
-## Attendance evaluation flow
+Current firmware commands:
+```text
+ID?
+SCAN
+STOP
+LIST
+ENROLL
+ENROLL:<id>
+DELETE:<id>
+WIPE
+STATUS:<state>
+```
 
-1. The operator selects a day, Monday-to-Sunday week, or calendar month.
-2. The API reads the live attendance table and deduplicates each student's active dates.
-3. Dates with any activity form the observed-school-day denominator; empty calendar days do not reduce rates.
-4. The frontend displays days present, days absent, percentage, category, and a leaderboard.
-5. Authorized roles can export the selected evaluation to CSV.
+The maintained firmware also emits structured JSON attendance events.
 
-## Settings and configuration
+### Match event
+```json
+{"type":"attendance","event":"match","id":1,"confidence":223}
+```
 
-The application saves persistent preferences for:
+### Unknown event
+```json
+{"type":"attendance","event":"unknown"}
+```
 
-- COM port selection
-- baud rate
-- theme mode (light or dark)
-- cooldown behavior
-- auto-reconnect behavior
+### Low-confidence event
+```json
+{"type":"attendance","event":"low_confidence","confidence":42}
+```
 
-These preferences are loaded from a JSON settings file so the app can remember operator choices between sessions. The v3 API also applies persisted auto-reconnect, cooldown, confidence, and backup settings to the active backend.
+## Data flow
 
-## Reliability features
+### Enrollment
+```text
+Student form -> validation -> ENROLL -> ESP32/AS608 capture -> model -> store -> success -> SQLite student row
+```
 
-The design includes several safeguards:
+The local student profile is saved only after the device confirms successful template storage.
 
-- reconnect logic for temporary serial failures
-- cooldown handling to reduce duplicate attendance logs
-- permissions for destructive or privileged actions
-- backup creation before restore workflows
-- operation logs for troubleshooting and auditing
-- reserved `fingerprint_id = 0` database row for persisted unknown scans
-- device fingerprint-count refresh after connect, wipe, and reconnect
+### Attendance
+```text
+Finger -> AS608 -> ESP32 match -> serial event -> AttendanceProcessor -> cooldown/classification -> SQLite -> API event -> UI refresh
+```
 
-## Extension points
+### Deletion
 
-The architecture is structured so future work can be added without rewriting the entire system. Possible additions include:
+The v3 workflow sends the physical delete command first and removes the linked local profile only after confirmed device success.
 
-- cloud sync
-- RFID or face-recognition support
-- richer audit trails
-- export formats beyond Excel
-- remote administration or mobile monitoring
+### Wipe
+
+`WIPE` is destructive. The v3 workflow waits for successful device template deletion, then clears linked local student/attendance data and refreshes the device count. A local cleanup failure after device success is reported as a partial result.
+
+## Persistent state
+
+| Location | Purpose |
+| --- | --- |
+| `data/attendance.db` | Student and attendance database |
+| `data/settings.json` | Preferences, setup state, authentication record |
+| `data/backups/` | Timestamped database snapshots |
+| `data/logs/` | Per-run operational logs |
+| `data/charts/` | Generated chart images |
+| `data/exports/` | Generated report/CSV files |
+
+## Roles
+
+| Role | Permissions |
+| --- | --- |
+| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, export, backup, attendance evaluation |
+| Guest | scan, attendance evaluation |
+
+Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
+
+## Failure and recovery
+
+The design explicitly handles stale ports, serial disconnects, automatic reconnect, malformed/legacy serial lines, log-file failures, operation cancellation, and database backups before destructive maintenance.
+
+## Security boundary
+
+DSIS does not claim encryption at rest or regulatory compliance. Production deployments should protect the Windows host and runtime files, especially the SQLite database, settings, backups, and logs.
+
+## Legacy boundary
+
+Historical implementations remain under `archive/legacy-ui/` and `python/gui_web/v2_reference/`. UI prototypes under `tests/Prototype/` are isolated previews and are not the supported v3 runtime.
+
+Last reviewed: 2026-09-20.
