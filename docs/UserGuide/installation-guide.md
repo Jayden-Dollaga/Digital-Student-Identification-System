@@ -1,352 +1,215 @@
-# Installation and Daily-Use Guide
+# DSIS Installation and Daily-Use Guide
 
-## Overview
+This guide covers the maintained DSIS v3 HTML/pywebview application on Windows, including one-time firmware setup and normal daily operation.
 
-This guide is written for beginners and covers the full workflow for using the Digital Student Identification System (DSIS) on a Windows PC without opening Arduino IDE every day.
+## 1. One-time prerequisites
 
-The main idea is simple:
+Prepare:
 
-1. **Upload the ESP32 firmware once** using Arduino IDE.
-2. **Run the Python app daily** using [run_web_gui.bat](../../run_web_gui.bat) or the command line.
-3. **Keep the Arduino Serial Monitor closed** while the app is running so the COM port is available.
+- Windows PC;
+- Python installation suitable for the repository requirements;
+- Arduino IDE with ESP32 board support;
+- ESP32 WROOM-32 development board;
+- AS608 fingerprint sensor;
+- data-capable USB cable;
+- correct USB-to-serial driver for the board.
 
----
+## 2. Install Python dependencies
 
-## 1. One-Time Setup: Upload the Firmware
+From the repository root:
 
-### 1.1 Prepare the hardware
+```powershell
+python -m pip install -r requirements.txt
+```
 
-Before uploading firmware, make sure:
+The repository also provides `install_requirements.bat`, which can create or reuse `.venv`. For an explicit virtual environment:
 
-- the ESP32 board is connected to the PC with a USB cable,
-- the fingerprint sensor is wired correctly,
-- the Arduino IDE is installed,
-- the ESP32 board URL and the Adafruit Fingerprint library have already been added in Arduino IDE.
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
 
-### 1.2 Open the correct firmware file
+## 3. Install the USB driver
 
-Open the file [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) in Arduino IDE.
+Open **Device Manager → Ports (COM & LPT)** and identify the board's USB bridge.
 
-This is the all-in-one firmware sketch used for enrollment, scanning, and all operations.
+Common families include CP210x, CH340/CH341, CH9102, and FTDI. Native-USB ESP32 variants can use USB CDC or USB-JTAG and are not the project's verified target.
 
-The maintained V3 Settings page does not upload firmware. Use Arduino IDE for the supported source upload. The archived Qt and CustomTkinter interfaces are retained for historical reference only; do not use their firmware-helper paths as the current installation workflow.
+Python dependencies do not install Windows USB drivers.
 
-### 1.3 Select the correct board
+## 4. Wire the AS608
 
-In Arduino IDE, go to:
+| AS608 | ESP32 |
+| --- | --- |
+| TX | GPIO14 (UART2 RX) |
+| RX | GPIO27 (UART2 TX) |
+| GND | GND |
+| V+ | Verified supply for exact module revision |
 
-- **Tools > Board > ESP32 Arduino**
-- Choose **ESP32 Dev Module**
+PC ↔ ESP32 uses 115200 baud. ESP32 ↔ AS608 uses 57600 baud internally.
 
-This is the recommended board selection for this project.
+Do not assume every AS608 breakout has identical voltage regulation. Verify the module revision before powering it.
 
-### 1.4 Recommended upload settings
+See [Wiring](../Hardware/wiring.md) for the detailed pinout and power notes.
 
-Use these settings when uploading:
+## 5. Upload the maintained firmware
 
-- **Upload Speed:** 115200
-- **Flash Frequency:** 40MHz
-- **Flash Mode:** QIO
-- **Partition Scheme:** Default 4MB with spiffs
-- **Core Debug Level:** None
+Open `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` in Arduino IDE.
 
-If upload fails, try **115200** first. If your machine is stable, **460800** can also work, but **115200** is the safest default for beginners.
+Select **ESP32 Arduino → ESP32 Dev Module** for the documented WROOM-32 target.
 
-> Warning: Do not change the board type to a random ESP32 variant unless you know the exact hardware model. Use **ESP32 Dev Module** unless you have a specific reason to do otherwise.
+The maintained sketch is the supported firmware path. Historical standalone sketches and `firmware/prebuilt/attendance_v1.0.bin` are not substitutes.
 
-### 1.5 Choose the correct COM port
+The current sketch advertises firmware 1.0.10 and protocol 1.
 
-In Arduino IDE, go to:
+## 6. Start DSIS
 
-- **Tools > Port**
-
-Choose the COM port that belongs to the ESP32.
-
-A quick way to find it:
-
-1. Open **Device Manager**.
-2. Expand **Ports (COM & LPT)**.
-3. Look for an ESP32, CP210x, or USB Serial device.
-4. Select that port in Arduino IDE.
-
-If you do not see a COM port, the driver may not be installed correctly.
-
-### 1.6 Upload the sketch
-
-Click **Upload**.
-
-When it finishes successfully, you should see a message similar to **Done uploading**.
-
-### 1.7 What to do after a successful upload
-
-After the upload completes:
-
-- leave the ESP32 connected to the PC,
-- keep the Arduino Serial Monitor **closed**,
-- open the Python app next.
-
-> Important: The Serial Monitor and the Python app cannot both use the same COM port at the same time.
-
----
-
-## 2. Daily Operation: Run Without Arduino IDE
-
-### 2.1 Launch the V3 app with the provided batch file
-
-From the project root, double-click [run_web_gui.bat](../../run_web_gui.bat).
-
-This starts the maintained HTML/pywebview V3 application.
-
-The former Qt and CustomTkinter launchers are archived under [archive/legacy-ui/](../../archive/legacy-ui/) and are not supported daily-use workflows.
-
-### 2.2 Alternative: launch from the command line
-
-You can also open a terminal in the project root and run V3 directly:
+From the repository root:
 
 ```powershell
 python run_web_gui.py
 ```
 
-The archived Qt and CustomTkinter source trees are available only for historical comparison under `archive/legacy-ui/`; they do not have supported launch commands.
+or:
 
-### 2.2.1 V3 startup behavior
-
-V3 opens Dashboard, Attendance, Students, Reports, Logs, and Settings in one HTML/pywebview window. It continuously reads serial output so enrollment, delete, wipe, mode, count, and attendance events update without a separate serial monitor.
-
-```powershell
+```text
 run_web_gui.bat
 ```
 
-### 2.2.2 Run it again
+The v3 application opens a native pywebview window. No browser or local HTTP server is required.
 
-When you want to start the app again, use the same commands from the project root:
+## 7. Complete first-run setup
 
-```powershell
-run_web_gui.bat
+The wizard proceeds through:
+
+1. password;
+2. device;
+3. schedule;
+4. branding.
+
+The first-run password must be at least 8 characters, must be confirmed, has no built-in default value, and is stored as a salted PBKDF2-HMAC-SHA256 hash using a 16-byte random salt and 310,000 iterations.
+
+Device, schedule, and branding steps persist their completion state in `data/settings.json`.
+
+## 8. Connect the board
+
+1. Close Arduino Serial Monitor and other serial terminals.
+2. Connect the ESP32.
+3. Click **Connect** in DSIS.
+4. Leave auto-detection enabled unless a manual port is necessary.
+5. Confirm device metadata and fingerprint count.
+
+A COM port is accepted only after the DSIS identity handshake succeeds.
+
+## 9. Daily workflow
+
+Arduino IDE is not required for normal attendance operation.
+
+```text
+Launch DSIS
+    ↓
+Connect ESP32
+    ↓
+Verify metadata + fingerprint count
+    ↓
+Enroll students if needed
+    ↓
+Start SCAN
+    ↓
+Fingerprint event
+    ↓
+Attendance stored in SQLite
+    ↓
+Review Dashboard / Attendance / Reports
 ```
 
-If you already installed dependencies once, you do not need to reinstall them before each launch.
+Press **STOP** before enrollment, deletion, or wipe operations.
 
-### 2.3 Create a desktop shortcut
+## 10. Roles
 
-For daily convenience, create a shortcut to [run_web_gui.bat](../../run_web_gui.bat):
-
-1. Right-click [run_web_gui.bat](../../run_web_gui.bat).
-2. Choose **Create shortcut**.
-3. Move the shortcut to your Desktop.
-4. Double-click it whenever you want to start the system.
-
-If you want, you can also pin the shortcut to the taskbar.
-
-### 2.4 Expected normal startup behavior
-
-When the app starts normally, you should see:
-
-- the desktop GUI open,
-- a disconnected status until you click **Connect**,
-- the app discover or open the selected ESP32 COM port,
-- the status change to connected after the DSIS handshake succeeds.
-
-If the firmware is running correctly, the ESP32 will also be ready to respond to scan, enroll, and wipe commands.
-
-The Dashboard's Attendance Evaluation section can be filtered by day, week, or month, sorted by presence, rate, or name, and exported as CSV. It uses observed attendance dates in the selected period as school days; days with no recorded activity are not counted.
-
-### 2.5 V3 roles and device acceptance
-
-V3 roles are local workflow permissions, not account authentication:
-
-| Role | Permissions |
+| Role | Default permissions |
 | --- | --- |
-| Administrator | Scan, enroll, delete, wipe, export, backup, restore, settings, serial commands |
-| Teacher | Scan, export, backup |
-| Guest | Scan only |
+| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, export, backup, attendance evaluation |
+| Guest | scan, attendance evaluation |
 
-With the board connected, verify connect/disconnect, auto-reconnect, scan logging,
-enrollment cancellation and success, delete confirmation, wipe confirmation, and
-fingerprint-count refresh. A successful enrollment must be reported by the device
-before the student record is saved. A successful device delete must be reported
-before the local student record is removed.
+Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
 
----
+## 11. Attendance evaluation
 
-## 3. Important Configuration
+The Dashboard supports Day, Monday-Sunday Week, and Calendar Month evaluation.
 
-### 3.1 Default baud rate
+Evaluation counts distinct attendance dates per student. The observed-day denominator is based on attendance activity in the selected range rather than every empty calendar date.
 
-The default baud rate for the ESP32 communication is **115200**.
+Category bands:
 
-This is configured in [python/config.py](../../python/config.py).
+| Rate | Category |
+| ---: | --- |
+| 90-100% | Excellent |
+| 75-89% | Good |
+| 50-74% | Needs attention |
+| below 50% | Low attendance |
 
-### 3.2 Change the COM port and baud rate
+CSV export of evaluation requires the `export` permission.
 
-You can change the COM port and baud rate in the app through the settings UI or by editing configuration values in [python/config.py](../../python/config.py).
+## 12. Backups
 
-The app also saves user choices in the app's settings storage under [data](../../data).
+Manual and automatic database backups are stored under `data/backups/`.
 
-### 3.3 Where settings are saved
+The default automatic backup interval is 25 minutes.
 
-The application stores its saved settings in the [data](../../data) folder so your preferred COM port and UI choices persist between launches. The Qt Settings page also provides **Forget saved port** when a previously used COM number is stale.
+Create a fresh backup before wipe, restore, or database maintenance.
 
----
+## 13. Logs
 
-## 4. Driver and Hardware Requirements
+Operational logs are written to `data/logs/` when file logging is enabled. Per-run files use a timestamped `fingerprint_attendance_YYYYMMDD_HHMMSS.log` pattern.
 
-### 4.1 USB-to-UART driver
+## 14. Installation validation
 
-Many ESP32 boards use a **CP210x** or similar USB-to-UART chip.
+Software:
 
-If you do not see a COM port, install the correct driver first.
+```powershell
+python -m pytest -q
+python -m compileall python
+node --check python/gui_web/web/app.js
+```
 
-Common driver families include:
+Hardware:
 
-- **CP210x** for Silicon Labs USB bridges
-- **CH340/CH341** for WCH USB bridges
-- **CH9102** for WCH CH9102-family bridges
-- **FTDI VCP** for FT232-family bridges
+- identity handshake;
+- fingerprint count;
+- scan entry/exit;
+- enrollment cancellation;
+- successful enrollment with a test finger;
+- deletion;
+- wipe;
+- disconnect/reconnect.
 
-If you are unsure, check the board label or the USB chip on the ESP32 board.
+## 15. Common failure points
 
-### 4.2 Correct wiring reference
+### COM port unavailable
 
-The fingerprint sensor should be wired so that:
+Check the Windows driver, USB cable, and whether another application owns the port.
 
-- **V+** goes to power,
-- **GND** goes to ground,
-- **TX** and **RX** are cross-connected properly.
+### Sensor unavailable
 
-The project's main firmware in [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino) expects the sensor and ESP32 to be connected in the correct serial arrangement.
+Check GPIO14/GPIO27 wiring, sensor power, and the internal 57600-baud UART configuration.
 
-### 4.3 Power requirements
+### Device rejected
 
-Use a reliable USB connection.
+Verify that the maintained all-in-one firmware is installed and that `ID?` returns the DSIS identity and supported protocol.
 
-If the ESP32 is unstable, try:
+### Unexpected weak attendance result
 
-- a different USB cable,
-- a different USB port,
-- a direct connection to the PC instead of a USB hub.
+Review the configurable application `min_confidence`. A WEAK MATCH is still recorded by the current attendance processor.
 
-> Warning: Weak or unstable power can cause the ESP32 to disconnect randomly or fail to respond.
+## Related documentation
 
----
+- [v3 Workflows](v3-workflows.md)
+- [Project Overview](project-overview.md)
+- [Hardware Connections](../Hardware/hardware-connections.md)
+- [v3 Architecture](../Architecture/v3-system.md)
+- [Troubleshooting](../Troubleshooting/README.md)
 
-## 5. Comprehensive Troubleshooting
-
-### 5.1 No COM ports appear in the app
-
-Try these steps:
-
-1. Confirm the ESP32 is plugged in.
-2. Check **Device Manager** for a COM port.
-3. Reinstall the USB driver if needed.
-4. Try another USB cable or USB port.
-5. Close Arduino IDE if it still has the serial port open.
-
-### 5.2 App connects but the sensor does not respond
-
-This usually means the firmware or wiring is not correct.
-
-Check:
-
-1. The sensor is powered.
-2. TX/RX are cross-connected correctly.
-3. The ESP32 firmware uploaded successfully.
-4. The sensor is not loose or disconnected.
-
-### 5.3 "Failed to connect" or timeout errors
-
-Common causes:
-
-- the wrong COM port is selected,
-- the board is not actually running the firmware,
-- the serial monitor is still open,
-- the USB cable is loose or bad.
-
-Try:
-
-1. Reconnect the board.
-2. Re-select the COM port.
-3. Restart the app.
-4. Re-upload the firmware if needed.
-
-### 5.4 Fingerprint scans are not detected
-
-If the app does not detect a fingerprint:
-
-1. Make sure the finger is placed firmly and slowly.
-2. Clean the sensor surface.
-3. Try a different finger.
-4. Re-enroll the fingerprint if necessary.
-5. Confirm the firmware is still running and the board has not disconnected.
-
-### 5.5 Enrollment or wipe commands do not work
-
-If enrollment or wipe fails:
-
-1. Confirm the app is connected to the correct COM port.
-2. Check that the ESP32 firmware is still running.
-3. Confirm the board is not resetting.
-4. Try the action again after restarting the app.
-
-### 5.6 Baud rate mismatch issues
-
-If the app appears to connect but behaves strangely:
-
-1. Verify the baud rate is **115200**.
-2. Make sure the firmware and app are using the same rate.
-3. Re-upload the firmware if the setting changed unexpectedly.
-
-### 5.7 USB port keeps disconnecting
-
-Try:
-
-1. A better USB cable.
-2. A direct USB port on the computer.
-3. Avoiding powered USB hubs.
-4. Checking whether the board is drawing too much power from a weak source.
-
----
-
-## 6. Best Practices and Tips
-
-### 6.1 Safely restart the system
-
-When something seems wrong:
-
-1. Close the app.
-2. Disconnect and reconnect the ESP32.
-3. Reopen the app.
-4. Recheck the COM port.
-
-### 6.2 Check logs when something goes wrong
-
-The project writes logs to the [data](../../data) folder. If the app is not behaving properly, open the most recent log file and look for connection, scan, or enrollment messages.
-
-### 6.3 Verify the firmware is running correctly
-
-A healthy ESP32 should:
-
-- appear on a COM port,
-- connect to the Python app,
-- respond to fingerprint input,
-- send scan results back to the app.
-
-If the system does not respond after upload, the firmware may not have been flashed correctly or the board may need to be reset.
-
-### 6.4 Keep the Serial Monitor closed during normal use
-
-This is one of the most common beginner mistakes.
-
-If the Serial Monitor is open, the Python app may fail to access the COM port.
-
----
-
-## Quick Summary
-
-For daily use:
-
-1. **Upload the firmware once** using [firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino](../../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino).
-2. **Use [run_web_gui.bat](../../run_web_gui.bat)** to launch the app.
-3. **Keep the Serial Monitor closed**.
-4. **Use the correct COM port and 115200 baud rate**.
-5. **Restart the app if the sensor stops responding**.
+Last reviewed: 2026-09-20.
