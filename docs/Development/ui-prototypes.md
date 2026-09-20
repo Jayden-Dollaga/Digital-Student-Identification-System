@@ -1,38 +1,71 @@
 # DSIS UI Prototypes
 
-Commit `be7a046` adds isolated Qt interface prototypes for comparing possible layouts and navigation models. They are development previews under `tests/Prototype/`, not alternate production launchers for the active v3 webview interface.
+The files under `tests/Prototype/` are isolated interface experiments used to evaluate navigation, layout, density, and visual interaction ideas. They are **not alternate production launchers** for the maintained DSIS v3 webview application.
 
-## Scope
+## Why the prototypes exist
 
-- Prototypes use mock data or display-only production pages.
-- They do not start the live serial worker or database workflow.
-- Changes made in a prototype do not change the maintained DSIS application.
-- The supported desktop entry point is now `run_web_gui.bat` and `run_web_gui.py`.
-- The Qt and CustomTkinter interfaces used by some prototypes are archived snapshots, not active launchers.
+DSIS has evolved through multiple UI generations. The prototypes let development work compare ideas without modifying the active v3 interface.
+
+The prototypes are useful for:
+
+- testing navigation concepts;
+- comparing information density;
+- evaluating sidebar/icon patterns;
+- previewing identification workflows;
+- testing visual changes before integration.
+
+## Production boundary
+
+The supported production/source launcher is:
+
+```text
+run_web_gui.py
+run_web_gui.bat
+```
+
+The active interface is HTML/CSS/JavaScript rendered by pywebview.
+
+Historical interfaces are retained under `archive/legacy-ui/`.
+
+A prototype launch does **not** prove:
+
+- serial discovery;
+- ESP32/AS608 communication;
+- fingerprint enrollment;
+- attendance persistence;
+- permissions;
+- database backup/restore;
+- v3 API behavior.
 
 ## Available previews
 
-Run these commands from the repository root:
-
-| Preview | Command | Purpose |
+| Preview | Command | Scope |
 | --- | --- | --- |
-| Standalone identification | `python tests/Prototype/run_qt_prototype.py` | Task Manager-inspired identification workspace with mock results |
-| Hybrid concept | `python tests/Prototype/run_hybrid_prototype.py` | Identification workspace combined with production-style page navigation |
-| Task Manager variant | `python tests/Prototype/run_task_manager_variant.py` | Compact icon navigation and utility-focused comparison layout |
-| Original reconstruction | `python tests/Prototype/run_original_ui_display.py` | Display-only reconstruction using the real Qt pages |
-| Combined UI | `python tests/Prototype/run_combined_ui.py` | Real Qt pages inside the Task Manager-inspired shell |
-| Original-style preview | `python tests/Prototype/original_ui.py` | Standalone comparison with the earlier dark-shell structure |
+| Standalone identification | `python tests/Prototype/run_qt_prototype.py` | Mock identification workspace |
+| Hybrid concept | `python tests/Prototype/run_hybrid_prototype.py` | Identification + page-navigation concept |
+| Task Manager variant | `python tests/Prototype/run_task_manager_variant.py` | Compact icon navigation concept |
+| Original reconstruction | `python tests/Prototype/run_original_ui_display.py` | Display-only reconstruction using Qt pages |
+| Combined UI | `python tests/Prototype/run_combined_ui.py` | Qt pages inside experimental shell |
+| Original-style preview | `python tests/Prototype/original_ui.py` | Comparison with the earlier dark-shell structure |
 
-The previews are useful for visual review and interaction experiments. They are not hardware validation: a successful prototype launch does not prove that serial discovery, fingerprint enrollment, attendance persistence, permissions, or backups work.
+## Data and hardware isolation
 
-## Prototype tests
+Prototypes use mock, fixture, or display-only data. They should not be used as a substitute for the live SQLite database or serial hardware.
 
-Run the prototype tests from the repository root:
+A prototype should not write production attendance records, modify real fingerprints, or perform destructive device operations.
+
+## Validation
+
+Run a prototype from the repository root only when reviewing interface behavior:
 
 ```powershell
-python -m pytest tests/Prototype/tests
+python tests/Prototype/run_qt_prototype.py
 ```
 
-For end-to-end application behavior, run the main test suite and use the maintained v3 webview launcher instead of a prototype.
+For application correctness, use the maintained v3 launcher and the normal test suite.
 
-Last reviewed: 2026-09-04, against commit `be7a046`.
+## Integration rule
+
+A prototype becomes part of the active application only after its behavior is deliberately integrated into `python/gui_web/web/` and/or the supported Python backend, with corresponding tests and documentation updates.
+
+Last reviewed: 2026-09-20.
