@@ -68,6 +68,9 @@ jobs:
         # .ino sketches, not Python - nothing to compile there.)
         run: python -m compileall -q python
 
+      - name: Check active JavaScript syntax
+        run: node --check python/gui_web/web/app.js
+
       - name: Run tests (unit + integration + unmarked)
         # Includes unit + integration + anything nobody has tagged yet, so
         # a newly-added test can't silently skip CI just because it wasn't

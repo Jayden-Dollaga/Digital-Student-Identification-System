@@ -1,82 +1,78 @@
 # Architecture Audit
 
-> Historical generated snapshot. Current architecture is documented in `docs/Architecture/system-architecture.md`; the active UI is v3 HTML/pywebview under `python/gui_web/`.
+> Historical generated snapshot. The current architecture is documented in `docs/Architecture/system-architecture.md`; the **active UI is v3 HTML/pywebview** under `python/gui_web/` and is launched by `run_web_gui.py` / `run_web_gui.bat`.
 
-## System Layers
+## System layers
 
-1. Firmware (ESP32)
-   - Implements ESP32 Arduino logic for the fingerprint system.
-   - Handles commands over serial: `ENROLL`, `DELETE`, `WIPE`, `LIST`, `SCAN`, `STOP`, and `ID?`.
-   - Interfaces with the AS608 fingerprint sensor and onboard LED.
-   - Emits both legacy plain-text outputs and JSON events.
+1. **Firmware (ESP32 + AS608)**
+   - Maintained sketch: `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`.
+   - Host serial protocol uses **115200 baud**.
+   - Internal ESP32 ↔ AS608 UART uses **57600 baud**.
+   - Supports identity, scan, enrollment, deletion, wipe, list, stop, and status operations.
+   - Emits compatibility text and structured JSON events.
 
-2. Core Python Services
-   - `python/config.py`: runtime config, environment overrides, serial port heuristics.
-   - `python/core/serial_handler.py`: serial port management, reconnect, read buffer, command send.
-   - `python/core/attendance.py`: parses ESP32 output, applies cooldown, logs attendance.
-   - `python/core/database.py`: SQLite persistence for student profiles, attendance logs, exports, and backups.
-   - `python/core/device_discovery.py`: serial port discovery with JSON handshake validation.
-   - `python/core/logger.py`: centralized structured logging to console and optionally file.
-   - `python/core/firmware_helper.py`: firmware candidate discovery and esptool-based upload.
-   - `python/core/utils.py`: shared helpers for JSON parsing, display formatting, and exports.
+2. **Core Python services**
+   - `python/config.py`: runtime configuration and environment overrides.
+   - `python/core/serial_handler.py`: COM-port discovery, connection, reconnect, buffering, and command I/O.
+   - `python/core/device_discovery.py`: device probing and DSIS identity handshake.
+   - `python/core/attendance.py`: serial-event parsing, confidence handling, cooldown, and attendance recording.
+   - `python/core/database.py`: SQLite schema, student records, attendance, reports, backups, and exports.
+   - `python/core/auth.py`: password hashing and verification.
+   - `python/core/permissions.py`: session roles and operation permissions.
+   - `python/core/logger.py`: structured application logging.
+   - `python/core/firmware_helper.py`: firmware discovery/upload helpers.
+   - `python/core/utils.py`: shared parsing/export helpers.
 
-3. Desktop UI
-   - Legacy CustomTkinter stack in `python/gui/`.
-   - Modern Qt/PySide6 stack in `python/gui_qt/`.
-   - Shared workflow: connect to ESP32, enroll fingerprints, scan attendance, manage students, backup/restore, export reports.
+3. **Desktop UI**
+   - `python/gui_web/`: maintained v3 HTML/pywebview application.
+   - `run_web_gui.py`: supported source launcher.
+   - `run_web_gui.bat`: supported Windows convenience launcher.
+   - `archive/legacy-ui/v1/`: archived CustomTkinter UI.
+   - `archive/legacy-ui/v2/`: archived PySide6/Qt UI.
+   - `python/gui_web/v2_reference/`: migration/reference material, not a supported second UI.
 
-4. Data Storage
-   - SQLite database located in `data/attendance.db` by default.
-   - Local storage for backups, exports, and application settings.
+4. **Local data storage**
+   - SQLite database: `data/attendance.db` by default.
+   - Settings/authentication: `data/settings.json`.
+   - Backups: `data/backups/`.
+   - Logs, charts, and exports are also kept under `data/`.
+   - Runtime data is intentionally excluded from version control.
 
-5. Tests
-   - Regression test coverage in `tests/` for serial discovery, GUI pages, data handling, firmware helpers, and configuration.
+5. **Testing and CI**
+   - Automated tests live under `tests/`.
+   - Hardware tests are marked separately because a physical ESP32/AS608 is required.
+   - `.github/workflows/tests.yml` compiles the active Python tree, runs automated tests, runs archived UI marker suites, and checks the active JavaScript syntax.
 
-## Component Responsibilities
+## Active request flow
 
-- `python/main.py`
-  - Legacy console application entry point.
-  - Handles commands and prints live ESP32 responses.
+```text
+Windows user
+    │
+    ▼
+run_web_gui.py / run_web_gui.bat
+    │
+    ▼
+pywebview + python/gui_web/web/
+    │ window.pywebview.api
+    ▼
+python/gui_web/api.py
+    │
+    ├── core/permissions + core/auth
+    ├── core/attendance
+    ├── core/database ──> data/attendance.db
+    └── core/serial_handler
+              │ 115200
+              ▼
+            ESP32
+              │ 57600
+              ▼
+            AS608
+```
 
-- `run_qt_gui.py`
-  - Launcher for the Qt-based interface.
+## Deployment notes
 
-- `python/gui_qt/main_qt.py`
-  - Creates `QApplication`, loads stylesheet, and launches `MainWindow`.
+The supported source launch is `python run_web_gui.py`. The supported v3 PyInstaller specification is `Build/DSIS_v3.spec`. The older `run_app.bat`, `run_qt_gui.py`, and related v1/v2 launchers belong to historical/reference code and should not be presented as current release launchers.
 
-- `python/gui_qt/main_window.py`
-  - Orchestrates Qt pages and background serial worker.
-  - Manages connect/disconnect and scan toggle.
+## Audit note
 
-- `python/gui_qt/workers/serial_worker.py`
-  - Reads serial lines on a worker thread.
-  - Emits Qt signals for scan events, connection state, enroll/wipe progress, logs, and errors.
-
-- `python/gui_qt/pages/*`
-  - Individual pages for attendance, dashboard, students, reports, logs, and settings.
-
-- `python/services/*`
-  - Thin wrappers around database operations and export/backup behaviors.
-
-- `python/settings_store.py`
-  - JSON-based persistence for UI settings, themes, serial preferences, and auto-detect toggles.
-
-## Deployment Notes
-
-- The repository contains both source code and deployment artifacts for Windows.
-- `run_app.bat` starts the legacy GUI.
-- `run_qt_gui.py` and `run_qt_gui.bat` start the Qt GUI.
-- `install_requirements.bat` installs Python dependencies from `requirements.txt`.
-
-## Audit Findings
-
-- The project has a clear separation between serial I/O, attendance logic, persistence, and UI.
-- Two GUI stacks are present; the Qt stack is a newer alternative while the legacy CustomTkinter code remains functional.
-- Existing documentation under `docs/` is substantial but scattered, so `docs/generated/` provides a consolidated repository audit.
-- Serial discovery and JSON handshake support are implemented to reduce manual port selection.
-
-## Recommendations
-
-- Continue migrating user-facing functionality into the Qt stack to reduce maintenance overhead.
-- Add a dedicated `docs/generated/FILE_INVENTORY.md` if a full file-level audit is required.
-- Ensure `README.md` references the `docs/generated/` audit artifacts for maintainers.
+This file is a generated/historical architecture snapshot, not the source of truth for every implementation detail. For current behavior, prefer the active code and the current documents linked from `README.md`, `INSTALLATION.md`, `PORTABLE_BUILD.md`, and `docs/Architecture/`.

@@ -1,56 +1,50 @@
 # GUI Audit
 
-> Historical generated snapshot. The active interface is v3 HTML/pywebview; the Qt and CustomTkinter stacks described here are archived/reference implementations.
+> Historical generated snapshot. The **active interface is v3 HTML/pywebview**. The v1 CustomTkinter and v2 Qt stacks are archived/reference implementations and are not supported launch paths.
 
-## Overview
+## Active interface
 
-The project includes two desktop user interfaces:
+The maintained Windows desktop UI is:
 
-- Legacy CustomTkinter UI in `python/gui/`
-- Modern PySide6 Qt UI in `python/gui_qt/`
+- `run_web_gui.py` — source launcher from the repository root.
+- `run_web_gui.bat` — Windows convenience launcher.
+- `python/gui_web/main_web.py` — pywebview window lifecycle.
+- `python/gui_web/api.py` — JavaScript-to-Python bridge exposed through `window.pywebview.api`.
+- `python/gui_web/web/` — HTML/CSS/JavaScript application assets.
 
-Both interfaces share the same backend services and serial workflow, but the Qt stack represents a cleaner separation of UI from core services.
+The v3 application uses the shared Python services for serial communication, attendance processing, SQLite persistence, permissions, authentication, backups, exports, and diagnostics.
 
-## Legacy CustomTkinter stack
+## Archived / reference interfaces
 
-Key modules:
+### v1 CustomTkinter
 
-- `python/gui/app.py` — main application shell and orchestration.
-- `python/gui/sidebar.py` — left-hand sidebar with connection and actions.
-- `python/gui/attendance_page.py` — attendance list view.
-- `python/gui/students_page.py` — student roster management.
-- `python/gui/dashboard.py` — summary dashboard.
-- `python/gui/reports_page.py` — reporting and export screens.
-- `python/gui/settings_page.py` — settings and serial preferences.
-- `python/gui/dialogs.py` — modal dialogs for enroll, wipe, restore, and firmware operations.
-- `python/gui/serial_troubleshooting.py` — user-facing troubleshooting help for serial connections.
+Historical source is retained under `archive/legacy-ui/v1/`. It is useful for historical comparison and maintenance archaeology but is not the current DSIS launcher.
 
-The legacy UI is driven by CustomTkinter components and manually updated state.
+### v2 PySide6 / Qt
 
-## Qt/PySide6 stack
+Historical source is retained under `archive/legacy-ui/v2/`. It contains the previous Qt implementation and related tests/reference material. It is not the current production UI.
 
-Key modules:
+`python/gui_web/v2_reference/` also contains reference material used while migrating behavior into v3; it should not be treated as a second supported desktop application.
 
-- `python/gui_qt/main_qt.py` — PySide6 application entry point.
-- `python/gui_qt/main_window.py` — main window, sidebar, header, page routing, and serial worker integration.
-- `python/gui_qt/workers/serial_worker.py` — background thread reading serial data and emitting Qt signals.
-- `python/gui_qt/pages/` — individual page widgets for attendance, dashboard, students, reports, logs, and settings.
-- `python/gui_qt/widgets/` — reusable UI widgets such as the sidebar and stat cards.
+## Current UI capabilities
 
-The Qt stack is designed to keep device I/O off the UI thread and to surface events through signals.
+The maintained v3 UI exposes the supported DSIS workflows through the webview bridge:
 
-## Shared UI capabilities
+- Connect / disconnect the ESP32.
+- Start / stop fingerprint attendance scanning.
+- Enroll fingerprints and associate them with student records.
+- Delete individual fingerprints or wipe device fingerprints.
+- Manage student records.
+- View attendance history and evaluation windows.
+- Export CSV reports.
+- Back up and restore the local SQLite database.
+- Configure serial, attendance, schedule, branding, and application settings according to the active permission model.
+- View live application/device diagnostics and logs.
 
-- Connect / disconnect ESP32.
-- Start / stop attendance scanning.
-- Enroll fingerprints and link them to student records.
-- Delete or wipe fingerprint data.
-- View attendance records and dashboards.
-- Export data and backup/restore the local database.
-- Adjust settings such as COM port, baud rate, theme, and auto-connect behavior.
+## Serial boundary
 
-## Observations
+The v3 desktop application uses **115200 baud** for PC ↔ ESP32 communication. The ESP32 uses **57600 baud** internally for the AS608 UART. These are separate links; the desktop application does not open the AS608 connection directly.
 
-- The Qt stack currently provides a more modern and responsive interface.
-- The legacy stack remains present and useful for compatibility with earlier installations.
-- Serial worker logic in `python/gui_qt/workers/serial_worker.py` mirrors the legacy app's parsing behavior, helping maintain consistency across both UI options.
+## Historical documentation note
+
+Older generated files may still mention the v1/v2 paths because they are snapshots of previous repository states. They should be read as historical audit material unless explicitly marked as current.

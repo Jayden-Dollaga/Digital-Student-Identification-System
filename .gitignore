@@ -28,9 +28,14 @@ Build/DSIS_v3/
 # CP210x_Driver
 driver/install/
 
-
 # Database and local runtime data
 data/
+
+# Build/test archives generated locally; intentional repository archives
+# remain trackable outside these output locations.
+Build/**/*.zip
+tests/**/build/*.zip
+tests/**/dist/*.zip
 
 # VS Code / editors
 .vscode/

@@ -66,44 +66,21 @@ Examples:
 
 ## Enrollment behavior
 
-Enrollment:
-
-1. selects the next available ID when `ENROLL` is used;
-2. accepts explicit IDs 1-127 with `ENROLL:<id>`;
-3. captures the first fingerprint image;
-4. asks for the finger to be removed;
-5. captures the same finger again;
-6. creates the fingerprint model;
-7. stores the model in the selected ID.
-
-If the two captures do not match, enrollment reports a mismatch and the device does not store the new template.
-
-During enrollment, `STOP` cancels the operation and returns the firmware to command mode.
+Enrollment selects the next available ID when `ENROLL` is used, or accepts explicit IDs 1-127 with `ENROLL:<id>`. The sensor captures the same finger twice, creates a model, and stores it in the selected slot. A mismatch does not store the new template. `STOP` cancels enrollment and returns to command mode.
 
 ## Scanning behavior
 
-The firmware:
+The firmware waits for a finger, captures and converts the image, searches the sensor database, emits a match/unknown/low-confidence event, and applies a 2-second firmware-level post-scan delay.
 
-1. waits for a finger;
-2. captures the image;
-3. converts the image to a template;
-4. searches the sensor database;
-5. emits a match, unknown, or low-confidence event;
-6. applies the firmware's 2-second post-scan delay before another scan cycle.
+The firmware-level minimum confidence is **50**. The desktop application independently classifies matches using its configurable `min_confidence` setting (default 100). A weak application classification is still recorded by the current attendance processor.
 
-The current firmware-level minimum confidence is **50**. The desktop application independently classifies matches using its configurable `min_confidence` setting (default 100) as either `GOOD MATCH` or `WEAK MATCH`.
+## Deletion behavior
 
-A weak application classification is still a recorded scan; the current attendance processor does not reject it solely because it is below 100. This distinction is important when interpreting attendance data.
-
-## Deletion fix
-
-The maintained firmware calls `loadModel()` before `deleteModel()` so an absent fingerprint slot does not incorrectly report a successful deletion on sensor/library combinations that return an overly permissive delete result.
+The maintained firmware loads the selected fingerprint model before deleting it, avoiding false-success behavior on sensor/library combinations that are permissive about deleting an absent slot.
 
 ## LED states
 
-The onboard LED is used as a local device-status indicator. The current sketch defines states for boot, ready, scan, success, enrollment, firmware, error, database error, communication error, host connected, host disconnected, and sleep.
-
-The LED is informational; the PC should use the serial/device state as the authoritative connection signal.
+The onboard LED indicates boot, ready, scan, success, enrollment, firmware, error, database error, communication error, host connection, host disconnection, and sleep states. The PC should use serial/device state as the authoritative connection signal.
 
 ## Historical firmware
 
@@ -113,9 +90,8 @@ The LED is informational; the PC should use the serial/device state as the autho
 | `firmware/enroll/enroll.ino` | Historical standalone enrollment utility |
 | `firmware/delete/delete.ino` | Historical standalone deletion/list/wipe utility |
 | `firmware/test/fingerprint_check/fingerprint_check.ino` | Manual sensor/UART troubleshooting sketch |
-| `firmware/prebuilt/attendance_v1.0.bin` | Placeholder, not a verified binary |
 
-The placeholder file contains `BIN_PLACEHOLDER` and must not be flashed.
+No verified prebuilt firmware binary is distributed by the current repository. Do not treat an old placeholder or generated artifact as a flashable release image; use the maintained all-in-one source sketch for the supported v3 workflow.
 
 Use the all-in-one firmware for the supported v3 application workflow.
 
