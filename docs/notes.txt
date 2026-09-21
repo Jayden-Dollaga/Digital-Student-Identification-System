@@ -1,4 +1,15 @@
 
+DOCUMENT STATUS: HISTORICAL NOTES AND PROPOSALS
+
+This file is retained as a developer scratchpad and historical planning record.
+It is not an implementation specification. The current supported runtime is
+DSIS v3; use the canonical guides in `docs/README.md` and
+`docs/Development/documentation-authority.md` for verified behavior.
+
+The diagnostic-LED design below is a proposal. It must not be documented as a
+supported firmware feature unless it is implemented in the maintained
+all-in-one sketch and covered by tests or hardware validation.
+
 use /docsync to update docs
 example
 /docsync — synchronize the entire DSIS repository with the current implementation.

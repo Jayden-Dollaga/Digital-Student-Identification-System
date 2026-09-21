@@ -1,6 +1,6 @@
 # Documentation Manifest
 
-This manifest records the reorganized documentation surface at the current repository snapshot. Existing historical files retain their paths so links and audit references remain stable; the section `README.md` files are the navigational entry points.
+This manifest records the reorganized documentation surface at the current repository snapshot (`b311ed4`, 2026-09-21). Existing historical files retain their paths so links and audit references remain stable; the section `README.md` files are the navigational entry points.
 
 ## Canonical operational documentation
 

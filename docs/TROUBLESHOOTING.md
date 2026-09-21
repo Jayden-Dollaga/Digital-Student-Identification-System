@@ -1,6 +1,6 @@
 # Troubleshooting DSIS
 
-> Current quick recovery steps are maintained in [Troubleshooting/README.md](Troubleshooting/README.md). This file remains the longer diagnostic reference.
+> This is the expanded troubleshooting reference. For the maintained short entry point and current v3 navigation, use [Troubleshooting/README.md](Troubleshooting/README.md). Historical Qt/CustomTkinter procedures are not current launch instructions. This file remains the longer diagnostic reference.
 
 ## No COM Port Appears
 
@@ -80,9 +80,9 @@ If the UI reports a timeout:
 1. Close Arduino Serial Monitor and any other serial terminal.
 2. Confirm the firmware responds to `ID?` at 115200 baud.
 3. If a scan is reported as `WEAK MATCH`, note that the current application still records the event; `min_confidence` is a classification threshold.
-3. Click the ESP32 **EN/RESET** button to refresh the board. If it still does not connect, unplug the USB cable, wait 5-10 seconds, plug it back in, and wait for Windows to recreate the COM port.
-4. Retry the operation only after the device metadata and fingerprint count appear.
-5. If the connection still fails, open the latest file under `data/logs/` and check for serial, handshake, or permission errors.
+4. Click the ESP32 **EN/RESET** button to refresh the board. If it still does not connect, unplug the USB cable, wait 5-10 seconds, plug it back in, and wait for Windows to recreate the COM port.
+5. Retry the operation only after the device metadata and fingerprint count appear.
+6. If the connection still fails, open the latest file under `data/logs/` and check for serial, handshake, or permission errors.
 
 ## V3 Role Restrictions
 

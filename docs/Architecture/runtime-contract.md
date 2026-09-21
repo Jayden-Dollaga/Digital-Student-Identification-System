@@ -4,9 +4,9 @@ This document describes how the maintained application moves from process startu
 
 ## 1. Startup
 
-`run_web_gui.py` is the supported script entry point. `python/gui_web/main_web.py` loads configuration and settings, initializes the shared database and logging facilities, creates the API object, and opens the local HTML application in pywebview. The frontend is loaded from `python/gui_web/web/index.html`; the application does not depend on a separately hosted HTTP server.
+`run_web_gui.py` is the supported script entry point. `python/gui_web/main_web.py` loads configuration and settings, initializes the shared database and logging facilities, creates the API object, and opens the local HTML application in pywebview. The frontend is loaded from `python/gui_web/web/index.html`; the application does not depend on a separately hosted HTTP server. The current v3 shell also loads the configured visual branding/icon assets where the build target provides them.
 
-The API object owns the long-lived serial handler and attendance processor. It also starts the background work needed for device monitoring, automatic backups, and event delivery. The exact timing of background work is implementation detail; callers should use returned state and events rather than assuming a fixed startup order.
+The API object owns the long-lived serial handler and attendance processor. It also starts the background work needed for device monitoring, automatic backups, and event delivery. The exact timing of background work is implementation detail; callers should use returned state and events rather than assuming a fixed startup order. The first-run UI routes through password, device, schedule, and branding steps using persisted completion flags; the device step may be completed with or without a currently connected board.
 
 ## 2. Bridge direction
 

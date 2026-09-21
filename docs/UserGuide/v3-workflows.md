@@ -22,6 +22,11 @@ The supported v3 interface is a native pywebview window. Arduino IDE is needed f
 
 The first-run wizard must complete before normal Dashboard use.
 
+The wizard is a routed four-step flow. Each modal shows the same progress
+indicator, with completed steps marked separately from the active step. The
+router checks the persisted completion flags at startup and reopens the first
+unfinished step, so closing the application does not silently skip setup.
+
 ### Step 1 — Password
 
 Create the initial administrator password.
@@ -38,6 +43,13 @@ Connect the ESP32 or choose to continue and connect it later.
 
 DSIS can auto-detect the board or use a manual COM port. A device is accepted only after the firmware responds to `ID?` with valid DSIS identity metadata.
 
+The device step includes a live status card. It reports whether the device is
+connected, connecting, disconnected, or unavailable and provides the current
+port/device detail when known. **Connect** starts the normal discovery flow;
+**Continue** records that setup may proceed without hardware. Continuing does
+not claim that the device is connected and does not disable later connection
+from the main application.
+
 ### Step 3 — Schedule
 
 | Setting | Default |
@@ -51,6 +63,11 @@ DSIS can auto-detect the board or use a manual COM port. A device is accepted on
 ### Step 4 — Branding
 
 Set the school/application name and theme.
+
+The v3 shell also uses the configured DSIS branding assets, including the
+application logo/icon where the active build supports it. Branding changes are
+presentation settings; they do not change database, firmware, or permission
+behavior.
 
 Device, schedule, and branding completion flags persist so an interrupted setup can resume.
 
@@ -262,4 +279,4 @@ Close DSIS
 
 See [v3 System Architecture](../Architecture/v3-system.md) for technical details and [Troubleshooting](../Troubleshooting/README.md) for recovery procedures.
 
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-09-21.

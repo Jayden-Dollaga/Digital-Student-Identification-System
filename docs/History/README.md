@@ -14,6 +14,25 @@ The Qt generation separated pages, workers, serial handling, database access, at
 
 The current UI keeps the shared Python core and replaces Qt presentation and signal/slot glue with HTML/CSS/JavaScript. `main_web.py` creates the pywebview window, `api.py` exposes the Python bridge, and `web/app.js` renders state and sends user actions. Backend events are pushed to the frontend through the pywebview event bridge.
 
+## Recent audited history
+
+The previous audit baseline was `df0d28b` on 2026-09-20. The current HEAD is
+`b311ed4` on 2026-09-21. Commits since that baseline include:
+
+- `80939ff`: setup wizard progress tracking and device connection status in the v3 web UI.
+- `3505b10`: logo/icon support across application versions and build specifications.
+- `82a2ac0`: a connection modal side card for live status detail.
+- `b311ed4`: repository coding-guideline instructions; this changes contributor process, not runtime behavior.
+
+These changes are presentation and development-process updates. They do not
+replace the Python bridge, SQLite schema, firmware protocol, or attendance
+processor contract described by the architecture guides.
+
 ## History limits
 
-The checked-out repository contains 141 commits from `7a300e3` through `df0d28b`. The curated changelog and audit files group some changes and omit details for some tags, so exact release boundaries must be read from Git tags and commit contents rather than inferred from document titles. Historical reports remain under their original paths to preserve provenance.
+The checked-out repository contains 202 commits from `7a300e3` through
+`b311ed4` at the time of this audit. The curated changelog and audit files
+group some changes and omit details for some tags, so exact release boundaries
+must be read from Git tags and commit contents rather than inferred from
+document titles. Historical reports remain under their original paths to
+preserve provenance.

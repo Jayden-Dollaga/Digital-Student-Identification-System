@@ -44,4 +44,4 @@ The current hardware path is the maintained all-in-one sketch at `firmware/ESP32
 
 ## Known gaps
 
-The repository history establishes 197 commits from `7a300e3` (`Initial commit`, 2026-06-29) through `df0d28b` (`test: record Windows forensic validation results`, 2026-09-20). Some release tags and early milestones are referenced without a complete release manifest. Board-specific USB bridge details can vary by ESP32 carrier board. Those points must remain qualified until verified from a tag, board schematic, or current source.
+The repository history establishes 202 commits from `7a300e3` (`Initial commit`, 2026-06-29) through `b311ed4` (`feat: add Karpathy guidelines for coding`, 2026-09-21). Since the previous audit baseline `df0d28b`, the setup wizard gained visible progress and device-status behavior, build targets gained logo/icon support, and the connection modal gained a status side card. Some release tags and early milestones are referenced without a complete release manifest. Board-specific USB bridge details can vary by ESP32 carrier board. Those points must remain qualified until verified from a tag, board schematic, or current source.
