@@ -251,20 +251,26 @@ async function setupDeviceConnectClick() {
 }
 
 async function updateSetupDeviceStatus() {
-  const statusEl = document.getElementById('setup-device-status');
+  const connectBtn = document.getElementById('setup-device-connect-btn');
   const continueBtn = document.getElementById('setup-device-continue-btn');
-  if (!statusEl || !continueBtn) return;
+  const sideCard = document.getElementById('setup-device-side-card');
+  const sideDetail = document.getElementById('setup-device-side-detail');
+  if (!connectBtn || !continueBtn || !sideCard || !sideDetail) return;
   if (connected) {
+    connectBtn.textContent = 'Disconnect';
+    connectBtn.className = 'hdr-btn danger';
+    continueBtn.textContent = 'Continue';
     const status = await api().get_connection_status();
     const lines = formatDeviceStatusLines(status);
-    statusEl.innerHTML = `<div class="setup-status-connected">\u25cf Connected</div>` +
-      (lines.length
-        ? `<div class="setup-status-detail">${lines.map(escapeHtml).join('<br>')}</div>`
-        : `<div class="setup-status-detail">Connected, but the device hasn\u2019t reported its metadata yet.</div>`);
-    continueBtn.textContent = 'Continue';
+    sideDetail.innerHTML = lines.length
+      ? lines.map(escapeHtml).join('<br>')
+      : 'Connected, but the device hasn\u2019t reported its metadata yet.';
+    sideCard.hidden = false;
   } else {
-    statusEl.innerHTML = `<span style="color:var(--muted);">Not connected yet.</span>`;
+    connectBtn.textContent = 'Connect';
+    connectBtn.className = 'hdr-btn';
     continueBtn.textContent = "Skip \u2014 I'll connect it later";
+    sideCard.hidden = true;
   }
 }
 
@@ -465,6 +471,13 @@ function setStatus(state) {
   dot.className = 'dot' + (state === 'scanning' ? ' pulse' : '');
 
   const canScan = hasPermission('scan');
+  // Dashboard's "last scan" card has its own status line (#scan-meta) that
+  // was never touched here before - it only got updated by the scan-result
+  // handlers, so it stayed stuck on its hardcoded "Device not connected"
+  // placeholder text forever, even after a real successful connection.
+  // Skip this while actively scanning/showing a real result, since those
+  // handlers own scan-meta's text at that point.
+  const scanMeta = document.getElementById('scan-meta');
   if (state === 'disconnected') {
     text.textContent = 'Disconnected';
     connBtn.textContent = 'Connect';
@@ -477,6 +490,7 @@ function setStatus(state) {
     sbDev.style.display = 'none';
     sbDevSep.style.display = 'none';
     devInfo.style.display = 'none';
+    if (scanMeta) scanMeta.textContent = 'Device not connected. Connect a reader to begin scanning.';
   } else if (state === 'connected') {
     text.textContent = 'Connected';
     connBtn.textContent = 'Disconnect';
@@ -487,6 +501,7 @@ function setStatus(state) {
     sbDev.style.display = 'flex';
     sbDevSep.style.display = 'block';
     devInfo.style.display = 'block';
+    if (scanMeta) scanMeta.textContent = canScan ? 'Ready to scan.' : 'Connected.';
   } else if (state === 'scanning') {
     text.textContent = 'Scanning\u2026';
   }
@@ -555,10 +570,10 @@ function setConnectButtonsBusy(busy) {
     topBarBtn.disabled = busy;
     if (busy) topBarBtn.textContent = 'Connecting\u2026';
   }
-  const wizardBtn = document.querySelector('#setup-device-modal button[onclick="setupDeviceConnectClick()"]');
+  const wizardBtn = document.getElementById('setup-device-connect-btn');
   if (wizardBtn) {
     wizardBtn.disabled = busy;
-    wizardBtn.textContent = busy ? 'Connecting\u2026' : 'Connect';
+    if (busy) wizardBtn.textContent = 'Connecting\u2026';
   }
 }
 

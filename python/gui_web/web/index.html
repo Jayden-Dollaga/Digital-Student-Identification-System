@@ -654,16 +654,20 @@
 </div>
 
 <div id="setup-device-modal" class="modal-overlay" hidden>
-  <div class="modal-card auth-modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="setup-device-title">
+  <div class="modal-card auth-modal wizard-modal wizard-modal-with-side" role="dialog" aria-modal="true" aria-labelledby="setup-device-title">
     <div class="wizard-progress" id="wizard-progress-device"></div>
     <div class="modal-title" id="setup-device-title">Connect your device</div>
     <div class="modal-sub">Connect the ESP32 fingerprint scanner now, or skip this and connect it later from the top bar.</div>
-    <div id="setup-device-status" class="setup-status-line">Not connected yet.</div>
     <div class="modal-actions" style="justify-content:flex-start;margin-bottom:14px;">
-      <button class="hdr-btn" type="button" onclick="setupDeviceConnectClick()">Connect</button>
+      <button class="hdr-btn" type="button" id="setup-device-connect-btn" onclick="setupDeviceConnectClick()">Connect</button>
     </div>
     <div class="modal-actions">
+      <button class="hdr-btn" type="button" disabled>Previous</button>
       <button class="hdr-btn primary" type="button" id="setup-device-continue-btn" onclick="completeSetupDeviceStep()">Skip — I'll connect it later</button>
+    </div>
+    <div class="wizard-side-card" id="setup-device-side-card" hidden>
+      <div class="setup-status-connected">● Connected</div>
+      <div class="setup-status-detail" id="setup-device-side-detail"></div>
     </div>
   </div>
 </div>
@@ -685,16 +689,16 @@
     </div>
     <div style="display:flex;gap:8px;margin-top:6px;">
       <div style="flex:1;">
-        <label class="settings-row-label" for="setup-early-threshold">Early if before (min)</label>
+        <label class="settings-row-label" for="setup-early-threshold">Early before (min)</label>
         <input id="setup-early-threshold" class="settings-text-input" type="number" min="0" max="120" value="15">
       </div>
       <div style="flex:1;">
-        <label class="settings-row-label" for="setup-late-threshold">Late if after (min)</label>
+        <label class="settings-row-label" for="setup-late-threshold">Late after (min)</label>
         <input id="setup-late-threshold" class="settings-text-input" type="number" min="0" max="120" value="15">
       </div>
       <div style="flex:1;">
-        <label class="settings-row-label" for="setup-absent-threshold">Absent if after (min, 0=off)</label>
-        <input id="setup-absent-threshold" class="settings-text-input" type="number" min="0" max="120" value="0">
+        <label class="settings-row-label" for="setup-absent-threshold" title="Set to 0 to disable Absent flagging entirely">Absent after (min)</label>
+        <input id="setup-absent-threshold" class="settings-text-input" type="number" min="0" max="120" value="0" title="Set to 0 to disable Absent flagging entirely">
       </div>
     </div>
     <div id="setup-schedule-error" class="auth-error" role="alert"></div>

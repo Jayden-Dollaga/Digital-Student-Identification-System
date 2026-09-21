@@ -147,6 +147,20 @@
   }
   .auth-modal { width: min(360px, calc(100vw - 32px)); }
   .modal-card.wizard-modal { width: min(460px, calc(100vw - 32px)); }
+  /* The side card is positioned relative to the modal card itself (not a
+     flex sibling) so the modal's own width/centering is identical on every
+     wizard step and never shifts when the card shows/hides. */
+  .modal-card.wizard-modal.wizard-modal-with-side { position: relative; }
+  .wizard-side-card {
+    position: absolute; top: 0; left: calc(100% + 14px);
+    width: 240px; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px;
+    padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.4);
+  }
+  @media (max-width: 760px) {
+    /* Not enough room beside the modal on a narrow window - stack it
+       below instead of letting it run off-screen. */
+    .wizard-side-card { position: static; left: auto; top: auto; width: auto; margin-top: 14px; }
+  }
   .auth-error { min-height: 18px; margin-top: 6px; color: var(--red); font-size: 12px; }
 
   /* ─ Password field show/hide toggle ─
