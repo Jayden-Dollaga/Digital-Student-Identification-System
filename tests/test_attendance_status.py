@@ -30,7 +30,7 @@ def test_time_in_status_boundaries():
 
 def test_time_out_status_boundaries():
     assert calculate_attendance_status("16:44:00", "time_out", SETTINGS) == "Early"
-    assert calculate_attendance_status("16:45:00", "time_out", SETTINGS) == "Present"
+    assert calculate_attendance_status("16:45:00", "time_out", SETTINGS) == "Out"
 
 
 def test_zero_absent_threshold_keeps_late_status():
@@ -47,7 +47,7 @@ def test_half_day_schedule_is_used_for_time_out():
             "time_out": "12:00",
         }
     }
-    assert calculate_attendance_status("12:00:00", "time_out", settings, "2026-09-20") == "Present"
+    assert calculate_attendance_status("12:00:00", "time_out", settings, "2026-09-20") == "Out"
     assert calculate_attendance_status("11:44:00", "time_out", settings, "2026-09-20") == "Early"
 
 

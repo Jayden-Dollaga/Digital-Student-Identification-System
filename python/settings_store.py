@@ -59,6 +59,10 @@ def default_settings() -> Dict[str, Any]:
         # Display name shown in the sidebar/header instead of the generic
         # "DSIS" label. Empty string = not yet set (first-run wizard step 4).
         "school_name": "",
+        # Recurring no-class weekdays (Sunday=0 ... Saturday=6). These are
+        # treated as school-wide exceptions for the calendar logic and are
+        # saved as part of the schedule step.
+        "school_weekdays_off": [],
         # First-run setup wizard progress. Password (step 1) isn't tracked
         # here - its own existence (auth.has_password_set) is the signal for
         # that step. These three track the REMAINING steps so the router

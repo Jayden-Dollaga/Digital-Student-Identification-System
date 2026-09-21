@@ -1382,6 +1382,13 @@ class Api:
             "time_in", "time_out", "early_threshold_minutes",
             "late_threshold_minutes", "absent_threshold_minutes",
         }
+        if "school_weekdays_off" in settings:
+            try:
+                weekdays = sorted({int(value) for value in settings["school_weekdays_off"] if 0 <= int(value) <= 6})
+            except (TypeError, ValueError):
+                return {"ok": False, "message": "School no-class days must be valid weekday numbers."}
+            settings = dict(settings)
+            settings["school_weekdays_off"] = weekdays
         if time_rule_keys.intersection(settings) and not permissions.require_role(
             permissions.ATTENDANCE_TIME_RULES_PERMISSION
         ):
@@ -1529,22 +1536,25 @@ class Api:
         early_threshold_minutes: int = 15,
         late_threshold_minutes: int = 15,
         absent_threshold_minutes: int = 0,
+        school_weekdays_off: Optional[list[int]] = None,
     ) -> Dict[str, Any]:
         if permissions.get_current_role() != "admin":
             return {"ok": False, "message": "Administrator session required."}
-        # Delegate to the existing, already-tested save_ui_settings
-        # validation/apply logic rather than re-implementing HH:MM parsing
-        # and threshold clamping a second time.
-        result = self.save_ui_settings({
+        payload = {
             "time_in": time_in,
             "time_out": time_out,
             "early_threshold_minutes": early_threshold_minutes,
             "late_threshold_minutes": late_threshold_minutes,
             "absent_threshold_minutes": absent_threshold_minutes,
-        })
+        }
+        if school_weekdays_off is not None:
+            payload["school_weekdays_off"] = sorted({int(value) for value in school_weekdays_off if 0 <= int(value) <= 6})
+        result = self.save_ui_settings(payload)
         if not result.get("ok"):
             return result
         settings = load_settings()
+        if school_weekdays_off is not None:
+            settings["school_weekdays_off"] = sorted({int(value) for value in school_weekdays_off if 0 <= int(value) <= 6})
         settings["setup_schedule_step_done"] = True
         save_settings(settings)
         return {"ok": True}

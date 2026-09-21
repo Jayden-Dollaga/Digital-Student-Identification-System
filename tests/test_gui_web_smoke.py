@@ -443,7 +443,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
 
     result = api.get_attendance(mode="last30")
 
-    assert result["rows"][0]["attendance_status"] == "Present"
+    assert result["rows"][0]["attendance_status"] == "Out"
 
 
 def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
@@ -469,6 +469,35 @@ def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
 
     assert result["ok"] is False
     assert "Time Out must be later than Time In." == result["message"]
+
+
+def test_v3_calendar_bulk_half_day_uses_valid_times(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    captured = {}
+
+    def fake_load_settings():
+        return {
+            "time_in": "08:00",
+            "time_out": "17:00",
+            "school_calendar": {},
+        }
+
+    def fake_save_settings(settings):
+        captured["settings"] = settings
+        return None
+
+    monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: True)
+    monkeypatch.setattr("gui_web.api.load_settings", fake_load_settings)
+    monkeypatch.setattr("gui_web.api.save_settings", fake_save_settings)
+
+    result = api.set_calendar_entry("2026-09-22", "half_day", "Exam", "08:30", "12:30")
+
+    assert result["ok"] is True
+    assert result["entry"]["time_in"] == "08:30"
+    assert result["entry"]["time_out"] == "12:30"
+    assert captured["settings"]["school_calendar"]["2026-09-22"]["type"] == "half_day"
 
 
 def test_v3_attendance_evaluation_ignores_weekend_activity(monkeypatch):

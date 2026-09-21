@@ -280,11 +280,46 @@ async function completeSetupDeviceStep() {
   runSetupWizardRouter();
 }
 
+function updateWindowSizeMode() {
+  const width = window.innerWidth;
+  const mode = width >= 1200 ? 'wide' : width <= 760 ? 'compact' : 'medium';
+  document.body.dataset.windowMode = mode;
+}
+
+window.addEventListener('resize', updateWindowSizeMode);
+document.addEventListener('DOMContentLoaded', updateWindowSizeMode);
+
+function applySetupWeekdaySelection(selectedDays) {
+  const normalized = Array.from(new Set((selectedDays || []).map(Number).filter(value => value >= 0 && value <= 6))).sort((a, b) => a - b);
+  document.querySelectorAll('.setup-week-day').forEach(button => {
+    const day = Number(button.dataset.weekday);
+    const isSelected = normalized.includes(day);
+    button.classList.toggle('is-off', isSelected);
+    button.setAttribute('aria-pressed', String(isSelected));
+  });
+}
+
+function attachSetupWeekdayToggles() {
+  document.querySelectorAll('.setup-week-day').forEach(button => {
+    button.addEventListener('click', () => {
+      const day = Number(button.dataset.weekday);
+      const existing = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
+      const next = existing.includes(day)
+        ? existing.filter(item => item !== day)
+        : [...existing, day].sort((a, b) => a - b);
+      applySetupWeekdaySelection(next);
+    });
+  });
+}
+
 function openSetupScheduleStep() {
   const modal = document.getElementById('setup-schedule-modal');
   if (!modal) return;
   renderWizardProgress('wizard-progress-schedule', 'schedule');
   document.getElementById('setup-schedule-error').textContent = '';
+  attachSetupWeekdayToggles();
+  const selectedDays = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
+  applySetupWeekdaySelection(selectedDays);
   modal.hidden = false;
 }
 
@@ -294,12 +329,13 @@ async function completeSetupScheduleStep() {
   const early = Number(document.getElementById('setup-early-threshold').value || 15);
   const late = Number(document.getElementById('setup-late-threshold').value || 15);
   const absent = Number(document.getElementById('setup-absent-threshold').value || 0);
+  const selectedDays = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
   const error = document.getElementById('setup-schedule-error');
   if (!timeIn || !timeOut) {
     error.textContent = 'Time in and time out are required.';
     return;
   }
-  const result = await api().complete_setup_schedule_step(timeIn, timeOut, early, late, absent);
+  const result = await api().complete_setup_schedule_step(timeIn, timeOut, early, late, absent, selectedDays);
   if (!result.ok) {
     error.textContent = result.message || 'Could not save the schedule.';
     return;
@@ -975,6 +1011,7 @@ function attendanceBadgeClass(status) {
   if (value === 'early') return 'early';
   if (value === 'late') return 'late';
   if (value === 'absent') return 'absent';
+  if (value === 'out') return 'out';
   return 'present';
 }
 

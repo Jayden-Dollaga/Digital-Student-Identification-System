@@ -587,7 +587,7 @@
             <button class="hdr-btn" type="button" onclick="calendarShiftMonth(-1)" aria-label="Previous month">&#9664;</button>
             <input type="month" id="cal-month-input" class="cal-month-input" onchange="onCalendarMonthInputChange()">
             <button class="hdr-btn" type="button" onclick="calendarShiftMonth(1)" aria-label="Next month">&#9654;</button>
-            <button class="hdr-btn" type="button" onclick="calendarGoToday()" style="margin-left:auto;">Today</button>
+            <button class="hdr-btn" type="button" onclick="calendarGoToday()">Today</button>
           </div>
 
           <div class="cal-legend">
@@ -699,6 +699,18 @@
       <div style="flex:1;">
         <label class="settings-row-label" for="setup-absent-threshold" title="Set to 0 to disable Absent flagging entirely">Absent after (min)</label>
         <input id="setup-absent-threshold" class="settings-text-input" type="number" min="0" max="120" value="0" title="Set to 0 to disable Absent flagging entirely">
+      </div>
+    </div>
+    <div class="setup-week-selector">
+      <div class="settings-row-label" style="margin-bottom:8px;">No-class days</div>
+      <div class="setup-week-grid">
+        <button type="button" class="setup-week-day" data-weekday="0" aria-pressed="false">Su</button>
+        <button type="button" class="setup-week-day" data-weekday="1" aria-pressed="false">Mo</button>
+        <button type="button" class="setup-week-day" data-weekday="2" aria-pressed="false">Tu</button>
+        <button type="button" class="setup-week-day" data-weekday="3" aria-pressed="false">We</button>
+        <button type="button" class="setup-week-day" data-weekday="4" aria-pressed="false">Th</button>
+        <button type="button" class="setup-week-day" data-weekday="5" aria-pressed="false">Fr</button>
+        <button type="button" class="setup-week-day" data-weekday="6" aria-pressed="false">Sa</button>
       </div>
     </div>
     <div id="setup-schedule-error" class="auth-error" role="alert"></div>

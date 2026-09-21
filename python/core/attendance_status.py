@@ -41,7 +41,7 @@ def calculate_attendance_status(
     absent = max(0, int(settings.get("absent_threshold_minutes", 0)))
 
     if time_key == "time_out":
-        return "Early" if scan_minutes < expected - early else "Present"
+        return "Early" if scan_minutes < expected - early else "Out"
     if scan_minutes < expected - early:
         return "Early"
     if absent > 0 and scan_minutes > expected + absent:
