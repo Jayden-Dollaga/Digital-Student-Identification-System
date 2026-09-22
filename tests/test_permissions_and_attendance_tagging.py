@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "python"))
 from core import database as db_module
 from core.commands import cmd_enroll, cmd_delete, cmd_wipe
 from core import permissions as permissions_module
+from gui_web import api as api_module
 
 
 
@@ -376,6 +377,18 @@ class TestAttendanceEventTypeTagging:
 
 
 class TestTodayAttendanceFallbackFlag:
+    def test_api_does_not_start_backup_thread_until_window_is_attached(self):
+        api = api_module.Api()
+        assert api._backup_thread is None
+
+        api.set_window(object())
+        assert api._backup_thread is not None
+        assert api._backup_thread.is_alive()
+
+        api.stop_background_tasks()
+        assert api._backup_thread is not None
+        assert not api._backup_thread.is_alive()
+
     def test_is_fallback_false_when_todays_records_exist(self, temp_db):
         db_module.add_student(1, "S-1", "Student One", "10", "A")
         db_module.log_attendance(fingerprint_id=1, confidence=100, status="Present")

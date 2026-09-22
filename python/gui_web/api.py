@@ -205,18 +205,19 @@ class Api:
         # Recurring auto-backup, ported from MainWindow._configure_auto_backup_timer
         # / _run_auto_backup_check - v3 had the "Auto-backup interval" field
         # in Settings but nothing was ever actually scheduling backups with
-        # it. Runs an initial check shortly after startup, then on a
-        # recurring interval matching the configured minutes.
+        # it. The loop should only start when the actual GUI window is live;
+        # creating an Api() instance in tests or helper scripts should not fire
+        # off additional database writes or leave orphan threads behind.
         self._backup_stop = threading.Event()
         self._backup_interval_minutes = float(settings.get("auto_backup_interval_minutes", 25))
-        self._backup_thread = threading.Thread(target=self._auto_backup_loop, daemon=True)
-        self._backup_thread.start()
+        self._backup_thread: Optional[threading.Thread] = None
 
     def _auto_backup_loop(self) -> None:
         """Checks every ~12s (interval / 5, same ratio v2 used) whether a
         backup is due, so a settings change to the interval takes effect
         quickly instead of waiting up to the old interval's length."""
-        time.sleep(2)  # let startup settle first, like v2's singleShot(2000, ...)
+        if self._backup_stop.wait(2.0):
+            return
         while not self._backup_stop.is_set():
             try:
                 path = db.auto_backup_if_needed(min_interval_hours=self._backup_interval_minutes / 60.0)
@@ -224,9 +225,24 @@ class Api:
                     log.info(f"Automatic backup created: {path}")
             except Exception as exc:
                 log.error(f"Auto-backup check failed: {exc}")
-            self._backup_stop.wait(max(5.0, (self._backup_interval_minutes * 60) / 5))
+            if self._backup_stop.wait(max(5.0, (self._backup_interval_minutes * 60) / 5)):
+                break
+    def start_background_tasks(self) -> None:
+        """Start background work only after the real web window is attached."""
+        if self._backup_thread is not None and self._backup_thread.is_alive():
+            return
+        self._backup_stop.clear()
+        self._backup_thread = threading.Thread(target=self._auto_backup_loop, daemon=True)
+        self._backup_thread.start()
+
+    def stop_background_tasks(self) -> None:
+        self._backup_stop.set()
+        if self._backup_thread is not None and self._backup_thread.is_alive():
+            self._backup_thread.join(timeout=3.0)
+
     def set_window(self, window) -> None:
         self._window = window
+        self.start_background_tasks()
 
     def _choose_csv_path(self, filename: str) -> Optional[Path]:
         """Open a native Save As dialog and return the user's selected path."""
