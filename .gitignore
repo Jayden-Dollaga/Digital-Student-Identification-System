@@ -30,6 +30,7 @@ driver/install/
 
 # Database and local runtime data
 data/
+tests/backups/
 
 # Build/test archives generated locally; intentional repository archives
 # remain trackable outside these output locations.
