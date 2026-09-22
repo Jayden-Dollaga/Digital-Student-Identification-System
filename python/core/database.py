@@ -1383,34 +1383,53 @@ def _is_path_within_directory(path: Path, directory: Path) -> bool:
     return common == str(resolved_dir)
 
 
+def _is_valid_sqlite_db_file(path: Path) -> bool:
+    """Return True if the path looks like a real SQLite database file.
+
+    We validate the magic header instead of opening the file with sqlite3 so we
+    don't hold a file handle open on Windows while the backup file is still in
+    the temp-backups directory and being cleaned up.
+    """
+    try:
+        if not path.exists() or not path.is_file() or path.stat().st_size < 16:
+            return False
+        with path.open('rb') as handle:
+            header = handle.read(16)
+        return header == b'SQLite format 3\x00'
+    except (OSError, ValueError):
+        return False
+
+
 def restore_database(backup_path: str) -> Tuple[bool, str]:
     """Restore database from a backup file.
-    
+
     Args:
         backup_path: Path to the backup file. Must be within the backups directory.
-    
+
     Returns:
         Tuple of (success, message)
     """
     try:
         backup_file = Path(backup_path).resolve()
         backup_dir = (Path(DB_PATH).parent / 'backups').resolve()
-        
-        # SECURITY: Ensure the backup file is within the backups directory
+
+        # SECURITY: Ensure the backup file is within the backups directory.
         # This prevents path traversal attacks (../ escapes, sibling
         # directories like "backups_evil", absolute paths elsewhere, and
         # symlink-based escapes - see _is_path_within_directory()).
         if not _is_path_within_directory(backup_file, backup_dir):
             log.error(f"Restore attempted from outside backups directory: {backup_path}")
             return False, 'Invalid backup file location. Backups must be in the backups directory.'
-        
+
         if not backup_file.exists():
-            return False, 'Backup file not found'
-        
-        # Verify file is a SQLite database before restoring
-        if not backup_file.suffix == '.db':
+            return False, 'Backup file not found.'
+
+        if backup_file.suffix.lower() != '.db':
             return False, 'Invalid file type. Only .db backup files are supported.'
-        
+
+        if not _is_valid_sqlite_db_file(backup_file):
+            return False, 'Invalid backup file. The selected .db file is not a valid SQLite database.'
+
         shutil.copy2(backup_file, DB_PATH)
         log.success(f"Database restored from {backup_file.name}")
         return True, 'Database restored successfully'

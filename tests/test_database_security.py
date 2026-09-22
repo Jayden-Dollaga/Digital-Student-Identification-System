@@ -44,18 +44,14 @@ class TestRestoreDatabasePathTraversal:
             db_path = tmpdir / 'attendance.db'
             backups_dir = tmpdir / 'backups'
             backups_dir.mkdir()
-            
-            # Create a mock backup file
+
             backup_file = backups_dir / 'attendance_20240101.db'
-            backup_file.write_bytes(b'SQLite format 3')
-            
-            # Create the original database file
-            db_path.write_bytes(b'SQLite format 3')
-            
+            backup_file.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
+            db_path.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
+
             with patch('core.database.DB_PATH', str(db_path)):
                 result_ok, result_msg = restore_database(str(backup_file))
-                
-                # Should succeed because the file is within backups directory
+
                 assert result_ok
                 assert 'successfully' in result_msg.lower()
     
@@ -86,6 +82,24 @@ class TestRestoreDatabasePathTraversal:
                 # Should fail because it's not a .db file
                 assert not result_ok
                 assert 'file type' in result_msg.lower() or '.db' in result_msg
+
+    def test_restore_database_rejects_tampered_db_file_with_invalid_sqlite_header(self):
+        """A .db file that is not actually a SQLite database must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / 'attendance.db'
+            backups_dir = tmpdir / 'backups'
+            backups_dir.mkdir()
+
+            tampered_backup = backups_dir / 'attendance_tampered.db'
+            tampered_backup.write_bytes(b'not a real sqlite database\x00\x01\x02')
+            db_path.write_bytes(b'SQLite format 3')
+
+            with patch('core.database.DB_PATH', str(db_path)):
+                result_ok, result_msg = restore_database(str(tampered_backup))
+
+                assert not result_ok
+                assert 'invalid backup file' in result_msg.lower() or 'not a valid sqlite' in result_msg.lower()
     
     def test_restore_database_sanitizes_error_messages(self):
         """Error messages should not expose full filesystem paths."""
@@ -132,8 +146,8 @@ class TestRestoreDatabasePathTraversal:
             nested_dir.mkdir(parents=True)
 
             backup_file = nested_dir / 'attendance_20260817.db'
-            backup_file.write_bytes(b'SQLite format 3')
-            db_path.write_bytes(b'SQLite format 3')
+            backup_file.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
+            db_path.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
 
             with patch('core.database.DB_PATH', str(db_path)):
                 result_ok, result_msg = restore_database(str(backup_file))
