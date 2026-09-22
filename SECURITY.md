@@ -59,3 +59,14 @@ student records, fingerprint data, database files, or private logs in a report;
 use redacted examples instead.
 
 See [LICENSE](LICENSE) for the project's software license.
+
+
+## Current implementation details
+
+For security review, the active implementation uses a process-memory role session with a 600-second default idle timeout, backend permission checks, salted PBKDF2-HMAC-SHA256 password verification, and restore-path containment for database backups.
+
+There is no forgotten-password recovery flow. `change_admin_password` requires the current administrator password, and deleting `data/settings.json` is not a supported password-reset procedure.
+
+Treat `data/attendance.db`, `data/settings.json`, `data/backups/`, `data/logs/`, and generated exports as sensitive local school data.
+
+See [the implementation security model](docs/Security/security-model.md).

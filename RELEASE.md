@@ -18,3 +18,10 @@ Use a version tag in the form `vMAJOR.MINOR.PATCH`. Update `docs/Development/cha
 8. Tag the release and publish the generated artifact together with installation and troubleshooting links.
 
 Hardware validation is required for serial or firmware changes but may be documented as unavailable for documentation-only releases.
+
+
+## Documentation validation gate
+
+Before a release, verify the documentation against the same source commit as the artifact. At minimum, review the v3 architecture/bridge, database/data model, attendance rules, roles, first-run wizard, firmware/protocol, backup/restore/export, and troubleshooting guides.
+
+Run the repository checks already listed above, and perform physical ESP32/AS608 validation for hardware or serial changes.

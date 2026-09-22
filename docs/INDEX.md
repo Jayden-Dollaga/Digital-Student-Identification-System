@@ -100,3 +100,30 @@ When information conflicts, prefer:
 5. generated snapshots.
 
 Last reviewed: 2026-09-20.
+
+
+## Additional current guides
+
+The following documents were added as non-destructive companions to the original documentation set:
+
+- [Architecture: v3 system detail](Architecture/v3-system-architecture.md)
+- [Architecture: bridge detail](Architecture/pywebview-bridge.md)
+- [User Guide: workflows](UserGuide/workflows.md)
+- [User Guide: enrollment/scanning](UserGuide/enrollment-and-scanning.md)
+- [User Guide: attendance rules](UserGuide/attendance-rules.md)
+- [User Guide: roles](UserGuide/roles-and-permissions.md)
+- [User Guide: first-run wizard](UserGuide/first-run-wizard.md)
+- [User Guide: backup/restore/export](UserGuide/backup-restore-export.md)
+- [Hardware: firmware](Hardware/firmware.md)
+- [Hardware: serial protocol](Hardware/serial-protocol.md)
+- [Hardware: drivers and ports](Hardware/drivers-and-ports.md)
+- [Development: setup](Development/setup.md)
+- [Development: testing](Development/testing.md)
+- [Development: logging](Development/logging.md)
+- [Development: release/portable build](Development/release-and-portable-build.md)
+- [Troubleshooting: desktop](Troubleshooting/desktop.md)
+- [Troubleshooting: serial/device](Troubleshooting/serial-and-device.md)
+- [Troubleshooting: database](Troubleshooting/database.md)
+- [Security: security model](Security/security-model.md)
+
+These additions do not remove or relocate the pre-existing documentation.

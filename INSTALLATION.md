@@ -265,3 +265,12 @@ The most common causes of connection failure are:
 - unstable USB/power connection
 
 Last reviewed: 2026-09-20.
+
+
+## Documentation coverage
+
+For the source-backed details behind this installation procedure, see [the whole-app inventory](docs/generated/APP_INVENTORY.md), [first-run wizard](docs/UserGuide/first-run-wizard.md), [drivers and ports](docs/Hardware/drivers-and-ports.md), and [firmware](docs/Hardware/firmware.md).
+
+The current v3 host/device split is **115200 baud PC ↔ ESP32** and **57600 baud ESP32 ↔ AS608**. The desktop application does not connect directly to the AS608.
+
+Runtime data under `data/` is local and sensitive: protect `settings.json`, `attendance.db`, backups, logs, exports, and charts.

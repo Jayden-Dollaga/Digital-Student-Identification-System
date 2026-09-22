@@ -51,3 +51,12 @@ Before distributing a build:
 The source build was validated on 2026-09-09. A clean-machine package test and physical ESP32/AS608 validation still require the target hardware/environment. See the [Testing and Validation](docs/UserGuide/testing-results.md) record for documented hardware checks.
 
 Last reviewed: 2026-09-16, against commit `64d80c9`.
+
+
+## Current v3 build facts
+
+The maintained specification is `Build/DSIS_v3.spec`. Its PyInstaller configuration uses `run_web_gui.py` as the source entry point, collects the v3 web assets, and names the packaged application `DSIS-v3.exe` inside the `DSIS-v3` distribution directory.
+
+Writable runtime data remains external to the frozen application and is resolved from the packaged executable directory. Keep `data/` beside the packaged runtime.
+
+See [Release and Portable Build](docs/Development/release-and-portable-build.md) for the validation checklist.

@@ -32,3 +32,10 @@ For hardware changes, also record the ESP32 board, USB bridge, sensor module rev
 ## Documentation source of truth
 
 The maintained desktop interface is the HTML/pywebview v3 application launched by `run_web_gui.bat`. The former Qt and CustomTkinter trees are archived under `archive/legacy-ui/`. The all-in-one firmware at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` is the supported firmware path. Historical sketches and the placeholder binary are retained for reference and should not be presented as interchangeable installation options.
+
+
+## Full-app documentation rule
+
+For behavioral changes, update the closest current document and the whole-app inventory when a public surface changes. Preserve historical/audit snapshots rather than rewriting their original findings.
+
+The active product boundary remains the v3 webview runtime; the v1 CustomTkinter and v2 Qt trees stay archived.

@@ -13,3 +13,14 @@
 ## Development rule
 
 Document behavior from current source and tests. Treat v2 reference code, prototypes, generated inventories, and old incident reports as context unless the authority map says otherwise. Changes that alter the serial protocol, schema, permissions, or export format require corresponding tests and documentation updates.
+
+
+## Current documentation companions
+
+- [Development Setup](setup.md)
+- [Testing and Validation](testing.md)
+- [Logging](logging.md)
+- [Release and Portable Build](release-and-portable-build.md)
+- [Whole-app inventory](../generated/APP_INVENTORY.md)
+
+The earlier development notes in this directory remain preserved for historical and implementation context.

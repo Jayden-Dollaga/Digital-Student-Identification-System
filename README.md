@@ -354,3 +354,20 @@ See [LICENSE](LICENSE) for the project's license and usage terms.
 *Modular digital identification and attendance for educational environments.*
 
 </div>
+
+
+---
+
+## Full application documentation
+
+The documentation set now includes a source-backed whole-application inventory and dedicated current guides for the v3 bridge, data model, firmware, serial protocol, first-run setup, roles, attendance rules, backup/restore/export, development validation, and troubleshooting.
+
+- [Whole-app inventory](docs/generated/APP_INVENTORY.md)
+- [Documentation index](docs/INDEX.md)
+- [v3 architecture](docs/Architecture/v3-system-architecture.md)
+- [Enrollment and scanning](docs/UserGuide/enrollment-and-scanning.md)
+- [Attendance rules](docs/UserGuide/attendance-rules.md)
+- [Roles and permissions](docs/UserGuide/roles-and-permissions.md)
+- [Firmware and serial protocol](docs/Hardware/firmware.md) and [serial protocol](docs/Hardware/serial-protocol.md)
+
+Existing documentation, audit notes, generated reports, research notes, and archived v1/v2 material remain preserved.

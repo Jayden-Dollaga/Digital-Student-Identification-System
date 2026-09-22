@@ -116,3 +116,23 @@ When application behavior changes, update the documentation that describes that 
 For contribution and release requirements, see [CONTRIBUTING.md](../CONTRIBUTING.md) and [RELEASE.md](../RELEASE.md).
 
 Last reviewed: 2026-09-20.
+
+
+## Expanded current documentation
+
+The original documents in this directory remain preserved. Additional source-backed guides are available at:
+
+- [Whole-app inventory](generated/APP_INVENTORY.md)
+- [v3 architecture supplement](Architecture/v3-system-architecture.md)
+- [Attendance rules](UserGuide/attendance-rules.md)
+- [Enrollment and scanning](UserGuide/enrollment-and-scanning.md)
+- [Roles and permissions](UserGuide/roles-and-permissions.md)
+- [First-run wizard](UserGuide/first-run-wizard.md)
+- [Backup, restore and export](UserGuide/backup-restore-export.md)
+- [Firmware](Hardware/firmware.md)
+- [Drivers and ports](Hardware/drivers-and-ports.md)
+- [Development testing](Development/testing.md)
+- [Current troubleshooting](Troubleshooting/desktop.md), [serial/device](Troubleshooting/serial-and-device.md), and [database](Troubleshooting/database.md)
+- [Security model](Security/security-model.md)
+
+These additions complement rather than replace the existing documentation set.
