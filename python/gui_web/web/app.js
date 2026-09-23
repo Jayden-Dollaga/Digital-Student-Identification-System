@@ -2344,7 +2344,9 @@ async function renderCalendarMonth() {
   monthInput.value = `${calendarViewYear}-${String(calendarViewMonth).padStart(2, '0')}`;
 
   const result = await api().get_calendar_month(calendarViewYear, calendarViewMonth);
+  const settings = await api().get_settings();
   calendarEntries = (result && result.ok) ? result.entries : {};
+  const noClassWeekdays = new Set((settings && Array.isArray(settings.school_weekdays_off) ? settings.school_weekdays_off : []).map(Number));
 
   const firstOfMonth = new Date(calendarViewYear, calendarViewMonth - 1, 1);
   const startWeekday = firstOfMonth.getDay(); // 0 = Sunday
@@ -2357,14 +2359,18 @@ async function renderCalendarMonth() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${calendarViewYear}-${String(calendarViewMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const entry = calendarEntries[dateStr];
+    const dateObj = new Date(calendarViewYear, calendarViewMonth - 1, day);
     const isToday = dateStr === todayStr;
+    const isNoClassRecurringDay = !entry && noClassWeekdays.has(dateObj.getDay());
     let badge = '';
     if (entry) {
       const typeLabel = entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday';
       const shown = entry.label ? escapeHtml(entry.label) : typeLabel;
       badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${escapeHtml(shown)}">${shown}</span>`;
+    } else if (isNoClassRecurringDay) {
+      badge = '<span class="cal-day-badge cal-badge-no-class" title="No class">No class</span>';
     }
-    html += `<div class="cal-day${isToday ? ' cal-day-today' : ''}" onclick="openCalendarEntryModal('${dateStr}')">` +
+    html += `<div class="cal-day${isToday ? ' cal-day-today' : ''}${isNoClassRecurringDay ? ' cal-day-no-class' : ''}" onclick="openCalendarEntryModal('${dateStr}')">` +
             `<span>${day}</span>${badge}</div>`;
   }
   const totalCells = startWeekday + daysInMonth;

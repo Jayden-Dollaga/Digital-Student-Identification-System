@@ -226,6 +226,11 @@
   .cal-day:hover { border-color: var(--accent); }
   .cal-day.cal-day-empty { visibility: hidden; cursor: default; }
   .cal-day.cal-day-today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .cal-day.cal-day-no-class {
+    border-color: rgba(255, 92, 92, 0.8);
+    background: rgba(255, 92, 92, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 92, 92, 0.18);
+  }
   .cal-day-badge {
     margin-top: auto; width: 100%; min-width: 0; box-sizing: border-box;
     font-size: 10px; padding: 2px 4px; border-radius: 3px;
@@ -234,6 +239,7 @@
   .cal-day-badge.cal-badge-holiday { background: var(--red); }
   .cal-day-badge.cal-badge-suspension { background: var(--yellow); color: #1F2329; }
   .cal-day-badge.cal-badge-half_day { background: var(--accent); }
+  .cal-day-badge.cal-badge-no-class { background: var(--red); }
 
   .setup-week-selector { margin-top: 12px; }
   .setup-week-grid {

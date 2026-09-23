@@ -67,6 +67,8 @@ def test_v3_web_shell_contains_all_primary_workflows():
     assert "Troubleshoot connection" in html
     assert "exportStatisticsReport" in script
     assert "Recent Attendance by Date" in script
+    assert "school_weekdays_off" in script
+    assert "cal-day-no-class" in script
     assert 'id="stats-connection-summary"' in html
     assert "validate_student_fields" in script
     assert "validateEnrollmentFields" in script

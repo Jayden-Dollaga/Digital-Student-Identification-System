@@ -1,0 +1,969 @@
+/************************************************************************************
+ *  AS608 Fingerprint - All-in-One Sketch
+ *  ESP32 WROOM-32 with Screw Terminal Shield
+ *
+ *  Replaces all 4 Phase 1 sketches with a single file.
+ *  No need to re-upload when switching between enrolling and scanning.
+ *
+ *  Wiring (confirmed working):
+ *    Sensor V+ (purple) -> Shield V terminal
+ *    Sensor GND (blue)  -> Shield G terminal
+ *    Sensor TX (orange) -> Shield S terminal, D14 row  <- ESP32 RX
+ *    Sensor RX (white)  -> Shield S terminal, D27 row  <- ESP32 TX
+ *
+ *  RC522 RFID (added - runs alongside the fingerprint sensor, SPI bus,
+ *  no pin conflicts with the AS608's UART):
+ *    RC522 3.3V -> 3V3
+ *    RC522 GND  -> GND
+ *    RC522 RST  -> GPIO 4
+ *    RC522 MISO -> GPIO 19
+ *    RC522 MOSI -> GPIO 23
+ *    RC522 SCK  -> GPIO 18
+ *    RC522 SDA  -> GPIO 5
+ *    RC522 IRQ  -> not connected
+ *  Library needed: "MFRC522" by GithubCommunity
+ *
+ *  Wire colors (this build):
+ *    red    -> 3V3
+ *    black  -> GND
+ *    green  -> GPIO 4  (RST)
+ *    IRQ    -> not connected
+ *    white  -> GPIO 19 (MISO)
+ *    brown  -> GPIO 23 (MOSI)
+ *    orange -> GPIO 18 (SCK)
+ *    yellow -> GPIO 5  (SDA)
+ *
+ *  ── COMMANDS (type in Serial Monitor, line ending = Newline) ──
+ *
+ *    ENROLL        Enroll a new finger using the next free ID
+ *    ENROLL:1      Enroll a new finger as ID 1
+ *    ENROLL:5      Enroll a new finger as ID 5
+ *    DELETE:1      Delete finger ID 1
+ *    WIPE          Delete ALL stored fingerprints
+ *    LIST          Show how many fingerprints are stored
+ *    SCAN          Switch to attendance scan mode (fingerprint AND card)
+ *    STOP          Stop scanning, go back to command mode
+ *    CARD_WRITE:xyz  Arm a card write; tap a card while in SCAN mode
+ *                    (or once, outside scan mode) to write "xyz" to it
+ *
+ *  ── TYPICAL WORKFLOW FOR A CLASS OF 30 ──
+ *
+ *    1. Upload this sketch once, never touch it again
+ *    2. Open Serial Monitor at 115200, line ending = Newline
+ *    3. Type ENROLL:1  -> scan student 1 finger twice -> saved
+ *    4. Type ENROLL:2  -> scan student 2 finger twice -> saved
+ *    5. Repeat up to ENROLL:30
+ *    6. (Optional) Type CARD_WRITE:STUDENT-01, tap card to write ID onto it
+ *    7. Type SCAN      -> now reading attendance (finger + card), Python can connect
+ *    8. Type STOP      -> go back to command mode anytime
+ *
+ *  ── SERIAL OUTPUT FORMAT (what Python reads in SCAN mode) ──
+ *
+ *    READY           System booted
+ *    ID:1            Matched fingerprint ID
+ *    CONFIDENCE:223  Match confidence score
+ *    UNKNOWN         Finger not recognized
+ *    SCAN_MODE       Entered scan mode
+ *    CMD_MODE        Entered command mode
+ *
+ *  The firmware now also emits structured JSON payloads for status and
+ *  attendance events, e.g.:
+ *    {"type":"status","state":"SCAN_MODE"}
+ *    {"type":"attendance","event":"match","id":1,"confidence":223}
+ *    {"type":"attendance","event":"card","uid":"B0:6F:0B:55","data":"STUDENT-01"}
+ *    {"type":"attendance","event":"card_unreadable","uid":"B0:6F:0B:55"}
+ ************************************************************************************/
+
+#include <Arduino.h>
+#include <Adafruit_Fingerprint.h>
+#include <HardwareSerial.h>
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define FINGERPRINT_RX        14    // orange wire (sensor TX) connects here
+#define FINGERPRINT_TX        27    // white wire  (sensor RX) connects here
+
+#define RFID_SS_PIN            5    // RC522 SDA
+#define RFID_RST_PIN           4    // RC522 RST
+#define RFID_BLOCK_NUM          4   // MIFARE block used to store student data
+#define RFID_SCAN_COOLDOWN   1500   // ms to wait after a card read before scanning again
+#define LED_PIN               2     // onboard D2 LED on ESP32
+#define LED_PWM_CHANNEL       0
+#define LED_PWM_FREQUENCY     5000
+#define LED_PWM_RESOLUTION    8
+#define LED_MAX_BRIGHTNESS    255
+#define MIN_CONFIDENCE        50    // minimum confidence to accept a match
+#define SCAN_COOLDOWN         2000  // ms to wait after a scan before scanning again
+
+const unsigned long BOOT_PULSE_PERIOD_MS = 2000;
+const unsigned long SUCCESS_TOTAL_MS = 2500;
+const unsigned long ERROR_BLINK_MS = 70;
+const unsigned long ERROR_TOTAL_MS = 5000;
+const unsigned long READY_ON_MS = 500;
+const unsigned long READY_PERIOD_MS = 2000;
+const unsigned long SCAN_PULSE_MS = 100;
+const unsigned long ENROLL_ON_MS = 100;
+const unsigned long ENROLL_OFF_MS = 100;
+const unsigned long ENROLL_COUNT = 5;
+const unsigned long ENROLL_END_OFF_MS = 700;
+const unsigned long FIRMWARE_BLINK_MS = 500;
+const unsigned long COMM_ERROR_ON_MS = 700;
+const unsigned long COMM_ERROR_OFF_MS = 200;
+
+HardwareSerial mySerial(2);
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
+
+MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
+MFRC522::MIFARE_Key rfidKey;
+String pendingCardWrite = "";   // set by CARD_WRITE:xyz, consumed on next tap
+
+enum LedState {
+  LED_BOOTING,
+  LED_READY,
+  LED_SCAN,
+  LED_SUCCESS,
+  LED_ENROLL,
+  LED_FIRMWARE,
+  LED_ERROR,
+  LED_DB_ERROR,
+  LED_COMMUNICATION_ERROR,
+  LED_HOST_CONNECTED,
+  LED_HOST_DISCONNECTED,
+  LED_SLEEP
+};
+
+const char DEVICE_IDENTIFIER[] = "Digital Student Identification System";
+const char DEVICE_BOARD[] = "ESP32";
+const char DEVICE_FIRMWARE[] = "1.0.10";
+const char DEVICE_SENSOR[] = "AS608";
+const int DEVICE_PROTOCOL = 1;
+
+LedState currentLedState = LED_BOOTING;
+LedState currentRestoreState = LED_READY;
+unsigned long ledStateStart = 0;
+int currentPriority = 1;
+int restorePriority = 2;
+
+void ledBrightness(uint8_t value) {
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+  ledcWrite(LED_PIN, value);
+#else
+  digitalWrite(LED_PIN, value > 0 ? HIGH : LOW);
+#endif
+}
+
+void ledOff() {
+  ledBrightness(0);
+}
+
+int getPriorityForState(LedState state) {
+  switch (state) {
+    case LED_ERROR: return 8;
+    case LED_COMMUNICATION_ERROR: return 7;
+    case LED_SUCCESS: return 6;
+    case LED_DB_ERROR: return 6;
+    case LED_ENROLL: return 5;
+    case LED_FIRMWARE: return 4;
+    case LED_SCAN: return 3;
+    case LED_HOST_CONNECTED: return 2;
+    case LED_READY: return 2;
+    case LED_BOOTING: return 1;
+    case LED_HOST_DISCONNECTED: return 0;
+    case LED_SLEEP: return 0;
+    default: return 0;
+  }
+}
+
+bool requestLedState(LedState state, bool temporary = false) {
+  int priority = getPriorityForState(state);
+  if (state == currentLedState) {
+    return true;
+  }
+
+  if (currentPriority > priority && temporary) {
+    return false;
+  }
+
+  if (temporary) {
+    currentRestoreState = currentLedState;
+    restorePriority = currentPriority;
+  }
+
+  currentLedState = state;
+  currentPriority = priority;
+  ledStateStart = millis();
+  if (state == LED_BOOTING || state == LED_ERROR || state == LED_COMMUNICATION_ERROR || state == LED_DB_ERROR) {
+    ledOff();
+  }
+  return true;
+}
+
+void restoreLedStateIfNeeded() {
+  int nowPriority = getPriorityForState(currentRestoreState);
+  currentLedState = currentRestoreState;
+  currentPriority = restorePriority;
+  restorePriority = nowPriority;
+  ledStateStart = millis();
+}
+
+void handleHostStatus(const String &status) {
+  if (status == "HOST_CONNECTED") {
+    requestLedState(LED_HOST_CONNECTED);
+  } else if (status == "HOST_DISCONNECTED") {
+    requestLedState(LED_HOST_DISCONNECTED);
+  } else if (status == "DB_ERROR") {
+    requestLedState(LED_DB_ERROR, true);
+  } else if (status == "FIRMWARE") {
+    requestLedState(LED_FIRMWARE);
+  } else if (status == "READY") {
+    requestLedState(LED_READY);
+  }
+}
+
+String parseJsonStringField(const String &json, const String &field) {
+  String key = "\"" + field + "\"";
+  int keyIndex = json.indexOf(key);
+  if (keyIndex < 0) {
+    return "";
+  }
+  int colonIndex = json.indexOf(':', keyIndex + key.length());
+  if (colonIndex < 0) {
+    return "";
+  }
+  int startQuote = json.indexOf('"', colonIndex);
+  if (startQuote < 0) {
+    return "";
+  }
+  int endQuote = json.indexOf('"', startQuote + 1);
+  if (endQuote < 0) {
+    return "";
+  }
+  return json.substring(startQuote + 1, endQuote);
+}
+
+void emitJsonStatus(const String &state) {
+  Serial.print("{\"type\":\"status\",\"state\":\"");
+  Serial.print(state);
+  Serial.println("\"}");
+}
+
+void emitJsonAttendanceMatch(int id, int confidence) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"match\",\"id\":");
+  Serial.print(id);
+  Serial.print(",\"confidence\":");
+  Serial.print(confidence);
+  Serial.println("}");
+}
+
+void emitJsonAttendanceUnknown() {
+  Serial.println("{\"type\":\"attendance\",\"event\":\"unknown\"}");
+}
+
+void emitJsonAttendanceLowConfidence(int confidence) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"low_confidence\",\"confidence\":");
+  Serial.print(confidence);
+  Serial.println("}");
+}
+
+String uidToString(MFRC522::Uid *uid) {
+  String out = "";
+  for (byte i = 0; i < uid->size; i++) {
+    if (uid->uidByte[i] < 0x10) out += "0";
+    out += String(uid->uidByte[i], HEX);
+    if (i != uid->size - 1) out += ":";
+  }
+  out.toUpperCase();
+  return out;
+}
+
+void emitJsonCardMatch(const String &uidStr, const String &data) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"card\",\"uid\":\"");
+  Serial.print(uidStr);
+  Serial.print("\",\"data\":\"");
+  Serial.print(data);
+  Serial.println("\"}");
+}
+
+void emitJsonCardUnreadable(const String &uidStr) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"card_unreadable\",\"uid\":\"");
+  Serial.print(uidStr);
+  Serial.println("\"}");
+}
+
+void emitJsonCardWriteResult(const String &uidStr, const String &data, bool success) {
+  Serial.print("{\"type\":\"card_write\",\"uid\":\"");
+  Serial.print(uidStr);
+  Serial.print("\",\"data\":\"");
+  Serial.print(data);
+  Serial.print("\",\"success\":");
+  Serial.print(success ? "true" : "false");
+  Serial.println("}");
+}
+
+void beginLedManager() {
+  pinMode(LED_PIN, OUTPUT);
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
+  ledcAttach(
+      LED_PIN,
+      LED_PWM_FREQUENCY,
+      LED_PWM_RESOLUTION
+  );
+#else
+  // Fallback for other boards without ESP32 PWM API.
+  digitalWrite(LED_PIN, LOW);
+#endif
+  currentPriority = getPriorityForState(LED_BOOTING);
+  requestLedState(LED_BOOTING);
+}
+
+void ledReady() {
+  requestLedState(LED_READY);
+}
+
+void ledScan() {
+  requestLedState(LED_SCAN);
+}
+
+void ledEnroll() {
+  requestLedState(LED_ENROLL);
+}
+
+void ledSuccess() {
+  requestLedState(LED_SUCCESS, true);
+}
+
+void ledError() {
+  requestLedState(LED_ERROR, true);
+}
+
+void ledSleep() {
+  requestLedState(LED_SLEEP);
+}
+
+void ledFirmware() {
+  requestLedState(LED_FIRMWARE);
+}
+
+void ledHostConnected() {
+  requestLedState(LED_HOST_CONNECTED);
+}
+
+void ledHostDisconnected() {
+  requestLedState(LED_HOST_DISCONNECTED);
+}
+
+uint8_t computeBootBrightness(unsigned long elapsed) {
+  unsigned long phase = elapsed % BOOT_PULSE_PERIOD_MS;
+  unsigned long half = BOOT_PULSE_PERIOD_MS / 2;
+  if (phase < half) {
+    return (uint8_t) map(phase, 0, half, 0, LED_MAX_BRIGHTNESS);
+  }
+  return (uint8_t) map(phase, half, BOOT_PULSE_PERIOD_MS, LED_MAX_BRIGHTNESS, 0);
+}
+
+void updateLed() {
+  unsigned long now = millis();
+  unsigned long elapsed = now - ledStateStart;
+
+  switch (currentLedState) {
+    case LED_BOOTING: {
+      ledBrightness(computeBootBrightness(elapsed));
+      break;
+    }
+    case LED_READY:
+    case LED_HOST_CONNECTED: {
+      unsigned long phase = elapsed % READY_PERIOD_MS;
+      ledBrightness(phase < READY_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_SCAN: {
+      unsigned long phase = elapsed % (SCAN_PULSE_MS * 2);
+      ledBrightness(phase < SCAN_PULSE_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_SUCCESS: {
+      if (elapsed >= SUCCESS_TOTAL_MS) {
+        restoreLedStateIfNeeded();
+        break;
+      }
+      ledBrightness(LED_MAX_BRIGHTNESS);
+      break;
+    }
+    case LED_ENROLL: {
+      unsigned long cycleTime = ENROLL_COUNT * (ENROLL_ON_MS + ENROLL_OFF_MS) + ENROLL_END_OFF_MS;
+      unsigned long phase = elapsed % cycleTime;
+      if (phase < ENROLL_COUNT * (ENROLL_ON_MS + ENROLL_OFF_MS)) {
+        unsigned long phaseInPulse = phase % (ENROLL_ON_MS + ENROLL_OFF_MS);
+        ledBrightness(phaseInPulse < ENROLL_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      } else {
+        ledOff();
+      }
+      break;
+    }
+    case LED_FIRMWARE: {
+      unsigned long phase = elapsed % (FIRMWARE_BLINK_MS * 2);
+      ledBrightness(phase < FIRMWARE_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_ERROR:
+    case LED_DB_ERROR: {
+      if (elapsed >= ERROR_TOTAL_MS) {
+        restoreLedStateIfNeeded();
+        break;
+      }
+      unsigned long phase = elapsed % (ERROR_BLINK_MS * 2);
+      ledBrightness(phase < ERROR_BLINK_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_COMMUNICATION_ERROR: {
+      unsigned long phase = elapsed % (COMM_ERROR_ON_MS + COMM_ERROR_OFF_MS);
+      ledBrightness(phase < COMM_ERROR_ON_MS ? LED_MAX_BRIGHTNESS : 0);
+      break;
+    }
+    case LED_HOST_DISCONNECTED:
+    case LED_SLEEP: {
+      ledOff();
+      break;
+    }
+  }
+}
+
+// ── Mode ──────────────────────────────────────────────────────────────────────
+bool scanMode = false;  // false = command mode, true = scan mode
+String pendingCommand = "";
+
+// NOTE: The firmware is intentionally kept in a single sketch for now.
+// If it grows further, the LED logic, command handling, and fingerprint flow
+// can later be split into separate .h/.cpp files for maintainability.
+
+
+// ==============================================================================
+//  SETUP
+// ==============================================================================
+
+void setup() {
+  beginLedManager();
+
+  Serial.begin(115200);
+  unsigned long bootStart = millis();
+  while (millis() - bootStart < 1000) {
+    updateLed();
+    delay(10);
+  }
+
+  Serial.println("\n========================================");
+  Serial.println("  AS608 All-in-One Fingerprint System");
+  Serial.println("========================================");
+  Serial.print("{\"device\": \"");
+  Serial.print(DEVICE_IDENTIFIER);
+  Serial.print("\", \"board\": \"");
+  Serial.print(DEVICE_BOARD);
+  Serial.print("\", \"firmware\": \"");
+  Serial.print(DEVICE_FIRMWARE);
+  Serial.print("\", \"sensor\": \"");
+  Serial.print(DEVICE_SENSOR);
+  Serial.print("\", \"protocol\": ");
+  Serial.print(DEVICE_PROTOCOL);
+  Serial.print(", \"serial_number\": \"");
+  Serial.print(ESP.getEfuseMac());
+  Serial.println("\"}");
+
+  mySerial.begin(57600, SERIAL_8N1, FINGERPRINT_RX, FINGERPRINT_TX);
+  finger.begin(57600);
+
+  if (finger.verifyPassword()) {
+    Serial.println("Sensor found!");
+    ledReady();
+  } else {
+    Serial.println("ERROR: Sensor not found. Check wiring.");
+    ledError();
+    while (1) {
+      updateLed();
+      delay(1);
+    }
+  }
+
+  finger.getTemplateCount();
+  Serial.print("Stored fingerprints: ");
+  Serial.println(finger.templateCount);
+
+  SPI.begin();
+  rfid.PCD_Init();
+  for (byte i = 0; i < 6; i++) rfidKey.keyByte[i] = 0xFF; // default factory key
+  byte rfidVersion = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  if (rfidVersion == 0x00 || rfidVersion == 0xFF) {
+    Serial.println("WARNING: RC522 not detected. Check wiring. Fingerprint still works.");
+  } else {
+    Serial.print("RC522 found. Firmware version: 0x");
+    Serial.println(rfidVersion, HEX);
+  }
+
+  printHelp();
+  Serial.println("READY");
+  emitJsonStatus("READY");
+}
+
+
+// ==============================================================================
+//  LOOP
+// ==============================================================================
+
+void loop() {
+  updateLed();
+
+  // Process any pending command that was received during enrollment.
+  if (pendingCommand.length() > 0) {
+    String cmd = pendingCommand;
+    pendingCommand = "";
+    handleCommand(cmd);
+    return;
+  }
+
+  // Check for Serial commands from PC
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    handleCommand(input);
+  }
+
+  // If in scan mode, keep scanning for fingers AND cards
+  if (scanMode) {
+    scanFinger();
+    scanCard();
+  } else if (pendingCardWrite.length() > 0) {
+    // Allow a one-off card write while still in command mode.
+    scanCard();
+  }
+}
+
+
+// ==============================================================================
+//  COMMAND HANDLER
+// ==============================================================================
+
+void handleCommand(String input) {
+  input.toUpperCase();
+
+  // ── IDENTIFY ───────────────────────────────────────────────────
+  if (input == "ID?") {
+    Serial.print("{\"device\": \"");
+    Serial.print(DEVICE_IDENTIFIER);
+    Serial.print("\", \"board\": \"");
+    Serial.print(DEVICE_BOARD);
+    Serial.print("\", \"firmware\": \"");
+    Serial.print(DEVICE_FIRMWARE);
+    Serial.print("\", \"sensor\": \"");
+    Serial.print(DEVICE_SENSOR);
+    Serial.print("\", \"protocol\": ");
+    Serial.print(DEVICE_PROTOCOL);
+    Serial.print(", \"serial_number\": \"");
+    Serial.print(ESP.getEfuseMac());
+    Serial.println("\"}");
+    return;
+  }
+
+  // ── SCAN ──────────────────────────────────────────────────────
+  if (input == "SCAN") {
+    scanMode = true;
+    ledScan();
+    Serial.println("\n>> Switched to SCAN MODE");
+    Serial.println("   Place finger on sensor to log attendance.");
+    Serial.println("   Type STOP to return to command mode.");
+    Serial.println("SCAN_MODE");
+    emitJsonStatus("SCAN_MODE");
+    return;
+  }
+
+  // ── STOP ──────────────────────────────────────────────────────
+  if (input == "STOP") {
+    scanMode = false;
+    ledReady();
+    Serial.println("\n>> Switched to COMMAND MODE");
+    printHelp();
+    Serial.println("CMD_MODE");
+    emitJsonStatus("CMD_MODE");
+    return;
+  }
+
+  // ── LIST ──────────────────────────────────────────────────────
+  if (input == "LIST") {
+    scanMode = false;
+    ledReady();
+    finger.getTemplateCount();
+    Serial.print("\n>> Stored fingerprints: ");
+    Serial.println(finger.templateCount);
+    Serial.println("CMD_MODE");
+    return;
+  }
+
+  // ── WIPE ──────────────────────────────────────────────────────
+  if (input == "WIPE") {
+    scanMode = false;
+    ledReady();
+    Serial.println("\n>> Wiping ALL fingerprints...");
+    if (finger.emptyDatabase() == FINGERPRINT_OK) {
+      Serial.println("   SUCCESS - All fingerprints deleted.");
+    } else {
+      Serial.println("   FAILED - Could not wipe database.");
+    }
+    Serial.println("CMD_MODE");
+    return;
+  }
+
+  // ── ENROLL / ENROLL:ID ──────────────────────────────────────
+  if (input == "ENROLL") {
+    int id = findNextAvailableId();
+    if (id <= 0) {
+      Serial.println("ERROR: No free fingerprint slots available. Delete one first.");
+      ledReady();
+      return;
+    }
+    ledEnroll();
+    scanMode = false; // pause scanning during enrollment
+    enrollFinger(id);
+    return;
+  }
+
+  if (input.startsWith("ENROLL:")) {
+    int id = input.substring(7).toInt();
+    if (id < 1 || id > 127) {
+      Serial.println("ERROR: ID must be between 1 and 127. Example: ENROLL:5");
+      ledReady();
+      return;
+    }
+    ledEnroll();
+    scanMode = false; // pause scanning during enrollment
+    enrollFinger(id);
+    return;
+  }
+
+  // ── DELETE:ID ─────────────────────────────────────────────────
+  if (input.startsWith("DELETE:")) {
+    ledReady();
+    int id = input.substring(7).toInt();
+    if (id < 1 || id > 127) {
+      Serial.println("ERROR: ID must be between 1 and 127. Example: DELETE:5");
+      return;
+    }
+    Serial.print("\n>> Deleting ID #");
+    Serial.print(id);
+    Serial.println("...");
+    // Some sensor/library combinations report FINGERPRINT_OK for deleteModel
+    // even when the slot is empty. Load the template first so the host only
+    // receives SUCCESS when a real stored fingerprint existed.
+    uint8_t loadResult = finger.loadModel(id);
+    if (loadResult == FINGERPRINT_OK && finger.deleteModel(id) == FINGERPRINT_OK) {
+      Serial.print("   SUCCESS - ID #");
+      Serial.print(id);
+      Serial.println(" deleted.");
+    } else {
+      Serial.print("   FAILED - Could not delete ID #");
+      Serial.print(id);
+      Serial.println(" (may not exist)");
+    }
+    return;
+  }
+
+  // ── CARD_WRITE:xyz ───────────────────────────────────────────
+  if (input.startsWith("CARD_WRITE:")) {
+    String payload = input.substring(11);
+    payload.trim();
+    if (payload.length() == 0 || payload.length() > 16) {
+      Serial.println("ERROR: CARD_WRITE text must be 1-16 characters.");
+      return;
+    }
+    pendingCardWrite = payload;
+    Serial.print("\n>> Card write armed: \"");
+    Serial.print(pendingCardWrite);
+    Serial.println("\" - tap a card now (works in SCAN mode or command mode).");
+    return;
+  }
+
+  if (input.startsWith("STATUS:")) {
+    String state = input.substring(7);
+    state.trim();
+    handleHostStatus(state);
+    return;
+  }
+
+  if (input.startsWith("{")) {
+    String type = parseJsonStringField(input, "type");
+    if (type == "status") {
+      String state = parseJsonStringField(input, "state");
+      if (state.length() > 0) {
+        handleHostStatus(state);
+      }
+      return;
+    }
+  }
+
+  // ── UNKNOWN COMMAND ───────────────────────────────────────────
+  Serial.println("Unknown command. Type HELP to see commands.");
+  printHelp();
+}
+
+
+// ==============================================================================
+//  ENROLL HELPERS
+// ==============================================================================
+
+bool fingerprintExists(uint8_t id) {
+  uint8_t p = finger.loadModel(id);
+  return p == FINGERPRINT_OK;
+}
+
+int findNextAvailableId() {
+  for (int id = 1; id <= 127; ++id) {
+    if (!fingerprintExists(id)) {
+      return id;
+    }
+  }
+  return -1;
+}
+
+bool checkEnrollmentCancel() {
+  if (!Serial.available()) {
+    updateLed();
+    return false;
+  }
+
+  String input = Serial.readStringUntil('\n');
+  input.trim();
+  input.toUpperCase();
+
+  if (input == "STOP") {
+    ledReady();
+    Serial.println("\n>> Enrollment cancelled.");
+    Serial.println("ENROLLMENT cancelled.");
+    Serial.println("CMD_MODE");
+    return true;
+  }
+
+  if (input.startsWith("DELETE:") || input.startsWith("ENROLL") || input == "WIPE" || input == "LIST" || input == "SCAN") {
+    pendingCommand = input;
+    ledReady();
+    Serial.println("\n>> Enrollment cancelled due to a new command.");
+    Serial.println("ENROLLMENT cancelled.");
+    Serial.println("CMD_MODE");
+    return true;
+  }
+
+  if (input.length() > 0) {
+    Serial.println("Enrollment is in progress. Type STOP to cancel.");
+  }
+  return false;
+}
+
+// ==============================================================================
+//  ENROLL
+// ==============================================================================
+
+void enrollFinger(int id) {
+  ledEnroll();
+  Serial.println();
+  Serial.println("----------------------------------------");
+  Serial.print("  ENROLLING FINGER AS ID #");
+  Serial.println(id);
+  Serial.println("----------------------------------------");
+
+  int p = -1;
+
+  // ── SCAN 1 ────────────────────────────────────────────────────
+  Serial.println("Step 1: Place finger on sensor...");
+  while (p != FINGERPRINT_OK) {
+    if (checkEnrollmentCancel()) {
+      return;
+    }
+    p = finger.getImage();
+    if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
+    if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
+    Serial.println("  Imaging error, try again.");
+  }
+
+  p = finger.image2Tz(1);
+  if (p != FINGERPRINT_OK) {
+    Serial.println("  ERROR: Could not convert image. Try again.");
+    Serial.println("  Tip: Press finger flat and firm on the sensor.");
+    return;
+  }
+  Serial.println("  Image converted.");
+
+  // ── LIFT FINGER ───────────────────────────────────────────────
+  Serial.println("Step 2: Remove finger...");
+  unsigned long start_wait = millis();
+  while (millis() - start_wait < 2000) {
+    updateLed();
+    if (checkEnrollmentCancel()) {
+      return;
+    }
+    delay(50);
+  }
+  p = 0;
+  while (p != FINGERPRINT_NOFINGER) {
+    updateLed();
+    if (checkEnrollmentCancel()) {
+      return;
+    }
+    p = finger.getImage();
+  }
+  Serial.println("  Finger removed.");
+
+  // ── SCAN 2 ────────────────────────────────────────────────────
+  Serial.println("Step 3: Place the SAME finger again...");
+  p = -1;
+  while (p != FINGERPRINT_OK) {
+    if (checkEnrollmentCancel()) {
+      return;
+    }
+    p = finger.getImage();
+    if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
+    if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
+    Serial.println("  Imaging error, try again.");
+  }
+
+  p = finger.image2Tz(2);
+  if (p != FINGERPRINT_OK) {
+    Serial.println("  ERROR: Could not convert image. Try again.");
+    return;
+  }
+  Serial.println("  Image converted.");
+
+  // ── CREATE MODEL ──────────────────────────────────────────────
+  p = finger.createModel();
+  if (p == FINGERPRINT_ENROLLMISMATCH) {
+    ledError();
+    Serial.println("  ERROR: Fingerprints did not match.");
+    Serial.println("  Tip: Use the SAME finger, same position, both times.");
+    Serial.print("  Type ENROLL:");
+    Serial.print(id);
+    Serial.println(" to try again.");
+    return;
+  }
+  if (p != FINGERPRINT_OK) {
+    ledError();
+    Serial.println("  ERROR: Could not create model.");
+    return;
+  }
+
+  // ── STORE ─────────────────────────────────────────────────────
+  p = finger.storeModel(id);
+  if (p == FINGERPRINT_OK) {
+    ledSuccess();
+    Serial.println("----------------------------------------");
+    Serial.print("  SUCCESS! Finger saved as ID #");
+    Serial.println(id);
+    Serial.println("----------------------------------------");
+    finger.getTemplateCount();
+    Serial.print("  Total stored: ");
+    Serial.println(finger.templateCount);
+    Serial.println();
+  } else {
+    ledError();
+    Serial.println("  ERROR: Could not store fingerprint.");
+  }
+}
+
+
+// ==============================================================================
+//  SCAN (Attendance Mode)
+// ==============================================================================
+
+void scanFinger() {
+  uint8_t p = finger.getImage();
+  if (p == FINGERPRINT_NOFINGER) return;
+  if (p != FINGERPRINT_OK)       return;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK) return;
+
+  p = finger.fingerSearch();
+  if (p == FINGERPRINT_OK) {
+    if (finger.confidence >= MIN_CONFIDENCE) {
+      ledSuccess();
+      emitJsonAttendanceMatch(finger.fingerID, finger.confidence);
+    } else {
+      emitJsonAttendanceLowConfidence(finger.confidence);
+    }
+    delay(SCAN_COOLDOWN);
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    emitJsonAttendanceUnknown();
+    delay(1000);
+  }
+}
+
+
+// ==============================================================================
+//  RFID CARD (RC522)
+// ==============================================================================
+
+void scanCard() {
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  if (!rfid.PICC_ReadCardSerial()) return;
+
+  String uidStr = uidToString(&rfid.uid);
+
+  MFRC522::StatusCode status = rfid.PCD_Authenticate(
+      MFRC522::PICC_CMD_MF_AUTH_KEY_A, RFID_BLOCK_NUM, &rfidKey, &(rfid.uid));
+
+  if (status != MFRC522::STATUS_OK) {
+    emitJsonCardUnreadable(uidStr);
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    delay(RFID_SCAN_COOLDOWN);
+    return;
+  }
+
+  if (pendingCardWrite.length() > 0) {
+    byte buffer[16];
+    memset(buffer, ' ', 16);
+    int len = pendingCardWrite.length();
+    if (len > 16) len = 16;
+    for (int i = 0; i < len; i++) buffer[i] = pendingCardWrite[i];
+
+    status = rfid.MIFARE_Write(RFID_BLOCK_NUM, buffer, 16);
+    bool success = (status == MFRC522::STATUS_OK);
+    emitJsonCardWriteResult(uidStr, pendingCardWrite, success);
+
+    Serial.print(success ? "\n>> Card write SUCCESS: \"" : "\n>> Card write FAILED: \"");
+    Serial.print(pendingCardWrite);
+    Serial.println("\"");
+
+    pendingCardWrite = "";
+  } else {
+    byte buffer[18];
+    byte size = 18;
+    status = rfid.MIFARE_Read(RFID_BLOCK_NUM, buffer, &size);
+
+    if (status == MFRC522::STATUS_OK) {
+      String result = "";
+      for (byte i = 0; i < 16; i++) result += (char)buffer[i];
+      result.trim();
+      ledSuccess();
+      emitJsonCardMatch(uidStr, result);
+    } else {
+      emitJsonCardUnreadable(uidStr);
+    }
+  }
+
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+  delay(RFID_SCAN_COOLDOWN);
+}
+
+// ==============================================================================
+//  HELP
+// ==============================================================================
+
+void printHelp() {
+  Serial.println();
+  Serial.println("  Commands (line ending must be set to Newline):");
+  Serial.println("    ENROLL     Enroll finger using next free ID");
+  Serial.println("    ENROLL:1   Enroll finger as ID 1  (1-127)");
+  Serial.println("    DELETE:1   Delete finger ID 1");
+  Serial.println("    WIPE       Delete ALL fingerprints");
+  Serial.println("    LIST       Show stored fingerprint count");
+  Serial.println("    SCAN       Start attendance scan mode (finger + card)");
+  Serial.println("    STOP       Stop scanning, return to commands");
+  Serial.println("    CARD_WRITE:xyz  Arm write, tap a card to store \"xyz\" on it");
+  Serial.println();
+}
