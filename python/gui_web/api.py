@@ -177,6 +177,10 @@ class Api:
         self._pending_delete_id: Optional[int] = None
         self._pending_enroll = False
         self._pending_wipe = False
+        self._rfid_session_active = False
+        self._rfid_session_was_scanning = False
+        self._rfid_session_fingerprint_id: Optional[int] = None
+        self._rfid_session_mode: Optional[str] = None
         self._reconnect_help_emitted = False
 
         try:
@@ -391,6 +395,91 @@ class Api:
         self._device_mode = "command"
         self._push("mode_changed", {"mode": "command"})
         return ok
+
+    def start_rfid_register_session(self, fingerprint_id: int, mode: str = "register") -> Dict[str, Any]:
+        """Temporarily enable attendance-card polling while the user registers a card."""
+        if not self.serial.is_connected():
+            return {"ok": False, "message": "Connect to the ESP32 first."}
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "message": "Current role does not have enroll permission."}
+        if self._rfid_session_active:
+            return {"ok": False, "message": "Another RFID card session is already active."}
+
+        self._rfid_session_active = True
+        self._rfid_session_was_scanning = self._scanning
+        self._rfid_session_fingerprint_id = int(fingerprint_id)
+        self._rfid_session_mode = str(mode or "register")
+        if not self._rfid_session_was_scanning:
+            ok = cmds.cmd_scan(self.serial)
+            if not ok:
+                self._rfid_session_active = False
+                self._rfid_session_fingerprint_id = None
+                self._rfid_session_mode = None
+                return {"ok": False, "message": "Could not start RFID card listening on the ESP32."}
+            self._scanning = True
+            self._device_mode = "scan"
+            self._push("mode_changed", {"mode": "scan"})
+        return {"ok": True, "message": "Waiting for card…"}
+
+    def stop_rfid_register_session(self) -> Dict[str, Any]:
+        if not self._rfid_session_active:
+            return {"ok": True, "message": "No RFID session is active."}
+        was_scanning = self._rfid_session_was_scanning
+        self._rfid_session_active = False
+        self._rfid_session_fingerprint_id = None
+        self._rfid_session_mode = None
+        self._rfid_session_was_scanning = False
+        if not was_scanning and self.serial.is_connected():
+            ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+            self._push("mode_changed", {"mode": "command"})
+            return {"ok": ok, "message": "RFID session closed." if ok else "Could not stop RFID card listening."}
+        return {"ok": True, "message": "RFID session closed."}
+
+    def _handle_rfid_session_card_event(self, line: str) -> bool:
+        if not self._rfid_session_active or not isinstance(line, str):
+            return False
+        parsed = parse_json_line(line)
+        if parsed is None:
+            return False
+        event_type = parsed.get("type")
+        if event_type == "card_write":
+            payload = {
+                "fingerprint_id": 0,
+                "confidence": 0,
+                "status": "CARD_WRITE",
+                "logged": False,
+                "reason": None,
+                "timestamp": datetime.now().isoformat(),
+                "student": {},
+                "method": "card_write",
+                "uid": parsed.get("uid"),
+                "data": parsed.get("data") if parsed.get("data") is not None else parsed.get("data_hex"),
+                "event": "card_write",
+            }
+            self._push("scan_result", payload)
+            return True
+        if event_type != "attendance":
+            return False
+        event = parsed.get("event")
+        if event not in {"card", "card_unreadable"}:
+            return False
+        payload = {
+            "fingerprint_id": 0,
+            "confidence": 0,
+            "status": "UNKNOWN" if event == "card_unreadable" else "CARD",
+            "logged": False,
+            "reason": None,
+            "timestamp": datetime.now().isoformat(),
+            "student": {},
+            "method": "card",
+            "uid": parsed.get("uid"),
+            "data": parsed.get("data") if parsed.get("data") is not None else parsed.get("data_hex"),
+            "event": event,
+        }
+        self._push("scan_result", payload)
+        return True
 
     # -- enrollment (real hardware flow, ported from v2's EnrollDialog) -----------
     def start_enroll(self) -> Dict[str, Any]:
@@ -646,6 +735,9 @@ class Api:
             if self.serial.should_ignore(line):
                 continue
 
+            if self._handle_rfid_session_card_event(line):
+                continue
+
             # Every incoming line gets run through all parsers, exactly like
             # v2's SerialWorker.run() - these are independent, not mutually
             # exclusive checks (a single line is normally only ever matched
@@ -697,6 +789,9 @@ class Api:
             "reason": result.get("reason"),
             "timestamp": result.get("timestamp").isoformat() if result.get("timestamp") else None,
             "student": _student_label(student),
+            "method": result.get("method") or "fingerprint",
+            "uid": result.get("uid"),
+            "data": result.get("data"),
         }
         self._push("scan_result", payload)
 
@@ -967,6 +1062,20 @@ class Api:
             )
             return {"ok": ok, "message": message}
         ok, message = db.register_student(int(fingerprint_id), student_no, student_name, grade, section)
+        return {"ok": ok, "message": message}
+
+    def bind_student_card(self, fingerprint_id: int, card_uid: str) -> Dict[str, Any]:
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "message": "Current role does not have enroll permission."}
+        if not card_uid:
+            return {"ok": False, "message": "Tap a valid RFID card to register it."}
+        ok, message = db.bind_student_card(int(fingerprint_id), str(card_uid))
+        return {"ok": ok, "message": message}
+
+    def clear_student_card(self, fingerprint_id: int) -> Dict[str, Any]:
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "message": "Current role does not have enroll permission."}
+        ok, message = db.clear_student_card(int(fingerprint_id))
         return {"ok": ok, "message": message}
 
     def delete_student(self, fingerprint_id: int) -> Dict[str, Any]:

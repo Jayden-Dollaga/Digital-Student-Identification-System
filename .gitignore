@@ -30,6 +30,8 @@ driver/install/
 
 # Database and local runtime data
 data/
+data/settings.json
+data/card_key
 tests/backups/
 
 # Build/test archives generated locally; intentional repository archives

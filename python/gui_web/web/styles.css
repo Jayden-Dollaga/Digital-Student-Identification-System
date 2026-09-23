@@ -820,6 +820,35 @@
   .enroll-log-line.muted { color: var(--muted); }
   .modal-id { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .rfid-modal { width: min(700px, calc(100vw - 28px)); }
+  .rfid-modal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; align-items: start; }
+  .rfid-summary-card,
+  .rfid-progress-panel { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+  .rfid-summary-card { display: grid; gap: 10px; }
+  .rfid-summary-field label { display: block; font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+  .rfid-summary-field div { font-size: 12px; color: var(--text); min-height: 18px; }
+  .rfid-progress-title { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .rfid-steps { display: grid; gap: 8px; }
+  .rfid-step { display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; align-items: center; opacity: .48; }
+  .rfid-step span { grid-row: span 2; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--border2); border-radius: 50%; color: var(--muted); font-size: 10px; font-weight: 700; }
+  .rfid-step strong { color: var(--muted2); font-size: 11px; line-height: 1.2; }
+  .rfid-step.active, .rfid-step.complete { opacity: 1; }
+  .rfid-step.active span { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .rfid-step.active strong { color: var(--text); }
+  .rfid-step.complete span { border-color: var(--green); color: var(--green); }
+  .rfid-step.complete strong { color: var(--green); }
+  .rfid-modal-status { margin-top: 12px; min-height: 18px; font-size: 11.5px; color: var(--muted2); line-height: 1.5; }
+  .rfid-modal-status.active { color: var(--text); }
+  .rfid-modal-status.success { color: var(--green); }
+  .rfid-modal-status.error { color: var(--red); }
+  .rfid-unlink-confirm { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border2); border-radius: 6px; background: var(--surface2); }
+  .rfid-unlink-confirm-text { font-size: 11.5px; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
+  .rfid-unlink-confirm-actions { display: flex; gap: 8px; }
+  .rfid-unlink-confirm-actions .hdr-btn { flex: 1; }
+  .rfid-modal-actions { display: flex; align-items: stretch; gap: 8px; margin-top: 16px; }
+  .rfid-modal-primary,
+  .rfid-modal-danger { flex: 1; min-height: 38px; }
+  .rfid-modal-cancel { flex: 0 0 auto; }
   .confirm-modal { width: min(420px, calc(100vw - 28px)); }
   .confirm-warning { margin: 10px 0; padding: 8px 10px; border: 1px solid #E7A5A8; border-radius: 4px; background: #FDECEC; color: #B4232A; font-size: 11px; line-height: 1.4; }
   .confirm-modal .hdr-btn.danger { color: #B4232A; background: #FDECEC; border-color: #E7A5A8; }

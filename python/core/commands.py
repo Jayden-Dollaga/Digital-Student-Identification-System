@@ -52,3 +52,27 @@ def cmd_wipe(handler):
 def cmd_list(handler):
     """Ask ESP32 how many fingerprints are stored."""
     return handler.send_command("LIST")
+
+
+def cmd_card_write(handler, text):
+    """Arm a card write on the ESP32 without forcing the payload to uppercase."""
+    if not require_permission("enroll"):
+        return False
+    payload = str(text or "").strip()
+    if not payload or len(payload) > 16:
+        return False
+    return handler.send_command(f"CARD_WRITE:{payload}")
+
+
+def cmd_card_write_hex(handler, hex_text):
+    """Arm a card write that uses a hex-encoded payload for binary-safe RFID data."""
+    if not require_permission("enroll"):
+        return False
+    payload = str(hex_text or "").strip().upper()
+    if not payload or len(payload) > 32 or len(payload) % 2 != 0:
+        return False
+    try:
+        bytes.fromhex(payload)
+    except ValueError:
+        return False
+    return handler.send_command(f"CARD_WRITE_HEX:{payload}")

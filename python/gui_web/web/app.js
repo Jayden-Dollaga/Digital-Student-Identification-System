@@ -713,6 +713,10 @@ function handleFingerprintCount(payload) {
 }
 
 function handleScanResult(payload) {
+  if (pendingCardBinding && payload && payload.method === 'card' && payload.uid) {
+    bindPendingCardFromScan(payload);
+  }
+
   const student = payload.student || {};
   const name = student.student_name || (payload.status === 'UNKNOWN' ? 'Unknown fingerprint' : `Fingerprint #${payload.fingerprint_id}`);
   const meta = student.student_no
@@ -1188,18 +1192,254 @@ async function selectStudent(row, fingerprintId) {
   if (row) row.classList.add('selected-row');
   const student = await api().get_student(fingerprintId);
   selectedStudent = student;
-  if (!student || !student.fingerprint_id) return;
+  if (!student || !student.fingerprint_id) {
+    document.getElementById('det-name').textContent = 'No student selected';
+    document.getElementById('det-sno').textContent = '—';
+    document.getElementById('det-grade').textContent = '—';
+    document.getElementById('det-section').textContent = '—';
+    document.getElementById('det-fpid').textContent = '—';
+    const cardEl = document.getElementById('det-card-uid');
+    if (cardEl) cardEl.textContent = 'Not linked';
+    const statusBadge = document.getElementById('student-status-today');
+    if (statusBadge) {
+      statusBadge.textContent = 'Absent';
+      statusBadge.className = 'badge ' + attendanceBadgeClass('Absent');
+    }
+    updateStudentDetailButtons();
+    return;
+  }
   document.getElementById('det-name').textContent = student.student_name;
   document.getElementById('det-sno').textContent = student.student_no;
   document.getElementById('det-grade').textContent = `Grade ${student.grade}`;
   document.getElementById('det-section').textContent = student.section;
   document.getElementById('det-fpid').textContent = '#' + student.fingerprint_id;
+  const cardUid = student.card_uid || '';
+  const cardEl = document.getElementById('det-card-uid');
+  if (cardEl) cardEl.textContent = cardUid ? cardUid : 'Not linked';
   const status = student.attendance_status || 'Absent';
   const statusBadge = document.getElementById('student-status-today');
   if (statusBadge) {
     statusBadge.textContent = status;
     statusBadge.className = 'badge ' + attendanceBadgeClass(status);
   }
+  updateStudentDetailButtons();
+}
+
+function updateStudentDetailButtons() {
+  const manageBtn = document.getElementById('manage-rfid-btn');
+  if (!manageBtn) return;
+  manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
+}
+
+let pendingCardBinding = null;
+let manageRfidModal = null;
+
+async function closeManageRfidDialog() {
+  if (api && api().stop_rfid_register_session) {
+    await api().stop_rfid_register_session();
+  }
+  if (manageRfidModal) {
+    manageRfidModal.remove();
+    manageRfidModal = null;
+  }
+  pendingCardBinding = null;
+}
+
+function promptCardBinding(mode) {
+  if (!selectedStudent || !selectedStudent.fingerprint_id) {
+    return;
+  }
+  if (!connected) {
+    return;
+  }
+  pendingCardBinding = { fingerprintId: Number(selectedStudent.fingerprint_id), mode };
+}
+
+function openManageRfidDialog() {
+  if (!guardPermission('enroll', 'Managing an RFID card')) return;
+  if (!selectedStudent || !selectedStudent.fingerprint_id) return;
+
+  const existingCard = selectedStudent.card_uid || '';
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-card rfid-modal">
+      <div class="modal-title">Manage RFID</div>
+      <div class="modal-sub">RFID is optional. Fingerprint stays the main ID.</div>
+      <div class="rfid-modal-layout">
+        <div class="rfid-summary-card">
+          <div class="rfid-summary-field"><label>Student name</label><div>${escapeHtml(selectedStudent.student_name || '—')}</div></div>
+          <div class="rfid-summary-field"><label>Student LRN</label><div>${escapeHtml(selectedStudent.student_no || '—')}</div></div>
+          <div class="rfid-summary-field"><label>Fingerprint ID</label><div>#${escapeHtml(String(selectedStudent.fingerprint_id || '—'))}</div></div>
+          <div class="rfid-summary-field"><label>Current card</label><div id="rfid-current-card">${existingCard ? escapeHtml(existingCard) : 'Not linked'}</div></div>
+        </div>
+        <div class="rfid-progress-panel">
+          <div class="rfid-progress-title">Card progress</div>
+          <div class="rfid-steps">
+            <div class="rfid-step active"><span>1</span><strong>Tap card</strong></div>
+            <div class="rfid-step"><span>2</span><strong>Check if claimed</strong></div>
+            <div class="rfid-step"><span>3</span><strong>Saved</strong></div>
+          </div>
+          <div id="rfid-modal-status" class="rfid-modal-status">Waiting for card…</div>
+        </div>
+      </div>
+      <div id="rfid-unlink-confirm" class="rfid-unlink-confirm" hidden>
+        <div id="rfid-unlink-confirm-text" class="rfid-unlink-confirm-text">Unlink this card from the student? The physical card is not erased.</div>
+        <div class="rfid-unlink-confirm-actions">
+          <button id="rfid-unlink-confirm-yes" class="hdr-btn danger">Unlink</button>
+          <button id="rfid-unlink-confirm-no" class="hdr-btn">Back</button>
+        </div>
+      </div>
+      <div class="modal-actions rfid-modal-actions">
+        <button id="rfid-modal-primary" class="hdr-btn primary rfid-modal-primary">${existingCard ? 'Replace RFID' : 'Register RFID'}</button>
+        <button id="rfid-modal-unlink" class="hdr-btn danger rfid-modal-danger" ${existingCard ? '' : 'disabled'}>Unlink RFID</button>
+        <button class="hdr-btn rfid-modal-cancel" data-rfid-cancel>Cancel</button>
+      </div>
+    </div>
+  `;
+
+  const primary = modal.querySelector('#rfid-modal-primary');
+  const unlink = modal.querySelector('#rfid-modal-unlink');
+  const status = modal.querySelector('#rfid-modal-status');
+  const currentCard = modal.querySelector('#rfid-current-card');
+
+  const setStatus = (msg, tone = '') => {
+    status.textContent = msg;
+    status.className = 'rfid-modal-status' + (tone ? ` ${tone}` : '');
+  };
+
+  const updateCardReadout = () => {
+    const uid = selectedStudent && selectedStudent.card_uid ? selectedStudent.card_uid : '';
+    const text = uid ? uid : 'Not linked';
+    if (currentCard) currentCard.textContent = text;
+    if (primary) primary.textContent = uid ? 'Replace RFID' : 'Register RFID';
+    if (unlink) unlink.disabled = !uid;
+  };
+
+  const renderUnlinkConfirm = (show = false) => {
+    const row = modal.querySelector('#rfid-unlink-confirm');
+    if (!row) return;
+    row.hidden = !show;
+    const confirmText = modal.querySelector('#rfid-unlink-confirm-text');
+    if (confirmText) confirmText.textContent = 'Unlink this card from the student? The physical card is not erased.';
+  };
+
+  primary.addEventListener('click', async () => {
+    if (!selectedStudent || !selectedStudent.fingerprint_id) return;
+    if (!connected) {
+      setStatus('Device not connected.', 'error');
+      return;
+    }
+    renderUnlinkConfirm(false);
+    const result = await api().start_rfid_register_session(Number(selectedStudent.fingerprint_id), selectedStudent.card_uid ? 'replace' : 'register');
+    if (!result || !result.ok) {
+      setStatus(result && result.message ? result.message : 'Could not start RFID listening.', 'error');
+      return;
+    }
+    pendingCardBinding = { fingerprintId: Number(selectedStudent.fingerprint_id), mode: selectedStudent.card_uid ? 'replace' : 'register' };
+    setStatus('Waiting for card…', 'active');
+  });
+
+  unlink.addEventListener('click', async () => {
+    if (!selectedStudent || !selectedStudent.fingerprint_id) return;
+    if (!selectedStudent.card_uid) return;
+    renderUnlinkConfirm(true);
+    setStatus('Unlink this card from the student? The physical card is not erased.', 'active');
+    const confirmButton = modal.querySelector('#rfid-unlink-confirm-yes');
+    const backButton = modal.querySelector('#rfid-unlink-confirm-no');
+    if (confirmButton) {
+      confirmButton.onclick = async () => {
+        const result = await api().clear_student_card(selectedStudent.fingerprint_id);
+        if (!result.ok) {
+          renderUnlinkConfirm(false);
+          setStatus(result.message || 'Could not unlink the card.', 'error');
+          return;
+        }
+        selectedStudent.card_uid = '';
+        updateCardReadout();
+        renderUnlinkConfirm(false);
+        setStatus('Card unlinked.', 'success');
+        await loadStudentsPage();
+        setTimeout(() => closeManageRfidDialog(), 750);
+      };
+    }
+    if (backButton) {
+      backButton.onclick = () => {
+        renderUnlinkConfirm(false);
+        setStatus('Waiting for card…', 'active');
+      };
+    }
+  });
+
+  modal.querySelector('[data-rfid-cancel]').addEventListener('click', () => {
+    closeManageRfidDialog();
+  });
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeManageRfidDialog();
+  });
+
+  manageRfidModal = modal;
+  document.body.appendChild(modal);
+  updateCardReadout();
+}
+
+function registerSelectedStudentCard() {
+  if (!guardPermission('enroll', 'Registering an RFID card')) return;
+  openManageRfidDialog();
+}
+
+function replaceSelectedStudentCard() {
+  if (!guardPermission('enroll', 'Replacing an RFID card')) return;
+  openManageRfidDialog();
+}
+
+function unlinkSelectedStudentCard() {
+  if (!guardPermission('enroll', 'Unlinking an RFID card')) return;
+  openManageRfidDialog();
+}
+
+async function bindPendingCardFromScan(payload) {
+  if (!pendingCardBinding || !payload || !payload.uid) return false;
+  const binding = pendingCardBinding;
+  pendingCardBinding = null;
+
+  if (binding.mode === 'unlink') {
+    return false;
+  }
+
+  const result = await api().bind_student_card(binding.fingerprintId, payload.uid);
+  const message = result && result.message ? result.message : 'RFID registration updated.';
+
+  if (manageRfidModal) {
+    const status = manageRfidModal.querySelector('#rfid-modal-status');
+    const currentCard = manageRfidModal.querySelector('#rfid-current-card');
+    if (/already registered/i.test(message)) {
+      const studentName = selectedStudent && selectedStudent.student_name ? selectedStudent.student_name : 'another student';
+      const lrn = selectedStudent && selectedStudent.student_no ? ` (LRN ${selectedStudent.student_no})` : '';
+      if (status) {
+        status.textContent = `This card is already registered to ${studentName}${lrn}.`;
+        status.className = 'rfid-modal-status error';
+      }
+      if (currentCard) currentCard.textContent = selectedStudent && selectedStudent.card_uid ? selectedStudent.card_uid : 'Not linked';
+    } else if (result && result.ok) {
+      if (selectedStudent) selectedStudent.card_uid = payload.uid;
+      if (currentCard) currentCard.textContent = payload.uid;
+      if (status) {
+        status.textContent = `Card linked: ${payload.uid}`;
+        status.className = 'rfid-modal-status success';
+      }
+      setTimeout(() => closeManageRfidDialog(), 750);
+    } else {
+      if (status) {
+        status.textContent = message || 'Could not register the card.';
+        status.className = 'rfid-modal-status error';
+      }
+    }
+  }
+
+  await loadStudentsPage();
+  updateStudentDetailButtons();
+  return true;
 }
 
 let pendingDelete = null; // { fingerprintId, resolve }
@@ -1594,7 +1834,7 @@ function openEnrollDialog(existing) {
   overlay.innerHTML = `
     <div class="modal-card">
       <div class="modal-title">${existing ? 'Re-enroll Student' : 'Enroll Student'}</div>
-      <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan.'}</div>
+      <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan. RFID is optional. Register it later from Student Details.'}</div>
       <div class="enroll-layout">
         <div class="enroll-form">
           <div class="modal-field"><label>Student LRN</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>

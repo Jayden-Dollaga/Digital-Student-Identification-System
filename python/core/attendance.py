@@ -13,13 +13,15 @@ stable scan outcomes.
 #  Sits between serial_handler (reads raw data) and database (logs it).
 ###############################################################################
 
+import sqlite3
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 from config import get_config
-from core.database import get_all_students, get_student, log_attendance, StudentRow
+from core.database import get_all_students, get_student, get_student_by_card_uid, log_attendance, StudentRow
 from core.logger import log
+from core.rfid_card import decrypt_student_card_payload
 from core.utils import parse_json_line
 
 CONFIG = get_config()
@@ -34,6 +36,9 @@ class ScanResult(TypedDict, total=False):
     timestamp: datetime
     logged: bool
     reason: Optional[str]
+    method: str
+    uid: Optional[str]
+    data: Optional[str]
 
 
 @dataclass
@@ -44,6 +49,9 @@ class ScanOutcome:
     timestamp: datetime
     logged: bool
     reason: Optional[str] = None
+    method: str = "fingerprint"
+    uid: Optional[str] = None
+    data: Optional[str] = None
 
     def to_dict(self) -> ScanResult:
         return asdict(self)
@@ -88,6 +96,17 @@ class AttendanceProcessor:
                     if fingerprint_id is None or confidence is None:
                         return None
                     return self._handle_json_match_scan(fingerprint_id, confidence)
+                if event == "card":
+                    uid = parsed_json.get("uid")
+                    data = parsed_json.get("data")
+                    if data is None:
+                        data = parsed_json.get("data_hex")
+                    if not uid:
+                        return None
+                    return self._handle_card_scan(str(uid), data)
+                if event == "card_unreadable":
+                    uid = parsed_json.get("uid")
+                    return self._handle_unknown_card_scan(str(uid) if uid else None)
                 if event == "unknown":
                     self.current_id = None
                     return self._handle_unknown_scan()
@@ -123,6 +142,9 @@ class AttendanceProcessor:
 
     def lookup_student(self, fingerprint_id: int) -> Optional[StudentRow]:
         return self._student_lookup(fingerprint_id)
+
+    def lookup_card_student(self, uid: str) -> Optional[StudentRow]:
+        return get_student_by_card_uid(uid)
 
     def all_students(self) -> List[StudentRow]:
         return self._all_students()
@@ -167,6 +189,103 @@ class AttendanceProcessor:
                 logged=False,
                 reason="Could not record unknown scan (see application log).",
             ).to_dict()
+
+    def _handle_unknown_card_scan(self, uid: Optional[str]) -> ScanResult:
+        now = datetime.now()
+        fingerprint_id = 0
+        if self._is_in_cooldown(fingerprint_id, now):
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=0,
+                status="UNKNOWN",
+                timestamp=now,
+                logged=False,
+                reason=self._cooldown_reason(fingerprint_id, now),
+                method="card",
+                uid=uid,
+            ).to_dict()
+
+        try:
+            self._log_and_record(fingerprint_id, 0, "UNKNOWN", now)
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=0,
+                status="UNKNOWN",
+                timestamp=now,
+                logged=True,
+                reason=None,
+                method="card",
+                uid=uid,
+            ).to_dict()
+        except Exception as exc:
+            log.error(f"Failed to log unknown-card scan: {exc}")
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=0,
+                status="UNKNOWN",
+                timestamp=now,
+                logged=False,
+                reason="Could not record unknown card scan.",
+                method="card",
+                uid=uid,
+            ).to_dict()
+
+    def _handle_card_scan(self, uid: str, data: Optional[str]) -> Optional[ScanResult]:
+        now = datetime.now()
+        student = get_student_by_card_uid(uid)
+        if student is None and data:
+            decoded = decrypt_student_card_payload(str(data))
+            if decoded is not None:
+                fingerprint_id, student_no = decoded
+                student = get_student(fingerprint_id) or {"fingerprint_id": fingerprint_id, "student_no": student_no}
+            else:
+                try:
+                    candidates = self._all_students()
+                except sqlite3.OperationalError:
+                    candidates = []
+                for candidate in candidates:
+                    if str(candidate.get("student_no") or "").strip() == str(data).strip():
+                        student = candidate
+                        break
+        if student is None:
+            return self._handle_unknown_card_scan(uid)
+
+        fingerprint_id = int(student["fingerprint_id"])
+        if self._is_in_cooldown(fingerprint_id, now):
+            log.info(
+                "Card scan skipped due to cooldown",
+                fingerprint_id=fingerprint_id,
+                uid=uid,
+                reason=self._cooldown_reason(fingerprint_id, now),
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=100,
+                status="GOOD MATCH",
+                timestamp=now,
+                logged=False,
+                reason=self._cooldown_reason(fingerprint_id, now),
+                method="card",
+                uid=uid,
+                data=data,
+            ).to_dict()
+
+        try:
+            self._log_and_record(fingerprint_id, 100, "GOOD MATCH", now)
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=100,
+                status="GOOD MATCH",
+                timestamp=now,
+                logged=True,
+                reason=None,
+                method="card",
+                uid=uid,
+                data=data,
+            ).to_dict()
+        except Exception as exc:
+            log.error(f"Failed to log card attendance for {uid}: {exc}")
+            return None
 
     def _handle_confidence_scan(self, confidence: int) -> Optional[ScanResult]:
         fingerprint_id = self.current_id

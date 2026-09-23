@@ -160,6 +160,7 @@ class StudentRow(TypedDict, total=False):
     student_name: str
     grade: str
     section: str
+    card_uid: Optional[str]
     enrollment_date: str
     updated_date: str
 
@@ -217,10 +218,47 @@ STUDENT_COLUMNS = (
     "student_name",
     "grade",
     "section",
+    "card_uid",
     "enrollment_date",
     "updated_date",
 )
 _STUDENT_COLUMNS_SQL = ", ".join(STUDENT_COLUMNS)
+
+
+def _student_select_sql(conn: sqlite3.Connection) -> str:
+    """Return the safe SELECT list for current schema while keeping older DBs working."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(students)").fetchall()}
+    if "card_uid" in columns:
+        return _STUDENT_COLUMNS_SQL
+    return ", ".join(column for column in STUDENT_COLUMNS if column != "card_uid")
+
+
+def normalize_card_uid(value: Any) -> Optional[str]:
+    """Return a canonical uppercase card UID such as AA:BB:CC:DD."""
+    if value is None:
+        return None
+    text = str(value).strip().upper().replace("-", ":")
+    if not text:
+        return None
+    cleaned = "".join(ch for ch in text if ch in "0123456789ABCDEF:")
+    if not cleaned:
+        return None
+    if ":" in cleaned:
+        groups = [chunk for chunk in cleaned.split(":") if chunk]
+        if len(groups) == 0:
+            return None
+        normalized = ":".join(group.zfill(2) for group in groups)
+        return normalized if len(normalized.split(":")) >= 2 else None
+    if len(cleaned) % 2 != 0:
+        cleaned = cleaned[:-1]
+    if len(cleaned) < 4:
+        return None
+    return ":".join(cleaned[i : i + 2] for i in range(0, len(cleaned), 2))
+
+
+def _student_card_uid_column_exists(cursor: sqlite3.Cursor) -> bool:
+    cursor.execute("PRAGMA table_info(students)")
+    return any(row[1] == "card_uid" for row in cursor.fetchall())
 
 
 def init_database() -> None:
@@ -237,11 +275,15 @@ def init_database() -> None:
                 student_name    TEXT    NOT NULL,
                 grade           TEXT    NOT NULL,
                 section         TEXT    NOT NULL,
+                card_uid        TEXT    UNIQUE,
                 enrollment_date TEXT    NOT NULL,
                 updated_date    TEXT    NOT NULL
             )
             """
         )
+        if not _student_card_uid_column_exists(cursor):
+            cursor.execute("ALTER TABLE students ADD COLUMN card_uid TEXT")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_students_card_uid ON students(card_uid) WHERE card_uid IS NOT NULL")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_student_no ON students(student_no)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_grade_section ON students(grade, section)")
 
@@ -662,11 +704,95 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
 
     conn = get_connection()
     try:
+        select_sql = _student_select_sql(conn)
         row = conn.execute(
-            f"SELECT {_STUDENT_COLUMNS_SQL} FROM students WHERE fingerprint_id = ?",
+            f"SELECT {select_sql} FROM students WHERE fingerprint_id = ?",
             (fingerprint_id,),
         ).fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_student_by_card_uid(uid: Any) -> Optional[StudentRow]:
+    normalized = normalize_card_uid(uid)
+    if not normalized:
+        return None
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        if not _student_card_uid_column_exists(cursor):
+            return None
+        select_sql = _student_select_sql(conn)
+        row = conn.execute(
+            f"SELECT {select_sql} FROM students WHERE card_uid = ?",
+            (normalized,),
+        ).fetchone()
+        return dict(row) if row else None
+    except sqlite3.OperationalError as exc:
+        if "no such column: card_uid" in str(exc).lower():
+            return None
+        raise
+    finally:
+        conn.close()
+
+
+def bind_student_card(fingerprint_id: int, card_uid: Any) -> Tuple[bool, str]:
+    normalized = normalize_card_uid(card_uid)
+    if not normalized:
+        return False, "Card UID is required."
+
+    conn = get_connection()
+    try:
+        if not _student_card_uid_column_exists(conn.cursor()):
+            return False, "Card UID support is not enabled in this database."
+
+        student = conn.execute(
+            "SELECT fingerprint_id, student_no, student_name, card_uid FROM students WHERE fingerprint_id = ?",
+            (fingerprint_id,),
+        ).fetchone()
+        if student is None:
+            return False, "Student not found."
+
+        existing = conn.execute(
+            "SELECT fingerprint_id, student_no, student_name FROM students WHERE card_uid = ? AND fingerprint_id != ?",
+            (normalized, fingerprint_id),
+        ).fetchone()
+        if existing:
+            return False, f"This card is already registered to {existing['student_name']} (LRN {existing['student_no']}). Registration blocked."
+
+        current_uid = student["card_uid"]
+        if current_uid == normalized:
+            return True, "This card is already registered to this student."
+
+        conn.execute(
+            "UPDATE students SET card_uid = ? WHERE fingerprint_id = ?",
+            (normalized, fingerprint_id),
+        )
+        conn.commit()
+        return True, "Card registered."
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        log.error(f"bind_student_card integrity error: {exc}")
+        return False, "This card is already registered to another student."
+    except sqlite3.OperationalError as exc:
+        if "no such column: card_uid" in str(exc).lower():
+            return False, "Card UID support is not enabled in this database."
+        raise
+    finally:
+        conn.close()
+
+
+def clear_student_card(fingerprint_id: int) -> Tuple[bool, str]:
+    conn = get_connection()
+    try:
+        affected = conn.execute(
+            "UPDATE students SET card_uid = NULL WHERE fingerprint_id = ?",
+            (fingerprint_id,),
+        )
+        conn.commit()
+        return (affected.rowcount > 0), "Student card cleared."
     finally:
         conn.close()
 
@@ -677,8 +803,9 @@ def get_all_students() -> List[StudentRow]:
         # fingerprint_id 0 is the reserved "Unregistered" placeholder used to
         # satisfy the attendance table's FK for unknown-fingerprint scans
         # (see init_database()) - it is not a real enrolled student.
+        select_sql = _student_select_sql(conn)
         rows = conn.execute(
-            f"SELECT {_STUDENT_COLUMNS_SQL} FROM students WHERE fingerprint_id > 0 ORDER BY fingerprint_id"
+            f"SELECT {select_sql} FROM students WHERE fingerprint_id > 0 ORDER BY fingerprint_id"
         ).fetchall()
         return _row_dicts(rows)
     finally:

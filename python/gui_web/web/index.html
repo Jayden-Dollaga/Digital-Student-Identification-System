@@ -306,10 +306,15 @@
               <div class="detail-field-value" id="det-fpid">—</div>
             </div>
             <div class="detail-field">
+              <div class="detail-field-label">RFID Card</div>
+              <div class="detail-field-value" id="det-card-uid">Not linked</div>
+            </div>
+            <div class="detail-field">
               <div class="detail-field-label">Status Today</div>
               <div class="detail-field-value"><span class="badge" id="student-status-today">Absent</span></div>
             </div>
             <div class="detail-actions">
+              <button id="manage-rfid-btn" class="detail-btn" data-permission="enroll" onclick="openManageRfidDialog()" disabled>Manage RFID</button>
               <button class="detail-btn" data-permission="enroll" onclick="editSelectedStudentDetails()">Edit Details</button>
               <button class="detail-btn" data-permission="enroll" onclick="reenrollSelectedStudent()">Re-enroll Student</button>
               <button class="detail-btn danger" data-permission="delete" onclick="deleteSelectedStudent()">Delete Student</button>

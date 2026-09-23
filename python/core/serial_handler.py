@@ -396,17 +396,24 @@ class SerialHandler:
     def send_command(self, cmd: str) -> bool:
         """
         Send a command string to the ESP32.
-        Commands are uppercased automatically.
+        The command name is uppercased, but payloads after a colon keep their
+        original casing (e.g. CARD_WRITE:STUDENT-01).
         Returns True if sent, False if not connected or on failure.
         """
         with self._lock:
             if not self.is_connected():
                 return False
             try:
-                self.esp32.write((cmd.strip().upper() + "\n").encode("utf-8"))
+                text = cmd.strip()
+                if ":" in text:
+                    name, payload = text.split(":", 1)
+                    send_text = f"{name.strip().upper()}:{payload}"
+                else:
+                    send_text = text.upper()
+                self.esp32.write((send_text + "\n").encode("utf-8"))
                 return True
             except Exception as exc:
-                log.error("Failed to send command to ESP32", command=cmd.strip().upper(), error=str(exc))
+                log.error("Failed to send command to ESP32", command=cmd.strip(), error=str(exc))
                 self.connected = False
                 self._schedule_reconnect()
                 return False

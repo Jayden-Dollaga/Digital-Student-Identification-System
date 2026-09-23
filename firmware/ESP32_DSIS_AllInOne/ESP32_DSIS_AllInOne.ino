@@ -110,13 +110,6 @@ const unsigned long FIRMWARE_BLINK_MS = 500;
 const unsigned long COMM_ERROR_ON_MS = 700;
 const unsigned long COMM_ERROR_OFF_MS = 200;
 
-HardwareSerial mySerial(2);
-Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
-
-MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
-MFRC522::MIFARE_Key rfidKey;
-String pendingCardWrite = "";   // set by CARD_WRITE:xyz, consumed on next tap
-
 enum LedState {
   LED_BOOTING,
   LED_READY,
@@ -131,6 +124,21 @@ enum LedState {
   LED_HOST_DISCONNECTED,
   LED_SLEEP
 };
+
+HardwareSerial mySerial(2);
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
+
+MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
+MFRC522::MIFARE_Key rfidKey;
+String pendingCardWrite = "";   // set by CARD_WRITE:xyz, consumed on next tap
+bool pendingCardWriteHex = false;
+
+byte hexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  return 0;
+}
 
 const char DEVICE_IDENTIFIER[] = "Digital Student Identification System";
 const char DEVICE_BOARD[] = "ESP32";
@@ -542,10 +550,22 @@ void loop() {
 // ==============================================================================
 
 void handleCommand(String input) {
-  input.toUpperCase();
+  String command = input;
+  command.trim();
+  String payload = "";
+  int colonPos = command.indexOf(':');
+  if (colonPos >= 0) {
+    payload = command.substring(colonPos + 1);
+    command = command.substring(0, colonPos);
+  }
+  command.toUpperCase();
+  String normalized = command;
+  if (payload.length() > 0) {
+    normalized += ":" + payload;
+  }
 
   // ── IDENTIFY ───────────────────────────────────────────────────
-  if (input == "ID?") {
+  if (normalized == "ID?") {
     Serial.print("{\"device\": \"");
     Serial.print(DEVICE_IDENTIFIER);
     Serial.print("\", \"board\": \"");
@@ -563,7 +583,7 @@ void handleCommand(String input) {
   }
 
   // ── SCAN ──────────────────────────────────────────────────────
-  if (input == "SCAN") {
+  if (normalized == "SCAN") {
     scanMode = true;
     ledScan();
     Serial.println("\n>> Switched to SCAN MODE");
@@ -575,7 +595,7 @@ void handleCommand(String input) {
   }
 
   // ── STOP ──────────────────────────────────────────────────────
-  if (input == "STOP") {
+  if (normalized == "STOP") {
     scanMode = false;
     ledReady();
     Serial.println("\n>> Switched to COMMAND MODE");
@@ -586,7 +606,7 @@ void handleCommand(String input) {
   }
 
   // ── LIST ──────────────────────────────────────────────────────
-  if (input == "LIST") {
+  if (normalized == "LIST") {
     scanMode = false;
     ledReady();
     finger.getTemplateCount();
@@ -597,7 +617,7 @@ void handleCommand(String input) {
   }
 
   // ── WIPE ──────────────────────────────────────────────────────
-  if (input == "WIPE") {
+  if (normalized == "WIPE") {
     scanMode = false;
     ledReady();
     Serial.println("\n>> Wiping ALL fingerprints...");
@@ -611,7 +631,7 @@ void handleCommand(String input) {
   }
 
   // ── ENROLL / ENROLL:ID ──────────────────────────────────────
-  if (input == "ENROLL") {
+  if (normalized == "ENROLL") {
     int id = findNextAvailableId();
     if (id <= 0) {
       Serial.println("ERROR: No free fingerprint slots available. Delete one first.");
@@ -638,9 +658,9 @@ void handleCommand(String input) {
   }
 
   // ── DELETE:ID ─────────────────────────────────────────────────
-  if (input.startsWith("DELETE:")) {
+  if (normalized.startsWith("DELETE:")) {
     ledReady();
-    int id = input.substring(7).toInt();
+    int id = payload.toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: DELETE:5");
       return;
@@ -665,21 +685,37 @@ void handleCommand(String input) {
   }
 
   // ── CARD_WRITE:xyz ───────────────────────────────────────────
-  if (input.startsWith("CARD_WRITE:")) {
-    String payload = input.substring(11);
-    payload.trim();
-    if (payload.length() == 0 || payload.length() > 16) {
+  if (normalized.startsWith("CARD_WRITE:")) {
+    String payloadText = payload;
+    payloadText.trim();
+    if (payloadText.length() == 0 || payloadText.length() > 16) {
       Serial.println("ERROR: CARD_WRITE text must be 1-16 characters.");
       return;
     }
-    pendingCardWrite = payload;
+    pendingCardWriteHex = false;
+    pendingCardWrite = payloadText;
     Serial.print("\n>> Card write armed: \"");
     Serial.print(pendingCardWrite);
     Serial.println("\" - tap a card now (works in SCAN mode or command mode).");
     return;
   }
 
-  if (input.startsWith("STATUS:")) {
+  if (normalized.startsWith("CARD_WRITE_HEX:")) {
+    String payloadText = payload;
+    payloadText.trim();
+    if (payloadText.length() == 0 || payloadText.length() > 32 || payloadText.length() % 2 != 0) {
+      Serial.println("ERROR: CARD_WRITE_HEX payload must be an even number of hex chars (1-16 bytes). ");
+      return;
+    }
+    pendingCardWriteHex = true;
+    pendingCardWrite = payloadText;
+    Serial.print("\n>> Card write armed (hex): \"");
+    Serial.print(pendingCardWrite);
+    Serial.println("\" - tap a card now to write the encoded payload.");
+    return;
+  }
+
+  if (normalized.startsWith("STATUS:")) {
     String state = input.substring(7);
     state.trim();
     handleHostStatus(state);
@@ -916,9 +952,18 @@ void scanCard() {
   if (pendingCardWrite.length() > 0) {
     byte buffer[16];
     memset(buffer, ' ', 16);
-    int len = pendingCardWrite.length();
-    if (len > 16) len = 16;
-    for (int i = 0; i < len; i++) buffer[i] = pendingCardWrite[i];
+    if (pendingCardWriteHex) {
+      int bytesToWrite = min((int)pendingCardWrite.length() / 2, 16);
+      for (int i = 0; i < bytesToWrite; i++) {
+        byte hi = hexValue(pendingCardWrite[2 * i]);
+        byte lo = hexValue(pendingCardWrite[2 * i + 1]);
+        buffer[i] = (hi << 4) | lo;
+      }
+    } else {
+      int len = pendingCardWrite.length();
+      if (len > 16) len = 16;
+      for (int i = 0; i < len; i++) buffer[i] = pendingCardWrite[i];
+    }
 
     status = rfid.MIFARE_Write(RFID_BLOCK_NUM, buffer, 16);
     bool success = (status == MFRC522::STATUS_OK);
@@ -929,6 +974,7 @@ void scanCard() {
     Serial.println("\"");
 
     pendingCardWrite = "";
+    pendingCardWriteHex = false;
   } else {
     byte buffer[18];
     byte size = 18;

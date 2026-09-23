@@ -37,6 +37,8 @@ def default_settings() -> Dict[str, Any]:
         # backed exclusively by an in-memory session. Do not gate anything
         # off this field.
         "current_role": "guest",
+        "rfid_payload_key": "",
+        "rfid_app_key_hex": "",
         # minutes between automatic-backup due-checks (Settings > Backups)
         "auto_backup_interval_minutes": 25,
         # attendance time rules
