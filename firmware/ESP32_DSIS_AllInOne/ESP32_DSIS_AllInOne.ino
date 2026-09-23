@@ -43,7 +43,7 @@
  *    LIST          Show how many fingerprints are stored
  *    SCAN          Switch to attendance scan mode (fingerprint AND card)
  *    STOP          Stop scanning, go back to command mode
- *    CARD_WRITE:xyz  Arm a card write; tap a card while in SCAN mode
+ *    CARD_WRITE_HEX:<32 hex chars>  Arm an encrypted card write
  *                    (or once, outside scan mode) to write "xyz" to it
  *
  *  ── TYPICAL WORKFLOW FOR A CLASS OF 30 ──
@@ -130,8 +130,9 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 MFRC522::MIFARE_Key rfidKey;
-String pendingCardWrite = "";   // set by CARD_WRITE:xyz, consumed on next tap
+String pendingCardWrite = "";   // set by CARD_WRITE_HEX, consumed on next tap
 bool pendingCardWriteHex = false;
+String expectedCardWriteUid = "";
 
 byte hexValue(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -142,7 +143,7 @@ byte hexValue(char c) {
 
 const char DEVICE_IDENTIFIER[] = "Digital Student Identification System";
 const char DEVICE_BOARD[] = "ESP32";
-const char DEVICE_FIRMWARE[] = "1.0.10";
+const char DEVICE_FIRMWARE[] = "1.2.5";
 const char DEVICE_SENSOR[] = "AS608";
 const int DEVICE_PROTOCOL = 1;
 
@@ -284,11 +285,21 @@ String uidToString(MFRC522::Uid *uid) {
   return out;
 }
 
-void emitJsonCardMatch(const String &uidStr, const String &data) {
+String bytesToHex(const byte *data, byte length) {
+  String out = "";
+  for (byte i = 0; i < length; i++) {
+    if (data[i] < 0x10) out += "0";
+    out += String(data[i], HEX);
+  }
+  out.toUpperCase();
+  return out;
+}
+
+void emitJsonCardMatch(const String &uidStr, const String &dataHex) {
   Serial.print("{\"type\":\"attendance\",\"event\":\"card\",\"uid\":\"");
   Serial.print(uidStr);
-  Serial.print("\",\"data\":\"");
-  Serial.print(data);
+  Serial.print("\",\"data_hex\":\"");
+  Serial.print(dataHex);
   Serial.println("\"}");
 }
 
@@ -298,11 +309,11 @@ void emitJsonCardUnreadable(const String &uidStr) {
   Serial.println("\"}");
 }
 
-void emitJsonCardWriteResult(const String &uidStr, const String &data, bool success) {
+void emitJsonCardWriteResult(const String &uidStr, const String &dataHex, bool success) {
   Serial.print("{\"type\":\"card_write\",\"uid\":\"");
   Serial.print(uidStr);
-  Serial.print("\",\"data\":\"");
-  Serial.print(data);
+  Serial.print("\",\"data_hex\":\"");
+  Serial.print(dataHex);
   Serial.print("\",\"success\":");
   Serial.print(success ? "true" : "false");
   Serial.println("}");
@@ -684,28 +695,19 @@ void handleCommand(String input) {
     return;
   }
 
-  // ── CARD_WRITE:xyz ───────────────────────────────────────────
-  if (normalized.startsWith("CARD_WRITE:")) {
-    String payloadText = payload;
-    payloadText.trim();
-    if (payloadText.length() == 0 || payloadText.length() > 16) {
-      Serial.println("ERROR: CARD_WRITE text must be 1-16 characters.");
-      return;
-    }
-    pendingCardWriteHex = false;
-    pendingCardWrite = payloadText;
-    Serial.print("\n>> Card write armed: \"");
-    Serial.print(pendingCardWrite);
-    Serial.println("\" - tap a card now (works in SCAN mode or command mode).");
-    return;
-  }
-
   if (normalized.startsWith("CARD_WRITE_HEX:")) {
     String payloadText = payload;
     payloadText.trim();
     if (payloadText.length() == 0 || payloadText.length() > 32 || payloadText.length() % 2 != 0) {
       Serial.println("ERROR: CARD_WRITE_HEX payload must be an even number of hex chars (1-16 bytes). ");
       return;
+    }
+    for (unsigned int i = 0; i < payloadText.length(); i++) {
+      char value = payloadText[i];
+      if (!((value >= '0' && value <= '9') || (value >= 'A' && value <= 'F') || (value >= 'a' && value <= 'f'))) {
+        Serial.println("ERROR: CARD_WRITE_HEX payload contains non-hex characters.");
+        return;
+      }
     }
     pendingCardWriteHex = true;
     pendingCardWrite = payloadText;
@@ -950,6 +952,16 @@ void scanCard() {
   }
 
   if (pendingCardWrite.length() > 0) {
+    if (pendingCardWriteHex && expectedCardWriteUid.length() > 0 && uidStr != expectedCardWriteUid) {
+      emitJsonCardWriteResult(uidStr, pendingCardWrite, false);
+      Serial.println("\n>> Card write skipped: UID did not match the tapped card.");
+      pendingCardWrite = "";
+      pendingCardWriteHex = false;
+      rfid.PICC_HaltA();
+      rfid.PCD_StopCrypto1();
+      delay(RFID_SCAN_COOLDOWN);
+      return;
+    }
     byte buffer[16];
     memset(buffer, ' ', 16);
     if (pendingCardWriteHex) {
@@ -967,23 +979,22 @@ void scanCard() {
 
     status = rfid.MIFARE_Write(RFID_BLOCK_NUM, buffer, 16);
     bool success = (status == MFRC522::STATUS_OK);
-    emitJsonCardWriteResult(uidStr, pendingCardWrite, success);
+    String dataHex = pendingCardWriteHex ? pendingCardWrite : bytesToHex(buffer, 16);
+    emitJsonCardWriteResult(uidStr, dataHex, success);
 
-    Serial.print(success ? "\n>> Card write SUCCESS: \"" : "\n>> Card write FAILED: \"");
-    Serial.print(pendingCardWrite);
-    Serial.println("\"");
+    Serial.println(success ? "\n>> Card write SUCCESS." : "\n>> Card write FAILED.");
 
     pendingCardWrite = "";
     pendingCardWriteHex = false;
+    expectedCardWriteUid = "";
   } else {
     byte buffer[18];
     byte size = 18;
     status = rfid.MIFARE_Read(RFID_BLOCK_NUM, buffer, &size);
 
     if (status == MFRC522::STATUS_OK) {
-      String result = "";
-      for (byte i = 0; i < 16; i++) result += (char)buffer[i];
-      result.trim();
+      String result = bytesToHex(buffer, 16);
+      expectedCardWriteUid = uidStr;
       ledSuccess();
       emitJsonCardMatch(uidStr, result);
     } else {
@@ -1010,6 +1021,6 @@ void printHelp() {
   Serial.println("    LIST       Show stored fingerprint count");
   Serial.println("    SCAN       Start attendance scan mode (finger + card)");
   Serial.println("    STOP       Stop scanning, return to commands");
-  Serial.println("    CARD_WRITE:xyz  Arm write, tap a card to store \"xyz\" on it");
+  Serial.println("    CARD_WRITE_HEX:<hex>  Arm encrypted write, tap a card");
   Serial.println();
 }

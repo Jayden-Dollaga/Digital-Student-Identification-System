@@ -55,20 +55,15 @@ def cmd_list(handler):
 
 
 def cmd_card_write(handler, text):
-    """Arm a card write on the ESP32 without forcing the payload to uppercase."""
-    if not require_permission("enroll"):
-        return False
-    payload = str(text or "").strip()
-    if not payload or len(payload) > 16:
-        return False
-    return handler.send_command(f"CARD_WRITE:{payload}")
+    """Deprecated plaintext card-write command; DSIS does not use it."""
+    return False
 
 
 def cmd_card_write_hex(handler, hex_text):
     """Arm a card write that uses a hex-encoded payload for binary-safe RFID data."""
     if not require_permission("enroll"):
         return False
-    payload = str(hex_text or "").strip().upper()
+    payload = str(hex_text or "").strip()
     if not payload or len(payload) > 32 or len(payload) % 2 != 0:
         return False
     try:

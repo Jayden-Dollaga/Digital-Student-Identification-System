@@ -40,6 +40,7 @@ import webview
 from config import get_config
 from core import commands as cmds
 from core import database as db
+from core.rfid_card import encrypt_student_card_payload
 from core import auth
 from core import attendance_calendar
 from core import setup_wizard
@@ -181,6 +182,11 @@ class Api:
         self._rfid_session_was_scanning = False
         self._rfid_session_fingerprint_id: Optional[int] = None
         self._rfid_session_mode: Optional[str] = None
+        self._batch_rfid_erase_active = False
+        self._batch_rfid_erase_was_scanning = False
+        self._batch_rfid_erase_waiting_uid: Optional[str] = None
+        self._batch_rfid_erase_unlink = False
+        self._batch_rfid_erase_count = 0
         self._reconnect_help_emitted = False
 
         try:
@@ -402,7 +408,7 @@ class Api:
             return {"ok": False, "message": "Connect to the ESP32 first."}
         if not permissions.require_permission("enroll"):
             return {"ok": False, "message": "Current role does not have enroll permission."}
-        if self._rfid_session_active:
+        if self._rfid_session_active or self._batch_rfid_erase_active:
             return {"ok": False, "message": "Another RFID card session is already active."}
 
         self._rfid_session_active = True
@@ -437,11 +443,108 @@ class Api:
             return {"ok": ok, "message": "RFID session closed." if ok else "Could not stop RFID card listening."}
         return {"ok": True, "message": "RFID session closed."}
 
+    def start_batch_rfid_erase(self, unlink_registered: bool = False) -> Dict[str, Any]:
+        if not permissions.require_role("admin") or not permissions.require_permission("enroll"):
+            return {"ok": False, "message": "Administrator permission is required."}
+        if not self.serial.is_connected():
+            return {"ok": False, "message": "Connect to the ESP32 first."}
+        if self._rfid_session_active or self._batch_rfid_erase_active:
+            return {"ok": False, "message": "Another RFID card session is already active."}
+
+        self._batch_rfid_erase_active = True
+        self._batch_rfid_erase_was_scanning = self._scanning
+        self._batch_rfid_erase_waiting_uid = None
+        self._batch_rfid_erase_unlink = bool(unlink_registered)
+        self._batch_rfid_erase_count = 0
+        if not self._batch_rfid_erase_was_scanning:
+            ok = cmds.cmd_scan(self.serial)
+            if not ok:
+                self._batch_rfid_erase_active = False
+                return {"ok": False, "message": "Could not start RFID card listening on the ESP32."}
+            self._scanning = True
+            self._device_mode = "scan"
+            self._push("mode_changed", {"mode": "scan"})
+        return {"ok": True, "message": "RFID erase listening started."}
+
+    def stop_batch_rfid_erase(self) -> Dict[str, Any]:
+        if not self._batch_rfid_erase_active:
+            return {"ok": True, "message": "No RFID erase session is active."}
+        was_scanning = self._batch_rfid_erase_was_scanning
+        self._batch_rfid_erase_active = False
+        self._batch_rfid_erase_waiting_uid = None
+        self._batch_rfid_erase_unlink = False
+        self._batch_rfid_erase_count = 0
+        if not was_scanning and self.serial.is_connected():
+            ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+            self._push("mode_changed", {"mode": "command"})
+            return {"ok": ok, "message": "RFID erase session closed." if ok else "Could not stop RFID card listening."}
+        return {"ok": True, "message": "RFID erase session closed."}
+
+    def _push_batch_erase_result(self, event: str, uid: Optional[str], message: str = "") -> None:
+        self._push("scan_result", {
+            "fingerprint_id": 0,
+            "confidence": 0,
+            "status": "RFID_BATCH_ERASE",
+            "logged": False,
+            "reason": message or None,
+            "timestamp": datetime.now().isoformat(),
+            "student": {},
+            "method": "batch_rfid_erase",
+            "uid": uid,
+            "event": event,
+            "count": self._batch_rfid_erase_count,
+        })
+
+    def _handle_batch_rfid_erase_event(self, parsed: Dict[str, Any]) -> bool:
+        if not self._batch_rfid_erase_active:
+            return False
+        event_type = parsed.get("type")
+        uid = str(parsed.get("uid") or "").strip().upper() or None
+
+        if event_type == "card_write":
+            waiting_uid = self._batch_rfid_erase_waiting_uid
+            self._batch_rfid_erase_waiting_uid = None
+            if not waiting_uid or uid != waiting_uid:
+                self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+                return True
+            if not parsed.get("success"):
+                self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+                return True
+            self._batch_rfid_erase_count += 1
+            if self._batch_rfid_erase_unlink:
+                student = db.get_student_by_card_uid(uid)
+                if student:
+                    db.clear_student_card(int(student["fingerprint_id"]))
+            log.info("RFID batch erase completed", uid=uid)
+            self._push_batch_erase_result("erased", uid)
+            return True
+
+        if event_type != "attendance" or parsed.get("event") not in {"card", "card_unreadable"}:
+            return False
+        if not uid:
+            self._push_batch_erase_result("skipped", None, "Skipped (not this tool / unreadable)")
+            return True
+        if parsed.get("event") == "card_unreadable" or self._batch_rfid_erase_waiting_uid:
+            self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+            return True
+        if not cmds.cmd_card_write_hex(self.serial, "0" * 32):
+            self._push_batch_erase_result("skipped", uid, "Could not arm card erase.")
+            return True
+        self._batch_rfid_erase_waiting_uid = uid
+        self._push_batch_erase_result("armed", uid, "Waiting for the same card to complete erase.")
+        return True
+
     def _handle_rfid_session_card_event(self, line: str) -> bool:
-        if not self._rfid_session_active or not isinstance(line, str):
+        if not isinstance(line, str):
             return False
         parsed = parse_json_line(line)
         if parsed is None:
+            return False
+        if self._batch_rfid_erase_active:
+            return self._handle_batch_rfid_erase_event(parsed)
+        if not self._rfid_session_active:
             return False
         event_type = parsed.get("type")
         if event_type == "card_write":
@@ -455,7 +558,8 @@ class Api:
                 "student": {},
                 "method": "card_write",
                 "uid": parsed.get("uid"),
-                "data": parsed.get("data") if parsed.get("data") is not None else parsed.get("data_hex"),
+                "data_hex": parsed.get("data_hex"),
+                "success": bool(parsed.get("success")),
                 "event": "card_write",
             }
             self._push("scan_result", payload)
@@ -475,7 +579,7 @@ class Api:
             "student": {},
             "method": "card",
             "uid": parsed.get("uid"),
-            "data": parsed.get("data") if parsed.get("data") is not None else parsed.get("data_hex"),
+            "data_hex": parsed.get("data_hex"),
             "event": event,
         }
         self._push("scan_result", payload)
@@ -1070,7 +1174,17 @@ class Api:
         if not card_uid:
             return {"ok": False, "message": "Tap a valid RFID card to register it."}
         ok, message = db.bind_student_card(int(fingerprint_id), str(card_uid))
-        return {"ok": ok, "message": message}
+        if not ok:
+            return {"ok": False, "message": message}
+        student = db.get_student(int(fingerprint_id))
+        if not student or not student.get("student_no"):
+            db.clear_student_card(int(fingerprint_id))
+            return {"ok": False, "message": "Could not prepare the encrypted RFID payload."}
+        payload_hex = encrypt_student_card_payload(int(fingerprint_id), student["student_no"])
+        if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
+            db.clear_student_card(int(fingerprint_id))
+            return {"ok": False, "message": "Card claim succeeded, but encrypted card writing could not be started."}
+        return {"ok": True, "message": "Card claimed. Tap the same card again to write the encrypted payload."}
 
     def clear_student_card(self, fingerprint_id: int) -> Dict[str, Any]:
         if not permissions.require_permission("enroll"):

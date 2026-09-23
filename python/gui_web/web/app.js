@@ -136,6 +136,9 @@ function applySessionState(state) {
       control.style.opacity = allowed ? '1' : '0.45';
     });
   });
+  document.querySelectorAll('[data-admin-only-rfid]').forEach(element => {
+    element.style.display = hasRole('admin') ? '' : 'none';
+  });
   document.querySelectorAll('[data-permission]').forEach(element => {
     const allowed = hasPermission(element.dataset.permission);
     element.disabled = !allowed;
@@ -713,6 +716,38 @@ function handleFingerprintCount(payload) {
 }
 
 function handleScanResult(payload) {
+  if (batchRfidEraseModal && payload && payload.method === 'batch_rfid_erase') {
+    const status = batchRfidEraseModal.querySelector('#batch-rfid-status');
+    const count = batchRfidEraseModal.querySelector('#batch-rfid-count');
+    const uid = payload.uid || 'unknown card';
+    if (payload.event === 'erased') {
+      if (status) {
+        status.textContent = `Erased ${payload.count}: ${uid}`;
+        status.className = 'rfid-modal-status success';
+      }
+      if (count) count.textContent = `Cards erased: ${payload.count}`;
+    } else if (payload.event === 'skipped') {
+      if (status) {
+        status.textContent = `Skipped (not this tool / unreadable): ${uid}`;
+        status.className = 'rfid-modal-status error';
+      }
+    } else if (payload.event === 'armed') {
+      if (status) {
+        status.textContent = `Waiting for the same card: ${uid}`;
+        status.className = 'rfid-modal-status active';
+      }
+    }
+    return;
+  }
+  if (manageRfidModal && payload && payload.method === 'card_write') {
+    const status = manageRfidModal.querySelector('#rfid-modal-status');
+    if (status) {
+      status.textContent = payload.success ? 'Encrypted RFID payload written.' : 'Could not write the encrypted RFID payload.';
+      status.className = 'rfid-modal-status ' + (payload.success ? 'success' : 'error');
+    }
+    if (payload.success) setTimeout(() => closeManageRfidDialog(), 750);
+    return;
+  }
   if (pendingCardBinding && payload && payload.method === 'card' && payload.uid) {
     bindPendingCardFromScan(payload);
   }
@@ -1233,6 +1268,74 @@ function updateStudentDetailButtons() {
 
 let pendingCardBinding = null;
 let manageRfidModal = null;
+let batchRfidEraseModal = null;
+
+async function closeBatchRfidEraseDialog() {
+  if (api && api().stop_batch_rfid_erase) {
+    await api().stop_batch_rfid_erase();
+  }
+  if (batchRfidEraseModal) {
+    batchRfidEraseModal.remove();
+    batchRfidEraseModal = null;
+  }
+}
+
+function openBatchRfidEraseDialog() {
+  if (!hasRole('admin') || !hasPermission('enroll')) {
+    return;
+  }
+  if (!connected) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `<div class="modal-card rfid-modal"><div class="modal-title">Erase RFID card data</div><div class="rfid-modal-status error">Device not connected.</div><div class="modal-actions"><button class="hdr-btn" data-batch-erase-close>Done</button></div></div>`;
+    modal.querySelector('[data-batch-erase-close]').onclick = () => modal.remove();
+    document.body.appendChild(modal);
+    return;
+  }
+  if (batchRfidEraseModal) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-card rfid-modal batch-rfid-modal">
+      <div class="modal-title">Erase RFID card data</div>
+      <div class="modal-sub">Tap each card to clear the data inside. UID is not changed.</div>
+      <div class="batch-rfid-warning">This will erase hidden card data on every card you tap until you click Done.</div>
+      <div class="rfid-progress-panel batch-rfid-panel">
+        <div class="rfid-modal-status active" id="batch-rfid-status">Waiting for card\u2026</div>
+        <label class="batch-rfid-checkbox"><input type="checkbox" id="batch-rfid-unlink"> <span>Also unlink this UID from a student if it is registered</span></label>
+        <div id="batch-rfid-count" class="batch-rfid-count">Cards erased: 0</div>
+      </div>
+      <div class="modal-actions rfid-modal-actions">
+        <button id="batch-rfid-start" class="hdr-btn danger">Start listening</button>
+        <button id="batch-rfid-done" class="hdr-btn">Done</button>
+      </div>
+    </div>
+  `;
+  const status = modal.querySelector('#batch-rfid-status');
+  const start = modal.querySelector('#batch-rfid-start');
+  const done = modal.querySelector('#batch-rfid-done');
+  const unlink = modal.querySelector('#batch-rfid-unlink');
+  const setStatus = (message, tone = 'active') => {
+    status.textContent = message;
+    status.className = `rfid-modal-status ${tone}`;
+  };
+  start.onclick = async () => {
+    start.disabled = true;
+    const result = await api().start_batch_rfid_erase(!!unlink.checked);
+    if (!result || !result.ok) {
+      start.disabled = false;
+      setStatus(result && result.message ? result.message : 'Could not start RFID listening.', 'error');
+      return;
+    }
+    setStatus('Waiting for card…', 'active');
+  };
+  done.onclick = () => closeBatchRfidEraseDialog();
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeBatchRfidEraseDialog();
+  });
+  batchRfidEraseModal = modal;
+  document.body.appendChild(modal);
+}
 
 async function closeManageRfidDialog() {
   if (api && api().stop_rfid_register_session) {
@@ -1280,6 +1383,7 @@ function openManageRfidDialog() {
             <div class="rfid-step"><span>2</span><strong>Check if claimed</strong></div>
             <div class="rfid-step"><span>3</span><strong>Saved</strong></div>
           </div>
+          <div id="rfid-mode-cue" class="rfid-mode-cue" ${existingCard ? '' : 'hidden'}>This student already has a card. Tap a new card to replace it.</div>
           <div id="rfid-modal-status" class="rfid-modal-status">Waiting for card…</div>
         </div>
       </div>
@@ -1302,6 +1406,7 @@ function openManageRfidDialog() {
   const unlink = modal.querySelector('#rfid-modal-unlink');
   const status = modal.querySelector('#rfid-modal-status');
   const currentCard = modal.querySelector('#rfid-current-card');
+  const modeCue = modal.querySelector('#rfid-mode-cue');
 
   const setStatus = (msg, tone = '') => {
     status.textContent = msg;
@@ -1311,8 +1416,18 @@ function openManageRfidDialog() {
   const updateCardReadout = () => {
     const uid = selectedStudent && selectedStudent.card_uid ? selectedStudent.card_uid : '';
     const text = uid ? uid : 'Not linked';
+    const replaceMode = Boolean(uid);
     if (currentCard) currentCard.textContent = text;
-    if (primary) primary.textContent = uid ? 'Replace RFID' : 'Register RFID';
+    if (primary) {
+      primary.textContent = replaceMode ? 'Replace RFID' : 'Register RFID';
+      primary.classList.toggle('replace', replaceMode);
+    }
+    if (modeCue) {
+      modeCue.hidden = !replaceMode;
+      if (replaceMode) {
+        modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
+      }
+    }
     if (unlink) unlink.disabled = !uid;
   };
 
@@ -1424,11 +1539,24 @@ async function bindPendingCardFromScan(payload) {
     } else if (result && result.ok) {
       if (selectedStudent) selectedStudent.card_uid = payload.uid;
       if (currentCard) currentCard.textContent = payload.uid;
+      if (manageRfidModal) {
+        const primary = manageRfidModal.querySelector('#rfid-modal-primary');
+        if (primary) {
+          primary.textContent = 'Replace RFID';
+          primary.classList.add('replace');
+        }
+        const modeCue = manageRfidModal.querySelector('#rfid-mode-cue');
+        if (modeCue) {
+          modeCue.hidden = false;
+          modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
+        }
+        const unlink = manageRfidModal.querySelector('#rfid-modal-unlink');
+        if (unlink) unlink.disabled = false;
+      }
       if (status) {
-        status.textContent = `Card linked: ${payload.uid}`;
+        status.textContent = `Card claimed: ${payload.uid}. Tap the same card again to write encrypted data.`;
         status.className = 'rfid-modal-status success';
       }
-      setTimeout(() => closeManageRfidDialog(), 750);
     } else {
       if (status) {
         status.textContent = message || 'Could not register the card.';

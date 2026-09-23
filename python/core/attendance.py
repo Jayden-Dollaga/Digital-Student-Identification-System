@@ -65,6 +65,7 @@ class AttendanceProcessor:
         log_attendance_fn: Callable[..., None] = log_attendance,
         student_lookup_fn: Callable[[int], Optional[StudentRow]] = get_student,
         all_students_fn: Callable[[], List[StudentRow]] = get_all_students,
+        card_lookup_fn: Callable[[str], Optional[StudentRow]] = get_student_by_card_uid,
     ):
         self.last_scan: Dict[int, datetime] = {}
         self.current_id: Optional[int] = None
@@ -73,6 +74,7 @@ class AttendanceProcessor:
         self._log_attendance = log_attendance_fn
         self._student_lookup = student_lookup_fn
         self._all_students = all_students_fn
+        self._card_lookup = card_lookup_fn
 
     def process_line(self, line: str) -> Optional[ScanResult]:
         """
@@ -144,7 +146,15 @@ class AttendanceProcessor:
         return self._student_lookup(fingerprint_id)
 
     def lookup_card_student(self, uid: str) -> Optional[StudentRow]:
-        return get_student_by_card_uid(uid)
+        try:
+            normalized_uid = str(uid or "").strip().upper()
+            for candidate in self.all_students():
+                candidate_uid = str(candidate.get("card_uid") or "").strip().upper()
+                if candidate_uid and candidate_uid == normalized_uid:
+                    return candidate
+        except sqlite3.OperationalError:
+            pass
+        return self._card_lookup(uid)
 
     def all_students(self) -> List[StudentRow]:
         return self._all_students()
@@ -232,21 +242,12 @@ class AttendanceProcessor:
 
     def _handle_card_scan(self, uid: str, data: Optional[str]) -> Optional[ScanResult]:
         now = datetime.now()
-        student = get_student_by_card_uid(uid)
+        student = self.lookup_card_student(uid)
         if student is None and data:
             decoded = decrypt_student_card_payload(str(data))
             if decoded is not None:
                 fingerprint_id, student_no = decoded
-                student = get_student(fingerprint_id) or {"fingerprint_id": fingerprint_id, "student_no": student_no}
-            else:
-                try:
-                    candidates = self._all_students()
-                except sqlite3.OperationalError:
-                    candidates = []
-                for candidate in candidates:
-                    if str(candidate.get("student_no") or "").strip() == str(data).strip():
-                        student = candidate
-                        break
+                student = self.lookup_student(fingerprint_id) or {"fingerprint_id": fingerprint_id, "student_no": student_no}
         if student is None:
             return self._handle_unknown_card_scan(uid)
 

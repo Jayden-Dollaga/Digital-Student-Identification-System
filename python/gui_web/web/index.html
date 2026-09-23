@@ -485,6 +485,17 @@
             </div>
           </div>
 
+          <div class="settings-group" data-required-role="admin" data-admin-only-rfid data-rfid-batch-settings>
+            <div class="settings-group-title">RFID cards</div>
+            <div class="settings-row rfid-batch-row">
+              <div>
+                <span class="settings-row-label">Erase card data (batch)</span>
+                <div class="settings-row-desc">Clears the hidden 16-byte payload on tapped cards. Does not change the chip UID. Does not factory-reset card keys.</div>
+              </div>
+              <button id="settings-rfid-batch-erase" class="hdr-btn danger" data-permission="enroll" onclick="openBatchRfidEraseDialog()">Erase card data (batch)</button>
+            </div>
+          </div>
+
           <div class="settings-group" data-required-role="admin">
             <div class="settings-group-title">User Role</div>
             <div class="settings-row">

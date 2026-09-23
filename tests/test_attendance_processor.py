@@ -141,7 +141,8 @@ class AttendanceProcessorTests(unittest.TestCase):
             all_students_fn=lambda: [student_record],
         )
 
-        result = processor.process_line('{"type":"attendance","event":"card","uid":"B0:6F:0B:55","data":"STUDENT-01"}')
+        payload = rfid_card.encrypt_student_card_payload(7, "STUDENT-01")
+        result = processor.process_line(f'{{"type":"attendance","event":"card","uid":"B0:6F:0B:55","data_hex":"{payload}"}}')
         self.assertIsNotNone(result)
         self.assertEqual(result["fingerprint_id"], 7)
         self.assertEqual(result["method"], "card")
@@ -182,7 +183,8 @@ class AttendanceProcessorTests(unittest.TestCase):
             all_students_fn=lambda: [student_record],
         )
 
-        result = processor.process_line('{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data_hex":"STUDENT-11"}')
+        payload = rfid_card.encrypt_student_card_payload(11, "STUDENT-11")
+        result = processor.process_line(f'{{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data_hex":"{payload}"}}')
 
         self.assertIsNotNone(result)
         self.assertEqual(result["fingerprint_id"], 11)
@@ -200,6 +202,35 @@ class AttendanceProcessorTests(unittest.TestCase):
 
         log_attendance_mock.assert_not_called()
         push_mock.assert_called_once()
+
+    def test_batch_rfid_erase_arms_zero_payload_without_attendance_logging(self):
+        api = Api()
+        permissions.set_session_role("admin")
+        try:
+            with patch.object(api.serial, "is_connected", return_value=True), \
+                 patch.object(commands, "cmd_scan", return_value=True), \
+                 patch.object(commands, "cmd_card_write_hex", return_value=True) as write_mock, \
+                 patch.object(api, "_push") as push_mock, \
+                 patch.object(api.processor, "_log_attendance") as log_attendance_mock:
+                result = api.start_batch_rfid_erase(False)
+                self.assertTrue(result["ok"])
+
+                handled = api._handle_rfid_session_card_event(
+                    '{"type":"attendance","event":"card","uid":"E1:F9:40:66","data_hex":"AABB"}'
+                )
+
+                self.assertTrue(handled)
+                write_mock.assert_called_once_with(api.serial, "0" * 32)
+                log_attendance_mock.assert_not_called()
+                self.assertEqual(push_mock.call_args[0][0], "scan_result")
+
+                api._handle_rfid_session_card_event(
+                    '{"type":"card_write","uid":"E1:F9:40:66","data_hex":"00000000000000000000000000000000","success":true}'
+                )
+                self.assertEqual(api._batch_rfid_erase_count, 1)
+                api.stop_batch_rfid_erase()
+        finally:
+            permissions.set_session_role("guest")
 
     def test_card_cooldown_blocks_same_student_from_double_logging(self):
         logged = []
@@ -224,7 +255,7 @@ class AttendanceProcessorTests(unittest.TestCase):
         )
 
         first = processor.process_line('{"type":"attendance","event":"match","id":9,"confidence":250}')
-        second = processor.process_line('{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data":"STUDENT-02"}')
+        second = processor.process_line('{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data_hex":"not-a-valid-payload"}')
 
         self.assertIsNotNone(first)
         self.assertTrue(first["logged"])
@@ -269,8 +300,9 @@ class AttendanceProcessorTests(unittest.TestCase):
     def test_cmd_card_write_hex_uses_hex_payload_safe_format(self):
         permissions.set_session_role("admin")
         try:
-            self.assertEqual(commands.cmd_card_write_hex(SimpleNamespace(send_command=lambda cmd: cmd), "ABCD"), "CARD_WRITE_HEX:ABCD")
+            self.assertEqual(commands.cmd_card_write_hex(SimpleNamespace(send_command=lambda cmd: cmd), "aBcD"), "CARD_WRITE_HEX:aBcD")
             self.assertFalse(commands.cmd_card_write_hex(SimpleNamespace(send_command=lambda cmd: cmd), "ABC"))
+            self.assertFalse(commands.cmd_card_write(SimpleNamespace(send_command=lambda cmd: cmd), "JAYDEN-0001"))
         finally:
             permissions.set_session_role("guest")
 

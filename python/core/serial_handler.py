@@ -397,7 +397,7 @@ class SerialHandler:
         """
         Send a command string to the ESP32.
         The command name is uppercased, but payloads after a colon keep their
-        original casing (e.g. CARD_WRITE:STUDENT-01).
+        original casing (e.g. CARD_WRITE_HEX:aBcD1234).
         Returns True if sent, False if not connected or on failure.
         """
         with self._lock:
