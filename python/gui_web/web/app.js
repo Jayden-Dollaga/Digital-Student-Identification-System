@@ -32,6 +32,13 @@ function hasRole(requiredRole) {
   return (ROLE_LEVELS[currentRole] || 0) >= (ROLE_LEVELS[requiredRole] || 99);
 }
 
+function refreshAdminOnlyVisibility() {
+  const isAdmin = currentRole === 'admin' && hasRole('admin');
+  document.querySelectorAll('[data-admin-only-rfid]').forEach(element => {
+    element.style.display = isAdmin ? 'block' : 'none';
+  });
+}
+
 function guardPermission(action, label) {
   if (!hasPermission(action)) {
     alert(`${label || 'This action'} requires the ${action} permission for the current role.`);
@@ -90,13 +97,17 @@ function nav(el, key) {
   else if (key === 'students') loadStudentsPage();
   else if (key === 'reports') loadReportsPage();
   else if (key === 'logs') loadLogsPage();
-  else if (key === 'settings') loadSettingsPage();
+  else if (key === 'settings') {
+    refreshAdminOnlyVisibility();
+    loadSettingsPage();
+  }
   else if (key === 'calendar') loadCalendarPage();
 }
 
 function applySessionState(state) {
   if (!state || !state.ok) return;
-  currentRole = state.role || 'guest';
+  const roleKey = String(state.role || 'guest').toLowerCase();
+  currentRole = roleKey === 'administrator' ? 'admin' : roleKey;
   currentPermissions = new Set(state.permissions || ['scan']);
   paintTitlebarRole(currentRole);
   const titlebar = document.getElementById('titlebar-role');
@@ -136,9 +147,7 @@ function applySessionState(state) {
       control.style.opacity = allowed ? '1' : '0.45';
     });
   });
-  document.querySelectorAll('[data-admin-only-rfid]').forEach(element => {
-    element.style.display = hasRole('admin') ? '' : 'none';
-  });
+  refreshAdminOnlyVisibility();
   document.querySelectorAll('[data-permission]').forEach(element => {
     const allowed = hasPermission(element.dataset.permission);
     element.disabled = !allowed;
