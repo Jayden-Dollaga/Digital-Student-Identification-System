@@ -34,9 +34,12 @@ def test_all_roles_can_access_attendance_evaluation(monkeypatch):
     monkeypatch.setattr(api_module.db, "get_all_students", lambda: [])
     instance = api_module.Api.__new__(api_module.Api)
 
-    for role in ("admin", "teacher", "guest"):
+    for role in ("admin", "teacher"):
         permissions.set_session_role(role, 600.0)
         assert instance.get_attendance_evaluation()["ok"] is True
+
+    permissions.set_session_role("guest", 600.0)
+    assert instance.get_attendance_evaluation()["ok"] is False
 
 
 def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
@@ -59,18 +62,29 @@ def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     assert authenticated["role"] == "admin"
 
 
-def test_non_admin_role_switches_are_immediate():
+def test_guest_cannot_elevate_to_teacher_without_password():
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
     permissions.set_session_role("guest", 600.0)
 
     teacher = instance.set_current_role("teacher")
-    assert teacher["ok"] is True
-    assert teacher["role"] == "teacher"
+    assert teacher["ok"] is False
+    assert teacher["requires_password"] is True
+    assert instance.get_current_role() == "guest"
 
     guest = instance.set_current_role("guest")
     assert guest["ok"] is True
     assert guest["role"] == "guest"
+
+
+def test_admin_can_switch_down_to_teacher_without_password():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("admin", 600.0)
+
+    teacher = instance.set_current_role("teacher")
+    assert teacher["ok"] is True
+    assert teacher["role"] == "teacher"
 
 
 def test_teacher_to_admin_requires_password_without_changing_role():
@@ -120,6 +134,56 @@ def test_wrong_password_does_not_elevate(monkeypatch):
     result = instance.authenticate_role("admin", "incorrect")
     assert result["ok"] is False
     assert instance.get_current_role() == "guest"
+
+
+def test_admin_password_lockout_after_repeated_failures(monkeypatch):
+    settings = {"auth": auth.hash_password("admin")}
+    monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("guest", 600.0)
+
+    for _ in range(api_module.ADMIN_LOGIN_MAX_FAILURES):
+        result = instance.authenticate_role("admin", "incorrect")
+        assert result["ok"] is False
+
+    locked = instance.authenticate_role("admin", "admin")
+    assert locked["ok"] is False
+    assert "locked" in locked["message"].lower()
+
+
+def test_first_run_recovery_refuses_password_creation_when_marker_exists():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._first_run_setup_required = False
+    instance._first_run_recovery_required = True
+
+    result = instance.complete_first_run_setup("correct horse", "correct horse")
+
+    assert result["ok"] is False
+    assert "recovery" in result["message"].lower()
+
+
+def test_admin_initialization_marker_round_trip(tmp_path):
+    from settings_store import admin_initialization_marker_exists, write_admin_initialization_marker
+
+    marker = tmp_path / ".admin_initialized"
+    assert admin_initialization_marker_exists(marker) is False
+
+    write_admin_initialization_marker(marker)
+
+    assert admin_initialization_marker_exists(marker) is True
+
+
+def test_guest_record_reads_are_restricted(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    permissions.set_session_role("guest", 600.0)
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{"student_name": "Alice"}])
+
+    assert instance.get_students() == []
+    assert instance.get_student(1) == {}
+    assert instance.get_attendance()["rows"] == []
+    assert instance.get_recent_activity() == []
 
 
 def test_lock_and_expiry_return_to_guest(monkeypatch):

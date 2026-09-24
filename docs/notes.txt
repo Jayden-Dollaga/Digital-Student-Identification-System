@@ -30,6 +30,8 @@ git config --global user.name "Your Name"
 python -m pip install openpyxl numpy
 (Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& d:\Digital-Student-Identification-System-1\.venv\Scripts\Activate.ps1)
 
+.venv\Scripts\activate
+
 python archive\legacy-ui\v1\python/gui/app.py
 python archive\legacy-ui\v2\run_qt_gui.py
 python run_web_gui.py

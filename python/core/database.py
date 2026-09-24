@@ -196,11 +196,13 @@ def get_connection() -> ManagedConnection:
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
 
-    # Increase timeout to reduce chance of 'database is locked' errors
+    # Coordinate concurrent readers/writers without changing the schema.
     connection = sqlite3.connect(DB_PATH, timeout=30)
     connection.text_factory = str
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute("PRAGMA journal_mode = WAL")
     return ManagedConnection(connection)
 
 
@@ -310,8 +312,10 @@ def init_database() -> None:
 
         _migrate_attendance_event_type(cursor)
 
-        conn.execute("DELETE FROM attendance WHERE fingerprint_id <= 0")
-        conn.execute("DELETE FROM students WHERE fingerprint_id <= 0")
+        # ID 0 is the durable Unregistered placeholder used by unknown scans.
+        # Only negative IDs are invalid and may be removed during startup.
+        conn.execute("DELETE FROM attendance WHERE fingerprint_id < 0")
+        conn.execute("DELETE FROM students WHERE fingerprint_id < 0")
 
         # Seed a permanent placeholder row for fingerprint_id 0, representing
         # "Unregistered/Unknown" scans. The attendance table's FOREIGN KEY on

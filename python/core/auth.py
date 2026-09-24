@@ -1,11 +1,9 @@
 """Password authentication primitives for the active v3 webview app.
 
-There is no default/fallback administrator password. On first launch (or
-after a wipe of settings.json), no "auth" record exists, so verify_password()
-fails closed for every password - there is no "admin"/"admin" to guess.
-The app is expected to detect this state (see Api.is_first_run_setup_required)
-and force the user through a first-run "create administrator password" flow
-before any admin-gated action becomes reachable.
+There is no default/fallback administrator password. On a genuine first
+launch, no "auth" record exists, so verify_password() fails closed for every
+password. After initialization, losing the auth record is a recovery state,
+not permission to create a replacement administrator password.
 """
 
 from __future__ import annotations

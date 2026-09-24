@@ -69,7 +69,7 @@ def main() -> None:
 
     def _on_closed() -> None:
         try:
-            api.disconnect()
+            api._disconnect_impl()
         except Exception:
             pass
         log.info("DSIS v3 (web) window closed")

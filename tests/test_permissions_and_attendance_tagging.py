@@ -87,6 +87,7 @@ class TestBackendPermissionEnforcement:
         from gui_web.api import Api
 
         api = Api()
+        permissions_module.set_session_role("teacher", 600.0)
         api.serial.is_connected = MagicMock(return_value=True)
         api.serial.disconnect = MagicMock()
         api._scanning = True
@@ -104,6 +105,21 @@ class TestBackendPermissionEnforcement:
         assert api._pending_delete_id is None
         stop_mock.assert_called_once_with(api.serial)
         api.serial.disconnect.assert_called_once()
+
+    def test_connected_delete_student_requires_device_confirmation(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        permissions_module.set_session_role("admin", 600.0)
+        api.serial.is_connected = MagicMock(return_value=True)
+        api._confirmed_delete_ids.clear()
+        delete_mock = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.delete_student", delete_mock)
+
+        result = api.delete_student(7)
+
+        assert result["ok"] is False
+        delete_mock.assert_not_called()
 
     def test_scan_state_machine_updates_mode_and_scanning_flags(self, monkeypatch):
         from gui_web.api import Api

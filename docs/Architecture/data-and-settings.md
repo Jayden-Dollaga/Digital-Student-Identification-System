@@ -7,6 +7,7 @@ DSIS keeps its working state in the local `data/` folder. This is not a remote s
 | Path | Purpose |
 | --- | --- |
 | `data/settings.json` | persisted app settings and wizard state |
+| `data/.admin_initialized` | marker proving administrator setup has occurred |
 | `data/attendance.db` | SQLite database |
 | `data/backups/` | timestamped snapshot copies |
 | `data/logs/` | application log files |
@@ -27,6 +28,9 @@ The default config is defined in `python/settings_store.py` and includes:
 - `current_role`
 - `auth`
 
+`current_role` is display continuity only. The active authorization role is held
+in memory. `read_records` is granted to Teacher and Administrator, not Guest.
+
 ## Auth and security model
 
 - password verification is handled through `core.auth`
@@ -39,6 +43,7 @@ The default config is defined in `python/settings_store.py` and includes:
 These files are operator sensitive:
 
 - `settings.json` may contain saved role and schedule state
+- `.admin_initialized` prevents deleting settings from restarting administrator setup
 - `attendance.db` contains student records and attendance history
 - `backups/` may contain copies of live data
 - `logs/` may contain device and app diagnostics

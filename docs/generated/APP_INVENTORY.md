@@ -31,18 +31,18 @@ All methods below are callable as `window.pywebview.api.<method>`. Return values
 | `set_window(window)` | `None` | lifecycle | Attaches the native window and starts background work. |
 | `list_ports()` | `list[str]` | guest | Reads available serial ports. |
 | `list_ports_detailed()` | `list[dict]` | guest | Reads port device, VID/PID, and description. |
-| `forget_saved_port()` | `dict` | guest | Writes an empty saved COM port. |
-| `connect(port="", baud=0, auto_detect=None)` | `dict` | guest | Opens serial, performs device discovery/handshake, and starts reads. |
-| `disconnect()` | `dict` | guest | Stops reads and closes serial. |
+| `forget_saved_port()` | `dict` | teacher/admin | Writes an empty saved COM port. |
+| `connect(port="", baud=0, auto_detect=None)` | `dict` | `scan` | Opens serial, performs device discovery/handshake, and starts reads. |
+| `disconnect()` | `dict` | teacher/admin | Stops reads and closes serial. |
 | `get_connection_status()` | `dict` | guest | Reads connection/device state. |
 | `start_scan()` | `bool` | `scan` | Sends `SCAN` and changes device mode. |
 | `stop_scan()` | `bool` | `scan` | Sends `STOP` and exits scan mode. |
-| `request_fingerprint_count()` | `bool` | guest | Sends `LIST`; result arrives asynchronously. |
+| `request_fingerprint_count()` | `bool` | `scan` | Sends `LIST`; result arrives asynchronously. |
 | `get_serial_troubleshooting()` | `dict` | guest | Returns connection diagnostics. |
 | `open_device_manager()` | `dict` | guest | Opens Windows Device Manager. |
 | `open_driver_help()` | `dict` | guest | Opens driver guidance. |
-| `send_serial_command(cmd)` | `bool` | guest | Sends a raw serial command. |
-| `reset_device()` | `bool` | guest | Sends the device reset/stop command. |
+| `send_serial_command(cmd)` | `bool` | admin | Sends an allow-listed raw serial command. |
+| `reset_device()` | `bool` | admin | Sends the device reset/stop command. |
 
 ### Enrollment, deletion, and RFID
 
@@ -69,13 +69,13 @@ All methods below are callable as `window.pywebview.api.<method>`. Return values
 | Method and arguments | Return | Permission | Effects |
 | --- | --- | --- | --- |
 | `get_dashboard_stats()` | `dict` | guest | Reads dashboard totals. |
-| `get_recent_activity(limit=25)` | `list[dict]` | guest | Reads recent attendance. |
-| `get_attendance(mode="today", offset=0)` | `dict` | guest | Reads attendance rows. |
+| `get_recent_activity(limit=25)` | `list[dict]` | `read_records` | Reads recent attendance. Guest receives an empty result. |
+| `get_attendance(mode="today", offset=0)` | `dict` | `read_records` | Reads attendance rows. Guest receives an empty result. |
 | `export_attendance_csv(mode, offset, week_start)` | `dict` | `export` | Writes a selected CSV. |
-| `get_students()` | `list[dict]` | guest | Reads roster. |
-| `get_student(fingerprint_id)` | `dict` | guest | Reads one profile. |
+| `get_students()` | `list[dict]` | `read_records` | Reads roster. Guest receives an empty result. |
+| `get_student(fingerprint_id)` | `dict` | `read_records` | Reads one profile. |
 | `export_students_csv()` | `dict` | `export` | Writes a student CSV. |
-| `get_attendance_evaluation(period="month", ref_date="")` | `dict` | `attendance_evaluation` | Calculates day/week/month evaluation. |
+| `get_attendance_evaluation(period="month", ref_date="")` | `dict` | `attendance_evaluation` + `read_records` | Calculates identifiable day/week/month evaluation. |
 | `export_attendance_evaluation_csv(period="month", ref_date="")` | `dict` | `export` | Writes evaluation CSV. |
 | `get_calendar_month(year, month)` | `dict` | guest | Reads calendar exceptions. |
 | `set_calendar_entry(date, entry_type, label, time_in, time_out)` | `dict` | `manage_calendar` | Writes holiday, suspension, or half-day settings. |
@@ -87,14 +87,14 @@ All methods below are callable as `window.pywebview.api.<method>`. Return values
 
 | Method and arguments | Return | Permission | Effects |
 | --- | --- | --- | --- |
-| `list_backups()` | `list[dict]` | guest | Lists backup files. |
+| `list_backups()` | `list[dict]` | `backup` | Lists backup files. |
 | `create_backup()` | `dict` | `backup` | Writes `data/backups/attendance_YYYYMMDD_HHMMSS.db`. |
 | `restore_backup(backup_path)` | `dict` | `restore` | Validates and replaces the active DB. |
-| `get_settings()` | `dict` | guest | Reads UI-safe settings. |
+| `get_settings()` | `dict` | guest | Reads UI-safe settings; backup names and log path are withheld from Guest. |
 | `save_ui_settings(settings)` | `dict` | admin for protected settings | Persists permitted settings. |
 | `restore_default_settings()` | `dict` | admin | Restores defaults. |
 | `get_current_role()` | `str` | guest | Reads the in-memory role. |
-| `set_current_role(role)` | `dict` | session rules | Switches role; admin elevation requires a password. |
+| `set_current_role(role)` | `dict` | session rules | Allows downgrades; upward elevation requires password authentication. |
 | `is_first_run_setup_required()` | `dict` | guest | Reads first-run status. |
 | `complete_first_run_setup(password, confirm_password)` | `dict` | first-run guest | Writes the initial password hash and sets admin. |
 | `get_setup_wizard_step()` | `dict` | guest | Returns the next setup step. |
@@ -131,17 +131,18 @@ All methods below are callable as `window.pywebview.api.<method>`. Return values
 
 ## 4. SQLite and migrations
 
-Default file: `data/attendance.db`. Connections enable foreign keys and use a 30-second timeout.
+Default file: `data/attendance.db`. Connections enable foreign keys, WAL mode, a 5-second busy timeout, and a 30-second connection timeout.
 
 `students` columns are `fingerprint_id INTEGER PRIMARY KEY`, `student_no TEXT NOT NULL UNIQUE`, `student_name TEXT NOT NULL`, `grade TEXT NOT NULL`, `section TEXT NOT NULL`, `card_uid TEXT UNIQUE`, `enrollment_date TEXT NOT NULL`, and `updated_date TEXT NOT NULL`. Indexes are the partial unique `idx_students_card_uid`, `idx_student_no`, and `idx_grade_section` on `(grade, section)`.
 
 `attendance` columns are `id INTEGER PRIMARY KEY AUTOINCREMENT`, `fingerprint_id INTEGER NOT NULL`, `date TEXT NOT NULL`, `time TEXT NOT NULL`, `confidence INTEGER NOT NULL`, `status TEXT NOT NULL`, `timestamp TEXT NOT NULL`, and nullable `event_type`, with a foreign key to `students(fingerprint_id)`. Indexes are `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`.
 
-Initialization adds missing `card_uid` and `event_type` columns, backfills event types by student/date order (`time_in`, then `time_out`), removes invalid non-positive rows, and ensures permanent placeholder student ID 0 (`Unregistered`) exists. Student deletion remaps retained attendance to ID 0. Restore is replacement, not merge, and validates containment and SQLite structure first.
+Initialization adds missing `card_uid` and `event_type` columns, backfills event types by student/date order (`time_in`, then `time_out`), removes invalid negative-ID rows while preserving ID 0 unknown scans, and ensures permanent placeholder student ID 0 (`Unregistered`) exists. Student deletion remaps retained attendance to ID 0. Restore is replacement, not merge, and validates containment and SQLite structure first.
 
 ## 5. Runtime files under `data/`
 
 - `settings.json`: connection, theme/branding, cooldown/confidence, logging, auto-backup, schedule, calendar, wizard flags, display role, and `auth` hash/salt/iteration data. It is sensitive; editing `current_role` does not elevate a session.
+- `.admin_initialized`: marker written after first administrator password creation; its presence prevents settings deletion from restarting password setup.
 - `attendance.db`: local student/card and attendance data, unencrypted at rest.
 - `backups/`: timestamped database snapshots.
 - `logs/`: rotating runtime logs.
@@ -158,9 +159,9 @@ Fingerprint commands are `ID?`, `SCAN`, `STOP`, `LIST`, `ENROLL`, `ENROLL:<id>`,
 
 | Role | Permissions |
 | --- | --- |
-| `guest` | `scan`, `attendance_evaluation` |
-| `teacher` | `scan`, `export`, `backup`, `attendance_evaluation` |
-| `admin` | `scan`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
+| `guest` | `scan` |
+| `teacher` | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
+| `admin` | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
 Every launch starts guest. Admin elevation requires the configured password. Idle expiry defaults to 10 minutes and locking returns to guest. First-run order is password, device, schedule, branding; device connection may be deferred.
 

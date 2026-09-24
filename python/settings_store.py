@@ -7,6 +7,7 @@ from config import get_config
 
 CONFIG = get_config()
 SETTINGS_FILE = CONFIG.data_dir / "settings.json"
+ADMIN_INITIALIZED_MARKER = CONFIG.data_dir / ".admin_initialized"
 
 # Track stale port detection to avoid spam
 _stale_port_last_checked: Dict[str, float] = {}
@@ -109,6 +110,17 @@ def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> P
     with settings_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
     return settings_path
+
+
+def admin_initialization_marker_exists(path: str | Path | None = None) -> bool:
+    return Path(path or ADMIN_INITIALIZED_MARKER).is_file()
+
+
+def write_admin_initialization_marker(path: str | Path | None = None) -> Path:
+    marker_path = Path(path or ADMIN_INITIALIZED_MARKER)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text("initialized\n", encoding="utf-8")
+    return marker_path
 
 
 def cleanup_stale_port(port: str, available_ports: list[str]) -> Optional[str]:

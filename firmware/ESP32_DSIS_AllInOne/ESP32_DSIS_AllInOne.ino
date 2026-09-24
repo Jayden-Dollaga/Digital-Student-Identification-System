@@ -152,6 +152,7 @@ LedState currentRestoreState = LED_READY;
 unsigned long ledStateStart = 0;
 int currentPriority = 1;
 int restorePriority = 2;
+bool hostConnected = false;
 
 void ledBrightness(uint8_t value) {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -217,8 +218,10 @@ void restoreLedStateIfNeeded() {
 
 void handleHostStatus(const String &status) {
   if (status == "HOST_CONNECTED") {
+    hostConnected = true;
     requestLedState(LED_HOST_CONNECTED);
   } else if (status == "HOST_DISCONNECTED") {
+    hostConnected = false;
     requestLedState(LED_HOST_DISCONNECTED);
   } else if (status == "DB_ERROR") {
     requestLedState(LED_DB_ERROR, true);
@@ -573,6 +576,16 @@ void handleCommand(String input) {
   String normalized = command;
   if (payload.length() > 0) {
     normalized += ":" + payload;
+  }
+
+  // ID? discovery is public; destructive commands require the host-connected
+  // state that serial_handler sends after a valid DSIS handshake.
+  if (!hostConnected &&
+      (normalized == "WIPE" || normalized == "ENROLL" ||
+       normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
+       normalized.startsWith("CARD_WRITE_HEX:"))) {
+    Serial.println("ERROR: Host connection required for this command.");
+    return;
   }
 
   // ── IDENTIFY ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from core.database import restore_database
+from core import database
 
 
 
@@ -18,6 +19,15 @@ pytestmark = pytest.mark.integration
 
 class TestRestoreDatabasePathTraversal:
     """Test that restore_database prevents path traversal attacks."""
+
+    def test_connection_enables_wal_and_busy_timeout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "attendance.db"
+            with patch.object(database, "DB_PATH", str(db_path)):
+                with database.get_connection() as connection:
+                    assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+                    assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+                    assert connection.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
     
     def test_restore_database_rejects_paths_outside_backups_dir(self):
         """Path traversal attack should be rejected."""

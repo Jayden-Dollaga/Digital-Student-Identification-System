@@ -14,6 +14,7 @@ PYTHON_ROOT = ROOT / "python"
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
+from core import permissions
 
 
 pytestmark = pytest.mark.integration
@@ -186,6 +187,7 @@ def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
     from gui_web.api import Api
 
     api = Api()
+    permissions.set_session_role("teacher", 600.0)
     monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
         "fingerprint_id": fingerprint_id,
         "student_name": "Alice",
@@ -211,6 +213,7 @@ def test_v3_student_detail_without_scan_is_absent(monkeypatch):
     from gui_web.api import Api
 
     api = Api()
+    permissions.set_session_role("teacher", 600.0)
     monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
         "fingerprint_id": fingerprint_id,
         "student_name": "Alice",
@@ -343,6 +346,7 @@ def test_v3_all_students_export_includes_attendance_columns(monkeypatch):
     from gui_web.api import Api
 
     api = Api()
+    permissions.set_session_role("teacher", 600.0)
     api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/students.csv"))
     api._rows_to_csv = MagicMock(return_value={"ok": True})
     monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
@@ -376,6 +380,7 @@ def test_v3_all_students_export_uses_attendance_date(monkeypatch):
     from gui_web.api import Api
 
     api = Api()
+    permissions.set_session_role("teacher", 600.0)
     api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/students.csv"))
     api._rows_to_csv = MagicMock(return_value={"ok": True})
     monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
@@ -422,6 +427,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
     from gui_web.api import Api
 
     api = Api()
+    permissions.set_session_role("teacher", 600.0)
     monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
     monkeypatch.setattr("gui_web.api.db.export_attendance_range", lambda start, end: [{
         "fingerprint_id": 1,

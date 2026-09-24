@@ -37,19 +37,19 @@ DEFAULT_USER_ROLES: Dict[str, Dict[str, Any]] = {
     "admin": {
         "name": "Administrator",
         "permissions": [
-            "scan", "enroll", "delete", "wipe", "export", "backup", "restore",
+            "scan", "read_records", "enroll", "delete", "wipe", "export", "backup", "restore",
             "attendance_evaluation", "manage_calendar",
         ],
         "can_manage_users": True,
     },
     "teacher": {
         "name": "Teacher",
-        "permissions": ["scan", "export", "backup", "attendance_evaluation"],
+        "permissions": ["scan", "read_records", "export", "backup", "attendance_evaluation"],
         "can_manage_users": False,
     },
     "guest": {
         "name": "Guest",
-        "permissions": ["scan", "attendance_evaluation"],
+        "permissions": ["scan"],
         "can_manage_users": False,
     },
 }
@@ -107,7 +107,7 @@ class AppConfig:
     reconnect_max_retries: int = field(default_factory=lambda: _env_int("FINGERPRINT_RECONNECT_MAX_RETRIES", 5))
     reconnect_base_delay: int = field(default_factory=lambda: _env_int("FINGERPRINT_RECONNECT_BASE_DELAY", 2))
     user_roles: Dict[str, Dict[str, Any]] = field(default_factory=lambda: DEFAULT_USER_ROLES)
-    default_user_role: str = field(default_factory=lambda: os.getenv("FINGERPRINT_DEFAULT_USER_ROLE", "admin"))
+    default_user_role: str = field(default_factory=lambda: os.getenv("FINGERPRINT_DEFAULT_USER_ROLE", "guest"))
 
     @classmethod
     def from_env(cls, overrides: Optional[Dict[str, Any]] = None) -> "AppConfig":
@@ -131,7 +131,7 @@ class AppConfig:
             auto_reconnect=overrides.get("auto_reconnect", _env_flag("FINGERPRINT_AUTO_RECONNECT", True)),
             reconnect_max_retries=overrides.get("reconnect_max_retries", _env_int("FINGERPRINT_RECONNECT_MAX_RETRIES", 5)),
             reconnect_base_delay=overrides.get("reconnect_base_delay", _env_int("FINGERPRINT_RECONNECT_BASE_DELAY", 2)),
-            default_user_role=overrides.get("default_user_role", os.getenv("FINGERPRINT_DEFAULT_USER_ROLE", "admin")),
+            default_user_role=overrides.get("default_user_role", os.getenv("FINGERPRINT_DEFAULT_USER_ROLE", "guest")),
         )
 
 

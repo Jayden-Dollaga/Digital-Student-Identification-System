@@ -11,6 +11,12 @@ This is the current protocol implemented by the all-in-one ESP32 sketch and cons
 
 The desktop must not use the sensor baud rate directly.
 
+After discovery validates the DSIS identity and protocol through `ID?`, the
+Python host sends `{"type":"status","state":"HOST_CONNECTED"}`. The
+firmware accepts destructive commands only while this host-connected state is
+active. `HOST_DISCONNECTED` clears the state. This is a protocol gate, not a
+cryptographic secret for someone with direct USB serial access.
+
 ## Host commands
 
 The active firmware accepts `ID?`, `SCAN`, `STOP`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, `WIPE`, and `LIST`. The RFID-capable sketch also handles card registration/write and erase commands in its command handler. Commands are line-oriented. Enrollment, deletion, wipe, and card management are command-mode operations; attendance recognition is scan-mode operation. The application must stop scanning before a destructive or enrollment command and resume only after the operation reports success or the operator explicitly cancels.

@@ -27,7 +27,11 @@ Default authenticated idle timeout: 600 seconds.
 
 `touch_session()` refreshes an active session. `lock_session()` returns to Guest. Expiration also returns to Guest.
 
-`current_role` in `settings.json` is not an authorization source.
+`current_role` in `settings.json` is not an authorization source. Guest may scan and view aggregate/live status, but `read_records` is required for the roster, student details, attendance history, and identifiable attendance evaluation. Guest-to-Teacher/Admin elevation is rejected by `set_current_role`; authenticated role changes are required.
+
+First-run password creation is protected by `data/.admin_initialized`. If settings lose the password after that marker exists, the application reports a recovery state instead of creating a new administrator password.
+
+The firmware accepts destructive commands only after the host sends `HOST_CONNECTED` following the DSIS identity handshake. This is a protocol gate, not cryptographic authentication; anyone with direct serial access remains a physical-access threat.
 
 ## Permission enforcement
 

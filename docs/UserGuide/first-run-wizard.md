@@ -11,7 +11,7 @@ The fixed order is:
 3. **Schedule**
 4. **Branding**
 
-The password step is considered complete when a valid authentication record exists. The other steps use explicit settings flags so an interrupted wizard can resume.
+The password step is considered complete when a valid authentication record exists. After it is created, DSIS also writes `data/.admin_initialized`. The other steps use explicit settings flags so an interrupted wizard can resume.
 
 ## Step 1 — Password
 
@@ -26,6 +26,10 @@ Rules:
 - 310,000 iterations.
 
 The first-run method refuses to overwrite an existing administrator password.
+
+If the marker exists but the authentication record is missing or settings are
+corrupt, DSIS does not offer password creation again. It shows a recovery
+message; deleting `settings.json` or the marker is not a supported reset.
 
 ## Step 2 — Device
 

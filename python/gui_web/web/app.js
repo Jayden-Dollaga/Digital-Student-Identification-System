@@ -240,6 +240,10 @@ async function submitFirstRunSetup() {
 // or falls through to the normal app state once nothing is left.
 async function runSetupWizardRouter() {
   const result = await api().get_setup_wizard_step();
+  if (result.recovery_required) {
+    alert(result.message || 'Administrator password is missing. Use the recovery process.');
+    return;
+  }
   if (result.step === 'password') { openFirstRunSetupModal(); return; }
   if (result.step === 'device') { openSetupDeviceStep(); return; }
   if (result.step === 'schedule') { openSetupScheduleStep(); return; }

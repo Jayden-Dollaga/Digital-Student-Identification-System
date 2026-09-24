@@ -8,9 +8,9 @@ The defaults in `python/config.py` are:
 
 | Role | Permissions | User management |
 | --- | --- | --- |
-| Guest | `scan`, `attendance_evaluation` | No |
-| Teacher | `scan`, `export`, `backup`, `attendance_evaluation` | No |
-| Administrator | `scan`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` | Yes |
+| Guest | `scan` | No |
+| Teacher | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` | No |
+| Administrator | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` | Yes |
 
 The permission strings are literal configuration values.
 
@@ -18,13 +18,13 @@ The permission strings are literal configuration values.
 
 ### Guest
 
-Can scan and view attendance evaluation.
+Can scan and view aggregate/live status.
 
-Cannot enroll, delete, wipe, export, create/restore backups, or manage the calendar.
+Cannot read the full roster or attendance history, enroll, delete, wipe, export, create/restore backups, or manage the calendar.
 
 ### Teacher
 
-Can scan, view attendance evaluation, export reports, and create backups.
+Can scan, read records, view attendance evaluation, export reports, and create backups.
 
 Cannot enroll/delete/wipe, restore, or manage the school calendar.
 
@@ -46,7 +46,7 @@ After expiry, permission checks observe Guest until a new authentication occurs.
 
 ## Role changes
 
-Admin authentication requires the administrator password.
+Admin authentication requires the administrator password. A Guest cannot switch directly to Teacher; an Administrator may switch down to Teacher or Guest without re-authentication.
 
 Teacher/Guest role changes follow the role hierarchy logic in `core.permissions`. Elevating to a higher role than the active session requires the necessary authentication rather than trusting `settings.json`.
 

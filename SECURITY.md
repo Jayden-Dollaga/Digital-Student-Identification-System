@@ -24,7 +24,7 @@ The maintained v3 application requires first-run administrator password creation
 
 First-run setup also gates normal application use until the device, schedule, and branding steps are completed. Device setup validates the DSIS handshake; schedule and branding completion flags are persisted in settings so an interrupted wizard can resume.
 
-Administrator, Teacher, and Guest sessions can access Attendance Evaluation through the dedicated `attendance_evaluation` permission. Other operations remain restricted by their role permission sets.
+Administrator and Teacher sessions can access identifiable records through `read_records`; Guest remains able to scan and see aggregate/live status but cannot read the full roster or attendance history. Attendance Evaluation is also restricted to authenticated record readers. Other operations remain restricted by their role permission sets.
 
 ## Reporting a Vulnerability
 
@@ -67,6 +67,10 @@ For security review, the active implementation uses a process-memory role sessio
 
 There is no forgotten-password recovery flow. `change_admin_password` requires the current administrator password, and deleting `data/settings.json` is not a supported password-reset procedure.
 
+On first successful password creation, DSIS writes `data/.admin_initialized`. If that marker exists while the password record is missing or settings are corrupted, DSIS refuses to offer first-run password creation and displays a recovery message. Recover the installation through an administrator-controlled backup or documented local recovery procedure; do not delete settings or the marker to reset access.
+
 Treat `data/attendance.db`, `data/settings.json`, `data/backups/`, `data/logs/`, and generated exports as sensitive local school data.
+
+Protect the entire `data/` directory with Windows ACLs so kiosk users cannot replace settings, databases, backups, authentication records, or logs.
 
 See [the implementation security model](docs/Security/security-model.md).

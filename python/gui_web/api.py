@@ -51,9 +51,17 @@ from core.logger import LOG, LOG_FILE, AppFormatter, log
 from core.serial_handler import SerialHandler, list_serial_ports
 from core.utils import parse_json_line
 from gui_web.perf_profiler import PerfProfiler
-from settings_store import default_settings, load_settings, save_settings
+from settings_store import (
+    admin_initialization_marker_exists,
+    default_settings,
+    load_settings,
+    save_settings,
+    write_admin_initialization_marker,
+)
 
 CONFIG = get_config()
+ADMIN_LOGIN_MAX_FAILURES = 5
+ADMIN_LOGIN_LOCKOUT_SECONDS = 30.0
 
 # Regexes copied verbatim from archive/legacy-ui/v2/python/gui_qt/workers/serial_worker.py
 # so enroll/wipe/delete parsing matches the real firmware output exactly.
@@ -176,6 +184,7 @@ class Api:
         self._scanning = False  # whether we've told the device to enter SCAN_MODE
         self._device_mode = "command"  # "scan" | "command", as reported by the device itself
         self._pending_delete_id: Optional[int] = None
+        self._confirmed_delete_ids: set[int] = set()
         self._pending_enroll = False
         self._pending_wipe = False
         self._rfid_session_active = False
@@ -199,7 +208,15 @@ class Api:
         # Settings page but never actually applied them to SerialHandler,
         # so the toggles were cosmetic. Mirrors MainWindow.__init__ in v2.
         settings = load_settings()
-        self._first_run_setup_required = not auth.has_password_set(settings)
+        has_password = auth.has_password_set(settings)
+        marker_exists = admin_initialization_marker_exists()
+        if has_password and not marker_exists:
+            write_admin_initialization_marker()
+            marker_exists = True
+        self._first_run_setup_required = not has_password and not marker_exists
+        self._first_run_recovery_required = marker_exists and not has_password
+        self._failed_admin_attempts = 0
+        self._admin_locked_until = 0.0
         self._session_timeout_seconds = max(
             60.0, float(settings.get("idle_timeout_minutes", 10)) * 60.0
         )
@@ -314,12 +331,16 @@ class Api:
         return results
 
     def forget_saved_port(self) -> Dict[str, Any]:
+        if not permissions.require_role("teacher"):
+            return {"ok": False, "status": 403, "message": "Teacher or administrator permission is required."}
         settings = load_settings()
         settings["com_port"] = ""
         save_settings(settings)
         return {"ok": True}
 
     def connect(self, port: str = "", baud: int = 0, auto_detect: Optional[bool] = None) -> Dict[str, Any]:
+        if not permissions.require_permission("scan"):
+            return {"connected": False, "message": "Current role does not have scan permission."}
         baud = baud or CONFIG.baud_rate
         if auto_detect is None:
             auto_detect = bool(load_settings().get("auto_detect_serial", True))
@@ -341,6 +362,11 @@ class Api:
         }
 
     def disconnect(self) -> Dict[str, Any]:
+        if not permissions.require_role("teacher"):
+            return {"connected": self.serial.is_connected(), "ok": False, "status": 403, "message": "Teacher or administrator permission is required."}
+        return self._disconnect_impl()
+
+    def _disconnect_impl(self) -> Dict[str, Any]:
         try:
             if self.serial.is_connected():
                 cmds.cmd_stop(self.serial)
@@ -352,6 +378,7 @@ class Api:
         self._device_mode = "command"
         self._pending_enroll = False
         self._pending_delete_id = None
+        self._confirmed_delete_ids.clear()
         self._pending_wipe = False
         self.serial.disconnect()
         self._push("connection_status", self.get_connection_status())
@@ -962,8 +989,10 @@ class Api:
             return
         match = RE_DELETE_SUCCESS.search(message)
         if match:
+            fingerprint_id = int(match.group(1))
             self._pending_delete_id = None
-            self._push("delete_progress", {"event": "success", "id": int(match.group(1))})
+            self._confirmed_delete_ids.add(fingerprint_id)
+            self._push("delete_progress", {"event": "success", "id": fingerprint_id})
             return
         match = RE_DELETE_FAIL.search(message)
         if match:
@@ -1018,6 +1047,8 @@ class Api:
         }
 
     def get_recent_activity(self, limit: int = 25) -> List[Dict[str, Any]]:
+        if not permissions.has_permission("read_records"):
+            return []
         rows = db.get_attendance_paginated(limit=limit, offset=0)
         settings = load_settings()
         for row in rows:
@@ -1035,6 +1066,8 @@ class Api:
         return rows
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
+        if not permissions.has_permission("read_records"):
+            return {"rows": [], "offset": offset, "has_more": False, "restricted": True}
         mode = (mode or "today").lower()
         page_size = 100
         if mode == "today":
@@ -1122,9 +1155,13 @@ class Api:
 
     # -- students ---------------------------------------------------------------
     def get_students(self) -> List[Dict[str, Any]]:
+        if not permissions.has_permission("read_records"):
+            return []
         return db.get_all_students()
 
     def get_student(self, fingerprint_id: int) -> Dict[str, Any]:
+        if not permissions.has_permission("read_records"):
+            return {}
         student = db.get_student(fingerprint_id)
         if not student:
             return {}
@@ -1195,8 +1232,12 @@ class Api:
     def delete_student(self, fingerprint_id: int) -> Dict[str, Any]:
         if not permissions.require_permission("delete"):
             return {"ok": False, "message": "Current role does not have delete permission."}
+        fingerprint_id = int(fingerprint_id)
+        if fingerprint_id not in self._confirmed_delete_ids:
+            return {"ok": False, "message": "The device must confirm fingerprint deletion before the local record is removed."}
         try:
-            db.delete_student(int(fingerprint_id))
+            db.delete_student(fingerprint_id)
+            self._confirmed_delete_ids.discard(fingerprint_id)
             return {"ok": True, "message": "Deleted"}
         except Exception as exc:
             return {"ok": False, "message": str(exc)}
@@ -1325,6 +1366,8 @@ class Api:
         """
         if not permissions.has_permission("attendance_evaluation"):
             return {"ok": False, "message": "Current role does not have attendance evaluation permission."}
+        if not permissions.has_permission("read_records"):
+            return {"ok": False, "message": "Record-reading permission is required for identifiable evaluation rows."}
 
         period = (period or "month").lower()
         if period not in ("day", "week", "month"):
@@ -1608,9 +1651,10 @@ class Api:
         settings.pop("auth", None)
         settings["current_role"] = permissions.get_current_role()
         settings["available_ports"] = list_serial_ports()
-        settings["log_folder"] = str(CONFIG.log_folder)
-        backups = db.list_backups()
-        settings["last_backup"] = backups[0]["name"] if backups else None
+        if permissions.has_permission("backup") or permissions.has_role_permission(permissions.get_current_role(), "admin"):
+            settings["log_folder"] = str(CONFIG.log_folder)
+            backups = db.list_backups()
+            settings["last_backup"] = backups[0]["name"] if backups else None
         return settings
 
     def save_ui_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -1703,8 +1747,7 @@ class Api:
         if role not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
         current = permissions.get_current_role()
-        # Administrator is currently the only password-authenticated role.
-        if role == "admin" and current != "admin":
+        if permissions.ROLE_LEVELS.get(role, -1) > permissions.ROLE_LEVELS.get(current, -1):
             return {
                 "ok": False,
                 "status": 401,
@@ -1715,9 +1758,14 @@ class Api:
         return self.get_session_state()
 
     def is_first_run_setup_required(self) -> Dict[str, Any]:
-        return {"required": self._first_run_setup_required}
+        return {
+            "required": self._first_run_setup_required,
+            "recovery_required": getattr(self, "_first_run_recovery_required", False),
+        }
 
     def complete_first_run_setup(self, password: str, confirm_password: str) -> Dict[str, Any]:
+        if getattr(self, "_first_run_recovery_required", False):
+            return {"ok": False, "message": "Administrator password is missing. Use the recovery process."}
         if not self._first_run_setup_required:
             # Already set up elsewhere (e.g. another window/tab beat us to
             # it). Refuse rather than silently no-op, so the UI can tell
@@ -1733,6 +1781,7 @@ class Api:
             self._first_run_setup_required = False
             return {"ok": False, "message": str(exc)}
         save_settings(settings)
+        write_admin_initialization_marker()
         self._first_run_setup_required = False
         # The person who just created the password is, by definition, the
         # first administrator - elevate this session immediately instead of
@@ -1748,6 +1797,8 @@ class Api:
         the app should go straight to the Dashboard, same as any normal
         launch after today.
         """
+        if getattr(self, "_first_run_recovery_required", False):
+            return {"step": None, "recovery_required": True, "message": "Administrator password is missing. Use the recovery process."}
         settings = load_settings()
         step = setup_wizard.get_next_step(settings, has_password=auth.has_password_set(settings))
         return {"step": step}
@@ -1822,9 +1873,21 @@ class Api:
             permissions.set_session_role(role, self._session_timeout_seconds)
             return self.get_session_state()
 
+        locked_until = getattr(self, "_admin_locked_until", 0.0)
+        now = time.monotonic()
+        if now < locked_until:
+            remaining = max(1, int(locked_until - now + 0.999))
+            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
         settings = load_settings()
         if not auth.verify_password(password, settings.get("auth", {})):
+            failures = getattr(self, "_failed_admin_attempts", 0) + 1
+            self._failed_admin_attempts = failures
+            if failures >= ADMIN_LOGIN_MAX_FAILURES:
+                self._failed_admin_attempts = 0
+                self._admin_locked_until = now + ADMIN_LOGIN_LOCKOUT_SECONDS
             return {"ok": False, "message": "Incorrect password."}
+        self._failed_admin_attempts = 0
+        self._admin_locked_until = 0.0
         permissions.set_session_role("admin", self._session_timeout_seconds)
         return self.get_session_state()
 
@@ -1848,11 +1911,23 @@ class Api:
     def change_admin_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
         if not permissions.require_role("admin"):
             return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+        now = time.monotonic()
+        locked_until = getattr(self, "_admin_locked_until", 0.0)
+        if now < locked_until:
+            remaining = max(1, int(locked_until - now + 0.999))
+            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
         if len(new_password) < 8:
             return {"ok": False, "message": "The new password must be at least 8 characters."}
         settings = load_settings()
         if not auth.verify_password(current_password, settings.get("auth", {})):
+            failures = getattr(self, "_failed_admin_attempts", 0) + 1
+            self._failed_admin_attempts = failures
+            if failures >= ADMIN_LOGIN_MAX_FAILURES:
+                self._failed_admin_attempts = 0
+                self._admin_locked_until = time.monotonic() + ADMIN_LOGIN_LOCKOUT_SECONDS
             return {"ok": False, "message": "Current password is incorrect."}
+        self._failed_admin_attempts = 0
+        self._admin_locked_until = 0.0
         settings["auth"] = auth.hash_password(new_password)
         save_settings(settings)
         return {"ok": True, "message": "Administrator password changed."}
