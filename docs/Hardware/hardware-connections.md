@@ -182,7 +182,7 @@ For detailed recovery procedures, see [Troubleshooting](../Troubleshooting/READM
 
 The maintained firmware is:
 
-`firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`
+`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`
 
 Historical sketches under `firmware/` are retained for development history and should not be assumed compatible with the current v3 application.
 

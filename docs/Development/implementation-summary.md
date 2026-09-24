@@ -18,7 +18,7 @@ The firmware emits JSON unknown events and the UI displays them as `Unregistered
 
 ## Firmware and serial contract
 
-The maintained sketch is `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. The host-to-ESP32 USB connection uses 115200 baud, while the internal ESP32-to-AS608 UART uses 57600 baud. Historical sketches and the placeholder prebuilt binary are not interchangeable with the maintained v3 workflow.
+The maintained sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. The host-to-ESP32 USB connection uses 115200 baud, the internal ESP32-to-AS608 UART uses 57600 baud, and the sketch also supports the RC522 RFID reader. Historical sketches and the placeholder prebuilt binary are not interchangeable with the maintained v3 workflow.
 
 ## Verification
 

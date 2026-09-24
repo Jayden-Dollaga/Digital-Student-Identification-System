@@ -25,7 +25,7 @@ Close Arduino IDE, Arduino Serial Monitor, PuTTY, Tera Term, other serial termin
 - Try a different data cable or USB port.
 - Press and hold the board's **BOOT** button while upload begins if the board does not enter download mode.
 
-Upload the maintained [all-in-one firmware](../firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino). The historical sketches and `firmware/prebuilt/attendance_v1.0.bin` placeholder are not interchangeable with the desktop application.
+Upload the maintained [all-in-one firmware](../firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino). The fingerprint-only sketch, historical sketches, and `firmware/prebuilt/attendance_v1.0.bin` placeholder are not interchangeable with the desktop application.
 
 ## App Connects but Sensor Does Not Respond
 

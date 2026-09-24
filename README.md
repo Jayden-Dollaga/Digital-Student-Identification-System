@@ -18,7 +18,7 @@
   <a href="#features">Features</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#hardware">Hardware</a> ·
-  <a href="#documentation">Documentation</a> ·
+  [Documentation](docs/INDEX.md) ·
   <a href="#project-structure">Project Structure</a>
 </p>
 
@@ -30,7 +30,7 @@
 
 **Digital Student Identification System (DSIS)** is a modular student identification and attendance application designed for school and training-center workflows.
 
-The system combines an **ESP32 + AS608 fingerprint sensor** with a Windows desktop application. The hardware performs fingerprint enrollment and identification, while the desktop application manages student records, attendance history, reports, backups, permissions, device communication, and diagnostics.
+The system combines an **ESP32 + AS608 fingerprint sensor + RC522 RFID reader** with a Windows desktop application. The hardware performs fingerprint enrollment, identification, and card reads; the desktop application manages student records, card links, attendance history, reports, backups, permissions, device communication, and diagnostics.
 
 The current maintained interface is the **v3 HTML/pywebview application**. The browser UI communicates with Python through `window.pywebview.api`; the application does not require a local web server.
 
@@ -43,6 +43,7 @@ The current maintained interface is the **v3 HTML/pywebview application**. The b
 ### Student Identification
 
 - Fingerprint enrollment and identification
+- RC522 RFID card registration, linking, attendance, and erase workflows
 - Fingerprint deletion and device wipe support
 - Student record management
 - Confidence-aware scan processing

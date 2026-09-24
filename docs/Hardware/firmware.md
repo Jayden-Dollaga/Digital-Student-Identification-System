@@ -2,7 +2,7 @@
 
 The maintained embedded program is:
 
-    firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino
+    firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino
 
 ## Current firmware identity
 

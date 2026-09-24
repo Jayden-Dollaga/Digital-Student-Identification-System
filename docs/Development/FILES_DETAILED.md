@@ -74,7 +74,7 @@ The browser never opens SQLite or pyserial directly. Those operations remain beh
 
 ## Hardware-facing source
 
-The maintained firmware is `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`.
+The maintained firmware is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. The fingerprint-only sketch is retained as an earlier variant.
 
 Hardware constants in the current sketch include:
 

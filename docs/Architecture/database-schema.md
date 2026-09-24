@@ -35,6 +35,7 @@ CREATE TABLE students (
     student_name    TEXT    NOT NULL,
     grade           TEXT    NOT NULL,
     section         TEXT    NOT NULL,
+    card_uid        TEXT    UNIQUE,
     enrollment_date TEXT    NOT NULL,
     updated_date    TEXT    NOT NULL
 );
@@ -47,6 +48,7 @@ CREATE TABLE students (
 | `student_name` | TEXT | Student's display name |
 | `grade` | TEXT | Grade/class level |
 | `section` | TEXT | Section/class identifier |
+| `card_uid` | TEXT | Normalized RC522 card UID, unique when present |
 | `enrollment_date` | TEXT | Enrollment timestamp |
 | `updated_date` | TEXT | Last profile update timestamp |
 

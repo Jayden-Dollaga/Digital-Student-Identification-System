@@ -7,6 +7,7 @@ DSIS is a local-first fingerprint attendance system built for school or training
 The application allows a user to:
 
 - enroll students and assign fingerprint IDs,
+- link and erase RC522 RFID card data,
 - connect to an ESP32 device over USB serial,
 - perform scans with the AS608 sensor,
 - record attendance events,
@@ -22,7 +23,7 @@ Browser UI / pywebview
     -> python/gui_web/api.py
         -> core.database / core.serial_handler / core.attendance
             -> SQLite database (data/attendance.db)
-            -> ESP32 + AS608 over USB/serial
+            -> ESP32 + AS608 + RC522 over USB/serial
 ```
 
 The UI is not a separate service. It is a local page rendered by the app and connected directly to Python via the `window.pywebview.api` bridge.
@@ -32,7 +33,7 @@ The UI is not a separate service. It is a local page rendered by the app and con
 - `python/gui_web/` — front-end shell and bridge
 - `python/core/` — device, identity, attendance, permissions, and DB logic
 - `python/services/` — workflow-oriented service layer helpers
-- `firmware/` — embedded firmware for ESP32 + AS608
+- `firmware/` — active ESP32 + AS608 + RC522 firmware and archived variants
 - `data/` — runtime settings, logs, exports, backups, SQLite DB
 
 ## Support model

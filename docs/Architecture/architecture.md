@@ -45,7 +45,7 @@ DSIS is a local Windows application composed of hardware, communication, applica
 
 ### Firmware
 
-The maintained firmware at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`:
+The maintained firmware at `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`:
 
 - initializes the ESP32 host serial port at 115200 baud
 - initializes the AS608 UART at 57600 baud

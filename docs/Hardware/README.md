@@ -7,4 +7,4 @@
 
 ## Supported path
 
-Use `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. The desktop side communicates with the ESP32 at 115200 baud. The ESP32 communicates with the AS608 at 57600 baud on hardware serial pins RX 14 and TX 27. Exact carrier-board power and USB bridge requirements remain board-dependent; follow the wiring guide and verify the board schematic before applying power.
+Use `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. The desktop side communicates with the ESP32 at 115200 baud. The ESP32 communicates with the AS608 at 57600 baud on hardware serial pins RX 14 and TX 27 and with the RC522 over SPI. Exact carrier-board power and USB bridge requirements remain board-dependent; follow the wiring guide and verify the board schematic before applying power.

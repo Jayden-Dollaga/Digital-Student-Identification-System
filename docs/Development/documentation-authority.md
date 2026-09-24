@@ -18,7 +18,7 @@ A document in a lower category may be valuable evidence without being a current 
 
 DSIS v3 is the maintained application. `run_web_gui.py` launches `python.gui_web.main_web`, which creates a pywebview window over `python/gui_web/web/index.html` and exposes `python/gui_web/api.py` as `window.pywebview.api`. The API delegates to shared modules in `python/core/` and `python/services/`; it does not create a separate web server.
 
-The current hardware path is the maintained all-in-one sketch at `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. It connects the ESP32 to an AS608 sensor over UART and the desktop application to the ESP32 over USB serial.
+The current hardware path is the maintained all-in-one sketch at `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. It connects the ESP32 to an AS608 sensor over UART, an RC522 reader over SPI, and the desktop application to the ESP32 over USB serial.
 
 ## Historical and non-authoritative areas
 

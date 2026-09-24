@@ -55,7 +55,7 @@ See [Wiring](../Hardware/wiring.md) for the detailed pinout and power notes.
 
 ## 5. Upload the maintained firmware
 
-Open `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` in Arduino IDE.
+Open `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` in Arduino IDE.
 
 Select **ESP32 Arduino → ESP32 Dev Module** for the documented WROOM-32 target.
 

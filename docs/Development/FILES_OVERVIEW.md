@@ -46,7 +46,7 @@ The active frontend is `python/gui_web/web/`. It communicates with Python throug
 
 ## Active firmware
 
-`firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` is the maintained device firmware.
+`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` is the maintained device firmware; the fingerprint-only all-in-one sketch is an earlier variant.
 
 | Property | Value |
 | --- | --- |

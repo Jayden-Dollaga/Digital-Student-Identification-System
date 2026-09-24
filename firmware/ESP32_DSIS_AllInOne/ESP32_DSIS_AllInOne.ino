@@ -53,7 +53,7 @@
  *    3. Type ENROLL:1  -> scan student 1 finger twice -> saved
  *    4. Type ENROLL:2  -> scan student 2 finger twice -> saved
  *    5. Repeat up to ENROLL:30
- *    6. (Optional) Type CARD_WRITE:STUDENT-01, tap card to write ID onto it
+ *    6. (Optional) Type CARD_WRITE_HEX:<hex>, tap a card to write the payload
  *    7. Type SCAN      -> now reading attendance (finger + card), Python can connect
  *    8. Type STOP      -> go back to command mode anytime
  *

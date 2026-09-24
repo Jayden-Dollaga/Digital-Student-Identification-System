@@ -13,11 +13,13 @@ The desktop must not use the sensor baud rate directly.
 
 ## Host commands
 
-The firmware accepts `ID?`, `SCAN`, `STOP`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, `WIPE`, and `LIST`. Commands are line-oriented. Enrollment, deletion, and wipe are command-mode operations; attendance recognition is scan-mode operation. The application must stop scanning before a destructive or enrollment command and resume only after the operation reports success or the operator explicitly cancels.
+The active firmware accepts `ID?`, `SCAN`, `STOP`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, `WIPE`, and `LIST`. The RFID-capable sketch also handles card registration/write and erase commands in its command handler. Commands are line-oriented. Enrollment, deletion, wipe, and card management are command-mode operations; attendance recognition is scan-mode operation. The application must stop scanning before a destructive or enrollment command and resume only after the operation reports success or the operator explicitly cancels.
 
 ## Status and attendance output
 
-Human-readable status lines include `READY`, `SCAN_MODE`, and `CMD_MODE`. Structured events include status objects such as `{"type":"status","state":"SCAN_MODE"}` and attendance objects for `match`, `unknown`, and `low_confidence`. Match events contain the sensor ID and confidence score. The Python attendance processor converts these events into application outcomes, applies its configured confidence threshold and cooldown, and writes accepted records to SQLite.
+Human-readable status lines include `READY`, `SCAN_MODE`, and `CMD_MODE`. Structured events include status objects such as `{"type":"status","state":"SCAN_MODE"}` and attendance objects for fingerprint `match`, `unknown`, `low_confidence`, and RFID card events. Match events contain the sensor ID and confidence score; card events contain a normalized UID and encrypted payload result. The Python attendance processor converts these events into application outcomes, applies its configured confidence threshold and cooldown, and writes accepted records to SQLite.
+
+The device-side fingerprint cooldown is 2000 ms and the RC522 card cooldown is 1500 ms. These are separate from the desktop cooldown in `settings.json`.
 
 ## Synchronization rules
 

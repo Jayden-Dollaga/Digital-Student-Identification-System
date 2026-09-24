@@ -4,7 +4,7 @@
 
 The maintained firmware is:
 
-`firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`
+`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`
 
 It is a single all-in-one sketch intended to remain flashed on the ESP32 while DSIS switches between device operations.
 
