@@ -133,6 +133,68 @@ MFRC522::MIFARE_Key rfidKey;
 String pendingCardWrite = "";   // set by CARD_WRITE_HEX, consumed on next tap
 bool pendingCardWriteHex = false;
 String expectedCardWriteUid = "";
+bool pendingKeyCheck = false;   // set by CARD_KEYCHECK, consumed on next tap
+
+// Known MIFARE Classic Key A candidates, tried in order until one authenticates
+// the sector containing RFID_BLOCK_NUM. Index 0 must stay the factory default
+// (0xFF*6) since that's what freshly-issued/blank cards use; the rest cover
+// cards that third-party NFC apps (e.g. NFC Tools / WdNFC) have reformatted.
+static const byte RFID_KEY_CANDIDATES[][6] = {
+  {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},  // factory default (try first, most common)
+  {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7},  // NFC Forum / MIFARE Classic NDEF key (NFC Tools default)
+  {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5},  // MAD (MIFARE Application Directory) key
+  {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5},  // NDEF sector trailer alt key
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // all-zero
+  {0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6},  // common "transport" key
+  {0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6},
+  {0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD},  // NXP MAD Key B variant
+  {0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A},  // NXP proprietary (seen in Mifare Classic Tool dict)
+  {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF},  // common test/dev key
+  {0x71, 0x4C, 0x5C, 0x88, 0x6E, 0x97},  // seen in transit-card dictionaries
+  {0x58, 0x7E, 0xE5, 0xF9, 0x35, 0x0F},
+  {0xA0, 0x47, 0x8C, 0xC3, 0x90, 0x91},
+  {0x53, 0x3C, 0xB6, 0xC7, 0x23, 0xF6},
+  {0x89, 0xEC, 0xA9, 0x40, 0x0E, 0xB1},
+  {0x5C, 0x59, 0x87, 0x2F, 0x54, 0xC2},
+  {0xE9, 0x64, 0x24, 0x9A, 0xEE, 0x8A},
+  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05},  // sequential dummy key, seen in cheap writer apps
+  {0x01, 0x01, 0x01, 0x01, 0x01, 0x01},
+  {0x11, 0x11, 0x11, 0x11, 0x11, 0x11},
+  {0x12, 0x34, 0x56, 0x78, 0x90, 0xAB},
+  {0x12, 0x34, 0x56, 0xAB, 0xCD, 0xEF},
+  // --- Extended set: rest of the common public MIFARE Classic dictionary
+  // (the same pool tools like mfoc / MIFARE Classic Tool ship with) ---
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF},
+  {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00},
+  {0xA6, 0x2A, 0x24, 0x88, 0x6C, 0x08},
+  {0xE2, 0x50, 0x9C, 0x1D, 0x23, 0x14},
+  {0x1B, 0x33, 0x99, 0x33, 0x33, 0x33},
+  {0x51, 0x93, 0x63, 0x45, 0x9A, 0x0D},
+  {0xD0, 0x1A, 0xFC, 0x9E, 0x63, 0x8F},
+  {0x8F, 0xD0, 0xA4, 0xF2, 0x56, 0xE9},
+  {0xC0, 0x86, 0x6D, 0x8D, 0x9C, 0xC7},
+  {0x25, 0x99, 0x36, 0x20, 0x42, 0xAB},
+  {0x64, 0x80, 0x60, 0x71, 0x28, 0x82},
+  {0x49, 0x39, 0x4E, 0x4A, 0x62, 0x20},
+  {0x69, 0x41, 0xAE, 0x24, 0x1D, 0x9D},
+  {0xEC, 0x00, 0x6A, 0xCB, 0x8F, 0x31},
+  {0xB5, 0xFF, 0x67, 0xCB, 0xA9, 0x51},
+  {0xEE, 0x0A, 0xC1, 0x2C, 0xE5, 0x1E},
+  {0x36, 0x90, 0xF5, 0x28, 0xE9, 0x3A},
+  {0x90, 0xC3, 0x1F, 0xF1, 0x9A, 0xE7},
+  {0xF1, 0x24, 0xC2, 0x63, 0x8C, 0xD9},
+  {0x8A, 0x19, 0x9F, 0x6C, 0xAF, 0xDA},
+  {0x8F, 0x79, 0x9A, 0x27, 0x8A, 0xE4},
+  {0x2A, 0x2C, 0x13, 0xCC, 0x24, 0x2A},
+  {0x77, 0x77, 0x77, 0x77, 0x77, 0x77},
+  {0x99, 0x99, 0x99, 0x99, 0x99, 0x99},
+  {0x12, 0x12, 0x12, 0x12, 0x12, 0x12},
+  {0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B},
+  {0x4F, 0x45, 0x4E, 0x44, 0x45, 0x54},  // "OENDET"-style ASCII key seen in the wild
+};
+static const byte RFID_KEY_CANDIDATE_COUNT =
+    sizeof(RFID_KEY_CANDIDATES) / sizeof(RFID_KEY_CANDIDATES[0]);
 
 byte hexValue(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -319,6 +381,22 @@ void emitJsonCardWriteResult(const String &uidStr, const String &dataHex, bool s
   Serial.print(dataHex);
   Serial.print("\",\"success\":");
   Serial.print(success ? "true" : "false");
+  Serial.println("}");
+}
+
+// keyIndex is -1 when no candidate key authenticated the sector.
+void emitJsonCardKeyCheck(const String &uidStr, int keyIndex) {
+  Serial.print("{\"type\":\"card_keycheck\",\"uid\":\"");
+  Serial.print(uidStr);
+  Serial.print("\",\"matched\":");
+  Serial.print(keyIndex >= 0 ? "true" : "false");
+  Serial.print(",\"key_index\":");
+  Serial.print(keyIndex);
+  if (keyIndex >= 0) {
+    Serial.print(",\"key_hex\":\"");
+    Serial.print(bytesToHex(RFID_KEY_CANDIDATES[keyIndex], 6));
+    Serial.print("\"");
+  }
   Serial.println("}");
 }
 
@@ -719,6 +797,12 @@ void handleCommand(String input) {
     return;
   }
 
+  if (normalized == "CARD_KEYCHECK") {
+    pendingKeyCheck = true;
+    Serial.println("\n>> Key check armed - tap a card now to test it against all known keys.");
+    return;
+  }
+
   if (normalized.startsWith("CARD_WRITE_HEX:")) {
     String payloadText = payload;
     payloadText.trim();
@@ -958,22 +1042,81 @@ void scanFinger() {
 //  RFID CARD (RC522)
 // ==============================================================================
 
+// Tries each candidate key against RFID_BLOCK_NUM until one authenticates.
+// On success, rfidKey is left holding the winning key (so MIFARE_Write/Read
+// right after this call reuse it), matchedIndex (if given) is set to the
+// winning candidate's index, and returns true. Returns false if none of the
+// candidates work (card is genuinely unreadable by this tool).
+bool authenticateCardAnyKey(String &uidStr, int *matchedIndex) {
+  for (byte i = 0; i < RFID_KEY_CANDIDATE_COUNT; i++) {
+    for (byte b = 0; b < 6; b++) rfidKey.keyByte[b] = RFID_KEY_CANDIDATES[i][b];
+
+    MFRC522::StatusCode status = rfid.PCD_Authenticate(
+        MFRC522::PICC_CMD_MF_AUTH_KEY_A, RFID_BLOCK_NUM, &rfidKey, &(rfid.uid));
+
+    if (status == MFRC522::STATUS_OK) {
+      if (i > 0) {
+        Serial.print("\n>> Card authenticated with alternate key #");
+        Serial.println(i);
+      }
+      if (matchedIndex != nullptr) *matchedIndex = i;
+      return true;
+    }
+
+    // A card must be re-halted/re-woken between failed authenticate attempts
+    // on the same tag, otherwise the next PCD_Authenticate call reliably fails.
+    rfid.PCD_StopCrypto1();
+    if (i + 1 < RFID_KEY_CANDIDATE_COUNT) {
+      if (!rfid.PICC_IsNewCardPresent() && !rfid.PICC_ReadCardSerial()) {
+        // Card was lifted mid-retry; nothing more we can do this pass.
+        break;
+      }
+    }
+  }
+  if (matchedIndex != nullptr) *matchedIndex = -1;
+  return false;
+}
+
+// Convenience overload for callers that don't need to know which key matched.
+bool authenticateCardAnyKey(String &uidStr) {
+  return authenticateCardAnyKey(uidStr, nullptr);
+}
+
 void scanCard() {
   if (!rfid.PICC_IsNewCardPresent()) return;
   if (!rfid.PICC_ReadCardSerial()) return;
 
   String uidStr = uidToString(&rfid.uid);
 
-  MFRC522::StatusCode status = rfid.PCD_Authenticate(
-      MFRC522::PICC_CMD_MF_AUTH_KEY_A, RFID_BLOCK_NUM, &rfidKey, &(rfid.uid));
+  if (pendingKeyCheck) {
+    pendingKeyCheck = false;
+    int matchedIndex = -1;
+    bool ok = authenticateCardAnyKey(uidStr, &matchedIndex);
+    emitJsonCardKeyCheck(uidStr, ok ? matchedIndex : -1);
+    if (ok) {
+      Serial.print("\n>> Key check: card unlocked by key #");
+      Serial.print(matchedIndex);
+      Serial.print(" (");
+      Serial.print(bytesToHex(RFID_KEY_CANDIDATES[matchedIndex], 6));
+      Serial.println(")");
+    } else {
+      Serial.println("\n>> Key check: none of the known keys unlocked this card.");
+    }
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    delay(RFID_SCAN_COOLDOWN);
+    return;
+  }
 
-  if (status != MFRC522::STATUS_OK) {
+  if (!authenticateCardAnyKey(uidStr)) {
     emitJsonCardUnreadable(uidStr);
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
     delay(RFID_SCAN_COOLDOWN);
     return;
   }
+
+  MFRC522::StatusCode status;
 
   if (pendingCardWrite.length() > 0) {
     if (pendingCardWriteHex && expectedCardWriteUid.length() > 0 && uidStr != expectedCardWriteUid) {
@@ -1046,5 +1189,6 @@ void printHelp() {
   Serial.println("    SCAN       Start attendance scan mode (finger + card)");
   Serial.println("    STOP       Stop scanning, return to commands");
   Serial.println("    CARD_WRITE_HEX:<hex>  Arm encrypted write, tap a card");
+  Serial.println("    CARD_KEYCHECK  Test a tapped card against all known keys (read-only)");
   Serial.println();
 }
