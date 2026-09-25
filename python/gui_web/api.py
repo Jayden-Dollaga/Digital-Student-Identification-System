@@ -491,6 +491,14 @@ class Api:
             self._scanning = True
             self._device_mode = "scan"
             self._push("mode_changed", {"mode": "scan"})
+        if not cmds.cmd_card_erase(self.serial):
+            self._batch_rfid_erase_active = False
+            if not self._batch_rfid_erase_was_scanning and self.serial.is_connected():
+                cmds.cmd_stop(self.serial)
+                self._scanning = False
+                self._device_mode = "command"
+                self._push("mode_changed", {"mode": "command"})
+            return {"ok": False, "message": "Could not arm RFID card erase on the ESP32."}
         return {"ok": True, "message": "RFID erase listening started."}
 
     def stop_batch_rfid_erase(self) -> Dict[str, Any]:
@@ -501,11 +509,13 @@ class Api:
         self._batch_rfid_erase_waiting_uid = None
         self._batch_rfid_erase_unlink = False
         self._batch_rfid_erase_count = 0
-        if not was_scanning and self.serial.is_connected():
+        if self.serial.is_connected():
             ok = cmds.cmd_stop(self.serial)
-            self._scanning = False
-            self._device_mode = "command"
-            self._push("mode_changed", {"mode": "command"})
+            if was_scanning and ok:
+                ok = cmds.cmd_scan(self.serial)
+            self._scanning = was_scanning if ok else False
+            self._device_mode = "scan" if self._scanning else "command"
+            self._push("mode_changed", {"mode": self._device_mode})
             return {"ok": ok, "message": "RFID erase session closed." if ok else "Could not stop RFID card listening."}
         return {"ok": True, "message": "RFID erase session closed."}
 
@@ -533,7 +543,7 @@ class Api:
         if event_type == "card_write":
             waiting_uid = self._batch_rfid_erase_waiting_uid
             self._batch_rfid_erase_waiting_uid = None
-            if not waiting_uid or uid != waiting_uid:
+            if waiting_uid and uid != waiting_uid:
                 self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
                 return True
             if not parsed.get("success"):

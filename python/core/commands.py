@@ -71,3 +71,10 @@ def cmd_card_write_hex(handler, hex_text):
     except ValueError:
         return False
     return handler.send_command(f"CARD_WRITE_HEX:{payload}")
+
+
+def cmd_card_erase(handler):
+    """Arm a one-tap card erase on the ESP32."""
+    if not require_permission("enroll"):
+        return False
+    return handler.send_command("CARD_ERASE")

@@ -203,30 +203,25 @@ class AttendanceProcessorTests(unittest.TestCase):
         log_attendance_mock.assert_not_called()
         push_mock.assert_called_once()
 
-    def test_batch_rfid_erase_arms_zero_payload_without_attendance_logging(self):
+    def test_batch_rfid_erase_arms_one_tap_erase_without_attendance_logging(self):
         api = Api()
         permissions.set_session_role("admin")
         try:
             with patch.object(api.serial, "is_connected", return_value=True), \
                  patch.object(commands, "cmd_scan", return_value=True), \
-                 patch.object(commands, "cmd_card_write_hex", return_value=True) as write_mock, \
+                 patch.object(commands, "cmd_card_erase", return_value=True) as erase_mock, \
                  patch.object(api, "_push") as push_mock, \
                  patch.object(api.processor, "_log_attendance") as log_attendance_mock:
                 result = api.start_batch_rfid_erase(False)
                 self.assertTrue(result["ok"])
 
-                handled = api._handle_rfid_session_card_event(
-                    '{"type":"attendance","event":"card","uid":"E1:F9:40:66","data_hex":"AABB"}'
-                )
-
-                self.assertTrue(handled)
-                write_mock.assert_called_once_with(api.serial, "0" * 32)
+                erase_mock.assert_called_once_with(api.serial)
                 log_attendance_mock.assert_not_called()
-                self.assertEqual(push_mock.call_args[0][0], "scan_result")
 
-                api._handle_rfid_session_card_event(
+                handled = api._handle_rfid_session_card_event(
                     '{"type":"card_write","uid":"E1:F9:40:66","data_hex":"00000000000000000000000000000000","success":true}'
                 )
+                self.assertTrue(handled)
                 self.assertEqual(api._batch_rfid_erase_count, 1)
                 api.stop_batch_rfid_erase()
         finally:

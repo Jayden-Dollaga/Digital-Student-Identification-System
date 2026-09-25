@@ -19,7 +19,7 @@ cryptographic secret for someone with direct USB serial access.
 
 ## Host commands
 
-The active firmware accepts `ID?`, `SCAN`, `STOP`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, `WIPE`, and `LIST`. The RFID-capable sketch also handles card registration/write and erase commands in its command handler. Commands are line-oriented. Enrollment, deletion, wipe, and card management are command-mode operations; attendance recognition is scan-mode operation. The application must stop scanning before a destructive or enrollment command and resume only after the operation reports success or the operator explicitly cancels.
+The active firmware accepts `ID?`, `SCAN`, `STOP`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, `WIPE`, and `LIST`. RFID commands include `CARD_WRITE_HEX:<hex>` for registration and `CARD_ERASE` for one-tap zero-payload erasure. Commands are line-oriented. Enrollment, deletion, wipe, and card management are command-mode operations; attendance recognition is scan-mode operation. The application must stop scanning before a destructive or enrollment command and resume only after the operation reports success or the operator explicitly cancels.
 
 ## Status and attendance output
 

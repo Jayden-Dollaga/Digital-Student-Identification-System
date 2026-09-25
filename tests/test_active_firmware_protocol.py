@@ -20,5 +20,7 @@ def test_firmware_destructive_commands_require_host_connection():
         assert 'status == "HOST_CONNECTED"' in source
         assert 'status == "HOST_DISCONNECTED"' in source
         assert '"ERROR: Host connection required for this command."' in source
+        if "ESP32_DSIS_AllInOne" in str(sketch):
+            assert '"CARD_ERASE"' in source
         assert 'normalized == "WIPE"' in source or 'input == "WIPE"' in source
         assert 'startsWith("DELETE:")' in source

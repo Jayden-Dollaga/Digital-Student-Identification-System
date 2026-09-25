@@ -214,6 +214,7 @@ class SerialHandler:
                     self.reconnect_baud = baud
                     self.reconnect_count = 0
                     self.device_metadata = metadata
+                    self._send_host_connected()
                     log.success(
                         "Connected to ESP32 via stale-port fallback search",
                         port=candidate_port,
@@ -269,6 +270,7 @@ class SerialHandler:
                 self.reconnect_baud = baud
                 self.reconnect_count = 0
                 self.device_metadata = metadata
+                self._send_host_connected()
                 log.success("Connected to ESP32 via discovered serial", port=discovery_port, baud=baud)
                 return True, "OK"
 
@@ -314,6 +316,7 @@ class SerialHandler:
                     self._has_ever_connected = True
                     self.reconnect_count = 0
                     self.device_metadata = metadata
+                    self._send_host_connected()
                     log.success("Connected to ESP32 via discovered serial", port=candidate_port, baud=baud)
                     return True, "OK"
                 last_error = error
@@ -387,6 +390,14 @@ class SerialHandler:
             self.device_metadata = None
 
         log.info("Disconnected from ESP32", port=self.reconnect_port, baud=self.reconnect_baud)
+
+    def _send_host_connected(self) -> None:
+        if self.esp32 is None or not getattr(self.esp32, "is_open", False):
+            return
+        try:
+            self.esp32.write(("{\"type\":\"status\",\"state\":\"HOST_CONNECTED\"}\n").encode("utf-8"))
+        except Exception as exc:
+            log.warning("Could not notify ESP32 that the host is connected", error=str(exc))
 
     def test_connection(self, port: str, baud: int) -> Tuple[bool, str]:
         """Try a serial connection once without triggering reconnect logic."""
@@ -749,11 +760,7 @@ class SerialHandler:
             self.reconnect_baud = baud
             self.reconnect_count = 0
             log.success("Connected to ESP32", port=port, baud=baud)
-            try:
-                if self.esp32 is not None and getattr(self.esp32, "is_open", False):
-                    self.esp32.write(("{\"type\":\"status\",\"state\":\"HOST_CONNECTED\"}\n").encode("utf-8"))
-            except Exception:
-                pass
+            self._send_host_connected()
             return True, "OK"
         except Exception as exc:
             log.warning(

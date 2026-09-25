@@ -582,8 +582,8 @@ void handleCommand(String input) {
   // state that serial_handler sends after a valid DSIS handshake.
   if (!hostConnected &&
       (normalized == "WIPE" || normalized == "ENROLL" ||
-       normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
-       normalized.startsWith("CARD_WRITE_HEX:"))) {
+      normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
+      normalized == "CARD_ERASE" || normalized.startsWith("CARD_WRITE_HEX:"))) {
     Serial.println("ERROR: Host connection required for this command.");
     return;
   }
@@ -621,6 +621,9 @@ void handleCommand(String input) {
   // ── STOP ──────────────────────────────────────────────────────
   if (normalized == "STOP") {
     scanMode = false;
+    pendingCardWrite = "";
+    pendingCardWriteHex = false;
+    expectedCardWriteUid = "";
     ledReady();
     Serial.println("\n>> Switched to COMMAND MODE");
     printHelp();
@@ -705,6 +708,14 @@ void handleCommand(String input) {
       Serial.print(id);
       Serial.println(" (may not exist)");
     }
+    return;
+  }
+
+  if (normalized == "CARD_ERASE") {
+    pendingCardWriteHex = true;
+    pendingCardWrite = "00000000000000000000000000000000";
+    expectedCardWriteUid = "";
+    Serial.println("\n>> Card erase armed - tap a card now to clear its data.");
     return;
   }
 
