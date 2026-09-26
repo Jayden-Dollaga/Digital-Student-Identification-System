@@ -2773,6 +2773,79 @@ archive/legacy-ui/gui_qt_redesign/gui_qt/pages/dashboard_page.py
   └── def on_scan_event()
 ```
 
+
+### 2.3B Archive symbols — GUI redesign continuation
+
+```text
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/logs_page.py
+  ├── class LogsPage()
+  ├── def __init__()
+  └── def append_line()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/reports_page.py
+  ├── class ReportsPage()
+  ├── def __init__()
+  └── def on_export_clicked()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/settings_page.py
+  ├── class SettingsPage()
+  ├── def __init__()
+  └── def on_upload_firmware()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/students_page.py
+  ├── class StudentsPage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def on_enroll_clicked()
+  └── def on_delete_clicked()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/widgets/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/widgets/sidebar.py
+  ├── class Sidebar()
+  └── def __init__()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/widgets/stat_card.py
+  ├── class StatCard()
+  ├── def __init__()
+  └── def set_value()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/workers/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/workers/serial_worker.py
+  ├── class SerialWorker()
+  ├── def __init__()
+  ├── def run()
+  ├── def _read_loop()
+  ├── def stop()
+  ├── def _connect_stub()
+  ├── def _read_line_stub()
+  └── def _parse_stub()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/main_qt.py
+  ├── def load_stylesheet()
+  └── def main()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/main_window.py
+  ├── class MainWindow()
+  ├── def __init__()
+  ├── def switch_page()
+  ├── def on_connect_clicked()
+  ├── def on_connection_settings_changed()
+  ├── def on_connection_changed()
+  ├── def on_scan_event()
+  ├── def on_serial_error()
+  └── def closeEvent()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/__init__.py
+  └── [no class/function definitions detected]
+```
+
 ## 3. Architecture reading order
 
 ```text
