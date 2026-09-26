@@ -1810,6 +1810,39 @@ tools/serial_handler_connect_probe.py
   └── [no class/function definitions detected]
 ```
 
+
+### 2.1E Production symbols — final support tools
+
+```text
+tools/serial_pipeline_tester.py
+  ├── def format_bytes()
+  ├── def format_text()
+  ├── def inspect_port_settings()
+  ├── def capture_raw_lines()
+  ├── def print_section()
+  ├── def line_report()
+  ├── def find_token_evidence()
+  ├── def run_raw_capture()
+  ├── def parse_args()
+  └── def main()
+
+tools/serial_worker_probe.py
+  ├── def main()
+  ├── def on_connection_changed()
+  ├── def on_mode_changed()
+  ├── def on_scan_event()
+  ├── def on_raw_line()
+  ├── def on_enroll_progress()
+  ├── def on_wipe_progress()
+  ├── def on_error()
+  ├── def start_connect()
+  ├── def stop_and_exit()
+  └── def send_probe_commands()
+
+tools/verify_gui_startup.py
+  └── [no class/function definitions detected]
+```
+
 ### 2.2 Tests
 
 _Test symbol expansion follows._
