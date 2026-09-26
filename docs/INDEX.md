@@ -14,6 +14,7 @@ This is the documentation map for the maintained DSIS v3 HTML/pywebview applicat
 - [v3 system architecture](Architecture/v3-system-architecture.md)
 - [Complete DSIS system architecture](Architecture/complete-system-architecture.md)
 - [Full Project Architecture Tree & Symbol Map](generated/PROJECT_ARCHITECTURE_TREE.md)
+- [Visual Project Architecture Tree](generated/PROJECT_ARCHITECTURE_VISUAL_TREE.md)
 - [Software flow](Architecture/software-flow.md)
 - [pywebview bridge](Architecture/pywebview-bridge.md)
 - [Database schema](Architecture/database-schema.md)
