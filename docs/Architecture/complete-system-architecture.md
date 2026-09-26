@@ -4,7 +4,7 @@ This document is the whole-project architecture map for the maintained Digital S
 
 It is intentionally broader than the focused v3 architecture documents: it shows the repository as a connected system, from the user interface and Python backend down to the ESP32, AS608 fingerprint sensor, RC522 RFID reader, persistence, security, testing, build tooling, documentation, and historical version lineage.
 
-> **Scope:** Current maintained architecture, with archival and test branches included for context.
+> **Scope:** Current maintained architecture, with archival and test branches included for context. The documentation lineage requested for this rebuild starts at `f0b0074`; current branch HEAD is `84aea85`.
 >
 > **Current runtime:** v3 HTML/CSS/JavaScript UI rendered through pywebview, backed by Python and SQLite.
 >
@@ -1627,3 +1627,13 @@ That separation is the main reason the current DSIS design can grow without rebu
 - [pywebview Bridge](pywebview-bridge.md)
 
 For the repository-wide documentation map, see [docs/INDEX.md](../INDEX.md).
+
+---
+
+## Generated architecture cross-checks
+
+- The box-and-branch view is [DSIS Project Architecture — Visual Family Tree](../generated/PROJECT_ARCHITECTURE_VISUAL_TREE.md).
+- The exact path/function inventory is [Full Project Architecture Tree & Symbol Map](../generated/PROJECT_ARCHITECTURE_TREE.md).
+- The generated tree is cross-checked against the current Git tree and `audit/source_line_counts.csv`.
+- Current repository snapshot at the code-state baseline used for the rebuild: 884 tracked tree paths (783 files/blobs + 101 directories).
+- Current source audit: 305 source files and 51,143 physical lines (24,050 code, 19,132 comments, 7,961 blank).
