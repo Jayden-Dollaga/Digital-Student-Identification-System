@@ -1335,6 +1335,192 @@ python/gui_web/api.py
   └── def get_app_log()
 ```
 
+
+### 2.1C Production symbols — GUI, V2 references, profiler
+
+```text
+python/gui_web/main_web.py
+  ├── def _logo_path()
+  ├── def _handle_uncaught_exception()
+  ├── def _handle_thread_exception()
+  ├── def main()
+  └── def _on_closed()
+
+python/gui_web/perf_profiler.py
+  ├── class PerfProfiler()
+  ├── def __init__()
+  ├── def start()
+  ├── def stop()
+  ├── def report()
+  ├── def wrap()
+  ├── class _Context()
+  ├── def __enter__()
+  └── def __exit__()
+
+python/gui_web/v2_reference/gui_qt/__init__.py
+  └── [no class/function definitions detected]
+
+python/gui_web/v2_reference/gui_qt/main_qt.py
+  ├── def _handle_uncaught_exception()
+  ├── def _handle_thread_exception()
+  ├── def _on_app_about_to_quit()
+  ├── def _on_process_exit()
+  ├── def apply_base_style()
+  ├── def _build_palette()
+  ├── def apply_theme()
+  ├── def load_stylesheet()
+  └── def main()
+
+python/gui_web/v2_reference/gui_qt/main_window.py
+  ├── class MainWindow()
+  ├── def __init__()
+  ├── def _configure_auto_backup_timer()
+  ├── def _run_auto_backup_check()
+  ├── def switch_page()
+  ├── def _apply_role_permissions()
+  ├── def _set_connect_button_state()
+  ├── def on_connect_clicked()
+  ├── def on_connect_result()
+  ├── def on_connection_settings_changed()
+  ├── class _LogBridge()
+  ├── class _QtLogHandler()
+  ├── def emit()
+  ├── def _create_log_handler()
+  ├── def on_connection_changed()
+  ├── def on_scan_event()
+  ├── def on_serial_error()
+  ├── def on_scan_mode_changed()
+  ├── def _update_scan_toggle_button()
+  ├── def _set_scan_block_reason()
+  ├── def _clear_scan_block_reason()
+  ├── def _scan_command_blocked_reason()
+  ├── def _can_start_scan()
+  ├── def on_scan_toggle_clicked()
+  ├── def update_connection_metadata()
+  └── def closeEvent()
+
+python/gui_web/v2_reference/gui_qt/pages/__init__.py
+  └── [no class/function definitions detected]
+
+python/gui_web/v2_reference/gui_qt/pages/attendance_page.py
+  ├── class AttendancePage()
+  ├── def __init__()
+  ├── def _on_mode_changed()
+  ├── def _is_recent_mode()
+  ├── def _is_last_30_days_mode()
+  ├── def refresh()
+  ├── def _update_pagination_controls()
+  ├── def on_prev_clicked()
+  ├── def on_next_clicked()
+  ├── def _populate()
+  └── def on_scan_event()
+
+python/gui_web/v2_reference/gui_qt/pages/dashboard_page.py
+  ├── class DashboardPage()
+  ├── def __init__()
+  ├── def _format_item_text()
+  ├── def refresh()
+  ├── def refresh_dashboard()
+  └── def on_scan_event()
+
+python/gui_web/v2_reference/gui_qt/pages/logs_page.py
+  ├── class LogsPage()
+  ├── def __init__()
+  ├── def console()
+  ├── def monitor()
+  ├── def clear()
+  ├── def append_line()
+  ├── def append_serial_line()
+  ├── def append_record()
+  ├── def set_connection_state()
+  ├── def set_connection_info()
+  ├── def clear_app_log()
+  ├── def clear_monitor()
+  ├── def pause_monitor()
+  ├── def resume_monitor()
+  ├── def _set_auto_scroll()
+  ├── def send_command()
+  ├── def send_list_command()
+  ├── def reset_device()
+  ├── def _append_app_text()
+  └── def _append_serial_text()
+
+python/gui_web/v2_reference/gui_qt/pages/reports_page.py
+  ├── def _sanitize_csv_cell()
+  ├── class ReportsPage()
+  ├── def __init__()
+  ├── def refresh_backup_list()
+  ├── def refresh()
+  ├── def refresh_report()
+  ├── def on_export_clicked()
+  ├── def on_backup_clicked()
+  └── def on_restore_clicked()
+
+python/gui_web/v2_reference/gui_qt/pages/settings_page.py
+  ├── class SettingsPage()
+  ├── def __init__()
+  ├── def _section_label()
+  ├── def refresh()
+  ├── def refresh_connection_status()
+  ├── def _update_permissions_label()
+  ├── def _open_folder()
+  ├── def _apply_theme()
+  ├── def _populate_ports()
+  ├── def _forget_saved_port()
+  └── def on_save()
+
+python/gui_web/v2_reference/gui_qt/pages/students_page.py
+  ├── class EnrollmentState()
+  ├── class EnrollDialog()
+  ├── def __init__()
+  ├── def _show_field_validation_feedback()
+  ├── def _is_form_valid()
+  ├── def _on_form_changed()
+  ├── def _set_state()
+  ├── def _on_primary_action()
+  ├── def _start_enrollment()
+  ├── def _save_student()
+  ├── def _append_log_line()
+  ├── def on_enroll_progress()
+  ├── def _cleanup_before_close()
+  ├── def on_cancel()
+  ├── def get_values()
+  ├── def closeEvent()
+  ├── class StudentDetailsDialog()
+  ├── class WipeDialog()
+  ├── def on_confirm()
+  ├── def on_wipe_progress()
+  ├── def _show_done_state()
+  ├── class ConfirmDeleteDialog()
+  ├── def _send_next()
+  ├── def on_delete_progress()
+  ├── def _delete_local()
+  ├── def _finish()
+  ├── class StudentsPage()
+  ├── def refresh()
+  ├── def save_student_details()
+  ├── def on_enroll_clicked()
+  ├── def _selected_rows()
+  ├── def on_delete_clicked()
+  ├── def on_edit_clicked()
+  └── def on_wipe_clicked()
+
+python/gui_web/v2_reference/gui_qt/widgets/__init__.py
+  └── [no class/function definitions detected]
+
+python/gui_web/v2_reference/gui_qt/widgets/sidebar.py
+  ├── class Sidebar()
+  ├── def __init__()
+  ├── def set_compact()
+  ├── def is_compact()
+  └── def set_enabled_pages()
+
+python/gui_web/v2_reference/gui_qt/widgets/stat_card.py
+  ├── class StatCard()
+  ├── def __init__()
+  └── def set_value()
+```
+
 ### 2.2 Tests
 
 _Test symbol expansion follows._
