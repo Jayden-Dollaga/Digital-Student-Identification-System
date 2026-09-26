@@ -61,20 +61,21 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertEqual(result["fingerprint_id"], 0)
         self.assertEqual(result["status"], "UNKNOWN")
         self.assertTrue(result["logged"])
-        self.assertEqual(result["method"], "card")
-        self.assertIn("encrypted", result["reason"].lower())
+        self.assertEqual(result["method"], "fingerprint")
+        self.assertIsNone(result["reason"])
         self.assertEqual(len(logged), 1)
 
     def test_unreadable_card_preserves_firmware_reason(self):
         processor = AttendanceProcessor(log_attendance_fn=lambda *args: None)
         result = processor.process_line(
             '{"type":"attendance","event":"card_unreadable","uid":"04:F3:D8:19:45:02:89",'
-            '"reason":"Ultralight is not supported."}'
+            '"card_type":"TYPE2_144B_AMBIGUOUS","reason":"Ultralight variant is ambiguous."}'
         )
 
         self.assertEqual(result["method"], "card")
         self.assertEqual(result["uid"], "04:F3:D8:19:45:02:89")
-        self.assertEqual(result["reason"], "Ultralight is not supported.")
+        self.assertEqual(result["reason"], "Ultralight variant is ambiguous.")
+        self.assertEqual(result["card_type"], "TYPE2_144B_AMBIGUOUS")
 
     def test_card_payload_must_match_linked_student_and_uid(self):
         logged = []
@@ -223,11 +224,12 @@ class AttendanceProcessorTests(unittest.TestCase):
         )
 
         payload = rfid_card.encrypt_student_card_payload(11, "STUDENT-11", "AA:BB:CC:DD")
-        result = processor.process_line(f'{{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data_hex":"{payload}"}}')
+        result = processor.process_line(f'{{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","card_type":"MIFARE_1K","data_hex":"{payload}"}}')
 
         self.assertIsNotNone(result)
         self.assertEqual(result["fingerprint_id"], 11)
         self.assertEqual(result["method"], "card")
+        self.assertEqual(result["card_type"], "MIFARE_1K")
         self.assertEqual(result["status"], "GOOD MATCH")
 
     def test_active_rfid_register_session_skips_attendance_logging(self):
@@ -257,7 +259,8 @@ class AttendanceProcessorTests(unittest.TestCase):
              patch("gui_web.api.db.bind_student_card", return_value=(True, "Card registered.")) as bind_card, \
              patch.object(api, "_push") as push_mock:
             api._handle_rfid_session_card_event(
-                '{"type":"attendance","event":"card","uid":"AA:BB:CC:DD","data_hex":"00"}'
+                '{"type":"attendance","event":"card","uid":"AA:BB:CC:DD",'
+                '"card_type":"MIFARE_1K","data_hex":"00"}'
             )
 
             bind_card.assert_not_called()
@@ -265,7 +268,9 @@ class AttendanceProcessorTests(unittest.TestCase):
             self.assertEqual(api._rfid_pending_uid, "AA:BB:CC:DD")
 
             api._handle_rfid_session_card_event(
-                f'{{"type":"card_write","uid":"AA:BB:CC:DD","data_hex":"{payload_hex}","success":true}}'
+                f'{{"type":"card_write","uid":"AA:BB:CC:DD","card_type":"MIFARE_1K",'
+                f'"operation":"write","event":"write_verified","data_hex":"{payload_hex}",'
+                f'"success":true,"verified":true}}'
             )
 
         bind_card.assert_called_once_with(7, "AA:BB:CC:DD")
@@ -285,7 +290,8 @@ class AttendanceProcessorTests(unittest.TestCase):
         api._rfid_pending_payload_hex = "AB" * 48
         with patch("gui_web.api.db.bind_student_card") as bind_card, patch.object(api, "_push") as push_mock:
             api._handle_rfid_session_card_event(
-                '{"type":"card_write","uid":"AA:BB:CC:DD","data_hex":"0000","success":false}'
+                '{"type":"card_write","uid":"AA:BB:CC:DD","operation":"write",'
+                '"event":"write_verified","data_hex":"' + "AB" * 48 + '","success":true,"verified":false}'
             )
 
         bind_card.assert_not_called()
@@ -321,7 +327,8 @@ class AttendanceProcessorTests(unittest.TestCase):
                 log_attendance_mock.assert_not_called()
 
                 handled = api._handle_rfid_session_card_event(
-                    '{"type":"card_write","uid":"E1:F9:40:66","data_hex":"00000000000000000000000000000000","success":true}'
+                    '{"type":"card_write","uid":"E1:F9:40:66","card_type":"MIFARE_1K",'
+                    '"operation":"erase","event":"erase_verified","data_hex":"' + "00" * 48 + '","success":true,"verified":true}'
                 )
                 self.assertTrue(handled)
                 self.assertEqual(api._batch_rfid_erase_count, 1)
@@ -329,7 +336,75 @@ class AttendanceProcessorTests(unittest.TestCase):
         finally:
             permissions.set_session_role("guest")
 
-    def test_card_cooldown_blocks_same_student_from_double_logging(self):
+    def test_batch_rfid_erase_does_not_unlink_without_verified_zero_readback(self):
+        api = Api()
+        api._batch_rfid_erase_active = True
+        api._batch_rfid_erase_unlink = True
+        api._batch_rfid_erase_waiting_uid = "E1:F9:40:66"
+        with patch.object(db, "get_student_by_card_uid", return_value={"fingerprint_id": 7}) as find_student, \
+             patch.object(db, "clear_student_card") as clear_card, \
+             patch.object(api, "_push") as push_mock:
+            handled = api._handle_rfid_session_card_event(
+                '{"type":"card_write","uid":"E1:F9:40:66","card_type":"MIFARE_1K",'
+                '"operation":"erase","event":"failed","data_hex":"' + "00" * 48 + '","success":true,"verified":false}'
+            )
+
+        self.assertTrue(handled)
+        find_student.assert_not_called()
+        clear_card.assert_not_called()
+        self.assertEqual(push_mock.call_args.args[1]["event"], "skipped")
+
+    def test_batch_rfid_erase_requires_uid_even_when_payload_is_verified(self):
+        api = Api()
+        api._batch_rfid_erase_active = True
+        api._batch_rfid_erase_unlink = True
+        with patch.object(db, "get_student_by_card_uid") as find_student, patch.object(api, "_push") as push_mock:
+            handled = api._handle_rfid_session_card_event(
+                '{"type":"card_write","card_type":"MIFARE_1K","operation":"erase",'
+                '"event":"erase_verified","data_hex":"' + "00" * 48 + '","success":true,"verified":true}'
+            )
+
+        self.assertTrue(handled)
+        find_student.assert_not_called()
+        self.assertEqual(push_mock.call_args.args[1]["event"], "skipped")
+
+    def test_batch_rfid_erase_rejects_nonzero_readback(self):
+        api = Api()
+        api._batch_rfid_erase_active = True
+        api._batch_rfid_erase_unlink = True
+        api._batch_rfid_erase_waiting_uid = "E1:F9:40:66"
+        with patch.object(db, "get_student_by_card_uid") as find_student, patch.object(api, "_push") as push_mock:
+            handled = api._handle_rfid_session_card_event(
+                '{"type":"card_write","uid":"E1:F9:40:66","operation":"erase",'
+                '"event":"erase_verified","data_hex":"' + "FF" * 48 + '","success":true,"verified":true}'
+            )
+
+        self.assertTrue(handled)
+        find_student.assert_not_called()
+        self.assertEqual(push_mock.call_args.args[1]["event"], "skipped")
+
+    def test_batch_rfid_erase_unlinks_after_verified_zero_readback(self):
+        api = Api()
+        api._batch_rfid_erase_active = True
+        api._batch_rfid_erase_unlink = True
+        api._batch_rfid_erase_waiting_uid = "E1:F9:40:66"
+        api._batch_rfid_erase_waiting_card_type = "MIFARE_1K"
+        student = {"fingerprint_id": 7}
+        with patch.object(db, "get_student_by_card_uid", return_value=student) as find_student, \
+             patch.object(db, "clear_student_card", return_value=(True, "Student card cleared.")) as clear_card, \
+             patch.object(api, "_push") as push_mock:
+            handled = api._handle_rfid_session_card_event(
+                '{"type":"card_write","uid":"E1:F9:40:66","card_type":"MIFARE_1K",'
+                '"operation":"erase","event":"erase_verified","data_hex":"' + "00" * 48 + '",'
+                '"success":true,"verified":true}'
+            )
+
+        self.assertTrue(handled)
+        find_student.assert_called_once_with("E1:F9:40:66")
+        clear_card.assert_called_once_with(7)
+        self.assertEqual(push_mock.call_args.args[1]["event"], "erased")
+
+    def test_invalid_card_payload_is_unknown_even_when_uid_is_linked(self):
         logged = []
         student_record = {
             "fingerprint_id": 9,
@@ -357,8 +432,11 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertIsNotNone(first)
         self.assertTrue(first["logged"])
         self.assertIsNotNone(second)
-        self.assertFalse(second["logged"])
-        self.assertEqual(len(logged), 1)
+        self.assertTrue(second["logged"])
+        self.assertEqual(second["fingerprint_id"], 0)
+        self.assertEqual(second["method"], "card")
+        self.assertEqual(len(logged), 2)
+        self.assertEqual(logged[-1][0], 0)
 
     def test_bind_student_card_rejects_claimed_uid(self):
         with patch.object(db, "DB_PATH", str(Path(__file__).resolve().parent / "tmp_card_claim_test.db")):

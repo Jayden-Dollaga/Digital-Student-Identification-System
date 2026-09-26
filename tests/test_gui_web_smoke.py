@@ -94,6 +94,10 @@ def test_rfid_registration_waits_for_verified_write_result():
     assert "payload.event === 'saved'" in script
     assert "bindPendingCardFromScan" not in script
     assert "Write and verify" in script
+    assert "payload.card_type" in script
+    assert "Verified erase" in script
+    assert "payload.card_type" in script
+    assert "Verified erase" in script
 
 
 def test_student_refresh_preserves_the_selected_fingerprint():

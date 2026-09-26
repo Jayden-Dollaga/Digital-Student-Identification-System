@@ -747,20 +747,21 @@ function handleScanResult(payload) {
     const status = batchRfidEraseModal.querySelector('#batch-rfid-status');
     const count = batchRfidEraseModal.querySelector('#batch-rfid-count');
     const uid = payload.uid || 'unknown card';
+    const family = payload.card_type ? ` (${payload.card_type})` : '';
     if (payload.event === 'erased') {
       if (status) {
-        status.textContent = `Erased ${payload.count}: ${uid}`;
+        status.textContent = `${payload.reason || `Verified erase ${payload.count}`}: ${uid}${family}`;
         status.className = 'rfid-modal-status success';
       }
       if (count) count.textContent = `Cards erased: ${payload.count}`;
     } else if (payload.event === 'skipped') {
       if (status) {
-        status.textContent = `Skipped (not this tool / unreadable): ${uid}`;
+        status.textContent = `${payload.reason || 'Erase not verified; student link retained.'}: ${uid}${family}`;
         status.className = 'rfid-modal-status error';
       }
     } else if (payload.event === 'armed') {
       if (status) {
-        status.textContent = `Waiting for the same card: ${uid}`;
+        status.textContent = `Waiting for the same card: ${uid}${family}`;
         status.className = 'rfid-modal-status active';
       }
     }
@@ -771,6 +772,7 @@ function handleScanResult(payload) {
     const primary = manageRfidModal.querySelector('#rfid-modal-primary');
     const unlink = manageRfidModal.querySelector('#rfid-modal-unlink');
     const modeCue = manageRfidModal.querySelector('#rfid-mode-cue');
+    const family = payload.card_type ? ` (${payload.card_type})` : '';
     if (payload.event === 'checking') {
       setManageRfidProgress(2);
     } else if (payload.event === 'writing') {
@@ -791,7 +793,7 @@ function handleScanResult(payload) {
         modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
       }
       if (status) {
-        status.textContent = payload.reason || 'Encrypted card verified and saved.';
+        status.textContent = `${payload.reason || 'Encrypted card verified and saved.'}${family}`;
         status.className = 'rfid-modal-status success';
       }
       loadStudentsPage();
@@ -802,20 +804,21 @@ function handleScanResult(payload) {
       return;
     }
     if (status) {
-      status.textContent = payload.reason || 'Could not register this card.';
+      status.textContent = `${payload.reason || 'Could not register this card.'}${family}`;
       status.className = 'rfid-modal-status ' + (payload.event === 'error' ? 'error' : 'active');
     }
     return;
   }
 
   const student = payload.student || {};
-  const unknownName = payload.method === 'card' ? 'Unknown RFID card' : 'Unknown data';
+  const cardFamily = payload.card_type ? ` (${payload.card_type})` : '';
+  const unknownName = payload.method === 'card' ? `Unknown RFID card${cardFamily}` : 'Unknown data';
   const isUnknown = payload.status === 'UNKNOWN';
   const name = isUnknown ? unknownName : (student.student_name || `Fingerprint #${payload.fingerprint_id}`);
   const detail = student.student_no
     ? `${student.student_no} \u00b7 Grade ${student.grade || '?'} \u2014 ${student.section || '?'}`
     : (payload.reason || 'No matching student record');
-  const meta = payload.method === 'card' && payload.uid ? `UID ${payload.uid} \u00b7 ${detail}` : detail;
+  const meta = payload.method === 'card' && payload.uid ? `UID ${payload.uid}${cardFamily} \u00b7 ${detail}` : detail;
   const now = payload.timestamp ? new Date(payload.timestamp) : new Date();
   const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 

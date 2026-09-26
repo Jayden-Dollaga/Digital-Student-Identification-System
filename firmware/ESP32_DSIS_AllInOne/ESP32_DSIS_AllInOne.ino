@@ -80,6 +80,9 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <string.h>
+#include "src/rfid/CardDetector.h"
+#include "src/rfid/ClassicAdapter.h"
+#include "src/rfid/Type2Adapter.h"
 
 #define FINGERPRINT_RX        14    // orange wire (sensor TX) connects here
 #define FINGERPRINT_TX        27    // white wire  (sensor RX) connects here
@@ -132,69 +135,9 @@ MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 MFRC522::MIFARE_Key rfidKey;
 String pendingCardWrite = "";   // set by CARD_WRITE_HEX, consumed on next tap
 bool pendingCardWriteHex = false;
+bool pendingCardErase = false;
 String expectedCardWriteUid = "";
 bool pendingKeyCheck = false;   // set by CARD_KEYCHECK, consumed on next tap
-
-// Known MIFARE Classic Key A candidates, tried in order until one authenticates
-// the sector containing RFID_BLOCK_NUM. Index 0 must stay the factory default
-// (0xFF*6) since that's what freshly-issued/blank cards use; the rest cover
-// cards that third-party NFC apps (e.g. NFC Tools / WdNFC) have reformatted.
-static const byte RFID_KEY_CANDIDATES[][6] = {
-  {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},  // factory default (try first, most common)
-  {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7},  // NFC Forum / MIFARE Classic NDEF key (NFC Tools default)
-  {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5},  // MAD (MIFARE Application Directory) key
-  {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5},  // NDEF sector trailer alt key
-  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // all-zero
-  {0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6},  // common "transport" key
-  {0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6},
-  {0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD},  // NXP MAD Key B variant
-  {0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A},  // NXP proprietary (seen in Mifare Classic Tool dict)
-  {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF},  // common test/dev key
-  {0x71, 0x4C, 0x5C, 0x88, 0x6E, 0x97},  // seen in transit-card dictionaries
-  {0x58, 0x7E, 0xE5, 0xF9, 0x35, 0x0F},
-  {0xA0, 0x47, 0x8C, 0xC3, 0x90, 0x91},
-  {0x53, 0x3C, 0xB6, 0xC7, 0x23, 0xF6},
-  {0x89, 0xEC, 0xA9, 0x40, 0x0E, 0xB1},
-  {0x5C, 0x59, 0x87, 0x2F, 0x54, 0xC2},
-  {0xE9, 0x64, 0x24, 0x9A, 0xEE, 0x8A},
-  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05},  // sequential dummy key, seen in cheap writer apps
-  {0x01, 0x01, 0x01, 0x01, 0x01, 0x01},
-  {0x11, 0x11, 0x11, 0x11, 0x11, 0x11},
-  {0x12, 0x34, 0x56, 0x78, 0x90, 0xAB},
-  {0x12, 0x34, 0x56, 0xAB, 0xCD, 0xEF},
-  // --- Extended set: rest of the common public MIFARE Classic dictionary
-  // (the same pool tools like mfoc / MIFARE Classic Tool ship with) ---
-  {0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-  {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF},
-  {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00},
-  {0xA6, 0x2A, 0x24, 0x88, 0x6C, 0x08},
-  {0xE2, 0x50, 0x9C, 0x1D, 0x23, 0x14},
-  {0x1B, 0x33, 0x99, 0x33, 0x33, 0x33},
-  {0x51, 0x93, 0x63, 0x45, 0x9A, 0x0D},
-  {0xD0, 0x1A, 0xFC, 0x9E, 0x63, 0x8F},
-  {0x8F, 0xD0, 0xA4, 0xF2, 0x56, 0xE9},
-  {0xC0, 0x86, 0x6D, 0x8D, 0x9C, 0xC7},
-  {0x25, 0x99, 0x36, 0x20, 0x42, 0xAB},
-  {0x64, 0x80, 0x60, 0x71, 0x28, 0x82},
-  {0x49, 0x39, 0x4E, 0x4A, 0x62, 0x20},
-  {0x69, 0x41, 0xAE, 0x24, 0x1D, 0x9D},
-  {0xEC, 0x00, 0x6A, 0xCB, 0x8F, 0x31},
-  {0xB5, 0xFF, 0x67, 0xCB, 0xA9, 0x51},
-  {0xEE, 0x0A, 0xC1, 0x2C, 0xE5, 0x1E},
-  {0x36, 0x90, 0xF5, 0x28, 0xE9, 0x3A},
-  {0x90, 0xC3, 0x1F, 0xF1, 0x9A, 0xE7},
-  {0xF1, 0x24, 0xC2, 0x63, 0x8C, 0xD9},
-  {0x8A, 0x19, 0x9F, 0x6C, 0xAF, 0xDA},
-  {0x8F, 0x79, 0x9A, 0x27, 0x8A, 0xE4},
-  {0x2A, 0x2C, 0x13, 0xCC, 0x24, 0x2A},
-  {0x77, 0x77, 0x77, 0x77, 0x77, 0x77},
-  {0x99, 0x99, 0x99, 0x99, 0x99, 0x99},
-  {0x12, 0x12, 0x12, 0x12, 0x12, 0x12},
-  {0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B},
-  {0x4F, 0x45, 0x4E, 0x44, 0x45, 0x54},  // "OENDET"-style ASCII key seen in the wild
-};
-static const byte RFID_KEY_CANDIDATE_COUNT =
-    sizeof(RFID_KEY_CANDIDATES) / sizeof(RFID_KEY_CANDIDATES[0]);
 
 byte hexValue(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -360,29 +303,43 @@ String bytesToHex(const byte *data, byte length) {
   return out;
 }
 
-void emitJsonCardMatch(const String &uidStr, const String &dataHex) {
-  Serial.print("{\"type\":\"attendance\",\"event\":\"card\",\"uid\":\"");
+void emitJsonCardMatch(const String &uidStr, const String &dataHex, const String &cardType) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"card\",\"card_type\":\"");
+  Serial.print(cardType);
+  Serial.print("\",\"uid\":\"");
   Serial.print(uidStr);
   Serial.print("\",\"data_hex\":\"");
   Serial.print(dataHex);
   Serial.println("\"}");
 }
 
-void emitJsonCardUnreadable(const String &uidStr, const String &reason) {
-  Serial.print("{\"type\":\"attendance\",\"event\":\"card_unreadable\",\"uid\":\"");
+void emitJsonCardUnreadable(const String &uidStr, const String &cardType, const String &reason) {
+  Serial.print("{\"type\":\"attendance\",\"event\":\"card_unreadable\",\"card_type\":\"");
+  Serial.print(cardType);
+  Serial.print("\",\"uid\":\"");
   Serial.print(uidStr);
   Serial.print("\",\"reason\":\"");
   Serial.print(reason);
   Serial.println("\"}");
 }
 
-void emitJsonCardWriteResult(const String &uidStr, const String &dataHex, bool success) {
+void emitJsonCardWriteResult(const String &uidStr, const String &dataHex, const String &cardType, const String &operation, bool success) {
   Serial.print("{\"type\":\"card_write\",\"uid\":\"");
   Serial.print(uidStr);
+  Serial.print("\",\"card_type\":\"");
+  Serial.print(cardType);
+  Serial.print("\",\"operation\":\"");
+  Serial.print(operation);
   Serial.print("\",\"data_hex\":\"");
   Serial.print(dataHex);
   Serial.print("\",\"success\":");
   Serial.print(success ? "true" : "false");
+  Serial.print(",\"verified\":");
+  Serial.print(success ? "true" : "false");
+  Serial.print(",\"event\":\"");
+  if (!success) Serial.print("failed");
+  else Serial.print(operation == "erase" ? "erase_verified" : "write_verified");
+  Serial.print("\"");
   Serial.println("}");
 }
 
@@ -396,7 +353,7 @@ void emitJsonCardKeyCheck(const String &uidStr, int keyIndex) {
   Serial.print(keyIndex);
   if (keyIndex >= 0) {
     Serial.print(",\"key_hex\":\"");
-    Serial.print(bytesToHex(RFID_KEY_CANDIDATES[keyIndex], 6));
+    Serial.print(bytesToHex(classicKeyCandidate(keyIndex), 6));
     Serial.print("\"");
   }
   Serial.println("}");
@@ -703,6 +660,7 @@ void handleCommand(String input) {
     scanMode = false;
     pendingCardWrite = "";
     pendingCardWriteHex = false;
+    pendingCardErase = false;
     expectedCardWriteUid = "";
     ledReady();
     Serial.println("\n>> Switched to COMMAND MODE");
@@ -793,6 +751,7 @@ void handleCommand(String input) {
 
   if (normalized == "CARD_ERASE") {
     pendingCardWriteHex = true;
+    pendingCardErase = true;
     pendingCardWrite = "";
     for (byte i = 0; i < 96; i++) pendingCardWrite += '0';
     expectedCardWriteUid = "";
@@ -821,6 +780,7 @@ void handleCommand(String input) {
       }
     }
     pendingCardWriteHex = true;
+    pendingCardErase = false;
     pendingCardWrite = payloadText;
     Serial.print("\n>> Card write armed (hex): \"");
     Serial.print(pendingCardWrite);
@@ -1045,49 +1005,6 @@ void scanFinger() {
 //  RFID CARD (RC522)
 // ==============================================================================
 
-// Tries each candidate key against RFID_BLOCK_NUM until one authenticates.
-// On success, rfidKey is left holding the winning key (so MIFARE_Write/Read
-// right after this call reuse it), matchedIndex (if given) is set to the
-// winning candidate's index, and returns true. Returns false if none of the
-// candidates work (card is genuinely unreadable by this tool).
-bool authenticateCardAnyKey(String &uidStr, int *matchedIndex) {
-  for (byte i = 0; i < RFID_KEY_CANDIDATE_COUNT; i++) {
-    for (byte b = 0; b < 6; b++) rfidKey.keyByte[b] = RFID_KEY_CANDIDATES[i][b];
-
-    MFRC522::StatusCode status = rfid.PCD_Authenticate(
-        MFRC522::PICC_CMD_MF_AUTH_KEY_A, RFID_BLOCK_NUM, &rfidKey, &(rfid.uid));
-
-    if (status == MFRC522::STATUS_OK) {
-      if (i > 0) {
-        Serial.print("\n>> Card authenticated with alternate key #");
-        Serial.println(i);
-      }
-      if (matchedIndex != nullptr) *matchedIndex = i;
-      return true;
-    }
-
-    // Reselect the same tag between key attempts; REQA does not wake a halted card.
-    rfid.PICC_HaltA();
-    rfid.PCD_StopCrypto1();
-    if (i + 1 < RFID_KEY_CANDIDATE_COUNT) {
-      byte atqa[2];
-      byte atqaSize = sizeof(atqa);
-      MFRC522::StatusCode wakeStatus = rfid.PICC_WakeupA(atqa, &atqaSize);
-      if ((wakeStatus != MFRC522::STATUS_OK && wakeStatus != MFRC522::STATUS_COLLISION) ||
-          !rfid.PICC_ReadCardSerial() || uidToString(&rfid.uid) != uidStr) {
-        break;
-      }
-    }
-  }
-  if (matchedIndex != nullptr) *matchedIndex = -1;
-  return false;
-}
-
-// Convenience overload for callers that don't need to know which key matched.
-bool authenticateCardAnyKey(String &uidStr) {
-  return authenticateCardAnyKey(uidStr, nullptr);
-}
-
 void scanCard() {
   bool cardPresent = false;
   if (pendingCardWrite.length() > 0 && expectedCardWriteUid.length() > 0) {
@@ -1103,11 +1020,15 @@ void scanCard() {
 
   String uidStr = uidToString(&rfid.uid);
 
-  MFRC522::PICC_Type piccType = rfid.PICC_GetType(rfid.uid.sak);
-  if (piccType != MFRC522::PICC_TYPE_MIFARE_1K) {
+  RfidCardDescriptor card = detectRfidCard(rfid);
+  String cardType = card.cardType;
+  bool type2Card = card.piccType == MFRC522::PICC_TYPE_MIFARE_UL;
+  if (!card.supported) {
+    String reason = cardType == "TYPE2_144B_AMBIGUOUS"
+        ? "144-byte Type 2 card is ambiguous between Ultralight variants; authenticated support is not enabled."
+        : "No verified storage adapter for this card type. Supported: Classic Mini/1K/4K, Ultralight 48-byte, NTAG215, and NTAG216.";
     emitJsonCardUnreadable(
-        uidStr,
-        "Unsupported card type. Use writable MIFARE Classic 1K; Ultralight/Ultralight C is not supported.");
+        uidStr, cardType, reason);
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
     return;
@@ -1115,14 +1036,20 @@ void scanCard() {
 
   if (pendingKeyCheck) {
     pendingKeyCheck = false;
+    if (type2Card) {
+      emitJsonCardKeyCheck(uidStr, -1);
+      rfid.PICC_HaltA();
+      rfid.PCD_StopCrypto1();
+      return;
+    }
     int matchedIndex = -1;
-    bool ok = authenticateCardAnyKey(uidStr, &matchedIndex);
+    bool ok = authenticateClassicCard(rfid, rfidKey, RFID_BLOCK_NUM, &matchedIndex);
     emitJsonCardKeyCheck(uidStr, ok ? matchedIndex : -1);
     if (ok) {
       Serial.print("\n>> Key check: card unlocked by key #");
       Serial.print(matchedIndex);
       Serial.print(" (");
-      Serial.print(bytesToHex(RFID_KEY_CANDIDATES[matchedIndex], 6));
+      Serial.print(bytesToHex(classicKeyCandidate(matchedIndex), 6));
       Serial.println(")");
     } else {
       Serial.println("\n>> Key check: none of the known keys unlocked this card.");
@@ -1132,21 +1059,20 @@ void scanCard() {
     return;
   }
 
-  if (!authenticateCardAnyKey(uidStr)) {
-    emitJsonCardUnreadable(uidStr, "MIFARE Classic 1K authentication failed; sector-1 key may not be supported.");
+  if (!type2Card && !authenticateClassicCard(rfid, rfidKey, RFID_BLOCK_NUM)) {
+    emitJsonCardUnreadable(uidStr, cardType, "MIFARE Classic authentication failed; sector-1 key may not be supported.");
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
     return;
   }
 
-  MFRC522::StatusCode status;
-
   if (pendingCardWrite.length() > 0) {
     if (pendingCardWriteHex && expectedCardWriteUid.length() > 0 && uidStr != expectedCardWriteUid) {
-      emitJsonCardWriteResult(uidStr, pendingCardWrite, false);
+      emitJsonCardWriteResult(uidStr, pendingCardWrite, cardType, pendingCardErase ? "erase" : "write", false);
       Serial.println("\n>> Card write skipped: UID did not match the tapped card.");
       pendingCardWrite = "";
       pendingCardWriteHex = false;
+      pendingCardErase = false;
       expectedCardWriteUid = "";
       rfid.PICC_HaltA();
       rfid.PCD_StopCrypto1();
@@ -1162,51 +1088,34 @@ void scanCard() {
     }
 
     bool success = pendingCardWriteHex;
-    for (byte blockOffset = 0; success && blockOffset < 3; blockOffset++) {
-      byte block = RFID_BLOCK_NUM + blockOffset;
-      byte *blockData = payloadBuffer + (blockOffset * 16);
-      status = rfid.MIFARE_Write(block, blockData, 16);
-      if (status != MFRC522::STATUS_OK) {
-        success = false;
-        break;
-      }
-
-      byte verifyBuffer[18];
-      byte verifySize = sizeof(verifyBuffer);
-      status = rfid.MIFARE_Read(block, verifyBuffer, &verifySize);
-      if (status != MFRC522::STATUS_OK || memcmp(blockData, verifyBuffer, 16) != 0) {
-        success = false;
-      }
+    if (success) {
+      success = type2Card
+          ? writeType2Payload(rfid, payloadBuffer)
+          : writeClassicPayload(rfid, RFID_BLOCK_NUM, payloadBuffer);
     }
     String dataHex = pendingCardWrite;
-    emitJsonCardWriteResult(uidStr, dataHex, success);
+    String operation = pendingCardErase ? "erase" : "write";
+    emitJsonCardWriteResult(uidStr, dataHex, cardType, operation, success);
 
     Serial.println(success ? "\n>> Card write and readback SUCCESS." : "\n>> Card write or readback FAILED.");
 
     pendingCardWrite = "";
     pendingCardWriteHex = false;
+    pendingCardErase = false;
     expectedCardWriteUid = "";
   } else {
     byte payloadBuffer[48];
-    bool readSuccess = true;
-    for (byte blockOffset = 0; blockOffset < 3; blockOffset++) {
-      byte blockBuffer[18];
-      byte size = sizeof(blockBuffer);
-      status = rfid.MIFARE_Read(RFID_BLOCK_NUM + blockOffset, blockBuffer, &size);
-      if (status != MFRC522::STATUS_OK) {
-        readSuccess = false;
-        break;
-      }
-      memcpy(payloadBuffer + (blockOffset * 16), blockBuffer, 16);
-    }
+    bool readSuccess = type2Card
+        ? readType2Payload(rfid, payloadBuffer)
+        : readClassicPayload(rfid, RFID_BLOCK_NUM, payloadBuffer);
 
     if (readSuccess) {
       String result = bytesToHex(payloadBuffer, sizeof(payloadBuffer));
       expectedCardWriteUid = uidStr;
       ledSuccess();
-      emitJsonCardMatch(uidStr, result);
+      emitJsonCardMatch(uidStr, result, cardType);
     } else {
-      emitJsonCardUnreadable(uidStr, "MIFARE Classic 1K data blocks 4-6 could not be read.");
+      emitJsonCardUnreadable(uidStr, cardType, "Card payload storage could not be read.");
     }
   }
 

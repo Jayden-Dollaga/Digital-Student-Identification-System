@@ -39,6 +39,7 @@ class ScanResult(TypedDict, total=False):
     method: str
     uid: Optional[str]
     data: Optional[str]
+    card_type: Optional[str]
 
 
 @dataclass
@@ -52,6 +53,7 @@ class ScanOutcome:
     method: str = "fingerprint"
     uid: Optional[str] = None
     data: Optional[str] = None
+    card_type: Optional[str] = None
 
     def to_dict(self) -> ScanResult:
         return asdict(self)
@@ -100,17 +102,19 @@ class AttendanceProcessor:
                     return self._handle_json_match_scan(fingerprint_id, confidence)
                 if event == "card":
                     uid = parsed_json.get("uid")
+                    card_type = parsed_json.get("card_type")
                     data = parsed_json.get("data")
                     if data is None:
                         data = parsed_json.get("data_hex")
                     if not uid:
                         return None
-                    return self._handle_card_scan(str(uid), data)
+                    return self._handle_card_scan(str(uid), data, str(card_type) if card_type else None)
                 if event == "card_unreadable":
                     uid = parsed_json.get("uid")
                     return self._handle_unknown_card_scan(
                         str(uid) if uid else None,
                         str(parsed_json.get("reason") or "The RFID card could not be read or authenticated."),
+                        str(parsed_json.get("card_type")) if parsed_json.get("card_type") else None,
                     )
                 if event == "unknown":
                     self.current_id = None
@@ -207,6 +211,7 @@ class AttendanceProcessor:
         self,
         uid: Optional[str],
         reason: str = "Card is unlinked or its encrypted payload is invalid.",
+        card_type: Optional[str] = None,
     ) -> ScanResult:
         now = datetime.now()
         fingerprint_id = 0
@@ -220,6 +225,7 @@ class AttendanceProcessor:
                 reason=self._cooldown_reason(fingerprint_id, now),
                 method="card",
                 uid=uid,
+                card_type=card_type,
             ).to_dict()
 
         try:
@@ -233,6 +239,7 @@ class AttendanceProcessor:
                 reason=reason,
                 method="card",
                 uid=uid,
+                card_type=card_type,
             ).to_dict()
         except Exception as exc:
             log.error(f"Failed to log unknown-card scan: {exc}")
@@ -245,19 +252,22 @@ class AttendanceProcessor:
                 reason="Could not record unknown card scan.",
                 method="card",
                 uid=uid,
+                card_type=card_type,
             ).to_dict()
 
-    def _handle_card_scan(self, uid: str, data: Optional[str]) -> Optional[ScanResult]:
+    def _handle_card_scan(self, uid: str, data: Optional[str], card_type: Optional[str] = None) -> Optional[ScanResult]:
         now = datetime.now()
         normalized_uid = normalize_card_uid(uid)
         if not normalized_uid:
-            return self._handle_unknown_card_scan(uid, "Card UID is invalid.")
+            return self._handle_unknown_card_scan(uid, "Card UID is invalid.", card_type)
         if not data:
-            return self._handle_unknown_card_scan(uid, "Card does not contain an encrypted DSIS payload.")
+            return self._handle_unknown_card_scan(uid, "Card does not contain an encrypted DSIS payload.", card_type)
         decoded = decrypt_student_card_payload(str(data), normalized_uid)
         if decoded is None:
             return self._handle_unknown_card_scan(
-                uid, "Card payload is invalid, tampered, or encrypted for a different UID."
+                uid,
+                "Card payload is invalid, tampered, or encrypted for a different UID.",
+                card_type,
             )
         fingerprint_id, student_no = decoded
         student = self.lookup_student(fingerprint_id)
@@ -267,7 +277,9 @@ class AttendanceProcessor:
             or normalize_card_uid(student.get("card_uid")) != normalized_uid
         ):
             return self._handle_unknown_card_scan(
-                uid, "Encrypted card identity does not match a student linked to this UID."
+                uid,
+                "Encrypted card identity does not match a student linked to this UID.",
+                card_type,
             )
 
         fingerprint_id = int(student["fingerprint_id"])
@@ -288,6 +300,7 @@ class AttendanceProcessor:
                 method="card",
                 uid=uid,
                 data=data,
+                card_type=card_type,
             ).to_dict()
 
         try:
@@ -302,6 +315,7 @@ class AttendanceProcessor:
                 method="card",
                 uid=uid,
                 data=data,
+                card_type=card_type,
             ).to_dict()
         except Exception as exc:
             log.error(f"Failed to log card attendance for {uid}: {exc}")

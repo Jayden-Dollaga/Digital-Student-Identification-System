@@ -194,9 +194,11 @@ class Api:
         self._rfid_pending_uid: Optional[str] = None
         self._rfid_pending_fingerprint_id: Optional[int] = None
         self._rfid_pending_payload_hex: Optional[str] = None
+        self._rfid_pending_card_type: Optional[str] = None
         self._batch_rfid_erase_active = False
         self._batch_rfid_erase_was_scanning = False
         self._batch_rfid_erase_waiting_uid: Optional[str] = None
+        self._batch_rfid_erase_waiting_card_type: Optional[str] = None
         self._batch_rfid_erase_unlink = False
         self._batch_rfid_erase_count = 0
         self._reconnect_help_emitted = False
@@ -494,6 +496,7 @@ class Api:
         self._batch_rfid_erase_active = True
         self._batch_rfid_erase_was_scanning = self._scanning
         self._batch_rfid_erase_waiting_uid = None
+        self._batch_rfid_erase_waiting_card_type = None
         self._batch_rfid_erase_unlink = bool(unlink_registered)
         self._batch_rfid_erase_count = 0
         if not self._batch_rfid_erase_was_scanning:
@@ -520,6 +523,7 @@ class Api:
         was_scanning = self._batch_rfid_erase_was_scanning
         self._batch_rfid_erase_active = False
         self._batch_rfid_erase_waiting_uid = None
+        self._batch_rfid_erase_waiting_card_type = None
         self._batch_rfid_erase_unlink = False
         self._batch_rfid_erase_count = 0
         if self.serial.is_connected():
@@ -532,7 +536,13 @@ class Api:
             return {"ok": ok, "message": "RFID erase session closed." if ok else "Could not stop RFID card listening."}
         return {"ok": True, "message": "RFID erase session closed."}
 
-    def _push_batch_erase_result(self, event: str, uid: Optional[str], message: str = "") -> None:
+    def _push_batch_erase_result(
+        self,
+        event: str,
+        uid: Optional[str],
+        message: str = "",
+        card_type: Optional[str] = None,
+    ) -> None:
         self._push("scan_result", {
             "fingerprint_id": 0,
             "confidence": 0,
@@ -543,6 +553,7 @@ class Api:
             "student": {},
             "method": "batch_rfid_erase",
             "uid": uid,
+            "card_type": card_type,
             "event": event,
             "count": self._batch_rfid_erase_count,
         })
@@ -552,38 +563,62 @@ class Api:
             return False
         event_type = parsed.get("type")
         uid = str(parsed.get("uid") or "").strip().upper() or None
+        card_type = str(parsed.get("card_type") or "UNKNOWN")
 
         if event_type == "card_write":
             waiting_uid = self._batch_rfid_erase_waiting_uid
             self._batch_rfid_erase_waiting_uid = None
-            if waiting_uid and uid != waiting_uid:
-                self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+            waiting_card_type = self._batch_rfid_erase_waiting_card_type
+            self._batch_rfid_erase_waiting_card_type = None
+            if not uid:
+                self._push_batch_erase_result("skipped", None, "Erase result did not include a card UID; no student link was changed.", card_type)
                 return True
-            if not parsed.get("success"):
-                self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+            if waiting_uid and uid != waiting_uid:
+                self._push_batch_erase_result("skipped", uid, "Erase verification returned a different card UID.", card_type)
+                return True
+            if waiting_card_type and parsed.get("card_type") and card_type != waiting_card_type:
+                self._push_batch_erase_result("skipped", uid, "Erase verification returned a different card family.", card_type)
+                return True
+            erased_data = str(parsed.get("data_hex") or "").strip().upper()
+            if (
+                not uid
+                or parsed.get("event") != "erase_verified"
+                or parsed.get("operation") != "erase"
+                or parsed.get("success") is not True
+                or parsed.get("verified") is not True
+                or erased_data != "00" * 48
+            ):
+                self._push_batch_erase_result(
+                    "skipped", uid,
+                    "Erase was not verified as empty; the student link was retained.", card_type,
+                )
                 return True
             self._batch_rfid_erase_count += 1
+            unlink_message = "Card erase verified."
             if self._batch_rfid_erase_unlink:
                 student = db.get_student_by_card_uid(uid)
                 if student:
-                    db.clear_student_card(int(student["fingerprint_id"]))
+                    cleared, _ = db.clear_student_card(int(student["fingerprint_id"]))
+                    if not cleared:
+                        unlink_message = "Card erase verified, but the database link could not be cleared."
             log.info("RFID batch erase completed", uid=uid)
-            self._push_batch_erase_result("erased", uid)
+            self._push_batch_erase_result("erased", uid, unlink_message, card_type)
             return True
 
         if event_type != "attendance" or parsed.get("event") not in {"card", "card_unreadable"}:
             return False
         if not uid:
-            self._push_batch_erase_result("skipped", None, "Skipped (not this tool / unreadable)")
+            self._push_batch_erase_result("skipped", None, "Skipped (not this tool / unreadable)", card_type)
             return True
         if parsed.get("event") == "card_unreadable" or self._batch_rfid_erase_waiting_uid:
-            self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
+            self._push_batch_erase_result("skipped", uid, str(parsed.get("reason") or "Skipped (not this tool / unreadable)"), card_type)
             return True
         if not cmds.cmd_card_write_hex(self.serial, "0" * 96):
-            self._push_batch_erase_result("skipped", uid, "Could not arm card erase.")
+            self._push_batch_erase_result("skipped", uid, "Could not arm card erase.", card_type)
             return True
         self._batch_rfid_erase_waiting_uid = uid
-        self._push_batch_erase_result("armed", uid, "Waiting for the same card to complete erase.")
+        self._batch_rfid_erase_waiting_card_type = card_type
+        self._push_batch_erase_result("armed", uid, "Waiting for the same card to complete erase.", card_type)
         return True
 
     def _handle_rfid_session_card_event(self, line: str) -> bool:
@@ -612,7 +647,10 @@ class Api:
                 "method": "card_write",
                 "uid": parsed.get("uid"),
                 "data_hex": parsed.get("data_hex"),
+                "card_type": parsed.get("card_type"),
+                "operation": parsed.get("operation"),
                 "success": bool(parsed.get("success")),
+                "verified": parsed.get("verified") is True,
                 "event": "card_write",
             }
             self._push("scan_result", payload)
@@ -636,6 +674,8 @@ class Api:
             "method": "card",
             "uid": parsed.get("uid"),
             "data_hex": parsed.get("data_hex"),
+            "card_type": parsed.get("card_type"),
+            "reason": parsed.get("reason"),
             "event": event,
         }
         self._push("scan_result", payload)
@@ -645,6 +685,7 @@ class Api:
         self._rfid_pending_uid = None
         self._rfid_pending_fingerprint_id = None
         self._rfid_pending_payload_hex = None
+        self._rfid_pending_card_type = None
 
     def _push_rfid_registration_result(
         self,
@@ -652,6 +693,7 @@ class Api:
         uid: Optional[str],
         message: str,
         success: bool = False,
+        card_type: Optional[str] = None,
     ) -> None:
         self._push("scan_result", {
             "fingerprint_id": self._rfid_session_fingerprint_id or 0,
@@ -663,17 +705,20 @@ class Api:
             "student": {},
             "method": "rfid_register",
             "uid": uid,
+            "card_type": card_type or self._rfid_pending_card_type,
             "event": event,
             "success": success,
         })
 
     def _handle_rfid_registration_tap(self, parsed: Dict[str, Any]) -> None:
         uid = db.normalize_card_uid(parsed.get("uid"))
+        card_type = str(parsed.get("card_type") or "UNKNOWN")
         fingerprint_id = self._rfid_session_fingerprint_id
         if parsed.get("event") == "card_unreadable" or not uid:
             self._push_rfid_registration_result(
                 "error", uid,
-                str(parsed.get("reason") or "This card could not be read or authenticated. Try a supported writable MIFARE Classic card.")
+                str(parsed.get("reason") or "This card could not be read or authenticated."),
+                card_type=card_type,
             )
             return
         if self._rfid_pending_uid:
@@ -686,7 +731,7 @@ class Api:
         if not student or not student.get("student_no"):
             self._push_rfid_registration_result("error", uid, "Student record is no longer available.")
             return
-        self._push_rfid_registration_result("checking", uid, "Card UID detected. Checking whether it is already linked.")
+        self._push_rfid_registration_result("checking", uid, "Card UID detected. Checking whether it is already linked.", card_type=card_type)
         claimed = db.get_student_by_card_uid(uid)
         if claimed:
             claimed_fingerprint_id = claimed.get("fingerprint_id")
@@ -703,17 +748,19 @@ class Api:
         try:
             payload_hex = encrypt_student_card_payload(int(fingerprint_id), student_no, uid)
         except (TypeError, ValueError) as exc:
-            self._push_rfid_registration_result("error", uid, str(exc))
+            self._push_rfid_registration_result("error", uid, str(exc), card_type=card_type)
             return
         if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
-            self._push_rfid_registration_result("error", uid, "Could not arm the encrypted card write.")
+            self._push_rfid_registration_result("error", uid, "Could not arm the encrypted card write.", card_type=card_type)
             return
         self._rfid_pending_uid = uid
         self._rfid_pending_fingerprint_id = int(fingerprint_id)
         self._rfid_pending_payload_hex = payload_hex
+        self._rfid_pending_card_type = card_type
         self._push_rfid_registration_result(
             "writing", uid,
-            "Card detected. Keep it on the reader while encrypted data is written and verified; retap if you removed it."
+            "Card detected. Keep it on the reader while encrypted data is written and verified; retap if you removed it.",
+            card_type=card_type,
         )
 
     def _handle_rfid_registration_write(self, parsed: Dict[str, Any]) -> None:
@@ -721,7 +768,18 @@ class Api:
         expected_uid = self._rfid_pending_uid
         fingerprint_id = self._rfid_pending_fingerprint_id
         expected_payload = self._rfid_pending_payload_hex
-        success = bool(parsed.get("success")) and uid is not None and uid == expected_uid
+        success = (
+            parsed.get("event") == "write_verified"
+            and
+            parsed.get("operation") == "write"
+            and parsed.get("success") is True
+            and parsed.get("verified") is True
+            and uid is not None
+            and uid == expected_uid
+        )
+        card_type = str(parsed.get("card_type") or self._rfid_pending_card_type or "UNKNOWN")
+        if parsed.get("card_type") and self._rfid_pending_card_type and card_type != self._rfid_pending_card_type:
+            success = False
         result_message = "Card write or readback verification failed. The existing card link was kept."
         if success and str(parsed.get("data_hex") or "").strip().upper() != expected_payload:
             success = False
@@ -733,7 +791,7 @@ class Api:
         elif uid != expected_uid:
             result_message = "The tapped card UID did not match the card being registered. The existing link was kept."
         self._clear_pending_rfid_registration()
-        self._push_rfid_registration_result("saved" if success else "error", uid, result_message, success)
+        self._push_rfid_registration_result("saved" if success else "error", uid, result_message, success, card_type)
         if success:
             self.stop_rfid_register_session()
 
@@ -1054,6 +1112,7 @@ class Api:
             "student": _student_label(student),
             "method": result.get("method") or "fingerprint",
             "uid": result.get("uid"),
+            "card_type": result.get("card_type"),
             "data": result.get("data"),
         }
         self._push("scan_result", payload)
