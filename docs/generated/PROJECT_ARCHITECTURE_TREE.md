@@ -4054,6 +4054,33 @@ archive/legacy-ui/v2/python/services/__init__.py
   └── [no class/function definitions detected]
 ```
 
+
+### 2.3K Archive symbols — final files
+
+```text
+archive/legacy-ui/v2/python/services/attendance_service.py
+  ├── class AttendanceService()
+  ├── def get_today()
+  ├── def get_paginated()
+  └── def log()
+
+archive/legacy-ui/v2/python/services/student_service.py
+  ├── class StudentService()
+  ├── def get_all_students()
+  ├── def get_student()
+  ├── def save_student()
+  └── def delete_student()
+
+archive/legacy-ui/v2/python/settings_store.py
+  ├── def default_settings()
+  ├── def load_settings()
+  ├── def save_settings()
+  └── def cleanup_stale_port()
+
+archive/legacy-ui/v2/run_qt_gui.py
+  └── [no class/function definitions detected]
+```
+
 ## 3. Architecture reading order
 
 ```text
