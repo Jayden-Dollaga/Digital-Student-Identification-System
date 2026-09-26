@@ -2,9 +2,8 @@
 
 > The authoritative **box-and-branch architecture diagram** for DSIS.
 >
-> **Lineage start:** `f0b0074` — the architecture-document baseline created on 2026-09-26.
-> **Current branch HEAD:** `83a29da`.
-> **Code/repository snapshot:** 884 tracked Git tree paths = 783 files/blobs + 101 directories.
+> **Lineage start:** `f0b0074` — the requested architecture-document baseline.
+ > **Verified project tree snapshot:** `c2eb4d3` (the project state immediately before this repair pass).
 > **Source audit:** 305 source files / 51,143 physical lines.
 >
 > The diagram describes subsystem relationships and data/control flow; it is not a claim that every file is on the same runtime call path.
@@ -1292,7 +1291,7 @@ A file can belong to a subsystem while its functions participate in a different 
 For exact source inventories, use the companion generated project tree and application inventory.
 ---
 
-## Lineage tree — `f0b0074` → current `main`
+## Lineage tree — `f0b0074` → `c2eb4d3`
 
 ```text
 ARCHITECTURE / DOCUMENTATION LINEAGE
@@ -1332,7 +1331,7 @@ ARCHITECTURE / DOCUMENTATION LINEAGE
 ├── 33. 83a29da — docs: rebuild full architecture tree from current main  [CURRENT]
 ```
 
-The lineage contains 33 commits from the requested starting point `f0b0074` through the current branch. The requested starting commit is an architecture-document baseline, not the historical first commit of DSIS.
+The lineage contains 33 commits from the requested starting point `f0b0074` through the current branch. The requested starting commit is an architecture-document baseline, not the historical first commit of DSIS. Documentation repair commits after the snapshot are intentionally excluded from the architecture lineage so the diagram describes the project rather than the editing session.
 
 ## Exact current repository tree
 
