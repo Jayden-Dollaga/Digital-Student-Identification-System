@@ -904,6 +904,152 @@ The next sections expand source files into the functions/classes currently found
 
 _Production symbol expansion follows in the next generated sections._
 
+
+### 2.1A Production symbols — firmware + core foundations
+
+```text
+firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino
+  ├── function hexValue()
+  ├── function ledBrightness()
+  ├── function ledOff()
+  ├── function getPriorityForState()
+  ├── function requestLedState()
+  ├── function restoreLedStateIfNeeded()
+  ├── function handleHostStatus()
+  ├── function parseJsonStringField()
+  ├── function emitJsonStatus()
+  ├── function emitJsonAttendanceMatch()
+  ├── function emitJsonAttendanceUnknown()
+  ├── function emitJsonAttendanceLowConfidence()
+  ├── function uidToString()
+  ├── function bytesToHex()
+  ├── function emitJsonCardMatch()
+  ├── function emitJsonCardUnreadable()
+  ├── function emitJsonCardWriteResult()
+  ├── function emitJsonCardKeyCheck()
+  ├── function beginLedManager()
+  ├── function ledReady()
+  ├── function ledScan()
+  ├── function ledEnroll()
+  ├── function ledSuccess()
+  ├── function ledError()
+  ├── function ledSleep()
+  ├── function ledFirmware()
+  ├── function ledHostConnected()
+  ├── function ledHostDisconnected()
+  ├── function computeBootBrightness()
+  ├── function updateLed()
+  ├── function setup()
+  ├── function loop()
+  ├── function handleCommand()
+  ├── function fingerprintExists()
+  ├── function findNextAvailableId()
+  ├── function checkEnrollmentCancel()
+  ├── function enrollFinger()
+  ├── function SCAN()
+  ├── function CARD()
+  └── function printHelp()
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/CardDetector.cpp
+  └── function detectRfidCard()
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/CardDetector.h
+  └── [no class/function definitions detected]
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/ClassicAdapter.cpp
+  ├── function classicKeyCandidateCount()
+  ├── function classicKeyCandidate()
+  ├── function sameUid()
+  ├── function authenticateClassicCard()
+  ├── function readClassicPayload()
+  └── function writeClassicPayload()
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/ClassicAdapter.h
+  └── [no class/function definitions detected]
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/Type2Adapter.cpp
+  ├── function readType2Payload()
+  └── function writeType2Payload()
+
+firmware/ESP32_DSIS_AllInOne/src/rfid/Type2Adapter.h
+  └── [no class/function definitions detected]
+
+python/__init__.py
+  └── [no class/function definitions detected]
+
+python/config.py
+  ├── def _resolve_project_root()
+  ├── def _env_flag()
+  ├── def _env_int()
+  ├── def _env_path()
+  ├── class AppConfig()
+  ├── def from_env()
+  ├── def get_config()
+  ├── def discover_serial_ports()
+  ├── def get_default_com_port()
+  └── def get_com_port()
+
+python/core/__init__.py
+  └── [no class/function definitions detected]
+
+python/core/attendance.py
+  ├── class ScanResult()
+  ├── class ScanOutcome()
+  ├── def to_dict()
+  ├── class AttendanceProcessor()
+  ├── def __init__()
+  ├── def process_line()
+  ├── def reset()
+  ├── def lookup_student()
+  ├── def lookup_card_student()
+  ├── def all_students()
+  ├── def _handle_unknown_scan()
+  ├── def _handle_unknown_card_scan()
+  ├── def _handle_card_scan()
+  ├── def _handle_confidence_scan()
+  ├── def _handle_json_match_scan()
+  ├── def _parse_json_int()
+  ├── def _parse_int_value()
+  ├── def _is_in_cooldown()
+  ├── def _cooldown_reason()
+  └── def _log_and_record()
+
+python/core/attendance_calendar.py
+  ├── def _is_valid_date_string()
+  ├── def _is_valid_time_string()
+  ├── def _minutes()
+  ├── def get_calendar()
+  ├── def get_entry()
+  ├── def is_non_school_day()
+  ├── def get_schedule_for_date()
+  ├── def validate_entry()
+  ├── def set_entry()
+  └── def remove_entry()
+
+python/core/attendance_status.py
+  ├── def _minutes()
+  └── def calculate_attendance_status()
+
+python/core/auth.py
+  ├── def hash_password()
+  ├── def verify_password()
+  ├── def has_password_set()
+  ├── def validate_new_password()
+  └── def set_initial_password()
+
+python/core/commands.py
+  ├── def cmd_scan()
+  ├── def cmd_stop()
+  ├── def build_enroll_command()
+  ├── def cmd_enroll()
+  ├── def cmd_delete()
+  ├── def cmd_wipe()
+  ├── def cmd_list()
+  ├── def cmd_card_write()
+  ├── def cmd_card_write_hex()
+  └── def cmd_card_erase()
+```
+
 ### 2.2 Tests
 
 _Test symbol expansion follows._
