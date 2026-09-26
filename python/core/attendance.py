@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 from config import get_config
-from core.database import get_all_students, get_student, get_student_by_card_uid, log_attendance, StudentRow
+from core.database import get_all_students, get_student, get_student_by_card_uid, log_attendance, normalize_card_uid, StudentRow
 from core.logger import log
 from core.rfid_card import decrypt_student_card_payload
 from core.utils import parse_json_line
@@ -108,7 +108,10 @@ class AttendanceProcessor:
                     return self._handle_card_scan(str(uid), data)
                 if event == "card_unreadable":
                     uid = parsed_json.get("uid")
-                    return self._handle_unknown_card_scan(str(uid) if uid else None)
+                    return self._handle_unknown_card_scan(
+                        str(uid) if uid else None,
+                        str(parsed_json.get("reason") or "The RFID card could not be read or authenticated."),
+                    )
                 if event == "unknown":
                     self.current_id = None
                     return self._handle_unknown_scan()
@@ -200,7 +203,11 @@ class AttendanceProcessor:
                 reason="Could not record unknown scan (see application log).",
             ).to_dict()
 
-    def _handle_unknown_card_scan(self, uid: Optional[str]) -> ScanResult:
+    def _handle_unknown_card_scan(
+        self,
+        uid: Optional[str],
+        reason: str = "Card is unlinked or its encrypted payload is invalid.",
+    ) -> ScanResult:
         now = datetime.now()
         fingerprint_id = 0
         if self._is_in_cooldown(fingerprint_id, now):
@@ -223,7 +230,7 @@ class AttendanceProcessor:
                 status="UNKNOWN",
                 timestamp=now,
                 logged=True,
-                reason=None,
+                reason=reason,
                 method="card",
                 uid=uid,
             ).to_dict()
@@ -242,14 +249,26 @@ class AttendanceProcessor:
 
     def _handle_card_scan(self, uid: str, data: Optional[str]) -> Optional[ScanResult]:
         now = datetime.now()
-        student = self.lookup_card_student(uid)
-        if student is None and data:
-            decoded = decrypt_student_card_payload(str(data))
-            if decoded is not None:
-                fingerprint_id, student_no = decoded
-                student = self.lookup_student(fingerprint_id) or {"fingerprint_id": fingerprint_id, "student_no": student_no}
-        if student is None:
-            return self._handle_unknown_card_scan(uid)
+        normalized_uid = normalize_card_uid(uid)
+        if not normalized_uid:
+            return self._handle_unknown_card_scan(uid, "Card UID is invalid.")
+        if not data:
+            return self._handle_unknown_card_scan(uid, "Card does not contain an encrypted DSIS payload.")
+        decoded = decrypt_student_card_payload(str(data), normalized_uid)
+        if decoded is None:
+            return self._handle_unknown_card_scan(
+                uid, "Card payload is invalid, tampered, or encrypted for a different UID."
+            )
+        fingerprint_id, student_no = decoded
+        student = self.lookup_student(fingerprint_id)
+        if (
+            student is None
+            or str(student.get("student_no") or "").strip() != student_no
+            or normalize_card_uid(student.get("card_uid")) != normalized_uid
+        ):
+            return self._handle_unknown_card_scan(
+                uid, "Encrypted card identity does not match a student linked to this UID."
+            )
 
         fingerprint_id = int(student["fingerprint_id"])
         if self._is_in_cooldown(fingerprint_id, now):

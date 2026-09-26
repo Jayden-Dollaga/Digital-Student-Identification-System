@@ -43,7 +43,7 @@
  *    LIST          Show how many fingerprints are stored
  *    SCAN          Switch to attendance scan mode (fingerprint AND card)
  *    STOP          Stop scanning, go back to command mode
- *    CARD_WRITE_HEX:<32 hex chars>  Arm an encrypted card write
+ *    CARD_WRITE_HEX:<96 hex chars> Arm an encrypted card write
  *                    (or once, outside scan mode) to write "xyz" to it
  *
  *  ── TYPICAL WORKFLOW FOR A CLASS OF 30 ──
@@ -70,7 +70,7 @@
  *  attendance events, e.g.:
  *    {"type":"status","state":"SCAN_MODE"}
  *    {"type":"attendance","event":"match","id":1,"confidence":223}
- *    {"type":"attendance","event":"card","uid":"B0:6F:0B:55","data":"STUDENT-01"}
+ *    {"type":"attendance","event":"card","uid":"B0:6F:0B:55","data_hex":"<96 hex chars>"}
  *    {"type":"attendance","event":"card_unreadable","uid":"B0:6F:0B:55"}
  ************************************************************************************/
 
@@ -79,14 +79,14 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <MFRC522.h>
+#include <string.h>
 
 #define FINGERPRINT_RX        14    // orange wire (sensor TX) connects here
 #define FINGERPRINT_TX        27    // white wire  (sensor RX) connects here
 
 #define RFID_SS_PIN            5    // RC522 SDA
 #define RFID_RST_PIN           4    // RC522 RST
-#define RFID_BLOCK_NUM          4   // MIFARE block used to store student data
-#define RFID_SCAN_COOLDOWN   1500   // ms to wait after a card read before scanning again
+#define RFID_BLOCK_NUM          4   // First MIFARE data block; blocks 4-6 store the payload
 #define LED_PIN               2     // onboard D2 LED on ESP32
 #define LED_PWM_CHANNEL       0
 #define LED_PWM_FREQUENCY     5000
@@ -368,9 +368,11 @@ void emitJsonCardMatch(const String &uidStr, const String &dataHex) {
   Serial.println("\"}");
 }
 
-void emitJsonCardUnreadable(const String &uidStr) {
+void emitJsonCardUnreadable(const String &uidStr, const String &reason) {
   Serial.print("{\"type\":\"attendance\",\"event\":\"card_unreadable\",\"uid\":\"");
   Serial.print(uidStr);
+  Serial.print("\",\"reason\":\"");
+  Serial.print(reason);
   Serial.println("\"}");
 }
 
@@ -791,9 +793,10 @@ void handleCommand(String input) {
 
   if (normalized == "CARD_ERASE") {
     pendingCardWriteHex = true;
-    pendingCardWrite = "00000000000000000000000000000000";
+    pendingCardWrite = "";
+    for (byte i = 0; i < 96; i++) pendingCardWrite += '0';
     expectedCardWriteUid = "";
-    Serial.println("\n>> Card erase armed - tap a card now to clear its data.");
+    Serial.println("\n>> Card erase armed - tap a card now to clear its data blocks.");
     return;
   }
 
@@ -806,8 +809,8 @@ void handleCommand(String input) {
   if (normalized.startsWith("CARD_WRITE_HEX:")) {
     String payloadText = payload;
     payloadText.trim();
-    if (payloadText.length() == 0 || payloadText.length() > 32 || payloadText.length() % 2 != 0) {
-      Serial.println("ERROR: CARD_WRITE_HEX payload must be an even number of hex chars (1-16 bytes). ");
+    if (payloadText.length() != 96) {
+      Serial.println("ERROR: CARD_WRITE_HEX payload must be exactly 96 hex chars (48 bytes).");
       return;
     }
     for (unsigned int i = 0; i < payloadText.length(); i++) {
@@ -821,7 +824,7 @@ void handleCommand(String input) {
     pendingCardWrite = payloadText;
     Serial.print("\n>> Card write armed (hex): \"");
     Serial.print(pendingCardWrite);
-    Serial.println("\" - tap a card now to write the encoded payload.");
+    Serial.println("\" - tap a card now to write and verify the encrypted payload.");
     return;
   }
 
@@ -1063,12 +1066,15 @@ bool authenticateCardAnyKey(String &uidStr, int *matchedIndex) {
       return true;
     }
 
-    // A card must be re-halted/re-woken between failed authenticate attempts
-    // on the same tag, otherwise the next PCD_Authenticate call reliably fails.
+    // Reselect the same tag between key attempts; REQA does not wake a halted card.
+    rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
     if (i + 1 < RFID_KEY_CANDIDATE_COUNT) {
-      if (!rfid.PICC_IsNewCardPresent() && !rfid.PICC_ReadCardSerial()) {
-        // Card was lifted mid-retry; nothing more we can do this pass.
+      byte atqa[2];
+      byte atqaSize = sizeof(atqa);
+      MFRC522::StatusCode wakeStatus = rfid.PICC_WakeupA(atqa, &atqaSize);
+      if ((wakeStatus != MFRC522::STATUS_OK && wakeStatus != MFRC522::STATUS_COLLISION) ||
+          !rfid.PICC_ReadCardSerial() || uidToString(&rfid.uid) != uidStr) {
         break;
       }
     }
@@ -1083,10 +1089,29 @@ bool authenticateCardAnyKey(String &uidStr) {
 }
 
 void scanCard() {
-  if (!rfid.PICC_IsNewCardPresent()) return;
+  bool cardPresent = false;
+  if (pendingCardWrite.length() > 0 && expectedCardWriteUid.length() > 0) {
+    byte atqa[2];
+    byte atqaSize = sizeof(atqa);
+    MFRC522::StatusCode wakeStatus = rfid.PICC_WakeupA(atqa, &atqaSize);
+    cardPresent = wakeStatus == MFRC522::STATUS_OK || wakeStatus == MFRC522::STATUS_COLLISION;
+  } else {
+    cardPresent = rfid.PICC_IsNewCardPresent();
+  }
+  if (!cardPresent) return;
   if (!rfid.PICC_ReadCardSerial()) return;
 
   String uidStr = uidToString(&rfid.uid);
+
+  MFRC522::PICC_Type piccType = rfid.PICC_GetType(rfid.uid.sak);
+  if (piccType != MFRC522::PICC_TYPE_MIFARE_1K) {
+    emitJsonCardUnreadable(
+        uidStr,
+        "Unsupported card type. Use writable MIFARE Classic 1K; Ultralight/Ultralight C is not supported.");
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    return;
+  }
 
   if (pendingKeyCheck) {
     pendingKeyCheck = false;
@@ -1104,15 +1129,13 @@ void scanCard() {
     }
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
-    delay(RFID_SCAN_COOLDOWN);
     return;
   }
 
   if (!authenticateCardAnyKey(uidStr)) {
-    emitJsonCardUnreadable(uidStr);
+    emitJsonCardUnreadable(uidStr, "MIFARE Classic 1K authentication failed; sector-1 key may not be supported.");
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
-    delay(RFID_SCAN_COOLDOWN);
     return;
   }
 
@@ -1124,54 +1147,71 @@ void scanCard() {
       Serial.println("\n>> Card write skipped: UID did not match the tapped card.");
       pendingCardWrite = "";
       pendingCardWriteHex = false;
+      expectedCardWriteUid = "";
       rfid.PICC_HaltA();
       rfid.PCD_StopCrypto1();
-      delay(RFID_SCAN_COOLDOWN);
       return;
     }
-    byte buffer[16];
-    memset(buffer, ' ', 16);
+    byte payloadBuffer[48];
     if (pendingCardWriteHex) {
-      int bytesToWrite = min((int)pendingCardWrite.length() / 2, 16);
-      for (int i = 0; i < bytesToWrite; i++) {
+      for (int i = 0; i < 48; i++) {
         byte hi = hexValue(pendingCardWrite[2 * i]);
         byte lo = hexValue(pendingCardWrite[2 * i + 1]);
-        buffer[i] = (hi << 4) | lo;
+        payloadBuffer[i] = (hi << 4) | lo;
       }
-    } else {
-      int len = pendingCardWrite.length();
-      if (len > 16) len = 16;
-      for (int i = 0; i < len; i++) buffer[i] = pendingCardWrite[i];
     }
 
-    status = rfid.MIFARE_Write(RFID_BLOCK_NUM, buffer, 16);
-    bool success = (status == MFRC522::STATUS_OK);
-    String dataHex = pendingCardWriteHex ? pendingCardWrite : bytesToHex(buffer, 16);
+    bool success = pendingCardWriteHex;
+    for (byte blockOffset = 0; success && blockOffset < 3; blockOffset++) {
+      byte block = RFID_BLOCK_NUM + blockOffset;
+      byte *blockData = payloadBuffer + (blockOffset * 16);
+      status = rfid.MIFARE_Write(block, blockData, 16);
+      if (status != MFRC522::STATUS_OK) {
+        success = false;
+        break;
+      }
+
+      byte verifyBuffer[18];
+      byte verifySize = sizeof(verifyBuffer);
+      status = rfid.MIFARE_Read(block, verifyBuffer, &verifySize);
+      if (status != MFRC522::STATUS_OK || memcmp(blockData, verifyBuffer, 16) != 0) {
+        success = false;
+      }
+    }
+    String dataHex = pendingCardWrite;
     emitJsonCardWriteResult(uidStr, dataHex, success);
 
-    Serial.println(success ? "\n>> Card write SUCCESS." : "\n>> Card write FAILED.");
+    Serial.println(success ? "\n>> Card write and readback SUCCESS." : "\n>> Card write or readback FAILED.");
 
     pendingCardWrite = "";
     pendingCardWriteHex = false;
     expectedCardWriteUid = "";
   } else {
-    byte buffer[18];
-    byte size = 18;
-    status = rfid.MIFARE_Read(RFID_BLOCK_NUM, buffer, &size);
+    byte payloadBuffer[48];
+    bool readSuccess = true;
+    for (byte blockOffset = 0; blockOffset < 3; blockOffset++) {
+      byte blockBuffer[18];
+      byte size = sizeof(blockBuffer);
+      status = rfid.MIFARE_Read(RFID_BLOCK_NUM + blockOffset, blockBuffer, &size);
+      if (status != MFRC522::STATUS_OK) {
+        readSuccess = false;
+        break;
+      }
+      memcpy(payloadBuffer + (blockOffset * 16), blockBuffer, 16);
+    }
 
-    if (status == MFRC522::STATUS_OK) {
-      String result = bytesToHex(buffer, 16);
+    if (readSuccess) {
+      String result = bytesToHex(payloadBuffer, sizeof(payloadBuffer));
       expectedCardWriteUid = uidStr;
       ledSuccess();
       emitJsonCardMatch(uidStr, result);
     } else {
-      emitJsonCardUnreadable(uidStr);
+      emitJsonCardUnreadable(uidStr, "MIFARE Classic 1K data blocks 4-6 could not be read.");
     }
   }
 
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
-  delay(RFID_SCAN_COOLDOWN);
 }
 
 // ==============================================================================

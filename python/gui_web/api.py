@@ -191,6 +191,9 @@ class Api:
         self._rfid_session_was_scanning = False
         self._rfid_session_fingerprint_id: Optional[int] = None
         self._rfid_session_mode: Optional[str] = None
+        self._rfid_pending_uid: Optional[str] = None
+        self._rfid_pending_fingerprint_id: Optional[int] = None
+        self._rfid_pending_payload_hex: Optional[str] = None
         self._batch_rfid_erase_active = False
         self._batch_rfid_erase_was_scanning = False
         self._batch_rfid_erase_waiting_uid: Optional[str] = None
@@ -430,24 +433,32 @@ class Api:
         return ok
 
     def start_rfid_register_session(self, fingerprint_id: int, mode: str = "register") -> Dict[str, Any]:
-        """Temporarily enable attendance-card polling while the user registers a card."""
+        """Enable RFID polling only when normal attendance scanning is stopped."""
         if not self.serial.is_connected():
             return {"ok": False, "message": "Connect to the ESP32 first."}
         if not permissions.require_permission("enroll"):
             return {"ok": False, "message": "Current role does not have enroll permission."}
+        if self._scanning:
+            return {"ok": False, "message": "Stop attendance scanning before registering an RFID card."}
         if self._rfid_session_active or self._batch_rfid_erase_active:
             return {"ok": False, "message": "Another RFID card session is already active."}
+        if not db.get_student(int(fingerprint_id)):
+            return {"ok": False, "message": "Student record not found."}
 
         self._rfid_session_active = True
         self._rfid_session_was_scanning = self._scanning
         self._rfid_session_fingerprint_id = int(fingerprint_id)
         self._rfid_session_mode = str(mode or "register")
+        self._rfid_pending_uid = None
+        self._rfid_pending_fingerprint_id = None
+        self._rfid_pending_payload_hex = None
         if not self._rfid_session_was_scanning:
             ok = cmds.cmd_scan(self.serial)
             if not ok:
                 self._rfid_session_active = False
                 self._rfid_session_fingerprint_id = None
                 self._rfid_session_mode = None
+                self._clear_pending_rfid_registration()
                 return {"ok": False, "message": "Could not start RFID card listening on the ESP32."}
             self._scanning = True
             self._device_mode = "scan"
@@ -456,12 +467,14 @@ class Api:
 
     def stop_rfid_register_session(self) -> Dict[str, Any]:
         if not self._rfid_session_active:
+            self._clear_pending_rfid_registration()
             return {"ok": True, "message": "No RFID session is active."}
         was_scanning = self._rfid_session_was_scanning
         self._rfid_session_active = False
         self._rfid_session_fingerprint_id = None
         self._rfid_session_mode = None
         self._rfid_session_was_scanning = False
+        self._clear_pending_rfid_registration()
         if not was_scanning and self.serial.is_connected():
             ok = cmds.cmd_stop(self.serial)
             self._scanning = False
@@ -566,7 +579,7 @@ class Api:
         if parsed.get("event") == "card_unreadable" or self._batch_rfid_erase_waiting_uid:
             self._push_batch_erase_result("skipped", uid, "Skipped (not this tool / unreadable)")
             return True
-        if not cmds.cmd_card_write_hex(self.serial, "0" * 32):
+        if not cmds.cmd_card_write_hex(self.serial, "0" * 96):
             self._push_batch_erase_result("skipped", uid, "Could not arm card erase.")
             return True
         self._batch_rfid_erase_waiting_uid = uid
@@ -585,6 +598,9 @@ class Api:
             return False
         event_type = parsed.get("type")
         if event_type == "card_write":
+            if self._rfid_session_fingerprint_id is not None:
+                self._handle_rfid_registration_write(parsed)
+                return True
             payload = {
                 "fingerprint_id": 0,
                 "confidence": 0,
@@ -606,6 +622,9 @@ class Api:
         event = parsed.get("event")
         if event not in {"card", "card_unreadable"}:
             return False
+        if self._rfid_session_fingerprint_id is not None:
+            self._handle_rfid_registration_tap(parsed)
+            return True
         payload = {
             "fingerprint_id": 0,
             "confidence": 0,
@@ -621,6 +640,102 @@ class Api:
         }
         self._push("scan_result", payload)
         return True
+
+    def _clear_pending_rfid_registration(self) -> None:
+        self._rfid_pending_uid = None
+        self._rfid_pending_fingerprint_id = None
+        self._rfid_pending_payload_hex = None
+
+    def _push_rfid_registration_result(
+        self,
+        event: str,
+        uid: Optional[str],
+        message: str,
+        success: bool = False,
+    ) -> None:
+        self._push("scan_result", {
+            "fingerprint_id": self._rfid_session_fingerprint_id or 0,
+            "confidence": 0,
+            "status": "RFID_REGISTER",
+            "logged": False,
+            "reason": message,
+            "timestamp": datetime.now().isoformat(),
+            "student": {},
+            "method": "rfid_register",
+            "uid": uid,
+            "event": event,
+            "success": success,
+        })
+
+    def _handle_rfid_registration_tap(self, parsed: Dict[str, Any]) -> None:
+        uid = db.normalize_card_uid(parsed.get("uid"))
+        fingerprint_id = self._rfid_session_fingerprint_id
+        if parsed.get("event") == "card_unreadable" or not uid:
+            self._push_rfid_registration_result(
+                "error", uid,
+                str(parsed.get("reason") or "This card could not be read or authenticated. Try a supported writable MIFARE Classic card.")
+            )
+            return
+        if self._rfid_pending_uid:
+            self._push_rfid_registration_result("error", uid, "Finish or cancel the pending card write before tapping another card.")
+            return
+        if fingerprint_id is None:
+            self._push_rfid_registration_result("error", uid, "No student is selected for RFID registration.")
+            return
+        student = db.get_student(int(fingerprint_id))
+        if not student or not student.get("student_no"):
+            self._push_rfid_registration_result("error", uid, "Student record is no longer available.")
+            return
+        self._push_rfid_registration_result("checking", uid, "Card UID detected. Checking whether it is already linked.")
+        claimed = db.get_student_by_card_uid(uid)
+        if claimed:
+            claimed_fingerprint_id = claimed.get("fingerprint_id")
+            if claimed_fingerprint_id is not None and int(claimed_fingerprint_id) != int(fingerprint_id):
+                self._push_rfid_registration_result(
+                    "error", uid,
+                    f"This card is already registered to {claimed.get('student_name', 'another student')} (LRN {claimed.get('student_no', 'unknown')})."
+                )
+                return
+        student_no = str(student.get("student_no") or "").strip()
+        if not student_no:
+            self._push_rfid_registration_result("error", uid, "Student record has no student number.")
+            return
+        try:
+            payload_hex = encrypt_student_card_payload(int(fingerprint_id), student_no, uid)
+        except (TypeError, ValueError) as exc:
+            self._push_rfid_registration_result("error", uid, str(exc))
+            return
+        if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
+            self._push_rfid_registration_result("error", uid, "Could not arm the encrypted card write.")
+            return
+        self._rfid_pending_uid = uid
+        self._rfid_pending_fingerprint_id = int(fingerprint_id)
+        self._rfid_pending_payload_hex = payload_hex
+        self._push_rfid_registration_result(
+            "writing", uid,
+            "Card detected. Keep it on the reader while encrypted data is written and verified; retap if you removed it."
+        )
+
+    def _handle_rfid_registration_write(self, parsed: Dict[str, Any]) -> None:
+        uid = db.normalize_card_uid(parsed.get("uid"))
+        expected_uid = self._rfid_pending_uid
+        fingerprint_id = self._rfid_pending_fingerprint_id
+        expected_payload = self._rfid_pending_payload_hex
+        success = bool(parsed.get("success")) and uid is not None and uid == expected_uid
+        result_message = "Card write or readback verification failed. The existing card link was kept."
+        if success and str(parsed.get("data_hex") or "").strip().upper() != expected_payload:
+            success = False
+            result_message = "Card write verification data did not match. The existing card link was kept."
+        if success and fingerprint_id is not None and expected_uid is not None:
+            success, result_message = db.bind_student_card(fingerprint_id, expected_uid)
+            if success:
+                result_message = "Encrypted card verified and saved."
+        elif uid != expected_uid:
+            result_message = "The tapped card UID did not match the card being registered. The existing link was kept."
+        self._clear_pending_rfid_registration()
+        self._push_rfid_registration_result("saved" if success else "error", uid, result_message, success)
+        if success:
+            self.stop_rfid_register_session()
 
     # -- enrollment (real hardware flow, ported from v2's EnrollDialog) -----------
     def start_enroll(self) -> Dict[str, Any]:
@@ -813,6 +928,13 @@ class Api:
             self._pending_enroll = False
             self._pending_delete_id = None
             self._pending_wipe = False
+            self._rfid_session_active = False
+            self._rfid_session_fingerprint_id = None
+            self._rfid_session_mode = None
+            self._rfid_session_was_scanning = False
+            self._clear_pending_rfid_registration()
+            self._batch_rfid_erase_active = False
+            self._batch_rfid_erase_waiting_uid = None
         self._push("connection_status", self.get_connection_status())
         self._push("connection_changed", {"connected": connected})
         return connected
@@ -1216,22 +1338,7 @@ class Api:
         return {"ok": ok, "message": message}
 
     def bind_student_card(self, fingerprint_id: int, card_uid: str) -> Dict[str, Any]:
-        if not permissions.require_permission("enroll"):
-            return {"ok": False, "message": "Current role does not have enroll permission."}
-        if not card_uid:
-            return {"ok": False, "message": "Tap a valid RFID card to register it."}
-        ok, message = db.bind_student_card(int(fingerprint_id), str(card_uid))
-        if not ok:
-            return {"ok": False, "message": message}
-        student = db.get_student(int(fingerprint_id))
-        if not student or not student.get("student_no"):
-            db.clear_student_card(int(fingerprint_id))
-            return {"ok": False, "message": "Could not prepare the encrypted RFID payload."}
-        payload_hex = encrypt_student_card_payload(int(fingerprint_id), student["student_no"])
-        if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
-            db.clear_student_card(int(fingerprint_id))
-            return {"ok": False, "message": "Card claim succeeded, but encrypted card writing could not be started."}
-        return {"ok": True, "message": "Card claimed. Tap the same card again to write the encrypted payload."}
+        return {"ok": False, "message": "RFID links are saved only after the card write and readback succeed."}
 
     def clear_student_card(self, fingerprint_id: int) -> Dict[str, Any]:
         if not permissions.require_permission("enroll"):

@@ -79,6 +79,30 @@ def test_v3_web_shell_contains_all_primary_workflows():
     assert "lockButton.hidden" not in script
 
 
+def test_unknown_attendance_rows_use_unknown_data_label():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "Unknown data" in script
+    assert "Unknown fingerprint" not in script
+    assert "Unknown RFID card" in script
+
+
+def test_rfid_registration_waits_for_verified_write_result():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "payload.method === 'rfid_register'" in script
+    assert "payload.event === 'saved'" in script
+    assert "bindPendingCardFromScan" not in script
+    assert "Write and verify" in script
+
+
+def test_student_refresh_preserves_the_selected_fingerprint():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "const previousFingerprintId = selectedStudent ? Number(selectedStudent.fingerprint_id) : null;" in script
+    assert "students.find(s => Number(s.fingerprint_id) === previousFingerprintId) || students[0]" in script
+
+
 def test_v3_validation_api_returns_field_feedback(monkeypatch):
     from gui_web.api import Api
 

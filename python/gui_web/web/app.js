@@ -702,6 +702,20 @@ function handleConnectionChanged(payload) {
     resetEnrollForm();
   }
   if (window._wipeWait) settleWipeWait({ event: 'error', message: 'The ESP32 disconnected.' });
+  if (manageRfidModal) {
+    if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
+    rfidSessionTimeout = null;
+    setManageRfidProgress(1);
+    const status = manageRfidModal.querySelector('#rfid-modal-status');
+    const primary = manageRfidModal.querySelector('#rfid-modal-primary');
+    if (status) {
+      status.textContent = 'The ESP32 disconnected. No card link was changed.';
+      status.className = 'rfid-modal-status error';
+    }
+    if (primary) primary.disabled = false;
+    const unlink = manageRfidModal.querySelector('#rfid-modal-unlink');
+    if (unlink) unlink.disabled = !selectedStudent || !selectedStudent.card_uid;
+  }
   setStatus('disconnected');
 }
 
@@ -752,24 +766,56 @@ function handleScanResult(payload) {
     }
     return;
   }
-  if (manageRfidModal && payload && payload.method === 'card_write') {
+  if (manageRfidModal && payload && payload.method === 'rfid_register') {
     const status = manageRfidModal.querySelector('#rfid-modal-status');
-    if (status) {
-      status.textContent = payload.success ? 'Encrypted RFID payload written.' : 'Could not write the encrypted RFID payload.';
-      status.className = 'rfid-modal-status ' + (payload.success ? 'success' : 'error');
+    const primary = manageRfidModal.querySelector('#rfid-modal-primary');
+    const unlink = manageRfidModal.querySelector('#rfid-modal-unlink');
+    const modeCue = manageRfidModal.querySelector('#rfid-mode-cue');
+    if (payload.event === 'checking') {
+      setManageRfidProgress(2);
+    } else if (payload.event === 'writing') {
+      setManageRfidProgress(3);
+    } else if (payload.event === 'saved') {
+      setManageRfidProgress(4);
+      if (selectedStudent) selectedStudent.card_uid = payload.uid || '';
+      const currentCard = manageRfidModal.querySelector('#rfid-current-card');
+      if (currentCard) currentCard.textContent = payload.uid || 'Not linked';
+      if (primary) primary.disabled = false;
+      if (primary) {
+        primary.textContent = 'Replace RFID';
+        primary.classList.add('replace');
+      }
+      if (unlink) unlink.disabled = false;
+      if (modeCue) {
+        modeCue.hidden = false;
+        modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
+      }
+      if (status) {
+        status.textContent = payload.reason || 'Encrypted card verified and saved.';
+        status.className = 'rfid-modal-status success';
+      }
+      loadStudentsPage();
+      updateStudentDetailButtons();
+      if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
+      rfidSessionTimeout = null;
+      setTimeout(() => closeManageRfidDialog(), 900);
+      return;
     }
-    if (payload.success) setTimeout(() => closeManageRfidDialog(), 750);
+    if (status) {
+      status.textContent = payload.reason || 'Could not register this card.';
+      status.className = 'rfid-modal-status ' + (payload.event === 'error' ? 'error' : 'active');
+    }
     return;
-  }
-  if (pendingCardBinding && payload && payload.method === 'card' && payload.uid) {
-    bindPendingCardFromScan(payload);
   }
 
   const student = payload.student || {};
-  const name = student.student_name || (payload.status === 'UNKNOWN' ? 'Unknown fingerprint' : `Fingerprint #${payload.fingerprint_id}`);
-  const meta = student.student_no
+  const unknownName = payload.method === 'card' ? 'Unknown RFID card' : 'Unknown data';
+  const isUnknown = payload.status === 'UNKNOWN';
+  const name = isUnknown ? unknownName : (student.student_name || `Fingerprint #${payload.fingerprint_id}`);
+  const detail = student.student_no
     ? `${student.student_no} \u00b7 Grade ${student.grade || '?'} \u2014 ${student.section || '?'}`
     : (payload.reason || 'No matching student record');
+  const meta = payload.method === 'card' && payload.uid ? `UID ${payload.uid} \u00b7 ${detail}` : detail;
   const now = payload.timestamp ? new Date(payload.timestamp) : new Date();
   const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -793,7 +839,7 @@ function handleScanResult(payload) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${escapeHtml(now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}))}</td>` +
       `<td>${escapeHtml(student.student_no || '\u2014')}</td>` +
-      `<td>${isMatch ? escapeHtml(student.student_name) : '<em style="color:var(--muted)">Unknown fingerprint</em>'}</td>` +
+      `<td>${isMatch ? escapeHtml(student.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
       `<td>${student.grade ? `Grade ${escapeHtml(student.grade)} \u2014 ${escapeHtml(student.section)}` : '\u2014'}</td>` +
       `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '%' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(payload.status)}">${escapeHtml(isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN')}</span></td>` +
@@ -814,6 +860,8 @@ function handleScanResult(payload) {
       status: isMatch ? (payload.status || 'PRESENT') : 'UNKNOWN',
       match_status: isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN',
       attendance_status: isMatch ? payload.attendance_status : 'Unknown',
+      method: payload.method,
+      uid: payload.uid,
     });
   }
 }
@@ -1042,8 +1090,9 @@ function isKnownRow(r) {
 
 function rowToActivityTr(r) {
   const known = isKnownRow(r);
+  const unknownName = r.method === 'card' ? `Unknown RFID card${r.uid ? ` (${r.uid})` : ''}` : 'Unknown data';
   return `<tr><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
-    `<td>${known ? escapeHtml(r.student_name) : '<em style="color:var(--muted)">Unknown fingerprint</em>'}</td>` +
+    `<td>${known ? escapeHtml(r.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
     `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
     `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
@@ -1094,7 +1143,7 @@ function renderAttendanceRows(rows) {
   tbody.innerHTML = rows.map(r => {
     const known = isKnownRow(r);
     return `<tr><td>${escapeHtml(r.date || '\u2014')}</td><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
-      `<td>${known ? escapeHtml(r.student_name) : 'Unknown fingerprint'}</td>` +
+      `<td>${known ? escapeHtml(r.student_name) : 'Unknown data'}</td>` +
       `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
       `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
@@ -1127,7 +1176,7 @@ function attendanceOnScanEvent(row) {
   const tbody = document.getElementById('att-tbody');
   tbody.insertAdjacentHTML('afterbegin',
     `<tr><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.time || '')}</td><td>${escapeHtml(isKnownRow(row) ? row.student_no : '\u2014')}</td>` +
-    `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : 'Unknown fingerprint'}</td>` +
+    `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : escapeHtml(row.method === 'card' ? `Unknown RFID card${row.uid ? ` (${row.uid})` : ''}` : 'Unknown data')}</td>` +
     `<td>${isKnownRow(row) ? `Grade ${escapeHtml(row.grade)} \u2014 ${escapeHtml(row.section)}` : '\u2014'}</td>` +
     `<td>${escapeHtml(row.confidence != null ? row.confidence + '%' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(row.match_status || row.status)}">${escapeHtml((row.match_status || row.status || 'UNKNOWN').toUpperCase())}</span></td>` +
@@ -1189,20 +1238,28 @@ async function exportAttendanceCsv(mode, weekValue = '') {
 async function loadStudentsPage() {
   if (!api()) return;
   const students = await api().get_students();
+  const previousFingerprintId = selectedStudent ? Number(selectedStudent.fingerprint_id) : null;
   const tbody = document.getElementById('stu-tbody');
   studentNames.clear();
   students.forEach(s => studentNames.set(Number(s.fingerprint_id), s.student_name || `Fingerprint ID ${s.fingerprint_id}`));
   const availableIds = new Set(students.map(s => Number(s.fingerprint_id)));
   selectedStudentIds.forEach(id => { if (!availableIds.has(id)) selectedStudentIds.delete(id); });
   tbody.innerHTML = students.map(s =>
-    `<tr onclick="selectStudent(this, ${Number(s.fingerprint_id)})" style="cursor:pointer">` +
+    `<tr data-fingerprint-id="${Number(s.fingerprint_id)}" onclick="selectStudent(this, ${Number(s.fingerprint_id)})" style="cursor:pointer">` +
     `<td class="select-col"><input type="checkbox" class="student-select" data-fingerprint-id="${Number(s.fingerprint_id)}" ${selectedStudentIds.has(Number(s.fingerprint_id)) ? 'checked' : ''} onchange="toggleStudentSelection(event, ${Number(s.fingerprint_id)})" aria-label="Select ${escapeHtml(s.student_name || `fingerprint ID ${s.fingerprint_id}`)}"></td>` +
     `<td>${escapeHtml(s.fingerprint_id)}</td><td>${escapeHtml(s.student_no)}</td><td>${escapeHtml(s.student_name)}</td>` +
     `<td>Grade ${escapeHtml(s.grade)}</td><td>${escapeHtml(s.section)}</td></tr>`
   ).join('');
   document.getElementById('stu-count').textContent = `${students.length} students`;
   updateStudentSelectionUi(students.length);
-  if (students.length) selectStudent(tbody.firstElementChild, students[0].fingerprint_id);
+  const nextStudent = students.find(s => Number(s.fingerprint_id) === previousFingerprintId) || students[0];
+  if (nextStudent) {
+    const row = tbody.querySelector(`[data-fingerprint-id="${Number(nextStudent.fingerprint_id)}"]`);
+    selectStudent(row, nextStudent.fingerprint_id);
+  } else {
+    selectedStudent = null;
+    updateStudentDetailButtons();
+  }
 }
 
 function toggleStudentSelection(event, fingerprintId) {
@@ -1279,9 +1336,17 @@ function updateStudentDetailButtons() {
   manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
 }
 
-let pendingCardBinding = null;
 let manageRfidModal = null;
 let batchRfidEraseModal = null;
+let rfidSessionTimeout = null;
+
+function setManageRfidProgress(stage) {
+  if (!manageRfidModal) return;
+  manageRfidModal.querySelectorAll('.rfid-step').forEach((step, index) => {
+    step.classList.toggle('active', index + 1 === stage);
+    step.classList.toggle('complete', index + 1 < stage);
+  });
+}
 
 async function closeBatchRfidEraseDialog() {
   if (api && api().stop_batch_rfid_erase) {
@@ -1351,6 +1416,8 @@ function openBatchRfidEraseDialog() {
 }
 
 async function closeManageRfidDialog() {
+  if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
+  rfidSessionTimeout = null;
   if (api && api().stop_rfid_register_session) {
     await api().stop_rfid_register_session();
   }
@@ -1358,17 +1425,6 @@ async function closeManageRfidDialog() {
     manageRfidModal.remove();
     manageRfidModal = null;
   }
-  pendingCardBinding = null;
-}
-
-function promptCardBinding(mode) {
-  if (!selectedStudent || !selectedStudent.fingerprint_id) {
-    return;
-  }
-  if (!connected) {
-    return;
-  }
-  pendingCardBinding = { fingerprintId: Number(selectedStudent.fingerprint_id), mode };
 }
 
 function openManageRfidDialog() {
@@ -1392,9 +1448,10 @@ function openManageRfidDialog() {
         <div class="rfid-progress-panel">
           <div class="rfid-progress-title">Card progress</div>
           <div class="rfid-steps">
-            <div class="rfid-step active"><span>1</span><strong>Tap card</strong></div>
-            <div class="rfid-step"><span>2</span><strong>Check if claimed</strong></div>
-            <div class="rfid-step"><span>3</span><strong>Saved</strong></div>
+            <div class="rfid-step active"><span>1</span><strong>Detect card</strong></div>
+            <div class="rfid-step"><span>2</span><strong>Check UID</strong></div>
+            <div class="rfid-step"><span>3</span><strong>Write and verify</strong></div>
+            <div class="rfid-step"><span>4</span><strong>Saved</strong></div>
           </div>
           <div id="rfid-mode-cue" class="rfid-mode-cue" ${existingCard ? '' : 'hidden'}>This student already has a card. Tap a new card to replace it.</div>
           <div id="rfid-modal-status" class="rfid-modal-status">Waiting for card…</div>
@@ -1458,14 +1515,33 @@ function openManageRfidDialog() {
       setStatus('Device not connected.', 'error');
       return;
     }
+    if (scanning) {
+      setStatus('Stop attendance scanning before registering an RFID card.', 'error');
+      return;
+    }
     renderUnlinkConfirm(false);
+    primary.disabled = true;
+    unlink.disabled = true;
+    setManageRfidProgress(1);
     const result = await api().start_rfid_register_session(Number(selectedStudent.fingerprint_id), selectedStudent.card_uid ? 'replace' : 'register');
     if (!result || !result.ok) {
+      primary.disabled = false;
+      unlink.disabled = !selectedStudent.card_uid;
       setStatus(result && result.message ? result.message : 'Could not start RFID listening.', 'error');
       return;
     }
-    pendingCardBinding = { fingerprintId: Number(selectedStudent.fingerprint_id), mode: selectedStudent.card_uid ? 'replace' : 'register' };
     setStatus('Waiting for card…', 'active');
+    if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
+    rfidSessionTimeout = setTimeout(async () => {
+      await api().stop_rfid_register_session();
+      rfidSessionTimeout = null;
+      if (manageRfidModal) {
+        setManageRfidProgress(1);
+        setStatus('RFID listening timed out. No card link was changed.', 'error');
+        primary.disabled = false;
+        unlink.disabled = !selectedStudent || !selectedStudent.card_uid;
+      }
+    }, 60000);
   });
 
   unlink.addEventListener('click', async () => {
@@ -1524,63 +1600,6 @@ function replaceSelectedStudentCard() {
 function unlinkSelectedStudentCard() {
   if (!guardPermission('enroll', 'Unlinking an RFID card')) return;
   openManageRfidDialog();
-}
-
-async function bindPendingCardFromScan(payload) {
-  if (!pendingCardBinding || !payload || !payload.uid) return false;
-  const binding = pendingCardBinding;
-  pendingCardBinding = null;
-
-  if (binding.mode === 'unlink') {
-    return false;
-  }
-
-  const result = await api().bind_student_card(binding.fingerprintId, payload.uid);
-  const message = result && result.message ? result.message : 'RFID registration updated.';
-
-  if (manageRfidModal) {
-    const status = manageRfidModal.querySelector('#rfid-modal-status');
-    const currentCard = manageRfidModal.querySelector('#rfid-current-card');
-    if (/already registered/i.test(message)) {
-      const studentName = selectedStudent && selectedStudent.student_name ? selectedStudent.student_name : 'another student';
-      const lrn = selectedStudent && selectedStudent.student_no ? ` (LRN ${selectedStudent.student_no})` : '';
-      if (status) {
-        status.textContent = `This card is already registered to ${studentName}${lrn}.`;
-        status.className = 'rfid-modal-status error';
-      }
-      if (currentCard) currentCard.textContent = selectedStudent && selectedStudent.card_uid ? selectedStudent.card_uid : 'Not linked';
-    } else if (result && result.ok) {
-      if (selectedStudent) selectedStudent.card_uid = payload.uid;
-      if (currentCard) currentCard.textContent = payload.uid;
-      if (manageRfidModal) {
-        const primary = manageRfidModal.querySelector('#rfid-modal-primary');
-        if (primary) {
-          primary.textContent = 'Replace RFID';
-          primary.classList.add('replace');
-        }
-        const modeCue = manageRfidModal.querySelector('#rfid-mode-cue');
-        if (modeCue) {
-          modeCue.hidden = false;
-          modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
-        }
-        const unlink = manageRfidModal.querySelector('#rfid-modal-unlink');
-        if (unlink) unlink.disabled = false;
-      }
-      if (status) {
-        status.textContent = `Card claimed: ${payload.uid}. Tap the same card again to write encrypted data.`;
-        status.className = 'rfid-modal-status success';
-      }
-    } else {
-      if (status) {
-        status.textContent = message || 'Could not register the card.';
-        status.className = 'rfid-modal-status error';
-      }
-    }
-  }
-
-  await loadStudentsPage();
-  updateStudentDetailButtons();
-  return true;
 }
 
 let pendingDelete = null; // { fingerprintId, resolve }

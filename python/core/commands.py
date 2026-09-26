@@ -64,7 +64,7 @@ def cmd_card_write_hex(handler, hex_text):
     if not require_permission("enroll"):
         return False
     payload = str(hex_text or "").strip()
-    if not payload or len(payload) > 32 or len(payload) % 2 != 0:
+    if len(payload) != 96:
         return False
     try:
         bytes.fromhex(payload)

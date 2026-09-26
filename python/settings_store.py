@@ -40,6 +40,7 @@ def default_settings() -> Dict[str, Any]:
         "current_role": "guest",
         "rfid_payload_key": "",
         "rfid_app_key_hex": "",
+        "rfid_aes_gcm_key": "",
         # minutes between automatic-backup due-checks (Settings > Backups)
         "auto_backup_interval_minutes": 25,
         # attendance time rules
