@@ -363,8 +363,8 @@ See [LICENSE](LICENSE) for the project's license and usage terms.
 
 The whole-project architecture is documented separately so the README stays readable while the repository still has a detailed technical map.
 
-- **[Visual Project Architecture Tree](docs/generated/PROJECT_ARCHITECTURE_VISUAL_TREE.md)** — the large box-and-branch family tree showing DSIS subsystems and their implementation paths.
-- **[Full Project Architecture Tree & Symbol Map](docs/generated/PROJECT_ARCHITECTURE_TREE.md)** — literal repository file tree plus source-level classes/functions.
+- **[Visual Project Architecture Tree](docs/generated/PROJECT_ARCHITECTURE_VISUAL_TREE.md)** — the large box-and-branch family tree, rebuilt from the `f0b0074` baseline through the current project tree.
+- **[Full Project Architecture Tree & Symbol Map](docs/generated/PROJECT_ARCHITECTURE_TREE.md)** — the exact current repository tree plus source-level classes/functions, refreshed against `main`.
 - **[Complete DSIS System Architecture](docs/Architecture/complete-system-architecture.md)** — repository-wide architecture, data flow, hardware/software boundaries, fingerprint and RFID branches, authentication, database, testing, build tooling, documentation, and V1→V3 lineage.
 
 The complete architecture is intended as a high-level technical reference. For implementation-specific contracts, prefer the focused architecture documents and current source code/tests.
