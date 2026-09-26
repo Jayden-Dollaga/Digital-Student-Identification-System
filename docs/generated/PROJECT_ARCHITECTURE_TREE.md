@@ -2590,6 +2590,105 @@ tests/test_settings_toggles.py
   └── def test_settings_merge_on_load()
 ```
 
+
+### 2.2F Test symbols — final test files
+
+```text
+tests/test_student_input_regression.py
+  ├── class TestStudentInputValidationRegressions()
+  ├── def test_name_with_comma_and_period()
+  ├── def test_name_with_multiple_commas()
+  ├── def test_name_with_apostrophe_and_comma()
+  ├── def test_name_with_unicode_letters()
+  ├── def test_unicode_names_round_trip_in_validation_feedback()
+  ├── def test_section_with_hyphens()
+  ├── def test_student_no_with_special_chars()
+  ├── def test_reject_control_characters()
+  ├── def test_reject_excessive_length()
+  ├── def test_reject_null_bytes()
+  ├── def test_empty_name_rejected()
+  ├── def test_whitespace_only_name_rejected()
+  ├── def test_live_validation_feedback_preserves_valid_name()
+  ├── def test_live_validation_feedback_reports_unsupported_character()
+  ├── def test_live_validation_feedback_accepts_section_formats()
+  └── def test_complex_real_world_names()
+
+tests/test_student_input_validation.py
+  ├── class TestStudentInputValidation()
+  ├── def setup()
+  ├── def test_validate_fingerprint_id_too_low()
+  ├── def test_validate_fingerprint_id_too_high()
+  ├── def test_validate_fingerprint_id_valid()
+  ├── def test_validate_student_no_empty()
+  ├── def test_validate_student_no_too_long()
+  ├── def test_validate_student_no_valid()
+  ├── def test_validate_student_no_invalid_chars()
+  ├── def test_validate_student_name_empty()
+  ├── def test_validate_student_name_too_long()
+  ├── def test_validate_student_name_valid()
+  ├── def test_validate_student_name_invalid_chars()
+  ├── def test_validate_grade_empty()
+  ├── def test_validate_grade_valid()
+  ├── def test_validate_section_empty()
+  ├── def test_validate_section_valid()
+  ├── def test_add_student_with_invalid_input()
+  ├── def test_add_student_with_valid_input()
+  └── def test_update_student_with_invalid_input()
+
+tests/test_theme_switching.py
+  ├── class DummyApp()
+  ├── def __init__()
+  ├── def after()
+  ├── def winfo_exists()
+  ├── def update_idletasks()
+  ├── def test_apply_appearance_mode_schedules_safe_theme_change()
+  ├── def fake_set_appearance_mode()
+  └── def test_get_theme_colors_returns_mode_specific_values()
+
+tests/test_type_hints.py
+  └── def test_core_database_and_serial_helpers_have_type_hints()
+
+tests/test_v3_authentication.py
+  ├── def test_password_hash_is_salted_and_verifies()
+  ├── def test_role_hierarchy_is_ordered()
+  ├── def test_all_roles_can_access_attendance_evaluation()
+  ├── def test_api_starts_guest_and_requires_password_for_elevation()
+  ├── def test_guest_cannot_elevate_to_teacher_without_password()
+  ├── def test_admin_can_switch_down_to_teacher_without_password()
+  ├── def test_teacher_to_admin_requires_password_without_changing_role()
+  ├── def test_admin_to_admin_does_not_require_password()
+  ├── def test_guest_can_elevate_to_admin_with_correct_password()
+  ├── def test_wrong_password_does_not_elevate()
+  ├── def test_admin_password_lockout_after_repeated_failures()
+  ├── def test_first_run_recovery_refuses_password_creation_when_marker_exists()
+  ├── def test_admin_initialization_marker_round_trip()
+  ├── def test_guest_record_reads_are_restricted()
+  ├── def test_lock_and_expiry_return_to_guest()
+  └── def test_guest_settings_update_is_rejected()
+
+tests/test_vidpid_normalization.py
+  ├── class TestVidPidNormalization()
+  ├── def test_get_default_com_port_prefers_known_vidpid()
+  └── def test_device_discovery_score_recognizes_vidpid()
+
+tests/whs_dashboard.py
+  ├── def make_circle_avatar()
+  ├── class RoundedCard()
+  ├── def __init__()
+  ├── class WHSDashboard()
+  ├── def __init__()
+  ├── def _avatar()
+  ├── def _build_sidebar()
+  ├── def _build_main()
+  ├── def _tick_clock()
+  ├── def _pill()
+  ├── def _build_attendance_table()
+  ├── def _build_abnormal_records()
+  ├── def _build_need_work_form()
+  ├── def _build_system_status()
+  └── def info_row()
+```
+
 ### 2.3 Archive / historical source
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
