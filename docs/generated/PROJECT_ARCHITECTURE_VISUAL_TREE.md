@@ -3770,3 +3770,2483 @@ Digital-Student-Identification-System/
 
 - [Full Project Architecture Tree & Symbol Map](PROJECT_ARCHITECTURE_TREE.md) — exact current repository tree plus source-level symbols.
 - [Complete DSIS System Architecture](../Architecture/complete-system-architecture.md) — narrative architecture, boundaries, flows, and lineage.
+
+
+## Super Visual Family Tree — App + Files + Functions + Data Flow + Hardware
+
+> This section is the consolidated super-tree view requested for the project. Arrows describe architectural/control/data relationships; they are not necessarily a literal runtime call order for every path.
+
+```text
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                      DIGITAL STUDENT IDENTIFICATION SYSTEM — DSIS                                                               ║
+║                         SUPER VISUAL FAMILY TREE — APP + FILES + FUNCTIONS + DATA FLOW + HARDWARE                                                ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+                                           ┌─────────────────────────────┐
+                                           │          DSIS PROJECT       │
+                                           │                             │
+                                           │  DIGITAL STUDENT            │
+                                           │  IDENTIFICATION SYSTEM      │
+                                           └──────────────┬──────────────┘
+                                                          │
+                    ┌─────────────────────────────────────┼─────────────────────────────────────┐
+                    │                                     │                                     │
+                    ▼                                     ▼                                     ▼
+          ┌──────────────────┐                  ┌──────────────────┐                  ┌────────────────────┐
+          │  USER / OPERATOR │                  │    SOFTWARE      │                  │ HARDWARE / DEVICE │
+          └────────┬─────────┘                  └────────┬─────────┘                  └─────────┬──────────┘
+                   │                                     │                                      │
+                   ▼                                     ▼                                      ▼
+         Start / Connect / Scan                 V3 DESKTOP APPLICATION                    ESP32 WROOM-32
+         Enroll / Manage / Report                        │                                      │
+                                                         │                         ┌────────────┼────────────┐
+                                                         ▼                         ▼            ▼            ▼
+                                                HTML + CSS + JS                 USB Serial   UART2        SPI
+                                                         │                     115200       57600        BUS
+                                                         ▼                         │            │            │
+                                                     pywebview                    PC          AS608        RC522
+                                                         │
+                                                         ▼
+                                                 Python API Bridge
+                                                         │
+                                                         ▼
+                                                   Python Core
+                                                         │
+                       ┌─────────────────────────────────┼─────────────────────────────────┐
+                       │                                 │                                 │
+                       ▼                                 ▼                                 ▼
+                  BUSINESS LOGIC                    PERSISTENCE                        DEVICE CONTROL
+                       │                                 │                                 │
+             ┌─────────┼─────────┐             ┌───────┴────────┐              ┌─────────┴─────────┐
+             │         │         │             │                │              │                   │
+             ▼         ▼         ▼             ▼                ▼              ▼                   ▼
+          Attendance  Auth    Calendar      SQLite           settings       SerialHandler      Commands
+             │                     │             │                │              │                   │
+             └──────────────┬──────┘             └───────┬────────┘              └──────────┬────────┘
+                            │                            │                                   │
+                            ▼                            ▼                                   ▼
+                      Student identity             Reports / Data                    ESP32 firmware
+                            │                            │                                   │
+                            └────────────────────────────┼───────────────────────────────────┘
+                                                         ▼
+                                                    WEB UI RESULT
+                                                         │
+                                                         ▼
+                                                       USER
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                            01. APPLICATION STARTUP FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+USER
+ │
+ ├── double-click / run
+ │
+ ▼
+run_web_gui.bat
+ │
+ └──────────────────────────────► run_web_gui.py
+                                      │
+                                      ▼
+                              python/gui_web/main_web.py
+                                      │
+             ┌────────────────────────┼─────────────────────────────┐
+             │                        │                             │
+             ▼                        ▼                             ▼
+        initialize              construct Api()               install hooks
+        runtime                      │                        exception handling
+             │                       │                             │
+             ├── database            │                             ├── uncaught exception
+             ├── logger              │                             ├── thread exception
+             ├── settings            │                             └── shutdown handling
+             └── runtime             │
+                                     ▼
+                              create pywebview
+                                     │
+                                     ▼
+                          attach Python Api object
+                                     │
+                                     ▼
+                              start native loop
+                                     │
+                                     ▼
+                                WEB FRONTEND
+                                     │
+                  ┌──────────────────┼────────────────────┐
+                  │                  │                    │
+                  ▼                  ▼                    ▼
+             index.html           app.js              styles.css
+                  │                  │                    │
+                  │                  ├── UI state          ├── layout
+                  │                  ├── interaction       ├── theme
+                  │                  ├── navigation        ├── components
+                  │                  ├── dialogs           └── responsive UI
+                  │                  ├── scan handling
+                  │                  ├── enrollment
+                  │                  ├── RFID management
+                  │                  └── API calls
+                  │
+                  └───────────────────────┬──────────────────────────┘
+                                          │
+                                          ▼
+                                window.pywebview.api
+                                          │
+                                          ▼
+                                python/gui_web/api.py
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             02. WEB UI FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/gui_web/web/
+ │
+ ├── index.html
+ │    │
+ │    ├── Dashboard
+ │    ├── Attendance
+ │    ├── Students
+ │    ├── Reports
+ │    ├── Logs
+ │    ├── Settings
+ │    ├── Calendar
+ │    ├── dialogs
+ │    ├── forms
+ │    └── status displays
+ │
+ ├── app.js
+ │    │
+ │    ├── page switching
+ │    ├── current page state
+ │    ├── current role state
+ │    ├── device state
+ │    ├── scan state
+ │    ├── modal state
+ │    ├── API request dispatch
+ │    ├── API response handling
+ │    ├── live event handling
+ │    ├── enrollment UI
+ │    ├── delete/wipe UI
+ │    ├── RFID UI
+ │    ├── attendance refresh
+ │    ├── reports
+ │    └── settings
+ │
+ └── styles.css
+      │
+      ├── application shell
+      ├── sidebar
+      ├── cards
+      ├── tables
+      ├── dialogs
+      ├── forms
+      ├── state indicators
+      ├── responsive layout
+      └── theme
+
+
+                                      WEB UI CONTROL FLOW
+
+USER CLICK
+   │
+   ▼
+app.js
+   │
+   ▼
+window.pywebview.api
+   │
+   ▼
+Api method
+   │
+   ▼
+validation / permission
+   │
+   ▼
+core module / service
+   │
+   ├──────────────► database
+   ├──────────────► device
+   ├──────────────► attendance
+   ├──────────────► auth
+   └──────────────► settings
+   │
+   ▼
+result
+   │
+   ▼
+Api._push(...)
+   │
+   ▼
+window.dsisEvent
+   │
+   ▼
+app.js
+   │
+   ▼
+UI updates
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             03. API / BRIDGE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/gui_web/api.py
+ │
+ ├── INTERNAL HELPERS
+ │   ├── _sanitize_csv_cell()
+ │   ├── _attendance_category()
+ │   └── _student_label()
+ │
+ ├── LOGGING BRIDGE
+ │   └── _UILogHandler
+ │       ├── __init__()
+ │       └── emit()
+ │
+ └── Api
+     │
+     ├── RUNTIME
+     │   ├── _auto_backup_loop()
+     │   ├── start_background_tasks()
+     │   ├── stop_background_tasks()
+     │   └── set_window()
+     │
+     ├── DEVICE CONNECTION
+     │   ├── list_ports()
+     │   ├── list_ports_detailed()
+     │   ├── forget_saved_port()
+     │   ├── connect()
+     │   ├── disconnect()
+     │   ├── _disconnect_impl()
+     │   └── get_connection_status()
+     │
+     ├── MODE CONTROL
+     │   ├── _operation_conflict()
+     │   ├── start_scan()
+     │   └── stop_scan()
+     │
+     ├── RFID REGISTRATION
+     │   ├── start_rfid_register_session()
+     │   ├── stop_rfid_register_session()
+     │   ├── start_batch_rfid_erase()
+     │   ├── stop_batch_rfid_erase()
+     │   ├── _push_batch_erase_result()
+     │   ├── _handle_batch_rfid_erase_event()
+     │   ├── _handle_rfid_session_card_event()
+     │   ├── _clear_pending_rfid_registration()
+     │   ├── _push_rfid_registration_result()
+     │   ├── _handle_rfid_registration_tap()
+     │   └── _handle_rfid_registration_write()
+     │
+     ├── FINGERPRINT ENROLLMENT
+     │   ├── start_enroll()
+     │   ├── validate_student_fields()
+     │   ├── cancel_enroll()
+     │   └── discard_enrollment()
+     │
+     ├── DESTRUCTIVE DEVICE ACTIONS
+     │   ├── delete_on_device()
+     │   ├── wipe_all_on_device()
+     │   └── request_fingerprint_count()
+     │
+     ├── SERIAL LOOP
+     │   ├── _start_read_loop()
+     │   ├── _stop_read_loop()
+     │   ├── _sync_connection_state()
+     │   ├── _read_loop()
+     │   ├── _parse_mode_line()
+     │   ├── _parse_scan_line()
+     │   ├── _parse_enroll_progress()
+     │   ├── _parse_wipe_progress()
+     │   ├── _parse_delete_progress()
+     │   ├── _parse_fingerprint_count()
+     │   ├── send_serial_command()
+     │   ├── reset_device()
+     │   └── _append_serial_log()
+     │
+     ├── DASHBOARD / ACTIVITY
+     │   ├── get_dashboard_stats()
+     │   ├── get_recent_activity()
+     │   └── get_attendance()
+     │
+     ├── STUDENTS
+     │   ├── get_students()
+     │   ├── get_student()
+     │   ├── save_student()
+     │   ├── bind_student_card()
+     │   ├── clear_student_card()
+     │   ├── delete_student()
+     │   └── export_students_csv()
+     │
+     ├── CSV / REPORTS
+     │   ├── _export_csv_rows()
+     │   ├── _rows_to_csv()
+     │   ├── export_attendance_csv()
+     │   ├── get_attendance_evaluation()
+     │   ├── export_attendance_evaluation_csv()
+     │   ├── get_statistics_report()
+     │   └── export_statistics_report()
+     │
+     ├── CALENDAR
+     │   ├── get_calendar_month()
+     │   ├── set_calendar_entry()
+     │   └── remove_calendar_entry()
+     │
+     ├── BACKUP / RESTORE
+     │   ├── list_backups()
+     │   ├── create_backup()
+     │   └── restore_backup()
+     │
+     ├── SETTINGS
+     │   ├── get_settings()
+     │   ├── save_ui_settings()
+     │   └── restore_default_settings()
+     │
+     ├── ROLE / SESSION
+     │   ├── get_current_role()
+     │   ├── set_current_role()
+     │   ├── get_session_state()
+     │   ├── touch_session()
+     │   ├── lock_session()
+     │   ├── get_role_permissions()
+     │   └── authenticate_role()
+     │
+     ├── FIRST RUN
+     │   ├── is_first_run_setup_required()
+     │   ├── complete_first_run_setup()
+     │   ├── get_setup_wizard_step()
+     │   ├── complete_setup_device_step()
+     │   ├── complete_setup_schedule_step()
+     │   └── complete_setup_branding_step()
+     │
+     └── LOG ACCESS
+         ├── open_log_folder()
+         └── get_app_log()
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             04. API EVENT FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+PYTHON CORE
+    │
+    ▼
+Api._push()
+    │
+    ▼
+window.dsisEvent
+    │
+    ├── scan_result
+    ├── serial_line
+    ├── log_line
+    ├── enroll_progress
+    ├── delete_progress
+    ├── wipe_progress
+    ├── fingerprint_count
+    ├── connection_status
+    ├── data_changed
+    └── mode_changed
+    │
+    ▼
+app.js
+    │
+    ├── update screen
+    ├── update status
+    ├── refresh data
+    ├── show result
+    ├── show error
+    └── update modal
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             05. PYTHON CORE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/
+ │
+ ├── database.py
+ │   └── MASTER LOCAL DATA LAYER
+ │
+ ├── serial_handler.py
+ │   └── PC ↔ ESP32 transport
+ │
+ ├── device_discovery.py
+ │   └── find / validate DSIS device
+ │
+ ├── commands.py
+ │   └── high-level device commands
+ │
+ ├── attendance.py
+ │   └── event interpretation / attendance processing
+ │
+ ├── attendance_status.py
+ │   └── time-in/out status calculation
+ │
+ ├── attendance_calendar.py
+ │   └── school-day rules
+ │
+ ├── auth.py
+ │   └── password security
+ │
+ ├── permissions.py
+ │   └── role/session authorization
+ │
+ ├── rfid_card.py
+ │   └── encrypted RFID payload processing
+ │
+ ├── logger.py
+ │   └── logging infrastructure
+ │
+ ├── setup_wizard.py
+ │   └── first-run setup state
+ │
+ ├── firmware_helper.py
+ │   └── firmware discovery/build/upload support
+ │
+ └── utils.py
+     └── shared helpers
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             06. DATABASE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/database.py
+ │
+ ├── VALIDATION
+ │   ├── ValidationState
+ │   ├── FieldValidationResult
+ │   ├── _is_valid_name_character()
+ │   ├── _is_valid_student_name()
+ │   ├── _collect_unsupported_characters()
+ │   ├── _collect_unsupported_name_characters()
+ │   └── _format_unsupported_characters()
+ │
+ ├── CONNECTION
+ │   ├── ManagedConnection
+ │   │   ├── __init__()
+ │   │   ├── __enter__()
+ │   │   ├── __exit__()
+ │   │   ├── close()
+ │   │   └── __getattr__()
+ │   └── get_connection()
+ │
+ ├── ROW MODELS
+ │   ├── AttendanceRow
+ │   ├── StudentRow
+ │   └── export_name_sort_key()
+ │
+ ├── SCHEMA
+ │   ├── init_database()
+ │   └── _migrate_attendance_event_type()
+ │
+ ├── STUDENTS
+ │   ├── validate_student_input()
+ │   ├── get_student_field_feedback()
+ │   ├── add_feedback()
+ │   ├── check_name()
+ │   ├── check_token()
+ │   ├── add_student()
+ │   ├── update_student()
+ │   ├── replace_student_fingerprint()
+ │   ├── delete_student()
+ │   ├── clear_all_students()
+ │   ├── get_student()
+ │   ├── get_all_students()
+ │   ├── get_student_count()
+ │   ├── register_student()
+ │   └── import_students_from_list()
+ │
+ ├── RFID LINKING
+ │   ├── normalize_card_uid()
+ │   ├── _student_card_uid_column_exists()
+ │   ├── get_student_by_card_uid()
+ │   ├── bind_student_card()
+ │   └── clear_student_card()
+ │
+ ├── ATTENDANCE
+ │   ├── log_attendance()
+ │   ├── get_attendance_today()
+ │   ├── get_today_attendance_info()
+ │   ├── get_attendance_all()
+ │   ├── get_attendance_paginated()
+ │   ├── get_attendance_count_today()
+ │   ├── get_daily_attendance_summary()
+ │   ├── get_attendance_by_date()
+ │   ├── clear_all_attendance()
+ │   ├── clear_all_data()
+ │   └── get_attendance_by_student()
+ │
+ ├── STATISTICS
+ │   ├── get_students_by_grade_section()
+ │   ├── count_attendance_by_date()
+ │   ├── get_attendance_statistics()
+ │   └── get_students_statistics()
+ │
+ ├── EXPORT / CHARTS
+ │   ├── export_attendance_range()
+ │   ├── export_attendance_range_with_time_in_out()
+ │   ├── export_attendance_rows_with_time_in_out()
+ │   ├── generate_statistics_report()
+ │   ├── _save_chart()
+ │   ├── generate_attendance_chart()
+ │   ├── generate_section_chart()
+ │   └── generate_grade_chart()
+ │
+ └── BACKUP / RESTORE
+     ├── backup_database()
+     ├── _is_path_within_directory()
+     ├── _is_valid_sqlite_db_file()
+     ├── restore_database()
+     ├── list_backups()
+     └── auto_backup_if_needed()
+
+
+                              SQLITE DATA TREE
+
+attendance.db
+ │
+ ├── students
+ │   ├── fingerprint_id
+ │   ├── student_no
+ │   ├── student_name
+ │   ├── grade
+ │   ├── section
+ │   ├── card_uid
+ │   ├── enrollment_date
+ │   └── updated_date
+ │
+ └── attendance
+     ├── id
+     ├── fingerprint_id
+     ├── date
+     ├── time
+     ├── confidence
+     ├── status
+     ├── timestamp
+     └── event_type
+
+students.fingerprint_id
+          │
+          ▼
+attendance.fingerprint_id
+
+0
+│
+└── Unregistered / Unknown identity
+
+1–127
+│
+└── real fingerprint template IDs
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             07. SERIAL FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/serial_handler.py
+ │
+ ├── list_serial_ports()
+ ├── build_common_port_candidates()
+ │
+ └── SerialHandler
+     ├── __init__()
+     ├── pyserial_installed()
+     ├── list_available_ports()
+     ├── connect()
+     ├── disconnect()
+     ├── _send_host_connected()
+     ├── test_connection()
+     ├── send_command()
+     ├── reset_device()
+     ├── read_line()
+     ├── should_ignore()
+     ├── is_connected()
+     ├── auto_reconnect()
+     ├── _schedule_reconnect()
+     ├── _join_reconnect_thread()
+     ├── _reconnect_worker()
+     └── _attempt_connect()
+          │
+          ▼
+      USB SERIAL
+       115200
+          │
+          ▼
+        ESP32
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             08. DEVICE DISCOVERY FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/device_discovery.py
+ │
+ ├── list_serial_ports()
+ ├── _score_port_info()
+ ├── _ordered_candidate_ports()
+ ├── add_port()
+ ├── _parse_json_line()
+ ├── _validate_handshake()
+ ├── _probe_port()
+ ├── _accept_handshake()
+ └── discover_device()
+        │
+        ▼
+ candidate COM ports
+        │
+        ▼
+ rank / inspect
+        │
+        ▼
+ probe
+        │
+        ▼
+       ID?
+        │
+   ┌────┴─────┐
+   │          │
+ VALID      INVALID
+   │          │
+   ▼          ▼
+ DSIS       reject
+ device
+   │
+   ▼
+ adopt port
+   │
+   ▼
+SerialHandler
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             09. COMMAND FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/commands.py
+ │
+ ├── cmd_scan()
+ ├── cmd_stop()
+ ├── build_enroll_command()
+ ├── cmd_enroll()
+ ├── cmd_delete()
+ ├── cmd_wipe()
+ ├── cmd_list()
+ ├── cmd_card_write()
+ ├── cmd_card_write_hex()
+ └── cmd_card_erase()
+      │
+      ▼
+ SerialHandler.send_command()
+      │
+      ▼
+ ESP32
+      │
+      ├── ID?
+      ├── SCAN
+      ├── STOP
+      ├── ENROLL
+      ├── ENROLL:<id>
+      ├── DELETE:<id>
+      ├── WIPE
+      ├── LIST
+      ├── STATUS:<state>
+      ├── CARD_WRITE_HEX:<payload>
+      └── CARD_ERASE
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             10. ATTENDANCE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+ESP32
+ │
+ ├── AS608 fingerprint event
+ │
+ └── RC522 RFID event
+      │
+      ▼
+USB Serial
+      │
+      ▼
+SerialHandler
+      │
+      ▼
+AttendanceProcessor
+      │
+      ├── process_line()
+      ├── reset()
+      ├── lookup_student()
+      ├── lookup_card_student()
+      ├── all_students()
+      ├── _handle_unknown_scan()
+      ├── _handle_unknown_card_scan()
+      ├── _handle_card_scan()
+      ├── _handle_confidence_scan()
+      ├── _handle_json_match_scan()
+      ├── _parse_json_int()
+      ├── _parse_int_value()
+      ├── _is_in_cooldown()
+      ├── _cooldown_reason()
+      └── _log_and_record()
+            │
+            ▼
+       Identity validation
+            │
+       ┌────┴──────┐
+       │           │
+     KNOWN       UNKNOWN
+       │           │
+       │           └── UNKNOWN / no attendance record
+       │
+       ▼
+ cooldown check
+       │
+   ┌───┴────┐
+   │        │
+ BLOCKED  ALLOWED
+   │        │
+   ▼        ▼
+ignore    record
+            │
+            ▼
+    attendance_status
+            │
+      ┌─────┼──────────────┐
+      │     │              │
+      ▼     ▼              ▼
+   time_in time_out   schedule comparison
+      │     │              │
+      └─────┴───────┬──────┘
+                    ▼
+                 SQLite
+                    │
+                    ▼
+                API event
+                    │
+                    ▼
+                  app.js
+                    │
+                    ▼
+                Attendance UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             11. ATTENDANCE STATUS FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/attendance_status.py
+ │
+ ├── _minutes()
+ │
+ └── calculate_attendance_status()
+      │
+      ├── time-in evaluation
+      ├── time-out evaluation
+      ├── early calculation
+      ├── late calculation
+      ├── absent rules
+      └── schedule comparison
+
+
+python/core/attendance_calendar.py
+ │
+ ├── _is_valid_date_string()
+ ├── _is_valid_time_string()
+ ├── _minutes()
+ ├── get_calendar()
+ ├── get_entry()
+ ├── is_non_school_day()
+ ├── get_schedule_for_date()
+ ├── validate_entry()
+ ├── set_entry()
+ └── remove_entry()
+      │
+      ├── holidays
+      ├── suspensions
+      ├── half-days
+      ├── weekday exclusions
+      └── date-specific schedules
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             12. FINGERPRINT FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                         ┌─────────────┐
+                                         │    AS608    │
+                                         └──────┬──────┘
+                                                │
+                           ┌────────────────────┴────────────────────┐
+                           │                                         │
+                           ▼                                         ▼
+                      ENROLLMENT                                  ATTENDANCE
+                           │                                         │
+                           ▼                                         ▼
+                     find free ID                                getImage()
+                           │                                         │
+                           ▼                                         ▼
+                      capture #1                                  image2Tz()
+                           │                                         │
+                           ▼                                         ▼
+                       image2Tz(1)                             fingerSearch()
+                           │                                         │
+                           ▼                                  ┌──────┴──────┐
+                    remove finger                             │             │
+                           │                                  MATCH       NO MATCH
+                           ▼                                    │             │
+                      capture #2                                │          UNKNOWN
+                           │                                    │
+                           ▼                                    ▼
+                       image2Tz(2)                         confidence
+                           │                                    │
+                           ▼                              ┌──────┴──────┐
+                     createModel()                         GOOD         LOW
+                           │                               MATCH      CONFIDENCE
+                  ┌────────┴────────┐
+                  │                 │
+               MATCH             MISMATCH
+                  │                 │
+                  ▼                 ▼
+              storeModel()        ERROR
+                  │
+                  ▼
+          enrollment event
+                  │
+                  ▼
+            Python receives ID
+                  │
+                  ▼
+             save_student()
+                  │
+                  ▼
+               SQLite
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             13. RFID FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                         ┌─────────────┐
+                                         │    RC522    │
+                                         └──────┬──────┘
+                                                │
+                                                ▼
+                                           Read UID
+                                                │
+                                                ▼
+                                         Detect card type
+                                                │
+                                                ▼
+                                        CardDetector
+                                                │
+                       ┌────────────────────────┼────────────────────────┐
+                       │                        │                        │
+                       ▼                        ▼                        ▼
+                    CLASSIC                  TYPE 2                   OTHER
+                       │                        │                        │
+                       │                        ├── Ultralight           └── unsupported
+                       │                        ├── NTAG215                   │
+                       │                        └── NTAG216                   ▼
+                       │                                                   unreadable
+                       ▼
+                 ClassicAdapter
+                       │
+                       ├── authenticateClassicCard()
+                       ├── readClassicPayload()
+                       └── writeClassicPayload()
+                       │
+                       ├── MIFARE Mini
+                       ├── MIFARE 1K
+                       └── MIFARE 4K
+
+                 Type2Adapter
+                       │
+                       ├── readType2Payload()
+                       └── writeType2Payload()
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             14. RFID FIRMWARE FILE TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+firmware/ESP32_DSIS_AllInOne/
+ │
+ ├── ESP32_DSIS_AllInOne.ino
+ │   │
+ │   ├── hexValue()
+ │   ├── ledBrightness()
+ │   ├── ledOff()
+ │   ├── getPriorityForState()
+ │   ├── requestLedState()
+ │   ├── restoreLedStateIfNeeded()
+ │   ├── handleHostStatus()
+ │   ├── parseJsonStringField()
+ │   ├── emitJsonStatus()
+ │   ├── emitJsonAttendanceMatch()
+ │   ├── emitJsonAttendanceUnknown()
+ │   ├── emitJsonAttendanceLowConfidence()
+ │   ├── uidToString()
+ │   ├── bytesToHex()
+ │   ├── emitJsonCardMatch()
+ │   ├── emitJsonCardUnreadable()
+ │   ├── emitJsonCardWriteResult()
+ │   ├── emitJsonCardKeyCheck()
+ │   ├── beginLedManager()
+ │   ├── ledReady()
+ │   ├── ledScan()
+ │   ├── ledEnroll()
+ │   ├── ledSuccess()
+ │   ├── ledError()
+ │   ├── ledSleep()
+ │   ├── ledFirmware()
+ │   ├── ledHostConnected()
+ │   ├── ledHostDisconnected()
+ │   ├── computeBootBrightness()
+ │   ├── updateLed()
+ │   ├── setup()
+ │   ├── loop()
+ │   ├── handleCommand()
+ │   ├── fingerprintExists()
+ │   ├── findNextAvailableId()
+ │   ├── checkEnrollmentCancel()
+ │   ├── enrollFinger()
+ │   ├── SCAN()
+ │   ├── CARD()
+ │   └── printHelp()
+ │
+ └── src/rfid/
+     │
+     ├── CardDetector.cpp
+     │   └── detectRfidCard()
+     │
+     ├── CardDetector.h
+     │
+     ├── ClassicAdapter.cpp
+     │   ├── classicKeyCandidateCount()
+     │   ├── classicKeyCandidate()
+     │   ├── sameUid()
+     │   ├── authenticateClassicCard()
+     │   ├── readClassicPayload()
+     │   └── writeClassicPayload()
+     │
+     ├── ClassicAdapter.h
+     │
+     ├── Type2Adapter.cpp
+     │   ├── readType2Payload()
+     │   └── writeType2Payload()
+     │
+     └── Type2Adapter.h
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             15. RFID ATTENDANCE PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+RC522
+ │
+ ▼
+UID + card type
+ │
+ ▼
+CardDetector
+ │
+ ├── Classic ───────► ClassicAdapter
+ │
+ ├── Type 2 ────────► Type2Adapter
+ │
+ └── Unsupported ───► card_unreadable
+ │
+ ▼
+read payload
+ │
+ ▼
+48-byte encrypted DSIS payload
+ │
+ ▼
+Python
+ │
+ ▼
+python/core/rfid_card.py
+ │
+ ├── _decode_rfid_key()
+ │
+ ├── get_or_create_rfid_app_key()
+ │
+ ├── _normalize_card_uid()
+ │
+ ├── _payload_aad()
+ │
+ ├── encrypt_student_card_payload()
+ │
+ └── decrypt_student_card_payload()
+ │
+ ▼
+AES-GCM validation
+ │
+ ├── decrypt
+ ├── authentication-tag validation
+ ├── payload-version validation
+ ├── UID-bound AAD
+ └── identity extraction
+ │
+ ▼
+database lookup
+ │
+ ▼
+student/card agreement
+ │
+ ▼
+cooldown
+ │
+ ▼
+log_attendance()
+ │
+ ▼
+SQLite
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             16. RFID REGISTRATION PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+STUDENT
+ │
+ ▼
+Manage RFID
+ │
+ ▼
+Api.start_rfid_register_session()
+ │
+ ├── permission
+ ├── student existence
+ ├── scan-mode exclusivity
+ └── card ownership checks
+ │
+ ▼
+CARD REGISTRATION MODE
+ │
+ ▼
+tap card
+ │
+ ▼
+RC522
+ │
+ ▼
+detect UID + family
+ │
+ ▼
+python/core/rfid_card.py
+ │
+ ▼
+encrypt_student_card_payload()
+ │
+ ▼
+UID-bound AAD
+ │
+ ▼
+48-byte payload
+ │
+ ▼
+cmd_card_write_hex()
+ │
+ ▼
+CARD_WRITE_HEX
+ │
+ ▼
+ESP32
+ │
+ ├── ClassicAdapter → write blocks
+ │
+ └── Type2Adapter → write pages
+ │
+ ▼
+READBACK
+ │
+ ├── UID match
+ ├── payload match
+ └── verified flag
+ │
+ ▼
+Python verification
+ │
+ ▼
+db.bind_student_card()
+ │
+ ▼
+Student ↔ RFID UID
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             17. ENROLLMENT PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+WEB UI
+ │
+ ▼
+Student form
+ │
+ ▼
+Api.validate_student_fields()
+ │
+ ▼
+permission check
+ │
+ ▼
+conflict validation
+ │
+ ▼
+Api.start_enroll()
+ │
+ ▼
+commands.cmd_enroll()
+ │
+ ▼
+SerialHandler
+ │
+ ▼
+USB Serial
+ │
+ ▼
+ESP32
+ │
+ ▼
+AS608
+ │
+ ├── capture
+ ├── convert
+ ├── capture again
+ ├── create model
+ └── store model
+ │
+ ▼
+enrollment event
+ │
+ ▼
+Api._parse_enroll_progress()
+ │
+ ▼
+save_student()
+ │
+ ▼
+database.add_student()
+ │
+ ▼
+students table
+ │
+ ▼
+data_changed
+ │
+ ▼
+app.js
+ │
+ ▼
+Students page
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             18. DELETE PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+USER
+ │
+ ▼
+Delete student
+ │
+ ▼
+permission
+ │
+ ▼
+Api.delete_on_device()
+ │
+ ▼
+cmd_delete()
+ │
+ ▼
+DELETE:<fingerprint_id>
+ │
+ ▼
+ESP32
+ │
+ ▼
+delete fingerprint template
+ │
+ ▼
+success
+ │
+ ▼
+database.delete_student()
+ │
+ ├── remove student row
+ │
+ └── preserve historical attendance semantics
+      │
+      ▼
+old attendance remains
+      │
+      ▼
+identity can resolve through retained history / Unregistered handling
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             19. WIPE PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+WIPE REQUEST
+ │
+ ├────────────────────────────┐
+ │                            │
+ ▼                            ▼
+DEVICE DOMAIN             LOCAL DOMAIN
+ │                            │
+ ▼                            ▼
+ESP32                     wipe_all_data()
+ │                            │
+ ▼                            ├── permission
+WIPE                         ├── clear attendance
+ │                            ├── clear students
+ ▼                            └── retain durable Unregistered semantics
+fingerprint templates
+ │
+ └───────────────┬───────────────┘
+                 ▼
+             completed
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             20. AUTHENTICATION TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+FIRST RUN
+ │
+ ▼
+core.setup_wizard
+ │
+ ▼
+create initial admin password
+ │
+ ▼
+core.auth
+ │
+ ├── hash_password()
+ ├── verify_password()
+ ├── has_password_set()
+ ├── validate_new_password()
+ └── set_initial_password()
+ │
+ ▼
+PBKDF2-HMAC-SHA256
+ │
+ ▼
+salt + password hash + iteration information
+ │
+ ▼
+settings.json
+
+
+RUNTIME
+ │
+ ▼
+SESSION
+ │
+ ├── Guest
+ ├── Teacher
+ └── Admin
+      │
+      ▼
+core.permissions
+      │
+      ├── set_session_role()
+      ├── touch_session()
+      ├── get_current_role()
+      ├── has_permission()
+      ├── has_role_permission()
+      ├── require_role()
+      └── require_permission()
+      │
+      ▼
+AUTHORIZE
+ │
+ ├── ALLOW ───► operation
+ │
+ └── DENY  ───► error returned to UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             21. SETTINGS / RUNTIME DATA TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+data/
+ │
+ ├── attendance.db
+ │
+ ├── settings.json
+ │   ├── device settings
+ │   ├── attendance settings
+ │   ├── calendar settings
+ │   ├── UI settings
+ │   ├── backup state
+ │   └── auth data
+ │
+ ├── backups/
+ │   └── timestamped database snapshots
+ │
+ ├── logs/
+ │   └── application logs
+ │
+ ├── exports/
+ │   └── CSV / generated exports
+ │
+ ├── charts/
+ │   └── generated report graphics
+ │
+ └── .admin_initialized
+     └── first-admin setup state
+
+
+python/settings_store.py
+ │
+ ├── settings loading
+ ├── settings saving
+ ├── configuration continuity
+ └── stale-port cleanup
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             22. LOGGER FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/logger.py
+ │
+ ├── AppFormatter
+ │   ├── formatTime()
+ │   └── format()
+ │
+ ├── _derive_source()
+ ├── _format_structured()
+ ├── _prune_old_logs()
+ ├── _configure_logger()
+ ├── _log_with_structured()
+ ├── debug()
+ ├── info()
+ ├── success()
+ ├── warning()
+ ├── error()
+ ├── critical()
+ ├── exception()
+ │
+ └── LoggerProxy
+      ├── debug()
+      ├── info()
+      ├── success()
+      ├── warning()
+      ├── error()
+      ├── critical()
+      └── exception()
+
+LOGGER
+ │
+ ├── console
+ ├── file
+ ├── UI buffer
+ └── diagnostics
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             23. SETUP WIZARD FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/setup_wizard.py
+ │
+ ├── get_next_step()
+ └── is_setup_complete()
+
+FIRST RUN
+ │
+ ├── password step
+ ├── device step
+ ├── schedule step
+ ├── branding step
+ └── resume interrupted setup
+
+SETUP COMPLETE
+ │
+ ▼
+normal application
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             24. FIRMWARE HELPER FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/core/firmware_helper.py
+ │
+ ├── discover_firmware_candidates()
+ ├── find_firmware_binary()
+ ├── find_arduino_firmware()
+ ├── esptool_available()
+ ├── build_upload_command()
+ ├── upload_firmware()
+ └── upload_firmware_with_progress()
+      │
+      ▼
+firmware/
+ │
+ ├── active DSIS firmware
+ ├── earlier firmware
+ └── hardware test sketches
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             25. SERVICE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+python/services/
+ │
+ ├── student_service.py
+ │   └── student-related service wrapper
+ │
+ └── attendance_service.py
+     └── attendance-related service wrapper
+          │
+          ▼
+      python/core/*
+          │
+          ▼
+       Database / business logic
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             26. REPORTING FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+SQLite
+ │
+ ▼
+reporting/database functions
+ │
+ ├── daily attendance
+ ├── weekly attendance
+ ├── monthly attendance
+ ├── time-in / time-out
+ ├── statistics
+ ├── by grade
+ ├── by section
+ └── evaluation
+ │
+ ├───────────────┬─────────────────┐
+ ▼               ▼                 ▼
+CSV             Charts          UI Reports
+ │               │                 │
+ ▼               ▼                 ▼
+export files   chart files      Reports page
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             27. BACKUP TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+attendance.db
+ │
+ ▼
+backup_database()
+ │
+ ▼
+data/backups/
+ │
+ ▼
+attendance_TIMESTAMP.db
+ │
+ ▼
+restore_backup()
+ │
+ ├── validate destination
+ ├── validate SQLite file
+ └── restore
+ │
+ ▼
+data/attendance.db
+
+
+AUTO BACKUP
+ │
+ ▼
+Api background task
+ │
+ ▼
+auto_backup_if_needed()
+ │
+ ▼
+database snapshot
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             28. RUNTIME THREAD FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+DSIS PROCESS
+ │
+ ├── MAIN UI
+ │   └── pywebview / JavaScript
+ │
+ ├── SERIAL READER
+ │   ├── reads ESP32 lines
+ │   ├── parses events
+ │   └── dispatches
+ │
+ ├── RECONNECT WORKER
+ │   ├── schedules retry
+ │   ├── probes ports
+ │   └── restores connection
+ │
+ ├── AUTO BACKUP WORKER
+ │   └── periodic database protection
+ │
+ └── UI LOG HANDLER
+     └── forwards application logs to UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             29. HARDWARE BOUNDARY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                 ┌───────────────────────────────────────┐
+                 │             WINDOWS PC                │
+                 │                                       │
+                 │  pywebview                           │
+                 │  JavaScript                          │
+                 │  Python                              │
+                 │  SQLite                              │
+                 └──────────────────┬────────────────────┘
+                                    │
+                               USB SERIAL
+                                 115200
+                                    │
+                                    ▼
+                 ┌───────────────────────────────────────┐
+                 │                ESP32                   │
+                 │                                       │
+                 │  command parser                       │
+                 │  fingerprint engine                   │
+                 │  RFID engine                          │
+                 │  LED engine                           │
+                 │  JSON / serial events                 │
+                 └───────────────┬─────────────┬─────────┘
+                                 │             │
+                            UART2 57600       SPI
+                                 │             │
+                                 ▼             ▼
+                               AS608         RC522
+                                 │             │
+                                 └──────┬──────┘
+                                        ▼
+                                  IDENTIFICATION
+
+
+IMPORTANT BOUNDARY:
+PC does NOT directly operate AS608 or RC522.
+The ESP32 is the hardware controller.
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             30. COMPLETE COMMAND PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+USER ACTION
+ │
+ ▼
+WEB UI
+ │
+ ▼
+app.js
+ │
+ ▼
+window.pywebview.api
+ │
+ ▼
+Api
+ │
+ ▼
+core.permissions
+ │
+ ├── DENY ───────────────────────────────────────────────► UI error
+ │
+ └── ALLOW
+      │
+      ▼
+core.commands
+      │
+      ▼
+SerialHandler
+      │
+      ▼
+USB Serial
+      │
+      ▼
+ESP32
+      │
+      ▼
+physical operation
+      │
+      ▼
+JSON / serial event
+      │
+      ▼
+SerialHandler
+      │
+      ▼
+Api parser
+      │
+      ▼
+window.dsisEvent
+      │
+      ▼
+app.js
+      │
+      ▼
+USER RESULT
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             31. COMPLETE SCAN PATH
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                         IDENTIFICATION REQUEST
+                                  │
+                   ┌──────────────┴──────────────┐
+                   │                             │
+                   ▼                             ▼
+              FINGERPRINT                      RFID
+                   │                             │
+                   ▼                             ▼
+                 AS608                         RC522
+                   │                             │
+                   ▼                             ▼
+            fingerprint ID                  UID + payload
+                   │                             │
+                   │                             ▼
+                   │                        CardDetector
+                   │                             │
+                   │                    ┌────────┴─────────┐
+                   │                    │                  │
+                   │                 Classic              Type2
+                   │                    │                  │
+                   │                    ▼                  ▼
+                   │              ClassicAdapter      Type2Adapter
+                   │                    │                  │
+                   │                    └────────┬─────────┘
+                   │                             ▼
+                   │                       payload read
+                   │                             │
+                   └──────────────┬──────────────┘
+                                  ▼
+                              ESP32 event
+                                  │
+                                  ▼
+                              USB Serial
+                                  │
+                                  ▼
+                           SerialHandler
+                                  │
+                                  ▼
+                       AttendanceProcessor
+                                  │
+             ┌────────────────────┼────────────────────┐
+             │                    │                    │
+             ▼                    ▼                    ▼
+          parse                validate             identify
+             │                    │                    │
+             └────────────────────┼────────────────────┘
+                                  ▼
+                            Student lookup
+                                  │
+                                  ▼
+                            Cooldown check
+                                  │
+                                  ▼
+                           Attendance status
+                                  │
+                                  ▼
+                               SQLite
+                                  │
+                                  ▼
+                               Reports
+                                  │
+                                  ▼
+                               Web UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             32. FILE ARCHITECTURE TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Digital-Student-Identification-System/
+│
+├── run_web_gui.py
+├── run_web_gui.bat
+│
+├── python/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── main.py
+│   ├── settings_store.py
+│   │
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── attendance.py
+│   │   ├── attendance_calendar.py
+│   │   ├── attendance_status.py
+│   │   ├── auth.py
+│   │   ├── commands.py
+│   │   ├── database.py
+│   │   ├── device_discovery.py
+│   │   ├── firmware_helper.py
+│   │   ├── logger.py
+│   │   ├── permissions.py
+│   │   ├── rfid_card.py
+│   │   ├── serial_handler.py
+│   │   ├── setup_wizard.py
+│   │   └── utils.py
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── attendance_service.py
+│   │   └── student_service.py
+│   │
+│   ├── gui_web/
+│   │   ├── __init__.py
+│   │   ├── api.py
+│   │   ├── main_web.py
+│   │   ├── perf_profiler.py
+│   │   └── web/
+│   │       ├── app.js
+│   │       ├── index.html
+│   │       └── styles.css
+│   │
+│   ├── gui_qt/
+│   └── gui/
+│       └── legacy/
+│
+├── firmware/
+│   │
+│   ├── ESP32_DSIS_AllInOne/
+│   │   ├── ESP32_DSIS_AllInOne.ino
+│   │   └── src/
+│   │       └── rfid/
+│   │           ├── CardDetector.cpp
+│   │           ├── CardDetector.h
+│   │           ├── ClassicAdapter.cpp
+│   │           ├── ClassicAdapter.h
+│   │           ├── Type2Adapter.cpp
+│   │           └── Type2Adapter.h
+│   │
+│   ├── ESP32_Fingerprint_AllInOne/
+│   ├── attendance/
+│   ├── delete/
+│   ├── enroll/
+│   ├── rc522_dumpinfo_test/
+│   ├── rc522_read/
+│   ├── rc522_readwrite/
+│   ├── rc522_test/
+│   ├── rc522_write/
+│   └── test/
+│       └── fingerprint_check/
+│
+├── tests/
+│   ├── active regression suite
+│   ├── Prototype/
+│   ├── manual_hardware_scripts/
+│   ├── legacy/
+│   └── _archives/
+│
+├── tools/
+│   ├── database tools
+│   ├── serial tools
+│   ├── runtime tools
+│   └── diagnostics
+│
+├── Build/
+│   ├── DSIS_v1.spec
+│   ├── DSIS_v2.spec
+│   └── DSIS_v3.spec
+│
+├── docs/
+│   ├── Architecture/
+│   ├── Hardware/
+│   ├── Development/
+│   ├── UserGuide/
+│   ├── Troubleshooting/
+│   ├── Security/
+│   ├── API/
+│   ├── History/
+│   └── generated/
+│
+├── archive/
+│   ├── diagnostics/
+│   └── legacy-ui/
+│       ├── v1/
+│       ├── v2/
+│       ├── gui_qt_redesign/
+│       ├── gui_qt_redesign_2/
+│       └── testing_area/
+│
+├── audit/
+├── assets/
+├── driver/
+└── system/
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             33. FILE ROLES
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+LAUNCHERS
+ │
+ ├── run_web_gui.py
+ └── run_web_gui.bat
+        │
+        ▼
+APPLICATION ENTRY
+ │
+ └── python/gui_web/main_web.py
+        │
+        ▼
+UI BRIDGE
+ │
+ └── python/gui_web/api.py
+        │
+        ├── UI
+        ├── core
+        ├── services
+        ├── runtime workers
+        └── events
+        │
+        ▼
+CORE
+ │
+ ├── database.py       → data
+ ├── attendance.py     → attendance engine
+ ├── auth.py           → password security
+ ├── permissions.py    → authorization
+ ├── serial_handler.py → communication
+ ├── device_discovery.py → device finding
+ ├── commands.py       → ESP32 commands
+ ├── rfid_card.py      → RFID crypto
+ ├── attendance_status.py → schedule status
+ ├── attendance_calendar.py → school calendar
+ ├── logger.py         → diagnostics
+ ├── setup_wizard.py   → initial setup
+ ├── firmware_helper.py → firmware support
+ └── utils.py          → shared utilities
+        │
+        ▼
+SERVICES
+ │
+ ├── student_service.py
+ └── attendance_service.py
+        │
+        ▼
+DATABASE / DEVICE
+ │
+ ├── SQLite
+ └── ESP32
+        │
+        ├── AS608
+        └── RC522
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             34. TEST FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+tests/
+ │
+ ├── ATTENDANCE
+ │   ├── parsing
+ │   ├── processor
+ │   ├── refresh
+ │   ├── status
+ │   ├── export
+ │   └── UI regressions
+ │
+ ├── DATABASE
+ │   ├── features
+ │   ├── reset
+ │   ├── security
+ │   └── persistence
+ │
+ ├── SECURITY
+ │   ├── authentication
+ │   ├── permissions
+ │   ├── sanitization
+ │   └── error handling
+ │
+ ├── DEVICE / SERIAL
+ │   ├── port discovery
+ │   ├── serial handler
+ │   ├── handshake recovery
+ │   ├── worker behavior
+ │   └── host gate
+ │
+ ├── RFID
+ │   ├── card processing
+ │   ├── active firmware protocol
+ │   ├── attendance
+ │   └── registration
+ │
+ ├── GUI
+ │   ├── web smoke
+ │   ├── responsive layout
+ │   ├── enrollment
+ │   ├── settings
+ │   ├── shutdown
+ │   └── student UI
+ │
+ ├── PROTOTYPE
+ │
+ ├── MANUAL HARDWARE
+ │
+ ├── LEGACY
+ │
+ └── ARCHIVES
+     └── previous hardware / UI experiments
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             35. BUILD / RELEASE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Build/
+ │
+ ├── DSIS_v1.spec
+ │
+ ├── DSIS_v2.spec
+ │
+ └── DSIS_v3.spec
+      │
+      ▼
+ PyInstaller
+      │
+      ▼
+ Windows application
+
+
+SUPPORTING
+ │
+ ├── tools/fingerprint_portable.spec
+ ├── PORTABLE_BUILD.md
+ ├── INSTALLATION.md
+ └── RELEASE.md
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             36. HISTORY / VERSION FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+DSIS
+ │
+ ├── V1
+ │   │
+ │   ├── CustomTkinter
+ │   ├── original Python GUI
+ │   ├── original attendance stack
+ │   └── archived
+ │
+ ├── V2
+ │   │
+ │   ├── Qt / PySide6
+ │   ├── redesigned GUI
+ │   ├── workers
+ │   ├── pages
+ │   └── archived/reference
+ │
+ └── V3
+     │
+     ├── HTML
+     ├── CSS
+     ├── JavaScript
+     ├── pywebview
+     ├── Python API
+     ├── modular Python core
+     ├── SQLite
+     ├── ESP32 All-In-One
+     ├── AS608
+     └── RC522
+          │
+          ▼
+       CURRENT
+       MAINTAINED
+       ARCHITECTURE
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             37. ARCHIVE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+archive/
+ │
+ ├── diagnostics/
+ │   ├── serial probes
+ │   ├── handshake probes
+ │   └── runtime diagnostics
+ │
+ └── legacy-ui/
+     │
+     ├── v1/
+     │   ├── old Python core
+     │   ├── old services
+     │   ├── old GUI
+     │   └── old settings
+     │
+     ├── v2/
+     │   ├── old Python core
+     │   ├── old GUI
+     │   ├── Qt GUI
+     │   ├── workers
+     │   └── old services
+     │
+     ├── gui_qt_redesign/
+     │
+     ├── gui_qt_redesign_2/
+     │
+     └── testing_area/
+            │
+            ├── snippets
+            ├── GUI experiments
+            └── service experiments
+
+
+ARCHIVE RULE:
+Archived code explains lineage and experiments.
+Archived code is NOT silently treated as current V3 runtime.
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             38. DEVICE FAILURE / RECOVERY FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+DEVICE CONNECTION
+ │
+ ▼
+SerialHandler
+ │
+ ▼
+connection lost?
+ │
+ ├── NO ─────► normal runtime
+ │
+ └── YES
+       │
+       ▼
+ _schedule_reconnect()
+       │
+       ▼
+ _reconnect_worker()
+       │
+       ▼
+ device_discovery
+       │
+       ▼
+ candidate ports
+       │
+       ▼
+ ID? handshake
+       │
+       ├── VALID DSIS DEVICE
+       │      │
+       │      ▼
+       │   reconnect
+       │      │
+       │      ▼
+       │   restore state
+       │
+       └── INVALID / NOT FOUND
+              │
+              ▼
+           disconnected state
+              │
+              ▼
+             UI
+              │
+              ▼
+        connection_status
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             39. GENERIC FAILURE FAMILY
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+ANY OPERATION
+ │
+ ▼
+VALIDATION
+ │
+ ├── INVALID
+ │     │
+ │     ▼
+ │   reject
+ │     │
+ │     ▼
+ │   log
+ │     │
+ │     ▼
+ │   UI error
+ │
+ └── VALID
+       │
+       ▼
+   OPERATION
+       │
+       ├── SUCCESS
+       │     │
+       │     ├── verify
+       │     ├── persist
+       │     └── notify UI
+       │
+       └── FAILURE
+             │
+             ├── log
+             ├── recover where applicable
+             └── notify UI
+
+
+HARDWARE-BACKED OPERATION PATTERN:
+
+REQUEST
+  ↓
+VALIDATE
+  ↓
+SEND COMMAND
+  ↓
+DEVICE OPERATION
+  ↓
+READ RESULT
+  ↓
+VERIFY
+  ↓
+PERSIST
+  ↓
+EVENT
+  ↓
+UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             40. FULL FILE → FLOW CONNECTION
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+run_web_gui.py
+   │
+   ▼
+main_web.py
+   │
+   ▼
+pywebview
+   │
+   ▼
+index.html
+   │
+   ├────────► styles.css
+   │
+   └────────► app.js
+                 │
+                 ▼
+          window.pywebview.api
+                 │
+                 ▼
+               api.py
+                 │
+      ┌──────────┼───────────────────────────────┐
+      │          │                               │
+      ▼          ▼                               ▼
+ permissions   core                        serial/device
+      │          │                               │
+      │          ├── attendance                  │
+      │          ├── database                    │
+      │          ├── auth                        │
+      │          ├── RFID                        │
+      │          ├── calendar                    │
+      │          ├── settings                    │
+      │          └── logging                     │
+      │                                          │
+      │                                          ▼
+      │                                        ESP32
+      │                                          │
+      │                              ┌───────────┴───────────┐
+      │                              │                       │
+      │                              ▼                       ▼
+      │                            AS608                   RC522
+      │                              │                       │
+      │                              └───────────┬───────────┘
+      │                                          ▼
+      │                                     device event
+      │                                          │
+      └──────────────────────────────────────────┤
+                                                 ▼
+                                         AttendanceProcessor
+                                                 │
+                                                 ▼
+                                           Student lookup
+                                                 │
+                                                 ▼
+                                             SQLite
+                                                 │
+                              ┌──────────────────┼───────────────────┐
+                              │                  │                   │
+                              ▼                  ▼                   ▼
+                           Dashboard         Attendance           Reports
+                              │                  │                   │
+                              └──────────────────┼───────────────────┘
+                                                 ▼
+                                               app.js
+                                                 │
+                                                 ▼
+                                                USER
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             41. THE "WHY" OF THE FILE STRUCTURE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+WEB FILES
+ │
+ └── presentation
+      │
+      ▼
+API
+ │
+ └── integration boundary
+      │
+      ▼
+CORE
+ │
+ ├── reusable business logic
+ ├── persistence
+ ├── security
+ ├── communication
+ ├── validation
+ └── hardware-facing control
+      │
+      ▼
+SERVICES
+ │
+ └── thin operation wrappers
+      │
+      ▼
+DEVICE / DATABASE
+ │
+ ├── physical identification
+ └── persistent records
+      │
+      ▼
+EVENTS
+ │
+ └── return results to UI
+
+
+This means:
+
+FILES ARE NOT RANDOMLY CONNECTED.
+
+Instead:
+
+UI
+ ↓
+API boundary
+ ↓
+CORE
+ ↓
+DEVICE / DATABASE
+ ↓
+RESULT
+ ↓
+UI
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                             42. FINAL SUPER TREE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                           ┌───────────────────────────┐
+                                           │            DSIS           │
+                                           └─────────────┬─────────────┘
+                                                         │
+              ┌──────────────────────────────────────────┼─────────────────────────────────────────┐
+              │                                          │                                         │
+              ▼                                          ▼                                         ▼
+            USER                                      SOFTWARE                                  HARDWARE
+              │                                          │                                         │
+              │                                          ▼                                         ▼
+              │                                   V3 DESKTOP APP                                 ESP32
+              │                                          │                                  ┌──────┴───────┐
+              │                                          ▼                                  │              │
+              │                                      pywebview                            AS608          RC522
+              │                                          │
+              │                                          ▼
+              │                                       Web UI
+              │                                          │
+              │                         ┌────────────────┼─────────────────┐
+              │                         │                │                 │
+              │                         ▼                ▼                 ▼
+              │                       HTML              CSS                JS
+              │                                          │                 │
+              │                                          │                 ▼
+              │                                          │              API calls
+              │                                          │                 │
+              │                                          └─────────────────┤
+              │                                                            ▼
+              │                                                          api.py
+              │                                                            │
+              │                           ┌────────────────────────────────┼─────────────────────────┐
+              │                           │                                │                         │
+              │                           ▼                                ▼                         ▼
+              │                       SECURITY                        BUSINESS                   DEVICE
+              │                           │                                │                         │
+              │                    ┌──────┴───────┐             ┌──────────┼─────────┐         ┌────┴────┐
+              │                    │              │             │          │         │         │         │
+              │                  auth       permissions    attendance   database   calendar  serial   commands
+              │                                                             │
+              │                                                             ▼
+              │                                                          SQLite
+              │                                                             │
+              │                                  ┌──────────────────────────┼─────────────────────────┐
+              │                                  │                          │                         │
+              │                                  ▼                          ▼                         ▼
+              │                              students                 attendance                 settings
+              │                                  │                          │
+              │                                  └──────────────┬───────────┘
+              │                                                 │
+              │                                                 ▼
+              │                                           REPORTS / DATA
+              │
+              ▼
+       USER RESULT
+              ▲
+              │
+              │
+       app.js <─────────────────────────────────────────────── events
+              ▲
+              │
+              │
+       window.dsisEvent
+              ▲
+              │
+          api._push()
+              ▲
+              │
+       ┌──────┴──────────────────────────┐
+       │                                 │
+       ▼                                 ▼
+ CORE RESULT                         DEVICE EVENT
+       │                                 │
+       │                                 ▼
+       │                              ESP32
+       │                                 │
+       │                    ┌────────────┴────────────┐
+       │                    │                         │
+       │                    ▼                         ▼
+       │                  AS608                     RC522
+       │                    │                         │
+       │                    └────────────┬────────────┘
+       │                                 │
+       │                                 ▼
+       │                           identification
+       │                                 │
+       └─────────────────────────────────┘
+                                         │
+                                         ▼
+                                AttendanceProcessor
+                                         │
+                              ┌──────────┴───────────┐
+                              │                      │
+                         Fingerprint               RFID
+                              │                      │
+                              │                AES-GCM validation
+                              │                      │
+                              └──────────┬───────────┘
+                                         ▼
+                                   Student identity
+                                         │
+                                         ▼
+                                      cooldown
+                                         │
+                                         ▼
+                                 attendance status
+                                         │
+                                         ▼
+                                       SQLite
+                                         │
+                                         ▼
+                                Dashboard / Reports
+                                         │
+                                         ▼
+                                        app.js
+                                         │
+                                         ▼
+                                        USER
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                                      43. ONE-LINE COMPLETE ARCHITECTURE
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+USER
+ ↓
+run_web_gui.py
+ ↓
+main_web.py
+ ↓
+pywebview
+ ↓
+HTML + CSS + JavaScript
+ ↓
+window.pywebview.api
+ ↓
+Api
+ ↓
+permissions / validation
+ ↓
+Python Core
+ ↓
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ database │ attendance │ auth │ permissions │ serial │ discovery │ commands │ RFID │ calendar │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↓
+┌───────────────────────────────┬─────────────────────────────┐
+│                               │                             │
+DATABASE                       DEVICE                       SETTINGS
+│                               │                             │
+SQLite                          ESP32                         JSON
+│                               │
+│                      ┌────────┴────────┐
+│                      │                 │
+│                    AS608              RC522
+│                      │                 │
+└──────────────────────┴─────────────────┘
+                       ↓
+                IDENTIFICATION EVENT
+                       ↓
+               ATTENDANCE PROCESSOR
+                       ↓
+               IDENTITY + VALIDATION
+                       ↓
+                COOLDOWN / STATUS
+                       ↓
+                     SQLite
+                       ↓
+                 API EVENT BRIDGE
+                       ↓
+                     app.js
+                       ↓
+                  WEB UI
+                       ↓
+                      USER
+
+
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                             END OF SUPER TREE                                                                                    ║
+║                                                                                                                                                ║
+║       APP FLOW + FILE FLOW + FUNCTION FLOW + DATA FLOW + HARDWARE FLOW + SECURITY + TESTS + HISTORY + FAILURE/RECOVERY                        ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+```
