@@ -363,6 +363,7 @@ See [LICENSE](LICENSE) for the project's license and usage terms.
 
 The whole-project architecture is documented separately so the README stays readable while the repository still has a detailed technical map.
 
+- **[Full Project Architecture Tree & Symbol Map](docs/generated/PROJECT_ARCHITECTURE_TREE.md)** — literal repository file tree plus source-level classes/functions.
 - **[Complete DSIS System Architecture](docs/Architecture/complete-system-architecture.md)** — repository-wide architecture, data flow, hardware/software boundaries, fingerprint and RFID branches, authentication, database, testing, build tooling, documentation, and V1→V3 lineage.
 
 The complete architecture is intended as a high-level technical reference. For implementation-specific contracts, prefer the focused architecture documents and current source code/tests.
