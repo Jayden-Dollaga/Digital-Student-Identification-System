@@ -2846,6 +2846,98 @@ archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/__init__.py
   └── [no class/function definitions detected]
 ```
 
+
+### 2.3C Archive symbols — V1/V2 GUI branches
+
+```text
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/attendance_page.py
+  ├── class AttendancePage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def _populate()
+  └── def on_scan_event()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/dashboard_page.py
+  ├── class DashboardPage()
+  ├── def __init__()
+  ├── def refresh()
+  └── def on_scan_event()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/logs_page.py
+  ├── class LogsPage()
+  ├── def __init__()
+  ├── def append_line()
+  └── def clear()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/reports_page.py
+  ├── class ReportsPage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def on_export_clicked()
+  ├── def on_backup_clicked()
+  └── def on_restore_clicked()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/settings_page.py
+  ├── class SettingsPage()
+  ├── def __init__()
+  ├── def _populate_ports()
+  ├── def _refresh_firmware_status()
+  ├── def on_upload_firmware()
+  ├── def progress()
+  ├── def run_upload()
+  └── def on_save()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/pages/students_page.py
+  ├── class EnrollDialog()
+  ├── def __init__()
+  ├── def on_start()
+  ├── def on_enroll_progress()
+  ├── def accept()
+  ├── def get_values()
+  ├── def closeEvent()
+  ├── class WipeDialog()
+  ├── def __init__()
+  ├── def on_confirm()
+  ├── def on_wipe_progress()
+  ├── def closeEvent()
+  ├── class StudentsPage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def on_enroll_clicked()
+  ├── def on_delete_clicked()
+  └── def on_wipe_clicked()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/widgets/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/widgets/sidebar.py
+  ├── class Sidebar()
+  └── def __init__()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/widgets/stat_card.py
+  ├── class StatCard()
+  ├── def __init__()
+  └── def set_value()
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/workers/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign_2/gui_qt/workers/serial_worker.py
+  ├── class SerialWorker()
+  ├── def __init__()
+  ├── def run()
+  ├── def _process_line()
+  ├── def _parse_enroll_progress()
+  ├── def _parse_wipe_progress()
+  └── def stop()
+
+archive/legacy-ui/testing_area/core/database_addition_snippet.py
+  └── def get_daily_attendance_summary()
+
+archive/legacy-ui/testing_area/gui/legacy/app_test.py
+  └── [no class/function definitions detected]
+```
+
 ## 3. Architecture reading order
 
 ```text
