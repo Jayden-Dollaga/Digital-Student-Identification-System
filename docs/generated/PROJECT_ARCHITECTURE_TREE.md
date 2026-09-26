@@ -3940,6 +3940,120 @@ archive/legacy-ui/v2/python/gui_qt/pages/settings_page.py
   └── def on_save()
 ```
 
+
+### 2.3J Archive symbols — final legacy source
+
+```text
+archive/legacy-ui/v2/python/gui_qt/pages/students_page.py
+  ├── class EnrollmentState()
+  ├── class EnrollDialog()
+  ├── def __init__()
+  ├── def _show_field_validation_feedback()
+  ├── def _is_form_valid()
+  ├── def _on_form_changed()
+  ├── def _set_state()
+  ├── def _on_primary_action()
+  ├── def _start_enrollment()
+  ├── def _save_student()
+  ├── def _append_log_line()
+  ├── def on_enroll_progress()
+  ├── def _cleanup_before_close()
+  ├── def on_cancel()
+  ├── def get_values()
+  ├── def closeEvent()
+  ├── class StudentDetailsDialog()
+  ├── def __init__()
+  ├── def get_values()
+  ├── class WipeDialog()
+  ├── def __init__()
+  ├── def on_confirm()
+  ├── def on_wipe_progress()
+  ├── def _show_done_state()
+  ├── def closeEvent()
+  ├── class ConfirmDeleteDialog()
+  ├── def __init__()
+  ├── def on_confirm()
+  ├── def _send_next()
+  ├── def on_delete_progress()
+  ├── def _delete_local()
+  ├── def _finish()
+  ├── def closeEvent()
+  ├── class StudentsPage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def save_student_details()
+  ├── def on_enroll_clicked()
+  ├── def _selected_rows()
+  ├── def on_delete_clicked()
+  ├── def on_edit_clicked()
+  └── def on_wipe_clicked()
+
+archive/legacy-ui/v2/python/gui_qt/widgets/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v2/python/gui_qt/widgets/sidebar.py
+  ├── class Sidebar()
+  ├── def __init__()
+  ├── def set_compact()
+  ├── def is_compact()
+  └── def set_enabled_pages()
+
+archive/legacy-ui/v2/python/gui_qt/widgets/stat_card.py
+  ├── class StatCard()
+  ├── def __init__()
+  └── def set_value()
+
+archive/legacy-ui/v2/python/gui_qt/workers/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v2/python/gui_qt/workers/connection_worker.py
+  ├── class ConnectionWorker()
+  ├── def __init__()
+  ├── def connect_to_device()
+  ├── def disconnect_from_device()
+  ├── def run()
+  └── def stop()
+
+archive/legacy-ui/v2/python/gui_qt/workers/serial_worker.py
+  ├── class SerialWorker()
+  ├── def __init__()
+  ├── def run()
+  ├── def _parse_mode_line()
+  ├── def _process_line()
+  ├── def _parse_enroll_progress()
+  ├── def _parse_wipe_progress()
+  ├── def _parse_delete_progress()
+  ├── def _parse_fingerprint_count()
+  └── def stop()
+
+archive/legacy-ui/v2/python/main.py
+  ├── def input_thread()
+  └── def main()
+
+archive/legacy-ui/v2/python/non_workflow/fix_emoji.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v2/python/non_workflow/main_window.py
+  └── def run_gui()
+
+archive/legacy-ui/v2/python/non_workflow/serial.py
+  ├── class SerialException()
+  ├── class Serial()
+  ├── def __init__()
+  ├── def close()
+  ├── def readline()
+  └── def in_waiting()
+
+archive/legacy-ui/v2/python/non_workflow/widgets.py
+  ├── def section_header()
+  ├── def card_frame()
+  ├── def action_button()
+  └── def subtle_label()
+
+archive/legacy-ui/v2/python/services/__init__.py
+  └── [no class/function definitions detected]
+```
+
 ## 3. Architecture reading order
 
 ```text
