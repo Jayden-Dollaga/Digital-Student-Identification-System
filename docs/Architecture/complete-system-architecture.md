@@ -4,7 +4,7 @@ This document is the whole-project architecture map for the maintained Digital S
 
 It is intentionally broader than the focused v3 architecture documents: it shows the repository as a connected system, from the user interface and Python backend down to the ESP32, AS608 fingerprint sensor, RC522 RFID reader, persistence, security, testing, build tooling, documentation, and historical version lineage.
 
-> **Scope:** Current maintained architecture, with archival and test branches included for context. The documentation lineage requested for this rebuild starts at `f0b0074`; current branch HEAD is `84aea85`.
+> **Scope:** Current maintained architecture, with archival and test branches included for context. The documentation lineage requested for this rebuild starts at `f0b0074`; the verified project snapshot is `c2eb4d3`.
 >
 > **Current runtime:** v3 HTML/CSS/JavaScript UI rendered through pywebview, backed by Python and SQLite.
 >
