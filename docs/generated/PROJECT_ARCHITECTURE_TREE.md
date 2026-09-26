@@ -634,6 +634,7 @@ Digital-Student-Identification-System/
   │   │   ├── FIRMWARE.md
   │   │   ├── GUI.md
   │   │   ├── INDEX.md
+  │   │   ├── PROJECT_ARCHITECTURE_TREE.md
   │   │   ├── PROJECT_FORENSIC_AUDIT.md
   │   │   ├── PROJECT_OVERVIEW.md
   │   │   ├── README.md
@@ -893,8 +894,7 @@ Digital-Student-Identification-System/
   ├── pytest.ini
   ├── requirements.txt
   ├── run_web_gui.bat
-  └── run_web_gui.py
-```
+  └── run_web_gui.py`
 
 ## 2. Source symbol tree
 
