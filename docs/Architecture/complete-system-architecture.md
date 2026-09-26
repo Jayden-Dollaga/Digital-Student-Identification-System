@@ -1635,5 +1635,5 @@ For the repository-wide documentation map, see [docs/INDEX.md](../INDEX.md).
 - The box-and-branch view is [DSIS Project Architecture — Visual Family Tree](../generated/PROJECT_ARCHITECTURE_VISUAL_TREE.md).
 - The exact path/function inventory is [Full Project Architecture Tree & Symbol Map](../generated/PROJECT_ARCHITECTURE_TREE.md).
 - The generated tree is cross-checked against the current Git tree and `audit/source_line_counts.csv`.
-- Current repository snapshot at the code-state baseline used for the rebuild: 884 tracked tree paths (783 files/blobs + 101 directories).
+- Verified project snapshot used for the rebuild: `c2eb4d3` with 884 tracked tree paths (783 files/blobs + 101 directories).
 - Current source audit: 305 source files and 51,143 physical lines (24,050 code, 19,132 comments, 7,961 blank).
