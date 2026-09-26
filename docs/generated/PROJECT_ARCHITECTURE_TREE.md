@@ -2143,6 +2143,114 @@ tests/manual_hardware_scripts/test_gui_demo.py
   └── def log_message()
 ```
 
+
+### 2.2C Test symbols — core test suite A
+
+```text
+tests/manual_hardware_scripts/test_minimal_enroll.py
+  └── def minimal_enroll_test()
+
+tests/physical_esp32_smoke.py
+  ├── def _connect_hardware()
+  ├── def _collect_lines()
+  ├── def test_physical_esp32_v3_safe_lifecycle()
+  └── def test_physical_esp32_empty_device_wipe_and_absent_delete()
+
+tests/qt_gui_interactive.py
+  └── def _runtime_root()
+
+tests/test_active_firmware_protocol.py
+  └── def test_firmware_destructive_commands_require_host_connection()
+
+tests/test_attendance_export_rows.py
+  ├── def test_export_rows_leave_time_out_empty_for_single_time_in()
+  └── def test_export_rows_separate_time_in_and_time_out()
+
+tests/test_attendance_parsing.py
+  ├── class AttendanceParsingTest()
+  └── def test_registered_scan_is_logged_without_shadowing_error()
+
+tests/test_attendance_processor.py
+  ├── class AttendanceProcessorTests()
+  ├── def test_process_registered_scan_and_cooldown()
+  ├── def fake_log_attendance()
+  ├── def test_process_unknown_scan_and_cooldown()
+  ├── def fake_log_attendance()
+  ├── def test_unreadable_card_preserves_firmware_reason()
+  ├── def test_card_payload_must_match_linked_student_and_uid()
+  ├── def test_process_json_attendance_match()
+  ├── def fake_log_attendance()
+  ├── def test_process_json_attendance_match_with_bom_and_whitespace()
+  ├── def fake_log_attendance()
+  ├── def test_reset_clears_state()
+  ├── def fake_log_attendance()
+  ├── def test_card_match_uses_card_uid_resolution()
+  ├── def fake_log_attendance()
+  ├── def test_unknown_card_is_logged_as_unknown_without_crashing()
+  ├── def fake_log_attendance()
+  ├── def test_card_event_accepts_data_hex_payload()
+  ├── def test_active_rfid_register_session_skips_attendance_logging()
+  ├── def test_rfid_registration_commits_only_after_matching_verified_write()
+  ├── def test_failed_rfid_write_preserves_existing_link()
+  ├── def test_rfid_registration_is_rejected_while_attendance_scan_is_active()
+  ├── def test_batch_rfid_erase_arms_one_tap_erase_without_attendance_logging()
+  ├── def test_batch_rfid_erase_does_not_unlink_without_verified_zero_readback()
+  ├── def test_batch_rfid_erase_requires_uid_even_when_payload_is_verified()
+  ├── def test_batch_rfid_erase_rejects_nonzero_readback()
+  ├── def test_batch_rfid_erase_unlinks_after_verified_zero_readback()
+  ├── def test_invalid_card_payload_is_unknown_even_when_uid_is_linked()
+  ├── def fake_log_attendance()
+  ├── def test_bind_student_card_rejects_claimed_uid()
+  ├── def test_rfid_payload_round_trip_uses_app_key()
+  ├── def test_rfid_payload_tampering_and_overflow_fail_closed()
+  ├── def test_rfid_payload_wrong_key_fails_closed()
+  ├── def test_new_rfid_key_is_separate_from_legacy_xor_keys()
+  └── def test_cmd_card_write_hex_uses_hex_payload_safe_format()
+
+tests/test_attendance_refresh.py
+  ├── def test_schedule_attendance_refresh_uses_main_thread_callback()
+  └── def fake_after()
+
+tests/test_attendance_status.py
+  ├── def test_time_in_status_boundaries()
+  ├── def test_time_out_status_boundaries()
+  ├── def test_zero_absent_threshold_keeps_late_status()
+  ├── def test_half_day_schedule_is_used_for_time_out()
+  └── def test_invalid_half_day_schedule_is_rejected()
+
+tests/test_attendance_ui_regressions.py
+  ├── def test_start_scan_resets_mode_state()
+  └── def test_get_attendance_today_orders_newest_first()
+
+tests/test_attendance_ui_utils.py
+  ├── def test_format_attendance_display_uses_student_name_when_present()
+  └── def test_format_attendance_display_falls_back_to_id_when_name_missing()
+
+tests/test_auto_port_probe.py
+  ├── class DummyVar()
+  ├── def __init__()
+  ├── def get()
+  ├── def set()
+  ├── class DummyComboBox()
+  ├── def configure()
+  ├── class DummySerialHandler()
+  ├── def __init__()
+  ├── def list_available_ports()
+  ├── def test_common_port_candidates_include_common_values()
+  ├── def test_refresh_serial_ports_initial_does_not_trigger_auto_detect_again()
+  └── def fail_auto_detect()
+
+tests/test_bfeas_app2_import.py
+  └── def test_bfeas_app2_script_runs_without_module_path_errors()
+
+tests/test_button_in_context.py
+  └── def test_button_click_in_studentpage()
+
+tests/test_database_features.py
+  ├── class DatabaseFeaturesTest()
+  └── def test_clear_all_students_removes_all_profiles()
+```
+
 ### 2.3 Archive / historical source
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
