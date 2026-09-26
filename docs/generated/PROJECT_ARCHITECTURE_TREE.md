@@ -1969,6 +1969,180 @@ tests/Prototype/tests/test_combined_ui.py
   └── def test_real_page_navigation_and_preview_connection_are_preserved()
 ```
 
+
+### 2.2B Test symbols — UI prototype tests and runners
+
+```text
+tests/Prototype/tests/test_hybrid_prototype.py
+  ├── class HybridPrototypeTest()
+  ├── def setUpClass()
+  ├── def test_hybrid_shell_has_full_app_navigation()
+  └── def test_hybrid_pages_have_utility_content()
+
+tests/Prototype/tests/test_original_ui.py
+  ├── class OriginalUITest()
+  ├── def setUpClass()
+  ├── def test_original_shell_has_six_sections()
+  ├── def test_original_shell_has_connection_and_scan_controls()
+  └── def test_original_compact_sidebar_preserves_navigation()
+
+tests/Prototype/tests/test_qt_prototype.py
+  ├── class QtPrototypeTest()
+  ├── def setUpClass()
+  ├── def test_prototype_contains_identification_surface_and_mock_results()
+  ├── def test_navigation_and_compact_density_are_interactive()
+  ├── def test_selecting_result_updates_match_details()
+  ├── def test_secondary_pages_have_real_prototype_controls()
+  └── def test_start_scan_enters_scanning_state()
+
+tests/Prototype/tests/test_task_manager_variant.py
+  ├── class TaskManagerVariantTest()
+  ├── def setUpClass()
+  ├── def test_task_manager_shell_has_icon_navigation()
+  ├── def test_compact_mode_keeps_icons_and_hides_labels()
+  └── def test_identification_page_is_still_the_primary_workflow()
+
+tests/app_test.py
+  ├── class FingerprintApp()
+  ├── def __init__()
+  ├── def init_database()
+  ├── def _apply_saved_settings()
+  ├── def _apply_settings_to_runtime()
+  ├── def save_current_settings()
+  ├── def has_permission()
+  ├── def update_button_permissions()
+  ├── def change_role()
+  ├── def _on_role_changed()
+  ├── def build_ui()
+  ├── def build_sidebar()
+  ├── def switch_page()
+  ├── def build_main_area()
+  ├── def build_whs_header()
+  ├── def _tick_header_clock()
+  ├── def _update_header_status()
+  ├── def _update_header_last_scan()
+  ├── def _on_header_search()
+  ├── def _on_attendance_mode_changed()
+  ├── def _update_load_more_visibility()
+  ├── def refresh_statistics()
+  ├── def show_statistics_report()
+  ├── def export_statistics_report()
+  ├── def show_statistics_charts()
+  ├── def toggle_connection()
+  ├── def _set_connected_ui()
+  ├── def refresh_serial_ports()
+  ├── def open_settings_dialog()
+  ├── def show_serial_help()
+  ├── def auto_detect_serial_on_startup()
+  ├── def try_common_serial_ports()
+  ├── def _set_disconnected_ui()
+  ├── def _set_reconnect_ui()
+  ├── def _set_scan_mode_ui()
+  ├── def _set_command_mode_ui()
+  ├── def _set_enroll_mode_ui()
+  ├── def _set_wipe_mode_ui()
+  ├── def _clear_enroll_mode_ui()
+  ├── def _parse_connection_mode()
+  ├── def _schedule_attendance_refresh()
+  ├── def _refresh_attendance_view_safe()
+  ├── def start_scan()
+  ├── def stop_scan()
+  ├── def start_reader_thread()
+  ├── def read_serial_output()
+  ├── def enroll_sample()
+  ├── def list_fingerprints()
+  ├── def open_enroll_dialog()
+  ├── def save_enroll_profile()
+  ├── def close_enroll_dialog()
+  ├── def _parse_attendance()
+  ├── def _parse_enroll_progress()
+  ├── def open_wipe_dialog()
+  ├── def confirm_wipe()
+  ├── def close_wipe_dialog()
+  ├── def _parse_wipe_progress()
+  ├── def open_students_list_dialog()
+  ├── def close_students_dialog()
+  ├── def _clear_database_data()
+  ├── def refresh_student_list()
+  ├── def delete_student_from_list()
+  ├── def open_edit_dialog()
+  ├── def backup_database()
+  ├── def open_restore_dialog()
+  ├── def quit_app()
+  ├── def _ui_ready()
+  ├── def toggle_attendance_view()
+  ├── def refresh_attendance_view()
+  ├── def load_more_attendance()
+  ├── def _build_attendance_card()
+  ├── def open_add_student_dialog()
+  ├── def log_message()
+  ├── def _append_log_message()
+  ├── def clear_log()
+  └── def main()
+
+tests/comprehensive_test.py
+  └── [no class/function definitions detected]
+
+tests/conftest.py
+  └── [no class/function definitions detected]
+
+tests/legacy/phase2_databasev1.py
+  ├── def init_database()
+  ├── def add_sample_students()
+  ├── def get_student()
+  ├── def log_attendance()
+  └── def main()
+
+tests/legacy/phase2_databasev2.py
+  ├── def init_database()
+  ├── def add_sample_students()
+  ├── def get_student()
+  ├── def log_attendance()
+  ├── def read_line()
+  ├── def parse_scan()
+  └── def main()
+
+tests/legacy/phase2_databasev3.py
+  ├── def init_database()
+  ├── def add_sample_students()
+  ├── def get_student()
+  ├── def log_attendance()
+  ├── def should_ignore()
+  ├── def send_command()
+  ├── def input_thread()
+  └── def main()
+
+tests/legacy/phase2_databasev4.py
+  ├── def init_database()
+  ├── def add_sample_students()
+  ├── def log_attendance()
+  ├── def should_ignore()
+  ├── def send_command()
+  ├── def input_thread()
+  └── def main()
+
+tests/legacy/phase2_serial_test.py
+  └── def main()
+
+tests/manual_hardware_scripts/test_debug_raw_lines.py
+  ├── def debug_raw_lines()
+  └── def track_raw_line()
+
+tests/manual_hardware_scripts/test_enrollment_with_worker.py
+  ├── def simulate_enrollment_with_worker()
+  └── def track_progress()
+
+tests/manual_hardware_scripts/test_gui_demo.py
+  ├── class AttendanceTestGUI()
+  ├── def __init__()
+  ├── def build_sidebar()
+  ├── def build_top_bar()
+  ├── def build_main_content()
+  ├── def on_setting_changed()
+  ├── def save_settings()
+  └── def log_message()
+```
+
 ### 2.3 Archive / historical source
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
