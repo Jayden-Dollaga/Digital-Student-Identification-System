@@ -1,28 +1,30 @@
 # DSIS Full Project Architecture Tree
 
-> **Generated from the repository's `main` tree.**
+> **Rebuilt from the repository's current `main` tree, with the documentation lineage starting at `f0b0074`.**
 >
 > This document is the literal project tree plus a source-symbol tree. It is intentionally more detailed than the high-level architecture documents.
 >
 > **How to read it:** every repository file is listed in the first tree. Source files are expanded later into classes/functions so the architecture can be followed from folder → file → symbol.
 >
-> Historical/archive files are shown as files because they are part of the repository; they are not presented as current runtime code.
+> Historical/archive files remain visible because they are part of the repository; they are not presented as current runtime code.
 
 ## 1. Complete repository file tree
 
+> Rebuilt from the live `main` Git tree, using the `f0b0074` architecture documentation baseline as the lineage start.
+>
+> **Current HEAD:** `c2eb4d3`
+> **Repository snapshot:** 884 tracked paths = 783 files/blobs + 101 directories.
+> **Source inventory:** 305 source files, 51,143 physical lines (24,050 code / 19,132 comments / 7,961 blank).
+
 ```text
 Digital-Student-Identification-System/
-  ├── .github
-  │   ├── instructions
+  ├── .github/
+  │   ├── instructions/
   │   │   └── SKILL.instructions.md
-  │   └── workflows
+  │   └── workflows/
   │       └── tests.yml
-  ├── Build
-  │   ├── DSIS_v1.spec
-  │   ├── DSIS_v2.spec
-  │   └── DSIS_v3.spec
-  ├── archive
-  │   ├── diagnostics
+  ├── archive/
+  │   ├── diagnostics/
   │   │   ├── discovery_handshake_probe.py
   │   │   ├── serial_monitor_test.py
   │   │   ├── serial_pipeline_tester.py
@@ -30,10 +32,10 @@ Digital-Student-Identification-System/
   │   │   ├── tmp_serial_dtr_test.py
   │   │   ├── tmp_serial_handler_probe.py
   │   │   └── tmp_serial_probe.py
-  │   ├── legacy-ui
-  │   │   ├── gui_qt_redesign
-  │   │   │   ├── gui_qt
-  │   │   │   │   ├── pages
+  │   ├── legacy-ui/
+  │   │   ├── gui_qt_redesign/
+  │   │   │   ├── gui_qt/
+  │   │   │   │   ├── pages/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── attendance_page.py
   │   │   │   │   │   ├── dashboard_page.py
@@ -41,11 +43,11 @@ Digital-Student-Identification-System/
   │   │   │   │   │   ├── reports_page.py
   │   │   │   │   │   ├── settings_page.py
   │   │   │   │   │   └── students_page.py
-  │   │   │   │   ├── widgets
+  │   │   │   │   ├── widgets/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── sidebar.py
   │   │   │   │   │   └── stat_card.py
-  │   │   │   │   ├── workers
+  │   │   │   │   ├── workers/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   └── serial_worker.py
   │   │   │   │   ├── __init__.py
@@ -53,9 +55,9 @@ Digital-Student-Identification-System/
   │   │   │   │   ├── main_window.py
   │   │   │   │   └── theme.qss
   │   │   │   └── README.md
-  │   │   ├── gui_qt_redesign_2
-  │   │   │   ├── gui_qt
-  │   │   │   │   ├── pages
+  │   │   ├── gui_qt_redesign_2/
+  │   │   │   ├── gui_qt/
+  │   │   │   │   ├── pages/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── attendance_page.py
   │   │   │   │   │   ├── dashboard_page.py
@@ -63,11 +65,11 @@ Digital-Student-Identification-System/
   │   │   │   │   │   ├── reports_page.py
   │   │   │   │   │   ├── settings_page.py
   │   │   │   │   │   └── students_page.py
-  │   │   │   │   ├── widgets
+  │   │   │   │   ├── widgets/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── sidebar.py
   │   │   │   │   │   └── stat_card.py
-  │   │   │   │   ├── workers
+  │   │   │   │   ├── workers/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   └── serial_worker.py
   │   │   │   │   ├── __init__.py
@@ -75,23 +77,23 @@ Digital-Student-Identification-System/
   │   │   │   │   ├── main_window.py
   │   │   │   │   └── theme.qss
   │   │   │   └── README.md
-  │   │   ├── testing_area
-  │   │   │   ├── core
+  │   │   ├── testing_area/
+  │   │   │   ├── core/
   │   │   │   │   └── database_addition_snippet.py
-  │   │   │   ├── gui
-  │   │   │   │   └── legacy
+  │   │   │   ├── gui/
+  │   │   │   │   └── legacy/
   │   │   │   │       ├── app_test.py
   │   │   │   │       ├── app_test1.py
   │   │   │   │       ├── bfeas_app.py
   │   │   │   │       ├── bfeas_app2.py
   │   │   │   │       └── reports_table_page.py
-  │   │   │   ├── services
+  │   │   │   ├── services/
   │   │   │   │   ├── backup.py
   │   │   │   │   └── excel_export.py
   │   │   │   └── README.txt
-  │   │   ├── v1
-  │   │   │   ├── python
-  │   │   │   │   ├── core
+  │   │   ├── v1/
+  │   │   │   ├── python/
+  │   │   │   │   ├── core/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── attendance.py
   │   │   │   │   │   ├── commands.py
@@ -99,7 +101,7 @@ Digital-Student-Identification-System/
   │   │   │   │   │   ├── logger.py
   │   │   │   │   │   ├── serial_handler.py
   │   │   │   │   │   └── utils.py
-  │   │   │   │   ├── gui
+  │   │   │   │   ├── gui/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── app.py
   │   │   │   │   │   ├── attendance_page.py
@@ -115,7 +117,7 @@ Digital-Student-Identification-System/
   │   │   │   │   │   ├── students_page.py
   │   │   │   │   │   ├── theme.py
   │   │   │   │   │   └── widgets.py
-  │   │   │   │   ├── services
+  │   │   │   │   ├── services/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── attendance_service.py
   │   │   │   │   │   ├── backup.py
@@ -128,9 +130,9 @@ Digital-Student-Identification-System/
   │   │   │   │   └── settings_store.py
   │   │   │   ├── README.md
   │   │   │   └── run_app.bat
-  │   │   └── v2
-  │   │       ├── python
-  │   │       │   ├── core
+  │   │   └── v2/
+  │   │       ├── python/
+  │   │       │   ├── core/
   │   │       │   │   ├── __init__.py
   │   │       │   │   ├── attendance.py
   │   │       │   │   ├── commands.py
@@ -141,8 +143,8 @@ Digital-Student-Identification-System/
   │   │       │   │   ├── permissions.py
   │   │       │   │   ├── serial_handler.py
   │   │       │   │   └── utils.py
-  │   │       │   ├── gui
-  │   │       │   │   ├── legacy
+  │   │       │   ├── gui/
+  │   │       │   │   ├── legacy/
   │   │       │   │   │   ├── bfeas_app2.py
   │   │       │   │   │   └── reports_table_page.py
   │   │       │   │   ├── __init__.py
@@ -161,8 +163,8 @@ Digital-Student-Identification-System/
   │   │       │   │   ├── statistics_page.py
   │   │       │   │   ├── students_page.py
   │   │       │   │   └── theme.py
-  │   │       │   ├── gui_qt
-  │   │       │   │   ├── pages
+  │   │       │   ├── gui_qt/
+  │   │       │   │   ├── pages/
   │   │       │   │   │   ├── __init__.py
   │   │       │   │   │   ├── attendance_page.py
   │   │       │   │   │   ├── dashboard_page.py
@@ -170,25 +172,25 @@ Digital-Student-Identification-System/
   │   │       │   │   │   ├── reports_page.py
   │   │       │   │   │   ├── settings_page.py
   │   │       │   │   │   └── students_page.py
-  │   │       │   │   ├── widgets
+  │   │       │   │   ├── widgets/
   │   │       │   │   │   ├── __init__.py
   │   │       │   │   │   ├── sidebar.py
   │   │       │   │   │   └── stat_card.py
-  │   │       │   │   ├── workers
+  │   │       │   │   ├── workers/
   │   │       │   │   │   ├── __init__.py
   │   │       │   │   │   ├── connection_worker.py
   │   │       │   │   │   └── serial_worker.py
   │   │       │   │   ├── __init__.py
   │   │       │   │   ├── main_qt.py
   │   │       │   │   ├── main_window.py
-  │   │       │   │   ├── theme.qss
-  │   │       │   │   └── theme_light.qss
-  │   │       │   ├── non_workflow
+  │   │       │   │   ├── theme_light.qss
+  │   │       │   │   └── theme.qss
+  │   │       │   ├── non_workflow/
   │   │       │   │   ├── fix_emoji.py
   │   │       │   │   ├── main_window.py
   │   │       │   │   ├── serial.py
   │   │       │   │   └── widgets.py
-  │   │       │   ├── services
+  │   │       │   ├── services/
   │   │       │   │   ├── __init__.py
   │   │       │   │   ├── attendance_service.py
   │   │       │   │   └── student_service.py
@@ -201,45 +203,48 @@ Digital-Student-Identification-System/
   │   │       ├── run_qt_gui.bat
   │   │       └── run_qt_gui.py
   │   └── README.md
-  ├── assets
-  │   └── icon
+  ├── assets/
+  │   └── icon/
   │       ├── DSIS_LOGO.ico
   │       ├── DSIS_LOGO.png
   │       └── dsis-logo.html
-  ├── audit
+  ├── audit/
   │   ├── FORENSIC_AUDIT.md
   │   ├── generate_metrics.py
   │   └── source_line_counts.csv
-  ├── docs
-  │   ├── API
+  ├── Build/
+  │   ├── DSIS_v1.spec
+  │   ├── DSIS_v2.spec
+  │   └── DSIS_v3.spec
+  ├── docs/
+  │   ├── _inbox/
   │   │   └── README.md
-  │   ├── Architecture
-  │   │   ├── README.md
+  │   ├── API/
+  │   │   └── README.md
+  │   ├── Architecture/
   │   │   ├── architecture.md
   │   │   ├── complete-system-architecture.md
   │   │   ├── data-and-settings.md
   │   │   ├── database-schema.md
   │   │   ├── pywebview-bridge-api-reference.md
   │   │   ├── pywebview-bridge.md
+  │   │   ├── README.md
   │   │   ├── runtime-contract.md
   │   │   ├── software-flow.md
   │   │   ├── system-architecture.md
   │   │   ├── v3-system-architecture-detail.md
   │   │   ├── v3-system-architecture.md
   │   │   └── v3-system.md
-  │   ├── Development
-  │   │   ├── ESP32_Fingerprint_AllInOne_firmware_explanation.md
-  │   │   ├── FILES_DETAILED.md
-  │   │   ├── FILES_OVERVIEW.md
-  │   │   ├── PORTABLE_PYTHON.md
-  │   │   ├── README.md
-  │   │   ├── SHUTDOWN_CRASH.md
+  │   ├── Development/
   │   │   ├── change-log.md
   │   │   ├── database-integration-summary.md
   │   │   ├── database-updates.md
   │   │   ├── documentation-authority.md
   │   │   ├── documentation-manifest.md
   │   │   ├── documentation-map.md
+  │   │   ├── ESP32_Fingerprint_AllInOne_firmware_explanation.md
+  │   │   ├── FILES_DETAILED.md
+  │   │   ├── FILES_OVERVIEW.md
   │   │   ├── implementation-summary.md
   │   │   ├── logger_usage.md
   │   │   ├── logging-guide.md
@@ -249,18 +254,38 @@ Digital-Student-Identification-System/
   │   │   ├── migration-example.md
   │   │   ├── polish-phase-complete.md
   │   │   ├── polish-phase-roadmap.md
+  │   │   ├── PORTABLE_PYTHON.md
+  │   │   ├── README.md
   │   │   ├── release-and-portable-build.md
   │   │   ├── runtime-data.md
   │   │   ├── setup.md
+  │   │   ├── SHUTDOWN_CRASH.md
   │   │   ├── structure.txt
   │   │   ├── testing.md
   │   │   ├── todo.md
   │   │   ├── tools-catalog.md
   │   │   └── ui-prototypes.md
-  │   ├── Dup
+  │   ├── Dup/
   │   │   └── README.md
-  │   ├── Hardware
-  │   │   ├── images
+  │   ├── generated/
+  │   │   ├── APP_INVENTORY_UI_MAP.md
+  │   │   ├── APP_INVENTORY.md
+  │   │   ├── ARCHITECTURE.md
+  │   │   ├── DATABASE.md
+  │   │   ├── FILE_INVENTORY.md
+  │   │   ├── FIRMWARE.md
+  │   │   ├── GUI.md
+  │   │   ├── INDEX.md
+  │   │   ├── PROJECT_ARCHITECTURE_TREE.md
+  │   │   ├── PROJECT_ARCHITECTURE_VISUAL_TREE.md
+  │   │   ├── PROJECT_FORENSIC_AUDIT.md
+  │   │   ├── PROJECT_OVERVIEW.md
+  │   │   ├── README.md
+  │   │   ├── REPOSITORY_AUDIT.md
+  │   │   ├── SERIAL_PROTOCOL.md
+  │   │   └── TESTING.md
+  │   ├── Hardware/
+  │   │   ├── images/
   │   │   │   ├── IMG20260630233940.jpg
   │   │   │   ├── IMG20260630233946.jpg
   │   │   │   ├── IMG20260630233949.jpg
@@ -279,33 +304,114 @@ Digital-Student-Identification-System/
   │   │   │   ├── IMG20260701010721.jpg
   │   │   │   ├── IMG20260701010726.jpg
   │   │   │   └── IMG20260701010735.jpg
-  │   │   ├── README.md
   │   │   ├── drivers-and-ports.md
   │   │   ├── firmware-variants.md
   │   │   ├── firmware.md
   │   │   ├── hardware-connections.md
+  │   │   ├── README.md
   │   │   ├── serial-protocol.md
   │   │   └── wiring.md
-  │   ├── History
+  │   ├── History/
   │   │   ├── README.md
   │   │   └── ui-lineage.md
-  │   ├── Overview
+  │   ├── Overview/
   │   │   ├── project-overview.md
   │   │   └── version-history.md
-  │   ├── Research
-  │   │   ├── DSIS_CONCEPT_PAPER.md
-  │   │   └── DSIS_CONCEPT_PAPER_SOURCE_NOTES.md
-  │   ├── Security
+  │   ├── Research/
+  │   │   ├── DSIS_CONCEPT_PAPER_SOURCE_NOTES.md
+  │   │   └── DSIS_CONCEPT_PAPER.md
+  │   ├── Security/
   │   │   └── security-model.md
-  │   ├── Troubleshooting
-  │   │   ├── README.md
+  │   ├── Troubleshooting/
   │   │   ├── database.md
   │   │   ├── desktop.md
+  │   │   ├── README.md
   │   │   └── serial-and-device.md
-  │   ├── UserGuide
-  │   │   ├── images
+  │   ├── UserGuide/
+  │   │   ├── images/
   │   │   │   ├── 151746.png
   │   │   │   ├── 151826.png
+  │   │   │   ├── qt-ui-2026-08-12-234248.png
+  │   │   │   ├── qt-ui-2026-08-12-234601.png
+  │   │   │   ├── qt-ui-2026-08-13-003704.png
+  │   │   │   ├── qt-ui-2026-08-13-004222.png
+  │   │   │   ├── qt-ui-2026-08-13-005414.png
+  │   │   │   ├── qt-ui-2026-08-13-010056.png
+  │   │   │   ├── qt-ui-2026-08-13-013942.png
+  │   │   │   ├── qt-ui-2026-08-13-014047.png
+  │   │   │   ├── qt-ui-2026-08-13-014333.png
+  │   │   │   ├── qt-ui-2026-08-13-014828.png
+  │   │   │   ├── qt-ui-2026-08-13-015151.png
+  │   │   │   ├── qt-ui-2026-08-13-015535.png
+  │   │   │   ├── qt-ui-2026-08-13-023656.png
+  │   │   │   ├── qt-ui-2026-08-13-024251.png
+  │   │   │   ├── qt-ui-2026-08-13-152422.png
+  │   │   │   ├── qt-ui-2026-08-13-152935.png
+  │   │   │   ├── qt-ui-2026-08-13-153334.png
+  │   │   │   ├── qt-ui-2026-08-13-153458.png
+  │   │   │   ├── qt-ui-2026-08-13-155508.png
+  │   │   │   ├── qt-ui-2026-08-13-160601.png
+  │   │   │   ├── qt-ui-2026-08-13-174028.png
+  │   │   │   ├── qt-ui-2026-08-13-183526.png
+  │   │   │   ├── qt-ui-2026-08-13-183539.png
+  │   │   │   ├── qt-ui-2026-08-13-184406.png
+  │   │   │   ├── qt-ui-2026-08-13-185046.png
+  │   │   │   ├── qt-ui-2026-08-13-194258.png
+  │   │   │   ├── qt-ui-2026-08-13-200344.png
+  │   │   │   ├── qt-ui-2026-08-13-201746.png
+  │   │   │   ├── qt-ui-2026-08-14-130125.png
+  │   │   │   ├── qt-ui-2026-08-14-130718.png
+  │   │   │   ├── qt-ui-2026-08-14-170026.png
+  │   │   │   ├── qt-ui-2026-08-14-170031.png
+  │   │   │   ├── qt-ui-2026-08-14-171112.png
+  │   │   │   ├── qt-ui-2026-08-14-172424.png
+  │   │   │   ├── qt-ui-2026-08-14-172719.png
+  │   │   │   ├── qt-ui-2026-08-14-174120.png
+  │   │   │   ├── qt-ui-2026-08-14-174357.png
+  │   │   │   ├── qt-ui-2026-08-14-192838.png
+  │   │   │   ├── qt-ui-2026-08-14-193007.png
+  │   │   │   ├── qt-ui-2026-08-14-193047.png
+  │   │   │   ├── qt-ui-2026-08-14-193827.png
+  │   │   │   ├── qt-ui-2026-08-14-193919.png
+  │   │   │   ├── qt-ui-2026-08-14-211342.png
+  │   │   │   ├── qt-ui-2026-08-14-211411.png
+  │   │   │   ├── qt-ui-2026-08-14-211419.png
+  │   │   │   ├── qt-ui-2026-08-14-211425.png
+  │   │   │   ├── qt-ui-2026-08-14-211443.png
+  │   │   │   ├── qt-ui-2026-08-14-211453.png
+  │   │   │   ├── qt-ui-2026-08-16-213817.png
+  │   │   │   ├── qt-ui-2026-08-16-214003.png
+  │   │   │   ├── qt-ui-2026-08-16-214859.png
+  │   │   │   ├── qt-ui-2026-08-16-215140.png
+  │   │   │   ├── qt-ui-2026-08-16-215420.png
+  │   │   │   ├── qt-ui-2026-08-16-220007.png
+  │   │   │   ├── qt-ui-2026-08-16-220802.png
+  │   │   │   ├── qt-ui-2026-08-16-220859.png
+  │   │   │   ├── qt-ui-2026-08-17-164332.png
+  │   │   │   ├── qt-ui-2026-08-17-185720.png
+  │   │   │   ├── qt-ui-2026-08-17-185752.png
+  │   │   │   ├── qt-ui-2026-08-18-115635.png
+  │   │   │   ├── qt-ui-2026-08-18-115700.png
+  │   │   │   ├── qt-ui-2026-08-18-115744.png
+  │   │   │   ├── qt-ui-2026-08-18-115810.png
+  │   │   │   ├── qt-ui-2026-08-18-160724.png
+  │   │   │   ├── qt-ui-2026-08-27-102017.png
+  │   │   │   ├── qt-ui-2026-08-27-231106.png
+  │   │   │   ├── qt-ui-2026-08-27-231147.png
+  │   │   │   ├── qt-ui-2026-08-27-231205.png
+  │   │   │   ├── qt-ui-2026-08-27-234622.png
+  │   │   │   ├── qt-ui-2026-08-27-235125.png
+  │   │   │   ├── qt-ui-2026-08-27-235358.png
+  │   │   │   ├── qt-ui-2026-08-27-235856.png
+  │   │   │   ├── qt-ui-2026-08-28-000016.png
+  │   │   │   ├── qt-ui-2026-08-28-000024.png
+  │   │   │   ├── qt-ui-2026-08-28-000035.png
+  │   │   │   ├── qt-ui-2026-08-28-000051.png
+  │   │   │   ├── qt-ui-2026-08-28-000059.png
+  │   │   │   ├── qt-ui-2026-08-28-000114.png
+  │   │   │   ├── qt-ui-2026-08-28-000119.png
+  │   │   │   ├── qt-ui-2026-08-28-000125.png
+  │   │   │   ├── qt-ui-2026-08-28-001903.png
   │   │   │   ├── Screenshot 2026-06-27 182256.png
   │   │   │   ├── Screenshot 2026-06-29 232644.png
   │   │   │   ├── Screenshot 2026-06-29 233641.png
@@ -530,139 +636,46 @@ Digital-Student-Identification-System/
   │   │   │   ├── Screenshot 2026-09-20 151826.png
   │   │   │   ├── Screenshot 2026-09-20 151849.png
   │   │   │   ├── Screenshot_2026-08-28_014145.png
-  │   │   │   ├── Screenshot_2026-08-28_014206.png
-  │   │   │   ├── qt-ui-2026-08-12-234248.png
-  │   │   │   ├── qt-ui-2026-08-12-234601.png
-  │   │   │   ├── qt-ui-2026-08-13-003704.png
-  │   │   │   ├── qt-ui-2026-08-13-004222.png
-  │   │   │   ├── qt-ui-2026-08-13-005414.png
-  │   │   │   ├── qt-ui-2026-08-13-010056.png
-  │   │   │   ├── qt-ui-2026-08-13-013942.png
-  │   │   │   ├── qt-ui-2026-08-13-014047.png
-  │   │   │   ├── qt-ui-2026-08-13-014333.png
-  │   │   │   ├── qt-ui-2026-08-13-014828.png
-  │   │   │   ├── qt-ui-2026-08-13-015151.png
-  │   │   │   ├── qt-ui-2026-08-13-015535.png
-  │   │   │   ├── qt-ui-2026-08-13-023656.png
-  │   │   │   ├── qt-ui-2026-08-13-024251.png
-  │   │   │   ├── qt-ui-2026-08-13-152422.png
-  │   │   │   ├── qt-ui-2026-08-13-152935.png
-  │   │   │   ├── qt-ui-2026-08-13-153334.png
-  │   │   │   ├── qt-ui-2026-08-13-153458.png
-  │   │   │   ├── qt-ui-2026-08-13-155508.png
-  │   │   │   ├── qt-ui-2026-08-13-160601.png
-  │   │   │   ├── qt-ui-2026-08-13-174028.png
-  │   │   │   ├── qt-ui-2026-08-13-183526.png
-  │   │   │   ├── qt-ui-2026-08-13-183539.png
-  │   │   │   ├── qt-ui-2026-08-13-184406.png
-  │   │   │   ├── qt-ui-2026-08-13-185046.png
-  │   │   │   ├── qt-ui-2026-08-13-194258.png
-  │   │   │   ├── qt-ui-2026-08-13-200344.png
-  │   │   │   ├── qt-ui-2026-08-13-201746.png
-  │   │   │   ├── qt-ui-2026-08-14-130125.png
-  │   │   │   ├── qt-ui-2026-08-14-130718.png
-  │   │   │   ├── qt-ui-2026-08-14-170026.png
-  │   │   │   ├── qt-ui-2026-08-14-170031.png
-  │   │   │   ├── qt-ui-2026-08-14-171112.png
-  │   │   │   ├── qt-ui-2026-08-14-172424.png
-  │   │   │   ├── qt-ui-2026-08-14-172719.png
-  │   │   │   ├── qt-ui-2026-08-14-174120.png
-  │   │   │   ├── qt-ui-2026-08-14-174357.png
-  │   │   │   ├── qt-ui-2026-08-14-192838.png
-  │   │   │   ├── qt-ui-2026-08-14-193007.png
-  │   │   │   ├── qt-ui-2026-08-14-193047.png
-  │   │   │   ├── qt-ui-2026-08-14-193827.png
-  │   │   │   ├── qt-ui-2026-08-14-193919.png
-  │   │   │   ├── qt-ui-2026-08-14-211342.png
-  │   │   │   ├── qt-ui-2026-08-14-211411.png
-  │   │   │   ├── qt-ui-2026-08-14-211419.png
-  │   │   │   ├── qt-ui-2026-08-14-211425.png
-  │   │   │   ├── qt-ui-2026-08-14-211443.png
-  │   │   │   ├── qt-ui-2026-08-14-211453.png
-  │   │   │   ├── qt-ui-2026-08-16-213817.png
-  │   │   │   ├── qt-ui-2026-08-16-214003.png
-  │   │   │   ├── qt-ui-2026-08-16-214859.png
-  │   │   │   ├── qt-ui-2026-08-16-215140.png
-  │   │   │   ├── qt-ui-2026-08-16-215420.png
-  │   │   │   ├── qt-ui-2026-08-16-220007.png
-  │   │   │   ├── qt-ui-2026-08-16-220802.png
-  │   │   │   ├── qt-ui-2026-08-16-220859.png
-  │   │   │   ├── qt-ui-2026-08-17-164332.png
-  │   │   │   ├── qt-ui-2026-08-17-185720.png
-  │   │   │   ├── qt-ui-2026-08-17-185752.png
-  │   │   │   ├── qt-ui-2026-08-18-115635.png
-  │   │   │   ├── qt-ui-2026-08-18-115700.png
-  │   │   │   ├── qt-ui-2026-08-18-115744.png
-  │   │   │   ├── qt-ui-2026-08-18-115810.png
-  │   │   │   ├── qt-ui-2026-08-18-160724.png
-  │   │   │   ├── qt-ui-2026-08-27-102017.png
-  │   │   │   ├── qt-ui-2026-08-27-231106.png
-  │   │   │   ├── qt-ui-2026-08-27-231147.png
-  │   │   │   ├── qt-ui-2026-08-27-231205.png
-  │   │   │   ├── qt-ui-2026-08-27-234622.png
-  │   │   │   ├── qt-ui-2026-08-27-235125.png
-  │   │   │   ├── qt-ui-2026-08-27-235358.png
-  │   │   │   ├── qt-ui-2026-08-27-235856.png
-  │   │   │   ├── qt-ui-2026-08-28-000016.png
-  │   │   │   ├── qt-ui-2026-08-28-000024.png
-  │   │   │   ├── qt-ui-2026-08-28-000035.png
-  │   │   │   ├── qt-ui-2026-08-28-000051.png
-  │   │   │   ├── qt-ui-2026-08-28-000059.png
-  │   │   │   ├── qt-ui-2026-08-28-000114.png
-  │   │   │   ├── qt-ui-2026-08-28-000119.png
-  │   │   │   ├── qt-ui-2026-08-28-000125.png
-  │   │   │   └── qt-ui-2026-08-28-001903.png
-  │   │   ├── README.md
+  │   │   │   └── Screenshot_2026-08-28_014206.png
   │   │   ├── attendance-rules.md
   │   │   ├── backup-restore-export.md
   │   │   ├── enrollment-and-scanning.md
   │   │   ├── first-run-wizard.md
   │   │   ├── installation-guide.md
   │   │   ├── project-overview.md
+  │   │   ├── README.md
   │   │   ├── roles-and-permissions.md
   │   │   ├── testing-results.md
   │   │   ├── v3-workflows.md
   │   │   └── workflows.md
-  │   ├── _inbox
-  │   │   └── README.md
-  │   ├── generated
-  │   │   ├── APP_INVENTORY.md
-  │   │   ├── APP_INVENTORY_UI_MAP.md
-  │   │   ├── ARCHITECTURE.md
-  │   │   ├── DATABASE.md
-  │   │   ├── FILE_INVENTORY.md
-  │   │   ├── FIRMWARE.md
-  │   │   ├── GUI.md
-  │   │   ├── INDEX.md
-  │   │   ├── PROJECT_ARCHITECTURE_TREE.md
-  │   │   ├── PROJECT_FORENSIC_AUDIT.md
-  │   │   ├── PROJECT_OVERVIEW.md
-  │   │   ├── README.md
-  │   │   ├── REPOSITORY_AUDIT.md
-  │   │   ├── SERIAL_PROTOCOL.md
-  │   │   └── TESTING.md
+  │   ├── audit_file_inventory.csv
   │   ├── CODE_METRICS.csv
   │   ├── CODE_METRICS.md
   │   ├── Documentation-Inventory.md
   │   ├── Documentation-Overhaul.md
+  │   ├── dsis_prototype.html
   │   ├── ENROLLMENT_REGRESSION_DIAGNOSTIC.md
   │   ├── INDEX.md
+  │   ├── notes.txt
   │   ├── README.md
   │   ├── REGRESSION_INVESTIGATION_SUMMARY.md
   │   ├── ROOT_CAUSE_ANALYSIS.md
+  │   ├── Screenshot 2026-09-17 233547.png
   │   ├── SECURITY_AUDIT_REPORT.md
   │   ├── SECURITY_REMEDIATION_REPORT.md
-  │   ├── Screenshot 2026-09-17 233547.png
-  │   ├── TROUBLESHOOTING.md
-  │   ├── audit_file_inventory.csv
-  │   ├── dsis_prototype.html
-  │   └── notes.txt
-  ├── driver
+  │   └── TROUBLESHOOTING.md
+  ├── driver/
   │   └── Install_CP210x_Driver.bat
-  ├── firmware
-  │   ├── ESP32_DSIS_AllInOne
-  │   │   ├── src
-  │   │   │   └── rfid
+  ├── firmware/
+  │   ├── attendance/
+  │   │   └── attendance.ino
+  │   ├── delete/
+  │   │   └── delete.ino
+  │   ├── enroll/
+  │   │   └── enroll.ino
+  │   ├── ESP32_DSIS_AllInOne/
+  │   │   ├── src/
+  │   │   │   └── rfid/
   │   │   │       ├── CardDetector.cpp
   │   │   │       ├── CardDetector.h
   │   │   │       ├── ClassicAdapter.cpp
@@ -670,33 +683,27 @@ Digital-Student-Identification-System/
   │   │   │       ├── Type2Adapter.cpp
   │   │   │       └── Type2Adapter.h
   │   │   └── ESP32_DSIS_AllInOne.ino
-  │   ├── ESP32_Fingerprint_AllInOne
+  │   ├── ESP32_Fingerprint_AllInOne/
   │   │   └── ESP32_Fingerprint_AllInOne.ino
-  │   ├── attendance
-  │   │   └── attendance.ino
-  │   ├── delete
-  │   │   └── delete.ino
-  │   ├── enroll
-  │   │   └── enroll.ino
-  │   ├── rc522_dumpinfo_test
+  │   ├── rc522_dumpinfo_test/
   │   │   └── rc522_dumpinfo_test.ino
-  │   ├── rc522_read
+  │   ├── rc522_read/
   │   │   └── rc522_read.ino
-  │   ├── rc522_readwrite
+  │   ├── rc522_readwrite/
   │   │   └── rc522_readwrite.ino
-  │   ├── rc522_test
+  │   ├── rc522_test/
   │   │   └── rc522_test.ino
-  │   ├── rc522_write
+  │   ├── rc522_write/
   │   │   └── rc522_write.ino
-  │   └── test
-  │       └── fingerprint_check
+  │   └── test/
+  │       └── fingerprint_check/
   │           └── fingerprint_check.ino
-  ├── python
-  │   ├── core
+  ├── python/
+  │   ├── core/
   │   │   ├── __init__.py
-  │   │   ├── attendance.py
   │   │   ├── attendance_calendar.py
   │   │   ├── attendance_status.py
+  │   │   ├── attendance.py
   │   │   ├── auth.py
   │   │   ├── commands.py
   │   │   ├── database.py
@@ -708,17 +715,17 @@ Digital-Student-Identification-System/
   │   │   ├── serial_handler.py
   │   │   ├── setup_wizard.py
   │   │   └── utils.py
-  │   ├── gui
-  │   │   ├── legacy
+  │   ├── gui/
+  │   │   ├── legacy/
   │   │   │   ├── bfeas_app2.py
   │   │   │   └── reports_table_page.py
   │   │   └── __init__.py
-  │   ├── gui_qt
+  │   ├── gui_qt/
   │   │   └── __init__.py
-  │   ├── gui_web
-  │   │   ├── v2_reference
-  │   │   │   ├── gui_qt
-  │   │   │   │   ├── pages
+  │   ├── gui_web/
+  │   │   ├── v2_reference/
+  │   │   │   ├── gui_qt/
+  │   │   │   │   ├── pages/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── attendance_page.py
   │   │   │   │   │   ├── dashboard_page.py
@@ -726,21 +733,21 @@ Digital-Student-Identification-System/
   │   │   │   │   │   ├── reports_page.py
   │   │   │   │   │   ├── settings_page.py
   │   │   │   │   │   └── students_page.py
-  │   │   │   │   ├── widgets
+  │   │   │   │   ├── widgets/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── sidebar.py
   │   │   │   │   │   └── stat_card.py
-  │   │   │   │   ├── workers
+  │   │   │   │   ├── workers/
   │   │   │   │   │   ├── __init__.py
   │   │   │   │   │   ├── connection_worker.py
   │   │   │   │   │   └── serial_worker.py
   │   │   │   │   ├── __init__.py
   │   │   │   │   ├── main_qt.py
   │   │   │   │   ├── main_window.py
-  │   │   │   │   ├── theme.qss
-  │   │   │   │   └── theme_light.qss
+  │   │   │   │   ├── theme_light.qss
+  │   │   │   │   └── theme.qss
   │   │   │   └── README.md
-  │   │   ├── web
+  │   │   ├── web/
   │   │   │   ├── app.js
   │   │   │   ├── index.html
   │   │   │   └── styles.css
@@ -748,7 +755,7 @@ Digital-Student-Identification-System/
   │   │   ├── api.py
   │   │   ├── main_web.py
   │   │   └── perf_profiler.py
-  │   ├── services
+  │   ├── services/
   │   │   ├── __init__.py
   │   │   ├── attendance_service.py
   │   │   └── student_service.py
@@ -756,19 +763,50 @@ Digital-Student-Identification-System/
   │   ├── config.py
   │   ├── main.py
   │   └── settings_store.py
-  ├── system
-  │   └── python
+  ├── system/
+  │   └── python/
   │       └── README.md
-  ├── tests
-  │   ├── Prototype
-  │   │   ├── Python
+  ├── tests/
+  │   ├── _archives/
+  │   │   ├── ESP32 R307 Finger print Sensor/
+  │   │   │   ├── ESP32_enroll_R307_finger_Print/
+  │   │   │   │   └── ESP32_enroll_R307_finger_Print.ino
+  │   │   │   └── esp32_fingerprint_check_R307/
+  │   │   │       └── esp32_fingerprint_check_R307.ino
+  │   │   ├── ESP32 R307 Finger print Sensor.zip
+  │   │   ├── gui_qt_redesign.zip
+  │   │   └── qt_gui_interactive_bundle.zip
+  │   ├── _reference/
+  │   │   ├── ENHANCED_GUI_GUIDE.txt
+  │   │   ├── HOW_TO_RUN_TEST_GUI.txt
+  │   │   ├── QUICK_REFERENCE.txt
+  │   │   ├── README_QT_GUI_TEST.md
+  │   │   ├── README_TEST_GUI.txt
+  │   │   ├── run_qt_gui_test.bat
+  │   │   ├── TEST_GUI_README.md
+  │   │   └── VISUAL_GUIDE.txt
+  │   ├── legacy/
+  │   │   ├── raw_serial_diagnostic/
+  │   │   │   └── raw_serial_diagnostic.ino
+  │   │   ├── phase2_databasev1.py
+  │   │   ├── phase2_databasev2.py
+  │   │   ├── phase2_databasev3.py
+  │   │   ├── phase2_databasev4.py
+  │   │   └── phase2_serial_test.py
+  │   ├── manual_hardware_scripts/
+  │   │   ├── test_debug_raw_lines.py
+  │   │   ├── test_enrollment_with_worker.py
+  │   │   ├── test_gui_demo.py
+  │   │   └── test_minimal_enroll.py
+  │   ├── Prototype/
+  │   │   ├── Python/
   │   │   │   ├── actual_ui_prototype.py
   │   │   │   ├── combined_ui.py
   │   │   │   ├── hybrid_window.py
   │   │   │   ├── original_window.py
   │   │   │   ├── prototype_window.py
   │   │   │   └── task_manager_window.py
-  │   │   ├── tests
+  │   │   ├── tests/
   │   │   │   ├── test_actual_ui_prototype.py
   │   │   │   ├── test_combined_ui.py
   │   │   │   ├── test_hybrid_prototype.py
@@ -782,37 +820,6 @@ Digital-Student-Identification-System/
   │   │   ├── run_original_ui_display.py
   │   │   ├── run_qt_prototype.py
   │   │   └── run_task_manager_variant.py
-  │   ├── _archives
-  │   │   ├── ESP32 R307 Finger print Sensor
-  │   │   │   ├── ESP32_enroll_R307_finger_Print
-  │   │   │   │   └── ESP32_enroll_R307_finger_Print.ino
-  │   │   │   └── esp32_fingerprint_check_R307
-  │   │   │       └── esp32_fingerprint_check_R307.ino
-  │   │   ├── ESP32 R307 Finger print Sensor.zip
-  │   │   ├── gui_qt_redesign.zip
-  │   │   └── qt_gui_interactive_bundle.zip
-  │   ├── _reference
-  │   │   ├── ENHANCED_GUI_GUIDE.txt
-  │   │   ├── HOW_TO_RUN_TEST_GUI.txt
-  │   │   ├── QUICK_REFERENCE.txt
-  │   │   ├── README_QT_GUI_TEST.md
-  │   │   ├── README_TEST_GUI.txt
-  │   │   ├── TEST_GUI_README.md
-  │   │   ├── VISUAL_GUIDE.txt
-  │   │   └── run_qt_gui_test.bat
-  │   ├── legacy
-  │   │   ├── raw_serial_diagnostic
-  │   │   │   └── raw_serial_diagnostic.ino
-  │   │   ├── phase2_databasev1.py
-  │   │   ├── phase2_databasev2.py
-  │   │   ├── phase2_databasev3.py
-  │   │   ├── phase2_databasev4.py
-  │   │   └── phase2_serial_test.py
-  │   ├── manual_hardware_scripts
-  │   │   ├── test_debug_raw_lines.py
-  │   │   ├── test_enrollment_with_worker.py
-  │   │   ├── test_gui_demo.py
-  │   │   └── test_minimal_enroll.py
   │   ├── app_test.py
   │   ├── comprehensive_test.py
   │   ├── conftest.py
@@ -868,7 +875,7 @@ Digital-Student-Identification-System/
   │   ├── test_vidpid_normalization.py
   │   ├── tmp_card_claim_test.db
   │   └── whs_dashboard.py
-  ├── tools
+  ├── tools/
   │   ├── _database_refactor.py
   │   ├── archive_unused_python.py
   │   ├── copilot_forensic_search.py
@@ -884,18 +891,18 @@ Digital-Student-Identification-System/
   ├── .gitignore
   ├── CODE_OF_CONDUCT.md
   ├── CONTRIBUTING.md
+  ├── install_requirements.bat
   ├── INSTALLATION.md
   ├── LICENSE
   ├── PORTABLE_BUILD.md
+  ├── pytest.ini
   ├── README.md
   ├── RELEASE.md
-  ├── SECURITY.md
-  ├── install_requirements.bat
-  ├── pytest.ini
   ├── requirements.txt
   ├── run_web_gui.bat
-  └── run_web_gui.py`
-
+  ├── run_web_gui.py
+  └── SECURITY.md
+```
 ## 2. Source symbol tree
 
 The next sections expand source files into the functions/classes currently found in the maintained code paths. Generated, binary, image, and documentation files do not have runtime functions and therefore remain represented by the complete file tree above.
@@ -1843,7 +1850,39 @@ tools/verify_gui_startup.py
   └── [no class/function definitions detected]
 ```
 
-### 2.2 Tests
+#### 2.1F Source files added after the previous generated symbol pass
+
+> These files were present in the current `main` tree but were omitted from the earlier generated symbol sections. They are now represented so the current source inventory is complete.
+
+#### audit/generate_metrics.py
+- Functions: `classify_language()`, `classify_component()`, `classify_category()`, `count_lines()`, `git_output()`
+#### firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino
+- Functions: `ledBrightness()`, `ledOff()`, `getPriorityForState()`, `requestLedState()`, `restoreLedStateIfNeeded()`, `handleHostStatus()`, `parseJsonStringField()`, `emitJsonStatus()`, `emitJsonAttendanceMatch()`, `emitJsonAttendanceUnknown()`, `emitJsonAttendanceLowConfidence()`, `beginLedManager()`, `ledReady()`, `ledScan()`, `ledEnroll()`, `ledSuccess()`, `ledError()`, `ledSleep()`, `ledFirmware()`, `ledHostConnected()`, `ledHostDisconnected()`, `computeBootBrightness()`, `updateLed()`, `setup()`, `loop()`, `handleCommand()`, `fingerprintExists()`, `findNextAvailableId()`, `checkEnrollmentCancel()`, `enrollFinger()`, `scanFinger()`, `printHelp()`
+#### firmware/attendance/attendance.ino
+- Functions: `setup()`, `loop()`, `scanAndSend()`
+#### firmware/delete/delete.ino
+- Functions: `setup()`, `loop()`
+#### firmware/enroll/enroll.ino
+- Functions: `setup()`, `readnumber()`, `loop()`, `getFingerprintEnroll()`
+#### firmware/rc522_dumpinfo_test/rc522_dumpinfo_test.ino
+- Functions: `setup()`, `loop()`
+#### firmware/rc522_read/rc522_read.ino
+- Functions: `setup()`, `loop()`
+#### firmware/rc522_readwrite/rc522_readwrite.ino
+- Functions: `setup()`, `loop()`, `checkSerialInput()`, `doWrite()`, `doRead()`, `haltAndReturn()`
+#### firmware/rc522_test/rc522_test.ino
+- Functions: `setup()`, `loop()`
+#### firmware/rc522_write/rc522_write.ino
+- Functions: `setup()`, `loop()`
+#### firmware/test/fingerprint_check/fingerprint_check.ino
+- Functions: `setup()`, `loop()`, `printMenu()`, `readIDFromSerial()`, `enrollFingerprint()`, `findFingerprint()`, `deleteFingerprint()`
+#### tests/_archives/ESP32 R307 Finger print Sensor/ESP32_enroll_R307_finger_Print/ESP32_enroll_R307_finger_Print.ino
+- Functions: `setup()`, `readnumber()`, `getFingerprintEnroll()`
+#### tests/_archives/ESP32 R307 Finger print Sensor/esp32_fingerprint_check_R307/esp32_fingerprint_check_R307.ino
+- Functions: `setup()`, `getFingerprintID()`, `getFingerprintIDez()`
+#### tests/legacy/raw_serial_diagnostic/raw_serial_diagnostic.ino
+- Functions: `setup()`, `loop()`
+## 2.2 Tests
 
 _Test symbol expansion follows._
 
