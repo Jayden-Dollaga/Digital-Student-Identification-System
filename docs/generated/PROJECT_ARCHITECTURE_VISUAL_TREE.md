@@ -1291,7 +1291,1548 @@ A file can belong to a subsystem while its functions participate in a different 
 For exact source inventories, use the companion generated project tree and application inventory.
 ---
 
-## Lineage tree — `f0b0074` → `c2eb4d3`
+## Expanded architecture diagram,,> The following is the full expanded box-and-branch architecture view, preserved as a single diagram so the subsystem relationships can be read top-to-bottom.,,```text,                         ┌──────────────────────────────────────┐
+                         │  DIGITAL STUDENT IDENTIFICATION     │
+                         │              SYSTEM                 │
+                         │               DSIS                   │
+                         └──────────────────┬───────────────────┘
+                                            │
+             ┌──────────────────────────────┼──────────────────────────────┐
+             │                              │                              │
+             ▼                              ▼                              ▼
+     DESKTOP APPLICATION              HARDWARE SYSTEM              PROJECT / SUPPORT
+             │                              │                              │
+             │                              │                              │
+═════════════╪══════════════════════════════╪══════════════════════════════╪═══════
+             │                              │                              │
+             ▼                              ▼                              ▼
+
+
+┌──────────────────────────────┐
+│      01. DESKTOP APP        │
+└──────────────┬───────────────┘
+               │
+               ├── Launch
+               │   │
+               │   ├── run_web_gui.py
+               │   └── run_web_gui.bat
+               │
+               ▼
+        gui_web.main_web
+               │
+               ├── Install exception hooks
+               ├── Create Api()
+               ├── Initialize runtime
+               ├── Initialize database
+               ├── Initialize logging
+               ├── Load settings
+               ├── Create pywebview window
+               ├── Attach Api bridge
+               └── Start native UI loop
+               │
+               ▼
+      ┌───────────────────────┐
+      │     PYWEBVIEW         │
+      │    NATIVE WINDOW      │
+      └───────────┬───────────┘
+                  │
+                  ▼
+        ┌─────────────────────┐
+        │     WEB UI          │
+        └──────────┬──────────┘
+                   │
+      ┌────────────┼───────────────────────────────────────┐
+      │            │                  │                    │
+      ▼            ▼                  ▼                    ▼
+ index.html      app.js           styles.css          UI STATE
+      │            │                  │                    │
+      │            ├── Dashboard      │                    ├── Current page
+      │            ├── Attendance     │                    ├── Current role
+      │            ├── Students       │                    ├── Device state
+      │            ├── Reports        │                    ├── Scan state
+      │            ├── Logs           │                    └── Modal state
+      │            ├── Settings       │
+      │            └── Calendar       │
+      │                               │
+      └───────────────────────────────┘
+                   │
+                   ▼
+        window.pywebview.api
+                   │
+                   ▼
+┌──────────────────────────────────────────────────────────────┐
+│                   02. API / BRIDGE LAYER                     │
+│                    python/gui_web/api.py                     │
+└───────────────────────────────┬──────────────────────────────┘
+                                │
+       ┌────────────────────────┼─────────────────────────────┐
+       │                        │                             │
+       ▼                        ▼                             ▼
+ CONNECTION                 OPERATIONS                    DATA/UI EVENTS
+       │                        │                             │
+       ├── connect()            ├── enrollment                ├── scan_result
+       ├── disconnect()         ├── deletion                  ├── serial_line
+       ├── port discovery       ├── RFID                      ├── log_line
+       ├── reconnect            ├── attendance                ├── enroll_progress
+       └── device status        ├── reports                   ├── delete_progress
+                                ├── calendar                  ├── wipe_progress
+                                ├── settings                  ├── fingerprint_count
+                                ├── backup                    ├── connection_status
+                                ├── restore                   ├── data_changed
+                                └── authentication             └── mode_changed
+                                │
+                                ▼
+                    ┌──────────────────────────┐
+                    │     PYTHON CORE          │
+                    └─────────────┬────────────┘
+                                  │
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           03. CORE BACKEND FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+┌───────────────────────────────┐
+│        core.database          │
+├───────────────────────────────┤
+│                               │
+│ SQLite initialization         │
+│ Schema creation               │
+│ Schema migration              │
+│ Student validation            │
+│ Student CRUD                  │
+│ RFID UID linking              │
+│ Attendance logging            │
+│ Attendance queries            │
+│ Attendance summaries          │
+│ Statistics                    │
+│ Reports                       │
+│ CSV preparation               │
+│ Chart generation              │
+│ Database backup               │
+│ Database restore              │
+│ Destructive database actions  │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ├───────────────┐
+                │               │
+                ▼               ▼
+           students         attendance
+                │               │
+                │               │
+                └───────┬───────┘
+                        │
+                        ▼
+                 attendance.db
+
+
+┌───────────────────────────────┐
+│      core.serial_handler      │
+├───────────────────────────────┤
+│                               │
+│ COM port management           │
+│ Serial connection             │
+│ Serial transmission           │
+│ Serial reception              │
+│ Line buffering                │
+│ Device metadata               │
+│ Disconnect handling            │
+│ Stale-port detection          │
+│ Auto reconnect                │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ├── send_command()
+                ├── read_line()
+                └── connection state
+                        │
+                        ▼
+                    USB Serial
+
+
+┌───────────────────────────────┐
+│      core.device_discovery    │
+├───────────────────────────────┤
+│                               │
+│ Enumerate COM ports           │
+│ Rank candidate ports          │
+│ USB descriptor inspection     │
+│ VID/PID hints                 │
+│ Probe candidate               │
+│ Send ID?                      │
+│ Validate device identity      │
+│ Validate protocol version     │
+│ Adopt working device          │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ▼
+        Digital Student
+        Identification System
+                │
+                ▼
+             ESP32
+
+
+┌───────────────────────────────┐
+│         core.commands         │
+├───────────────────────────────┤
+│                               │
+│ cmd_scan()                    │
+│ cmd_stop()                    │
+│ cmd_enroll()                  │
+│ cmd_delete()                  │
+│ cmd_wipe()                    │
+│ cmd_list()                    │
+│ cmd_card_write_hex()          │
+│ cmd_card_erase()              │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ▼
+         ESP32 command API
+
+
+┌───────────────────────────────┐
+│        core.attendance        │
+├───────────────────────────────┤
+│                               │
+│ Parse serial lines            │
+│ Parse JSON events             │
+│ Fingerprint scans             │
+│ RFID scans                    │
+│ Unknown scans                 │
+│ Confidence classification     │
+│ UID normalization             │
+│ AES-GCM card validation       │
+│ Duplicate protection          │
+│ Cooldown handling             │
+│ Attendance persistence        │
+│                               │
+└───────────────┬───────────────┘
+                │
+         ┌──────┴────────┐
+         │               │
+         ▼               ▼
+   Fingerprint         RFID
+         │               │
+         └──────┬────────┘
+                │
+                ▼
+         Attendance event
+                │
+                ▼
+          log_attendance()
+                │
+                ▼
+            SQLite
+
+
+┌───────────────────────────────┐
+│    core.attendance_status     │
+├───────────────────────────────┤
+│                               │
+│ Time-In evaluation            │
+│ Time-Out evaluation           │
+│ Early calculation             │
+│ Late calculation              │
+│ Absent rules                  │
+│ Schedule comparison           │
+│                               │
+└───────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│   core.attendance_calendar    │
+├───────────────────────────────┤
+│                               │
+│ Holidays                      │
+│ Suspensions                   │
+│ Half-days                     │
+│ Weekday exclusions            │
+│ Date-specific schedule        │
+│                               │
+└───────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│          core.auth            │
+├───────────────────────────────┤
+│                               │
+│ Password creation             │
+│ Password validation            │
+│ Salt generation               │
+│ PBKDF2-HMAC-SHA256            │
+│ Password verification         │
+│ Initial admin setup           │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ▼
+           settings.json
+
+
+┌───────────────────────────────┐
+│      core.permissions         │
+├───────────────────────────────┤
+│                               │
+│ Guest session                 │
+│ Teacher session               │
+│ Administrator session         │
+│ Role hierarchy                │
+│ Permission checks             │
+│ Session timeout               │
+│ Session locking               │
+│                               │
+└───────────────┬───────────────┘
+                │
+                ▼
+          AUTHORIZE ACTION
+                │
+        ┌───────┴────────┐
+        │                │
+      ALLOW             DENY
+        │                │
+        ▼                ▼
+   Continue          Return error
+
+
+┌───────────────────────────────┐
+│        core.rfid_card         │
+├───────────────────────────────┤
+│                               │
+│ AES key creation              │
+│ AES key storage               │
+│ UID normalization             │
+│ Payload creation              │
+│ AES-GCM encryption            │
+│ AES-GCM decryption            │
+│ Authentication tag check      │
+│ Payload version validation    │
+│ Student identity extraction   │
+│                               │
+└────────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│        core.logger            │
+├───────────────────────────────┤
+│                               │
+│ Console logging               │
+│ File logging                  │
+│ Timestamped runs              │
+│ UI log buffering              │
+│ Runtime diagnostics           │
+│ Exception logging             │
+│                               │
+└───────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│     core.setup_wizard         │
+├───────────────────────────────┤
+│                               │
+│ Password step                 │
+│ Device step                   │
+│ Schedule step                 │
+│ Branding step                 │
+│ Resume interrupted setup      │
+│                               │
+└───────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│      core.firmware_helper     │
+├───────────────────────────────┤
+│ Firmware candidate discovery  │
+│ Firmware information          │
+│ Upload/build helpers          │
+└───────────────────────────────┘
+
+
+┌───────────────────────────────┐
+│          core.utils           │
+├───────────────────────────────┤
+│                               │
+│ JSON-line parsing             │
+│ Shared conversion helpers     │
+│ Small runtime utilities       │
+│                               │
+└───────────────────────────────┘
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              04. SERVICE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                   ┌─────────────────────────────┐
+                   │       python/services       │
+                   └──────────────┬──────────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    │                           │
+                    ▼                           ▼
+          student_service.py          attendance_service.py
+                    │                           │
+                    ▼                           ▼
+            Student operations          Attendance operations
+                    │                           │
+                    └─────────────┬─────────────┘
+                                  ▼
+                              Core layer
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              05. HARDWARE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                 ┌─────────────────────────────────┐
+                 │        ESP32 WROOM-32            │
+                 │       DSIS All-In-One            │
+                 └────────────────┬────────────────┘
+                                  │
+             ┌────────────────────┼────────────────────┐
+             │                    │                    │
+             ▼                    ▼                    ▼
+        USB Serial              UART 2              SPI BUS
+         115200                  57600                  │
+             │                    │                    │
+             │                    ▼                    ▼
+             │                AS608                RC522
+             │
+             ▼
+       Python application
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                         06. ESP32 FIRMWARE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                 ┌──────────────────────────────────┐
+                 │ ESP32_DSIS_AllInOne.ino          │
+                 └────────────────┬─────────────────┘
+                                  │
+          ┌───────────────────────┼────────────────────────┐
+          │                       │                        │
+          ▼                       ▼                        ▼
+    Host Interface          Fingerprint Engine          RFID Engine
+          │                       │                        │
+          │                       │                        │
+          ├── ID?                 ├── getImage()           ├── Detect card
+          ├── SCAN                ├── image2Tz()           ├── Read UID
+          ├── STOP                ├── fingerSearch()       ├── Detect type
+          ├── ENROLL              ├── createModel()        ├── Authenticate
+          ├── ENROLL:<id>         ├── storeModel()         ├── Read payload
+          ├── DELETE:<id>         ├── loadModel()          ├── Write payload
+          ├── WIPE                ├── deleteModel()        └── Verify readback
+          ├── LIST                └── template count
+          ├── CARD_WRITE_HEX
+          ├── CARD_ERASE
+          └── STATUS:<state>
+                                  │
+                                  ▼
+                         Structured JSON events
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                          07. FINGERPRINT FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              ┌──────────┐
+                              │  AS608   │
+                              └────┬─────┘
+                                   │
+                ┌──────────────────┴──────────────────┐
+                │                                     │
+                ▼                                     ▼
+          ENROLLMENT                            ATTENDANCE
+                │                                     │
+                ▼                                     ▼
+          Find free ID                          Place finger
+                │                                     │
+                ▼                                     ▼
+         Capture finger #1                       getImage()
+                │                                     │
+                ▼                                     ▼
+           image2Tz(1)                           image2Tz()
+                │                                     │
+                ▼                                     ▼
+         Remove finger                           Search DB
+                │                                     │
+                ▼                           ┌─────────┴─────────┐
+         Capture finger #2                   │                   │
+                │                         MATCH               NO MATCH
+                ▼                           │                   │
+           image2Tz(2)                      │                   ▼
+                │                           │                UNKNOWN
+                ▼                           │
+          createModel()                     ▼
+                │                       Confidence
+        ┌───────┴────────┐                  │
+        │                │          ┌───────┴───────┐
+     MATCH            MISMATCH      │               │
+        │                │        >= minimum      < minimum
+        ▼                ▼           │               │
+   storeModel()       ERROR          ▼               ▼
+        │                         GOOD MATCH     LOW CONFIDENCE
+        ▼
+  Enrollment success
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            08. RFID FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              ┌──────────┐
+                              │  RC522   │
+                              └────┬─────┘
+                                   │
+                                   ▼
+                           Read Card + UID
+                                   │
+                                   ▼
+                         ┌──────────────────┐
+                         │   CardDetector   │
+                         └────────┬─────────┘
+                                  │
+       ┌──────────────────────────┼─────────────────────────────┐
+       │                          │                             │
+       ▼                          ▼                             ▼
+   CLASSIC                      TYPE 2                        OTHER
+       │                          │                             │
+       │                          │                             └── Unsupported
+       │                          │                                  │
+       │                          ▼                                  ▼
+       │                   Inspect Type 2                      card_unreadable
+       │                      metadata
+       │                          │
+       │             ┌────────────┼─────────────┐
+       │             │            │             │
+       │        Ultralight      NTAG215       NTAG216
+       │             │            │             │
+       │             └────────────┴─────────────┘
+       │                          │
+       │                          ▼
+       │                    Type2Adapter
+       │
+       ▼
+  ClassicAdapter
+       │
+       ├── MIFARE Mini
+       ├── MIFARE 1K
+       └── MIFARE 4K
+       │
+       ├── Authenticate sector
+       │
+       ├── Read blocks 4-6
+       │
+       ├── Write blocks 4-6
+       │
+       └── Verify readback
+                                  │
+                                  ▼
+                          48-byte payload
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                         09. RFID ATTENDANCE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              RC522
+                                │
+                                ▼
+                           Detect card
+                                │
+                                ▼
+                              Get UID
+                                │
+                                ▼
+                           CardDetector
+                                │
+                    ┌───────────┴───────────┐
+                    │                       │
+                Supported               Unsupported
+                    │                       │
+                    ▼                       ▼
+                Adapter                 UNKNOWN
+                    │
+             ┌──────┴──────┐
+             │             │
+          Classic         Type2
+             │             │
+             ▼             ▼
+          Read 48B       Read 48B
+             │             │
+             └──────┬──────┘
+                    ▼
+             Encrypted payload
+                    │
+                    ▼
+              JSON card event
+                    │
+                    ▼
+             USB Serial 115200
+                    │
+                    ▼
+             SerialHandler
+                    │
+                    ▼
+           AttendanceProcessor
+                    │
+                    ▼
+             Normalize UID
+                    │
+                    ▼
+             AES-GCM decrypt
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+       INVALID              VALID
+          │                   │
+          ▼                   ▼
+       UNKNOWN         Extract identity
+                            │
+                   ┌────────┴────────┐
+                   │                 │
+             fingerprint_id      student_no
+                   │                 │
+                   └────────┬────────┘
+                            ▼
+                     Student lookup
+                            │
+                            ▼
+                     Identity agreement
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+            FAIL                         PASS
+              │                           │
+              ▼                           ▼
+           UNKNOWN                   Cooldown check
+                                          │
+                              ┌───────────┴───────────┐
+                              │                       │
+                           BLOCKED                 ALLOWED
+                              │                       │
+                              ▼                       ▼
+                          Ignore duplicate       Log attendance
+                                                      │
+                                                      ▼
+                                                  SQLite
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                         10. RFID REGISTRATION FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                       Select Student
+                             │
+                             ▼
+               start_rfid_register_session()
+                             │
+             ┌───────────────┼────────────────┐
+             │               │                │
+          Permission      Student exists   No conflict
+             │               │                │
+             └───────────────┴────────────────┘
+                             │
+                             ▼
+                       Start card mode
+                             │
+                             ▼
+                         Tap card
+                             │
+                             ▼
+                         Read UID
+                             │
+                             ▼
+                    Check existing owner
+                             │
+                 ┌───────────┴───────────┐
+                 │                       │
+             Already linked           Available
+                 │                       │
+                 ▼                       ▼
+               Reject             Build payload
+                                         │
+                                         ▼
+                                  AES-GCM encrypt
+                                         │
+                                         ▼
+                                  UID-bound AAD
+                                         │
+                                         ▼
+                                   48-byte envelope
+                                         │
+                                         ▼
+                                   CARD_WRITE_HEX
+                                         │
+                                         ▼
+                                        ESP32
+                                         │
+                          ┌──────────────┴──────────────┐
+                          │                             │
+                       Classic                        Type2
+                          │                             │
+                       Write blocks                 Write pages
+                          │                             │
+                          └──────────────┬──────────────┘
+                                         ▼
+                                  Readback verify
+                                         │
+                                         ▼
+                                   write_verified
+                                         │
+                                         ▼
+                              Python verification
+                                         │
+             ┌───────────────────────────┼──────────────────────────┐
+             │                           │                          │
+          UID match                Payload match               Verified flag
+             │                           │                          │
+             └───────────────────────────┴──────────────────────────┘
+                                         │
+                                         ▼
+                              db.bind_student_card()
+                                         │
+                                         ▼
+                              Student ↔ Card UID
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           11. ENROLLMENT FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                      Student information
+                             │
+                             ▼
+                   Validate input fields
+                             │
+                             ▼
+                       start_enroll()
+                             │
+                             ▼
+                     Permission check
+                             │
+                             ▼
+                    Conflict check
+                             │
+                             ▼
+                         STOP scan
+                             │
+                             ▼
+                           ENROLL
+                             │
+                             ▼
+                          ESP32
+                             │
+                             ▼
+                    Find free fingerprint ID
+                             │
+                             ▼
+                       AS608 enrollment
+                             │
+               ┌─────────────┴─────────────┐
+               │                           │
+             FAILED                      SUCCESS
+               │                           │
+               ▼                           ▼
+        mismatch/error              storeModel(ID)
+                                           │
+                                           ▼
+                                   enrollment event
+                                           │
+                                           ▼
+                                    Python receives ID
+                                           │
+                                           ▼
+                                      save_student()
+                                           │
+                                           ▼
+                                      SQLite student
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           12. ATTENDANCE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                 ┌────────────────────────────┐
+                 │       IDENTIFICATION       │
+                 └─────────────┬──────────────┘
+                               │
+                  ┌────────────┴────────────┐
+                  │                         │
+                  ▼                         ▼
+             Fingerprint                  RFID
+                  │                         │
+                  ▼                         ▼
+               AS608                     RC522
+                  │                         │
+                  └────────────┬────────────┘
+                               ▼
+                       AttendanceProcessor
+                               │
+                    ┌──────────┴───────────┐
+                    │                      │
+               Known identity         Unknown identity
+                    │                      │
+                    ▼                      ▼
+              Cooldown check            UNKNOWN
+                    │
+           ┌────────┴────────┐
+           │                 │
+        Duplicate         Allowed
+           │                 │
+           ▼                 ▼
+         Ignore         Record event
+                               │
+                               ▼
+                          event_type
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+                 time_in               time_out
+                    │                     │
+                    └──────────┬──────────┘
+                               ▼
+                        attendance table
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            13. DELETE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                          Delete Student
+                                │
+                                ▼
+                         Permission check
+                                │
+                                ▼
+                        DELETE:<fingerprint>
+                                │
+                                ▼
+                              ESP32
+                                │
+                                ▼
+                         Load fingerprint
+                                │
+                       ┌────────┴────────┐
+                       │                 │
+                    EXISTS            MISSING
+                       │                 │
+                       ▼                 ▼
+                  Delete model        FAILED
+                       │
+                       ▼
+                    SUCCESS
+                       │
+                       ▼
+                 Local database
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+        Student row         Old attendance
+          deleted             preserved
+                                 │
+                                 ▼
+                          fingerprint_id = 0
+                                 │
+                                 ▼
+                            Unregistered
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              14. WIPE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                             WIPE REQUEST
+                                  │
+                    ┌─────────────┴─────────────┐
+                    │                           │
+              DEVICE DOMAIN                LOCAL DOMAIN
+                    │                           │
+                    ▼                           ▼
+                 ESP32                    wipe_all_data()
+                    │                           │
+                    ▼                    Permission check
+            Clear fingerprint                │
+               templates                      ▼
+                    │                    Delete attendance
+                    ▼                           │
+                Success                         ▼
+                    │                    Delete students
+                    │                           │
+                    └──────────────┬────────────┘
+                                   ▼
+                              ID 0 remains
+                                   │
+                                   ▼
+                             Unregistered
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             15. DATABASE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                        data/attendance.db
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+                    ▼                     ▼
+                students              attendance
+                    │                     │
+                    │                     ├── id
+                    ├── fingerprint_id    ├── fingerprint_id
+                    ├── student_no        ├── date
+                    ├── student_name      ├── time
+                    ├── grade             ├── confidence
+                    ├── section           ├── status
+                    ├── card_uid          ├── timestamp
+                    ├── enrollment_date   └── event_type
+                    └── updated_date           │
+                                                │
+                                      ┌─────────┴─────────┐
+                                      │                   │
+                                   time_in             time_out
+
+ RELATIONSHIP
+
+ students.fingerprint_id
+            │
+            ▼
+ attendance.fingerprint_id
+
+
+ SPECIAL IDENTITY
+
+ 0
+ │
+ └── Unregistered / Unknown
+
+ 1–127
+ │
+ └── Real AS608 student template IDs
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            16. SETTINGS FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                         data/settings.json
+                                │
+        ┌───────────────────────┼─────────────────────────┐
+        │                       │                         │
+        ▼                       ▼                         ▼
+     DEVICE                  ATTENDANCE                 UI
+        │                       │                         │
+        ├── com_port            ├── cooldown              ├── theme
+        ├── baud_rate           ├── min_confidence        ├── branding
+        ├── auto_detect         ├── time_in               └── sidebar
+        └── auto_reconnect      ├── time_out
+                                ├── early threshold
+                                ├── late threshold
+                                └── absent threshold
+
+        │
+        ├───────────────────────┬────────────────────────────┐
+        │                       │                            │
+        ▼                       ▼                            ▼
+      CALENDAR                BACKUP                    SETUP STATE
+        │                       │                            │
+        ├── holidays            └── interval                 ├── device done
+        ├── suspensions                                      ├── schedule done
+        ├── half-days                                         └── branding done
+        └── weekday exclusions
+
+        │
+        ▼
+     AUTH DATA
+        │
+        └── password hash / salt / iteration data
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                         17. AUTHENTICATION FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                         FIRST RUN
+                            │
+                            ▼
+                     Create password
+                            │
+                            ▼
+                       Hash password
+                            │
+                            ▼
+                       Save auth data
+                            │
+                            ▼
+                    Administrator session
+                            │
+                            ▼
+                     Normal application
+
+
+                         RUNTIME
+                            │
+                            ▼
+                         SESSION
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+              ▼             ▼             ▼
+            Guest        Teacher        Admin
+              │             │             │
+              └─────────────┼─────────────┘
+                            ▼
+                     Permission check
+                            │
+                    ┌───────┴────────┐
+                    │                │
+                 Allowed           Denied
+                    │                │
+                    ▼                ▼
+                Operation          Error
+                    │
+                    ▼
+              Idle timeout
+                    │
+                    ▼
+                  Guest
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            18. REPORTING FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                         SQLite data
+                              │
+                              ▼
+                       Reporting layer
+                              │
+       ┌──────────────────────┼───────────────────────────────┐
+       │                      │                               │
+       ▼                      ▼                               ▼
+ ATTENDANCE REPORT       STATISTICS                     EVALUATION
+       │                      │                               │
+       ├── Daily              ├── Total students             ├── Day
+       ├── Weekly             ├── Attendance totals          ├── Week
+       ├── Monthly            ├── By grade                   └── Month
+       └── Time In/Out        ├── By section
+                              └── Timeline
+       │
+       └───────────────┬───────────────┐
+                       │               │
+                       ▼               ▼
+                     CSV             Charts
+                       │               │
+                       └───────┬───────┘
+                               ▼
+                         Export files
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             19. BACKUP FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                         attendance.db
+                              │
+                              ▼
+                        backup_database()
+                              │
+                              ▼
+                    data/backups/
+                              │
+                              ▼
+                    attendance_TIMESTAMP.db
+                              │
+                              ▼
+                           RESTORE
+                              │
+                   ┌──────────┴───────────┐
+                   │                      │
+              Validate path          Validate SQLite
+                   │                      │
+                   └──────────┬───────────┘
+                              ▼
+                         Replace DB
+                              │
+                              ▼
+                       data/attendance.db
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             20. LOGGING FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                           core.logger
+                               │
+           ┌───────────────────┼────────────────────┐
+           │                   │                    │
+           ▼                   ▼                    ▼
+        Console             File logs            UI buffer
+           │                   │                    │
+           │                   ▼                    ▼
+           │               data/logs/          log_line
+           │
+           ├── startup
+           ├── device
+           ├── serial
+           ├── attendance
+           ├── security
+           ├── errors
+           └── diagnostics
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            21. RUNTIME THREADS
+══════════════════════════════════════════════════════════════════════════════════
+
+                         DSIS PROCESS
+                              │
+            ┌─────────────────┼───────────────────────┐
+            │                 │                       │
+            ▼                 ▼                       ▼
+        Main UI          Serial Reader          Background Workers
+            │                 │                       │
+            │                 │                ┌──────┴────────┐
+            │                 │                │               │
+            │                 ▼                ▼               ▼
+            │          Read ESP32 lines   Auto Backup    Reconnect
+            │                 │
+            │                 ▼
+            │          Parse events
+            │                 │
+            │                 ▼
+            │          AttendanceProcessor
+            │
+            ▼
+         pywebview
+            │
+            ▼
+          app.js
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                         22. RUNTIME DATA FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                               data/
+                                │
+          ┌───────────────┬─────┴────────┬──────────────┬─────────────┐
+          │               │              │              │             │
+          ▼               ▼              ▼              ▼             ▼
+   attendance.db      settings.json   backups/        logs/        exports/
+          │               │              │              │             │
+          │               │              │              │             │
+          │               │              │              └── runtime logs
+          │               │              └── DB snapshots
+          │               └── config/auth/session continuity
+          └── students + attendance
+
+                                │
+                                ▼
+                             charts/
+                                │
+                                └── generated report graphics
+
+                                │
+                                ▼
+                      .admin_initialized
+                                │
+                                └── first-admin setup marker
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            23. TESTING FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              tests/
+                                │
+        ┌───────────────────────┼───────────────────────────────┐
+        │                       │                               │
+        ▼                       ▼                               ▼
+     UNIT TESTS             GUI TESTS                     HARDWARE TESTS
+        │                       │                               │
+        ├── attendance          ├── web GUI smoke              ├── ESP32 smoke
+        ├── database            ├── Qt compatibility            ├── serial tests
+        ├── authentication      ├── responsive UI              ├── sensor failures
+        ├── permissions         ├── enrollment dialogs          └── firmware tests
+        ├── serial              ├── settings
+        ├── RFID                ├── logs
+        └── validation          └── student pages
+                                │
+                                ▼
+                         Regression coverage
+
+
+                        SPECIAL TEST AREAS
+                                │
+        ┌───────────────────────┼───────────────────────────────┐
+        │                       │                               │
+        ▼                       ▼                               ▼
+     Security               Integration                    Protocol
+        │                       │                               │
+        ├── DB security        ├── GUI ↔ API                  ├── firmware protocol
+        ├── auth               ├── API ↔ DB                   ├── attendance parsing
+        ├── permissions        ├── API ↔ serial               └── serial behavior
+        └── error handling     └── API ↔ RFID
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              24. BUILD FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              Build/
+                                │
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+           ▼                    ▼                    ▼
+      DSIS_v1.spec         DSIS_v2.spec         DSIS_v3.spec
+                                                     │
+                                                     ▼
+                                                ACTIVE BUILD
+                                                     │
+                                                     ▼
+                                                  PyInstaller
+                                                     │
+                                                     ▼
+                                            Windows distribution
+
+
+                        SUPPORTING BUILD FILES
+                                │
+                                ├── fingerprint_portable.spec
+                                ├── build output
+                                ├── portable build docs
+                                └── release documentation
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             25. TOOLS FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              tools/
+                                │
+       ┌────────────────────────┼───────────────────────────┐
+       │                        │                           │
+       ▼                        ▼                           ▼
+   Database tools          Serial tools                Runtime tools
+       │                        │                           │
+       ├── DB refactor          ├── port probe             ├── runtime manager
+       ├── DB connection debug  ├── pipeline tester        ├── GUI startup
+       └── archive scripts      └── worker probes          └── verify scripts
+                                │
+                                ▼
+                         Forensics / diagnostics
+                                │
+                                └── copilot forensic search
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           26. FIRMWARE FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              firmware/
+                                  │
+          ┌───────────────────────┼─────────────────────────┐
+          │                       │                         │
+          ▼                       ▼                         ▼
+   ACTIVE ALL-IN-ONE       EARLIER FIRMWARE            TEST SKETCHES
+          │                       │                         │
+          │                       └── ESP32_Fingerprint     ├── rc522_test
+          │                           _AllInOne             ├── rc522_read
+          │                                                   ├── rc522_write
+          ▼                                                   ├── rc522_readwrite
+ ESP32_DSIS_AllInOne                                      ├── rc522_dumpinfo
+          │                                                 ├── fingerprint_check
+          ├── AS608                                           └── other hardware tests
+          ├── RC522
+          ├── LED manager
+          ├── command engine
+          ├── scan engine
+          └── JSON protocol
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           27. DOCUMENTATION FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              docs/
+                                │
+       ┌────────────────────────┼─────────────────────────────┐
+       │                        │                             │
+       ▼                        ▼                             ▼
+   Architecture             Hardware                    Development
+       │                        │                             │
+       ├── system architecture ├── wiring                     ├── setup
+       ├── runtime contract    ├── connections                ├── testing
+       ├── software flow       ├── serial protocol             ├── implementation
+       ├── DB schema           ├── firmware variants            ├── logging
+       ├── bridge              └── drivers / ports              ├── runtime data
+       └── V3 details                                             └── changelog
+       │
+       ├─────────────────────┐
+       ▼                     ▼
+    Hardware              History
+       │                     │
+       └── RFID              ├── V1 lineage
+                             ├── V2 lineage
+                             └── V3 migration
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                            28. REPOSITORY FAMILY
+══════════════════════════════════════════════════════════════════════════════════
+
+                              REPOSITORY
+                                  │
+      ┌───────────────────────────┼─────────────────────────────────┐
+      │                           │                                 │
+      ▼                           ▼                                 ▼
+   Runtime                     Support                         History
+      │                           │                                 │
+      ├── python/                 ├── tests/                         └── archive/
+      ├── firmware/               ├── tools/                             │
+      ├── data/ (runtime only)    ├── Build/                            ├── legacy-ui/v1
+      └── root launchers          └── docs/                             ├── legacy-ui/v2
+                                                                          ├── diagnostics
+                                                                          └── old prototypes
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                           29. VERSION LINEAGE
+══════════════════════════════════════════════════════════════════════════════════
+
+                                  DSIS
+                                   │
+                  ┌────────────────┼────────────────┐
+                  │                │                │
+                  ▼                ▼                ▼
+                 V1               V2               V3
+                  │                │                │
+             CustomTkinter     PySide6 / Qt      HTML + JS
+                  │                │                │
+                  │                │                ▼
+                  │                │             pywebview
+                  │                │                │
+                  └───────┬────────┘                ▼
+                          │                   Python backend
+                          │                        │
+                          │              ┌─────────┼──────────┐
+                          │              │         │          │
+                          │              ▼         ▼          ▼
+                          │           Database   Serial    Attendance
+                          │
+                          ▼
+                    Archived lineage
+                          │
+                          ▼
+                    Reference only
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             30. COMPLETE DATA FLOW
+══════════════════════════════════════════════════════════════════════════════════
+
+                     STUDENT / STAFF ACTION
+                              │
+                              ▼
+                            Web UI
+                              │
+                              ▼
+                         pywebview API
+                              │
+                              ▼
+                           Api class
+                              │
+                 ┌────────────┼──────────────┐
+                 │            │              │
+                 ▼            ▼              ▼
+            Permissions    Core logic     Serial
+                 │            │              │
+                 │            │              ▼
+                 │            │            ESP32
+                 │            │              │
+                 │            │       ┌──────┴───────┐
+                 │            │       │              │
+                 │            │      AS608          RC522
+                 │            │       │              │
+                 │            │       └──────┬───────┘
+                 │            │              │
+                 │            └──────────────┘
+                 │                           │
+                 │                           ▼
+                 │                    Structured event
+                 │                           │
+                 └───────────────────────────┤
+                                             ▼
+                                      AttendanceProcessor
+                                             │
+                                ┌────────────┴────────────┐
+                                │                         │
+                           Fingerprint                 RFID
+                                │                         │
+                                │                    AES-GCM validation
+                                │                         │
+                                └────────────┬────────────┘
+                                             ▼
+                                       Student identity
+                                             │
+                                             ▼
+                                      SQLite attendance
+                                             │
+                     ┌───────────────────────┼──────────────────────┐
+                     │                       │                      │
+                     ▼                       ▼                      ▼
+                 Dashboard              Attendance              Reports
+                     │                       │                      │
+                     └───────────────────────┼──────────────────────┘
+                                             ▼
+                                              UI
+                                             │
+                                             ▼
+                                      User sees result
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              31. FAILURE PATH
+══════════════════════════════════════════════════════════════════════════════════
+
+                              ANY OPERATION
+                                  │
+                                  ▼
+                              Validation
+                                  │
+                       ┌──────────┴──────────┐
+                       │                     │
+                    VALID                  INVALID
+                       │                     │
+                       ▼                     ▼
+                   Continue               Reject
+                       │
+                       ▼
+                 Hardware / DB
+                       │
+                 ┌─────┴─────┐
+                 │           │
+               SUCCESS      ERROR
+                 │           │
+                 ▼           ▼
+              Persist      Log error
+                 │           │
+                 ▼           ▼
+               Notify       Notify UI
+                 │           │
+                 └─────┬─────┘
+                       ▼
+                      UI
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                             32. SYSTEM BOUNDARY
+══════════════════════════════════════════════════════════════════════════════════
+
+                   ┌────────────────────────────────────┐
+                   │             DSIS DESKTOP            │
+                   │                                    │
+                   │  HTML / JS                         │
+                   │       ↓                            │
+                   │  pywebview                         │
+                   │       ↓                            │
+                   │  Python API                        │
+                   │       ↓                            │
+                   │  Core backend                      │
+                   │       ↓                            │
+                   │  SQLite / Filesystem               │
+                   │                                    │
+                   └────────────────┬───────────────────┘
+                                    │
+                               USB Serial
+                                    │
+                                    ▼
+                   ┌────────────────────────────────────┐
+                   │              ESP32                  │
+                   │                                    │
+                   │  Command engine                    │
+                   │  Fingerprint engine                │
+                   │  RFID engine                       │
+                   │  LED engine                        │
+                   │  JSON serial protocol              │
+                   │                                    │
+                   └───────────────┬───────────┬────────┘
+                                   │           │
+                                UART 57600   SPI
+                                   │           │
+                                   ▼           ▼
+                                 AS608       RC522
+                                   │           │
+                                   └─────┬─────┘
+                                         ▼
+                                   IDENTIFICATION
+
+
+══════════════════════════════════════════════════════════════════════════════════
+                              FINAL ARCHITECTURE
+══════════════════════════════════════════════════════════════════════════════════
+
+                                DSIS
+                                 │
+       ┌─────────────────────────┼───────────────────────────┐
+       │                         │                           │
+       ▼                         ▼                           ▼
+     USER                    SOFTWARE                    HARDWARE
+       │                         │                           │
+       │                         ├── UI                      ├── ESP32
+       │                         ├── API                     ├── AS608
+       │                         ├── Core                    └── RC522
+       │                         ├── Services
+       │                         ├── Database
+       │                         ├── Auth
+       │                         ├── Reports
+       │                         └── Settings
+       │
+       ▼
+ IDENTIFICATION
+       │
+       ├──────────────────────┬──────────────────────┐
+       │                      │                      │
+       ▼                      ▼                      ▼
+  Fingerprint               RFID                 Future ID
+       │                      │
+       ▼                      ▼
+      AS608                  RC522
+       │                      │
+       └──────────────┬───────┘
+                      ▼
+                 DEVICE EVENT
+                      │
+                      ▼
+                SERIAL PROTOCOL
+                      │
+                      ▼
+                PYTHON PROCESSOR
+                      │
+             ┌────────┴────────┐
+             │                 │
+        Validate            Identify
+             │                 │
+             └────────┬────────┘
+                      ▼
+                  SQLite
+                      │
+          ┌───────────┼───────────┐
+          │           │           │
+          ▼           ▼           ▼
+       Records     Reports     Statistics
+          │           │           │
+          └───────────┼───────────┘
+                      ▼
+                    WEB UI
+                      │
+                      ▼
+                  USER RESULT,```,## Lineage tree — `f0b0074` → `c2eb4d3`
 
 ```text
 ARCHITECTURE / DOCUMENTATION LINEAGE
