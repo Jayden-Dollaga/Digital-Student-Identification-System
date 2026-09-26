@@ -359,6 +359,16 @@ See [LICENSE](LICENSE) for the project's license and usage terms.
 
 ---
 
+## Complete System Architecture
+
+The whole-project architecture is documented separately so the README stays readable while the repository still has a detailed technical map.
+
+- **[Complete DSIS System Architecture](docs/Architecture/complete-system-architecture.md)** — repository-wide architecture, data flow, hardware/software boundaries, fingerprint and RFID branches, authentication, database, testing, build tooling, documentation, and V1→V3 lineage.
+
+The complete architecture is intended as a high-level technical reference. For implementation-specific contracts, prefer the focused architecture documents and current source code/tests.
+
+---
+
 ## Full application documentation
 
 The documentation set now includes a source-backed whole-application inventory and dedicated current guides for the v3 bridge, data model, firmware, serial protocol, first-run setup, roles, attendance rules, backup/restore/export, development validation, and troubleshooting.
