@@ -3170,6 +3170,159 @@ archive/legacy-ui/v1/python/core/logger.py
   └── def critical()
 ```
 
+
+### 2.3E Archive symbols — continued legacy UI
+
+```text
+archive/legacy-ui/v1/python/core/serial_handler.py
+  ├── def list_serial_ports()
+  ├── class SerialHandler()
+  ├── def __init__()
+  ├── def list_available_ports()
+  ├── def connect()
+  ├── def disconnect()
+  ├── def send_command()
+  ├── def read_line()
+  ├── def should_ignore()
+  ├── def is_connected()
+  └── def auto_reconnect()
+
+archive/legacy-ui/v1/python/core/utils.py
+  ├── def get_export_path()
+  ├── def timestamp_filename()
+  ├── def format_datetime()
+  ├── def today_str()
+  ├── def now_str()
+  └── def format_attendance_display()
+
+archive/legacy-ui/v1/python/fix_emoji.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v1/python/gui/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v1/python/gui/app.py
+  ├── def _logo_path()
+  ├── class FingerprintApp()
+  ├── def __init__()
+  ├── def init_database()
+  ├── def _apply_saved_settings()
+  ├── def _apply_settings_to_runtime()
+  ├── def save_current_settings()
+  ├── def has_permission()
+  ├── def update_button_permissions()
+  ├── def change_role()
+  ├── def _on_role_changed()
+  ├── def build_ui()
+  ├── def build_sidebar()
+  ├── def switch_page()
+  ├── def build_main_area()
+  ├── def _on_attendance_mode_changed()
+  ├── def _update_load_more_visibility()
+  ├── def refresh_statistics()
+  ├── def show_statistics_report()
+  ├── def export_statistics_report()
+  ├── def show_statistics_charts()
+  ├── def toggle_connection()
+  ├── def _set_connected_ui()
+  ├── def refresh_serial_ports()
+  ├── def open_settings_dialog()
+  ├── def _set_disconnected_ui()
+  ├── def _set_reconnect_ui()
+  ├── def start_scan()
+  ├── def stop_scan()
+  ├── def start_reader_thread()
+  ├── def read_serial_output()
+  ├── def enroll_sample()
+  ├── def list_fingerprints()
+  ├── def open_enroll_dialog()
+  ├── def save_enroll_profile()
+  ├── def close_enroll_dialog()
+  ├── def _parse_attendance()
+  ├── def _parse_enroll_progress()
+  ├── def open_wipe_dialog()
+  ├── def confirm_wipe()
+  ├── def close_wipe_dialog()
+  ├── def _parse_wipe_progress()
+  ├── def open_students_list_dialog()
+  ├── def close_students_dialog()
+  ├── def _clear_database_data()
+  ├── def refresh_student_list()
+  ├── def delete_student_from_list()
+  ├── def open_edit_dialog()
+  ├── def backup_database()
+  ├── def open_restore_dialog()
+  ├── def quit_app()
+  ├── def _ui_ready()
+  ├── def toggle_attendance_view()
+  ├── def refresh_attendance_view()
+  ├── def load_more_attendance()
+  ├── def _build_attendance_card()
+  ├── def open_add_student_dialog()
+  ├── def log_message()
+  ├── def _append_log_message()
+  ├── def clear_log()
+  └── def main()
+
+archive/legacy-ui/v1/python/gui/attendance_page.py
+  ├── class AttendancePage()
+  ├── def __init__()
+  ├── def build()
+  ├── def refresh()
+  ├── def load_more()
+  ├── def build_card()
+  ├── def _show_unknown_details()
+  ├── def build_attendance_tab()
+  ├── def refresh_attendance_view()
+  ├── def load_more_attendance()
+  └── def build_attendance_card()
+
+archive/legacy-ui/v1/python/gui/dashboard.py
+  ├── class DashboardPage()
+  ├── def __init__()
+  ├── def build()
+  └── def refresh()
+
+archive/legacy-ui/v1/python/gui/dialogs.py
+  ├── def create_modal_dialog()
+  ├── def ask_confirmation()
+  ├── def open_enroll_dialog()
+  ├── def save_enroll_profile()
+  ├── def close_enroll_dialog()
+  ├── def open_wipe_dialog()
+  ├── def confirm_wipe()
+  ├── def close_wipe_dialog()
+  └── def open_restore_dialog()
+
+archive/legacy-ui/v1/python/gui/log_page.py
+  └── def build_log_tab()
+
+archive/legacy-ui/v1/python/gui/main_window.py
+  ├── class MainWindow()
+  ├── def __init__()
+  ├── def _build_ui()
+  └── def run_gui()
+
+archive/legacy-ui/v1/python/gui/reports_page.py
+  ├── def show_statistics_report()
+  ├── def export_statistics_report()
+  ├── def show_statistics_charts()
+  ├── def _display_chart_in_tab()
+  └── def _copy_to_clipboard()
+
+archive/legacy-ui/v1/python/gui/settings_dialog.py
+  ├── def open_settings_dialog()
+  ├── def _save_settings()
+  └── def _refresh_ports()
+
+archive/legacy-ui/v1/python/gui/settings_page.py
+  ├── class SettingsPage()
+  ├── def __init__()
+  ├── def build()
+  ├── def save()
+  └── def refresh()
+```
+
 ## 3. Architecture reading order
 
 ```text
