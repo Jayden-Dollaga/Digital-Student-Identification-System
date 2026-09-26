@@ -3,7 +3,7 @@
 > The authoritative **box-and-branch architecture diagram** for DSIS.
 >
 > **Lineage start:** `f0b0074` — the requested architecture-document baseline.
- > **Verified project tree snapshot:** `c2eb4d3` (the project state immediately before this repair pass).
+> **Verified project tree snapshot:** `c2eb4d3` (the project state immediately before this repair pass).
 > **Source audit:** 305 source files / 51,143 physical lines.
 >
 > The diagram describes subsystem relationships and data/control flow; it is not a claim that every file is on the same runtime call path.
