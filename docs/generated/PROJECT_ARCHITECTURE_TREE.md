@@ -2693,6 +2693,86 @@ tests/whs_dashboard.py
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
 
+
+### 2.3A Archive symbols — diagnostics and early GUI redesign
+
+```text
+archive/diagnostics/discovery_handshake_probe.py
+  ├── def list_available_ports()
+  ├── def parse_expected_handshake()
+  ├── def probe_port()
+  └── def main()
+
+archive/diagnostics/serial_monitor_test.py
+  ├── class SerialMonitor()
+  ├── def __init__()
+  ├── def open()
+  ├── def close()
+  ├── def _reader_loop()
+  ├── def _report_disconnection()
+  ├── def start_input_loop()
+  ├── def _input_loop()
+  ├── def send_command()
+  ├── def wait_for_first_byte()
+  ├── def get_summary()
+  ├── def parse_args()
+  ├── def print_status()
+  ├── def automated_test()
+  └── def main()
+
+archive/diagnostics/serial_pipeline_tester.py
+  ├── def list_ports_available()
+  ├── def print_bytes()
+  ├── def open_serial()
+  ├── def capture_port()
+  ├── def replay_file()
+  └── def main()
+
+archive/diagnostics/temp_serial_port_info.py
+  └── [no class/function definitions detected]
+
+archive/diagnostics/tmp_serial_dtr_test.py
+  └── [no class/function definitions detected]
+
+archive/diagnostics/tmp_serial_handler_probe.py
+  └── [no class/function definitions detected]
+
+archive/diagnostics/tmp_serial_probe.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/main_qt.py
+  ├── def load_stylesheet()
+  └── def main()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/main_window.py
+  ├── class MainWindow()
+  ├── def __init__()
+  ├── def switch_page()
+  ├── def on_connection_changed()
+  ├── def on_scan_event()
+  ├── def on_serial_error()
+  └── def closeEvent()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/attendance_page.py
+  ├── class AttendancePage()
+  ├── def __init__()
+  ├── def refresh()
+  ├── def _populate()
+  └── def on_scan_event()
+
+archive/legacy-ui/gui_qt_redesign/gui_qt/pages/dashboard_page.py
+  ├── class DashboardPage()
+  ├── def __init__()
+  ├── def refresh()
+  └── def on_scan_event()
+```
+
 ## 3. Architecture reading order
 
 ```text
