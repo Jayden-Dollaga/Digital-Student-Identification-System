@@ -7,6 +7,7 @@ These documents describe the current v3 runtime and its persistence and event co
 - [Software Flow](software-flow.md): enrollment, scanning, attendance, and reporting flows.
 - [Database Schema](database-schema.md): SQLite tables, migrations, reserved rows, and preservation rules.
 - [System Architecture](system-architecture.md): broader architectural reference.
+- [DSIS End-to-End Architecture Overview](dsis-end-to-end-architecture.md): full-system diagram from UI through hardware, validation, persistence, and reporting.
 
 ## Current boundary
 

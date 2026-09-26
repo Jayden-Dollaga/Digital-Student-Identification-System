@@ -18,7 +18,7 @@
   <a href="#features">Features</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#hardware">Hardware</a> ·
-  [Documentation](docs/INDEX.md) ·
+  <a href="docs/INDEX.md">Documentation</a> ·
   <a href="#project-structure">Project Structure</a>
 </p>
 
