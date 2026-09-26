@@ -1847,6 +1847,128 @@ tools/verify_gui_startup.py
 
 _Test symbol expansion follows._
 
+
+### 2.2A Test/prototype symbols — UI prototypes
+
+```text
+tests/Prototype/Python/actual_ui_prototype.py
+  ├── class PreviewSerialHandler()
+  ├── def is_connected()
+  ├── def list_available_ports()
+  ├── class PreviewSerialWorker()
+  ├── class ActualUIPrototypeWindow()
+  ├── def __init__()
+  ├── def switch_page()
+  └── def main()
+
+tests/Prototype/Python/combined_ui.py
+  ├── class CombinedUIWindow()
+  ├── def __init__()
+  ├── def _add_navigation_icons()
+  ├── def _apply_compact_icon_state()
+  ├── def apply_combined_style()
+  └── def main()
+
+tests/Prototype/Python/hybrid_window.py
+  ├── class HybridWindow()
+  ├── def __init__()
+  ├── def _build_sidebar()
+  ├── def _build_header()
+  ├── def _build_ui()
+  ├── def _build_dashboard_page()
+  ├── def _build_attendance_page()
+  ├── def _build_students_page()
+  ├── def _build_table_page()
+  ├── def _build_reports_page()
+  ├── def _build_logs_page()
+  ├── def _build_settings_page()
+  ├── def _select_page()
+  ├── def _apply_density()
+  ├── def _toggle_connection()
+  ├── def _finish_scan()
+  ├── def apply_hybrid_style()
+  └── def main()
+
+tests/Prototype/Python/original_window.py
+  ├── class OriginalUIWindow()
+  ├── def __init__()
+  ├── def _build_sidebar()
+  ├── def _build_header()
+  ├── def _build_ui()
+  ├── def _select_page()
+  ├── def _select_page_identification()
+  ├── def _toggle_connection()
+  ├── def _apply_density()
+  ├── def apply_original_style()
+  └── def main()
+
+tests/Prototype/Python/prototype_window.py
+  ├── class LogoMark()
+  ├── def __init__()
+  ├── def paintEvent()
+  ├── class PrototypeWindow()
+  ├── def __init__()
+  ├── def _build_ui()
+  ├── def _build_sidebar()
+  ├── def _build_header()
+  ├── def _build_identification_page()
+  ├── def _panel()
+  ├── def _build_scan_panel()
+  ├── def _build_details_panel()
+  ├── def _build_recent_panel()
+  ├── def _build_status_bar()
+  ├── def _add_placeholder_page()
+  ├── def _select_page()
+  ├── def _set_compact()
+  ├── def _apply_density()
+  ├── def _update_match()
+  ├── def _simulate_scan()
+  ├── def _finish_scan()
+  └── def main()
+
+tests/Prototype/Python/task_manager_window.py
+  ├── class TaskManagerWindow()
+  ├── def __init__()
+  ├── def _build_sidebar()
+  ├── def _build_header()
+  ├── def _apply_density()
+  ├── def apply_task_manager_style()
+  └── def main()
+
+tests/Prototype/hybrid_window.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/original_ui.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/run_combined_ui.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/run_hybrid_prototype.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/run_original_ui_display.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/run_qt_prototype.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/run_task_manager_variant.py
+  └── [no class/function definitions detected]
+
+tests/Prototype/tests/test_actual_ui_prototype.py
+  ├── class ActualUIPrototypeTest()
+  ├── def setUpClass()
+  ├── def test_uses_real_application_pages()
+  └── def test_navigation_is_display_only()
+
+tests/Prototype/tests/test_combined_ui.py
+  ├── class CombinedUITest()
+  ├── def setUpClass()
+  ├── def test_combines_real_pages_with_task_manager_navigation_icons()
+  └── def test_real_page_navigation_and_preview_connection_are_preserved()
+```
+
 ### 2.3 Archive / historical source
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
