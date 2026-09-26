@@ -3323,6 +3323,88 @@ archive/legacy-ui/v1/python/gui/settings_page.py
   └── def refresh()
 ```
 
+
+### 2.3F Archive symbols — legacy stack
+
+```text
+archive/legacy-ui/v1/python/gui/sidebar.py
+  ├── def build_sidebar()
+  └── def _add_action_button()
+
+archive/legacy-ui/v1/python/gui/statistics_page.py
+  └── def build_statistics_tab()
+
+archive/legacy-ui/v1/python/gui/students_page.py
+  ├── class StudentsPage()
+  ├── def __init__()
+  ├── def open_list_dialog()
+  ├── def close_dialog()
+  ├── def refresh()
+  ├── def _build_student_row()
+  ├── def delete_student()
+  ├── def open_edit_dialog()
+  ├── def do_save()
+  ├── def do_delete()
+  ├── def open_add_student_dialog()
+  ├── def do_save()
+  ├── def _get_page()
+  ├── def open_students_list_dialog()
+  ├── def close_students_dialog()
+  ├── def refresh_student_list()
+  ├── def delete_student_from_list()
+  ├── def open_edit_dialog()
+  └── def open_add_student_dialog()
+
+archive/legacy-ui/v1/python/gui/theme.py
+  ├── def apply_default_theme()
+  ├── def apply_light_theme()
+  └── def toggle_theme()
+
+archive/legacy-ui/v1/python/gui/widgets.py
+  ├── def section_header()
+  ├── def card_frame()
+  ├── def action_button()
+  └── def subtle_label()
+
+archive/legacy-ui/v1/python/main.py
+  ├── def input_thread()
+  └── def main()
+
+archive/legacy-ui/v1/python/services/__init__.py
+  └── [no class/function definitions detected]
+
+archive/legacy-ui/v1/python/services/attendance_service.py
+  ├── class AttendanceService()
+  ├── def get_today()
+  ├── def get_paginated()
+  └── def log()
+
+archive/legacy-ui/v1/python/services/backup.py
+  └── def backup_database()
+
+archive/legacy-ui/v1/python/services/excel_export.py
+  ├── def _style_sheet()
+  ├── def _write_rows()
+  ├── def export_today()
+  ├── def export_all()
+  └── def export_by_date()
+
+archive/legacy-ui/v1/python/services/student_service.py
+  ├── class StudentService()
+  ├── def get_all_students()
+  ├── def get_student()
+  ├── def save_student()
+  └── def delete_student()
+
+archive/legacy-ui/v1/python/settings_store.py
+  ├── def default_settings()
+  ├── def load_settings()
+  └── def save_settings()
+
+archive/legacy-ui/v2/python/__init__.py
+  └── [no class/function definitions detected]
+```
+
 ## 3. Architecture reading order
 
 ```text
