@@ -2470,6 +2470,126 @@ tests/test_qt_attendance_page.py
   └── def test_empty_state_message_is_shown_when_no_records_exist()
 ```
 
+
+### 2.2E Test symbols — core test suite C
+
+```text
+tests/test_qt_enrollment_flow.py
+  ├── class TestQtEnrollmentFlow()
+  ├── def setUpClass()
+  ├── def setUp()
+  ├── def tearDown()
+  ├── def test_save_student_and_retrieve()
+  ├── def test_multiple_enrollments()
+  ├── def test_duplicate_fingerprint_id_updates_existing()
+  └── def test_enrollment_to_table_refresh()
+
+tests/test_qt_main_window.py
+  ├── class QtMainWindowScanTests()
+  ├── def setUpClass()
+  └── def test_scan_is_blocked_when_enrollment_dialog_is_active()
+
+tests/test_qt_serial_worker.py
+  ├── class TestSerialWorkerMessageParsing()
+  ├── def setUpClass()
+  ├── def setUp()
+  ├── def test_enrollment_message_parsing()
+  ├── def test_wipe_progress_message_parsing()
+  ├── def test_mode_line_parsing()
+  ├── def test_json_mode_line_parsing()
+  ├── def test_enrollment_success_flow()
+  └── def test_regex_patterns_consistency()
+
+tests/test_qt_settings_logs.py
+  ├── class QtSettingsLogsTest()
+  ├── def setUpClass()
+  ├── def test_logs_page_clear_restores_ready_message()
+  └── def test_settings_page_initializes_with_serial_handler()
+
+tests/test_qt_shell.py
+  ├── class QtShellTest()
+  ├── def setUpClass()
+  ├── def test_sidebar_contains_expected_navigation_items()
+  ├── def test_main_window_constructs_with_pages()
+  ├── def test_dashboard_page_displays_recent_activity_section()
+  └── def test_reports_page_displays_summary_label()
+
+tests/test_qt_students_page.py
+  ├── class QtStudentsPageTest()
+  ├── def setUpClass()
+  ├── def setUp()
+  ├── def test_save_student_details_persists_student_and_refreshes_table()
+  ├── def test_unicode_name_persists_and_appears_in_qt_reports()
+  ├── def test_delete_blocked_shows_message_without_crashing_or_deleting()
+  ├── def delete_from_db()
+  ├── def test_delete_succeeds_for_authorized_role()
+  ├── def delete_from_db()
+  ├── def test_delete_disabled_while_disconnected()
+  └── class _FakeDeleteWorker()
+
+tests/test_qt_thread_exception_handling.py
+  ├── def test_handle_thread_exception_without_thread()
+  └── def fake_exception()
+
+tests/test_reports_page_import.py
+  └── def test_reports_page_can_import_database_helper()
+
+tests/test_responsive_layout.py
+  ├── def test_resolve_window_size_uses_screen_bounds()
+  ├── def test_resolve_dialog_size_stays_within_screen()
+  ├── def test_sidebar_width_scales_for_small_screens()
+  └── def test_scale_value_clamps_to_bounds()
+
+tests/test_sensor_failure_handshake_recovery.py
+  ├── class FakeSerialWithBootTiming()
+  ├── def __init__()
+  ├── def open()
+  ├── def in_waiting()
+  ├── def write()
+  ├── def flush()
+  ├── def reset_output_buffer()
+  ├── def readline()
+  ├── def close()
+  ├── def fake_serial_module()
+  ├── def _install()
+  ├── def _make_serial()
+  ├── def test_connects_despite_sensor_failure_hang()
+  ├── def test_still_recognizes_healthy_boot_sequence_from_boot_phase()
+  └── def test_falls_back_to_id_probe_when_nothing_arrives_during_boot()
+
+tests/test_serial_handler_host_gate.py
+  └── def test_adopted_serial_connection_notifies_firmware_host_connected()
+
+tests/test_serial_monitor_boot_banner.py
+  ├── class FakeSerial()
+  ├── def __init__()
+  ├── def open()
+  ├── def in_waiting()
+  ├── def write()
+  ├── def flush()
+  ├── def reset_output_buffer()
+  ├── def readline()
+  ├── def close()
+  ├── def fake_serial_module()
+  ├── def test_probe_captures_full_boot_banner_not_just_identity_json()
+  └── def test_probe_stops_promptly_once_ready_status_seen()
+
+tests/test_serial_troubleshooting.py
+  └── def test_troubleshooting_message_mentions_common_drivers_and_steps()
+
+tests/test_settings_persistence.py
+  ├── def test_settings_round_trip()
+  └── def test_load_settings_merges_with_defaults()
+
+tests/test_settings_toggles.py
+  ├── def test_default_settings()
+  ├── def test_save_and_load_settings()
+  ├── def test_settings_toggle_persistence()
+  ├── def test_settings_json_format()
+  ├── def test_toggle_types()
+  └── def test_settings_merge_on_load()
+```
+
 ### 2.3 Archive / historical source
 
 _Archive files are retained in the complete repository tree. Their symbols are historical/reference code rather than part of the maintained V3 runtime._
