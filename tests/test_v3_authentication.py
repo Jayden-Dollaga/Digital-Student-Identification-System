@@ -29,6 +29,15 @@ def test_role_hierarchy_is_ordered():
     assert not permissions.has_role_permission("unknown", "guest")
 
 
+def test_export_and_backup_are_admin_only():
+    assert not permissions.has_permission("export", role_key="teacher")
+    assert not permissions.has_permission("backup", role_key="teacher")
+    assert permissions.has_permission("export", role_key="admin")
+    assert permissions.has_permission("backup", role_key="admin")
+    assert not permissions.has_permission("export", role_key="guest")
+    assert not permissions.has_permission("backup", role_key="guest")
+
+
 def test_all_roles_can_access_attendance_evaluation(monkeypatch):
     monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [])
     monkeypatch.setattr(api_module.db, "get_all_students", lambda: [])
@@ -76,6 +85,51 @@ def test_guest_can_switch_to_teacher_without_password():
     assert guest["role"] == "guest"
 
 
+def test_export_and_backup_api_methods_reject_teacher_and_allow_admin(monkeypatch, tmp_path):
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("teacher", 600.0)
+
+    assert instance.export_attendance_csv()["message"] == "Current role does not have export permission."
+    assert instance.export_students_csv()["message"] == "Current role does not have export permission."
+    assert instance.export_statistics_report()["message"] == "Current role does not have export permission."
+    assert instance.create_backup()["message"] == "Current role does not have backup permission."
+
+    permissions.set_session_role("admin", 600.0)
+    monkeypatch.setattr(api_module.db, "export_attendance_range_with_time_in_out", lambda *args, **kwargs: [{
+        "student_no": "001",
+        "student_name": "Alice",
+        "date": "2024-01-01",
+        "time_in": "08:00:00",
+        "time_out": "10:00:00",
+        "match_status": "Present",
+    }])
+    monkeypatch.setattr(api_module.db, "get_attendance_today", lambda: [{
+        "student_no": "001",
+        "student_name": "Alice",
+        "date": "2024-01-01",
+        "time_in": "08:00:00",
+        "time_out": "10:00:00",
+        "match_status": "Present",
+    }])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "student_no": "001",
+        "student_name": "Alice",
+        "grade": "7",
+        "section": "A",
+        "fingerprint_id": 1,
+    }])
+    monkeypatch.setattr(instance, "_choose_csv_path", lambda filename: tmp_path / filename)
+    monkeypatch.setattr(instance, "_rows_to_csv", lambda rows, path: {"ok": True, "message": "Exported", "path": str(path)})
+    monkeypatch.setattr(api_module.db, "generate_statistics_report", lambda: "report")
+    monkeypatch.setattr(api_module.db, "backup_database", lambda: (True, "Backup created.", str(tmp_path / "backup.db")))
+
+    assert instance.export_attendance_csv()["ok"] is True
+    assert instance.export_students_csv()["ok"] is True
+    assert instance.export_statistics_report()["ok"] is True
+    assert instance.create_backup()["ok"] is True
+
+
 def test_admin_can_switch_down_to_teacher_without_password():
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
@@ -99,6 +153,18 @@ def test_role_aliases_are_canonicalized_and_teacher_stays_teacher():
     assert admin["ok"] is False
     assert admin["requires_password"] is True
     assert instance.get_current_role() == "teacher"
+
+
+def test_guest_to_administrator_requires_password():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("guest", 600.0)
+
+    result = instance.set_current_role("Administrator")
+
+    assert result["ok"] is False
+    assert result["requires_password"] is True
+    assert instance.get_current_role() == "guest"
 
 
 def test_teacher_to_admin_requires_password_without_changing_role():
