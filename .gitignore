@@ -64,3 +64,5 @@ firmware/**/build-*/
 *.bak
 *.swp
 list.txt
+
+tests/tmp_card_claim_test.db
