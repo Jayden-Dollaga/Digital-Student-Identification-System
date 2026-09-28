@@ -30,6 +30,8 @@ def test_default_settings():
     defaults = default_settings()
     assert "auto_reconnect" in defaults
     assert "auto_detect_serial" in defaults
+    assert defaults["auto_connect_on_startup"] is False
+    assert defaults["startup_connect_delay_ms"] == 1000
     assert "compact_sidebar" in defaults
     assert "enable_profiler" in defaults
     print("✓ Default settings include all toggle flags")
@@ -159,6 +161,57 @@ def test_settings_merge_on_load():
         assert loaded["auto_reconnect"] == True  # Should be from defaults
         assert loaded["compact_sidebar"] == False  # Should be from defaults
         print("✓ Settings correctly merged with defaults on load")
+
+
+def test_restore_default_settings_resets_values_but_preserves_auth_and_setup(monkeypatch):
+    from gui_web.api import Api
+
+    persisted = default_settings()
+    persisted.update({
+        "auth": {"password_hash": "keep-this-hash"},
+        "current_role": "teacher",
+        "setup_device_step_done": True,
+        "setup_schedule_step_done": True,
+        "setup_branding_step_done": True,
+        "com_port": "COM9",
+        "auto_reconnect": False,
+        "cooldown": 42,
+        "min_confidence": 55,
+        "auto_backup_interval_minutes": 90,
+        "idle_timeout_minutes": 1,
+        "enable_profiler": True,
+    })
+    saved = {}
+    set_session_role = MagicMock()
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: persisted.copy())
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: saved.update(settings))
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+    monkeypatch.setattr("gui_web.api.permissions.set_session_role", set_session_role)
+
+    api = Api()
+    api.serial.auto_reconnect_enabled = False
+    api._backup_interval_minutes = 90
+    api.processor.cooldown_seconds = 42
+    api.processor.min_confidence = 55
+    api.profiler.enabled = True
+
+    result = api.restore_default_settings()
+
+    expected = default_settings()
+    expected["auth"] = persisted["auth"]
+    expected["current_role"] = "admin"
+    for key in ("setup_device_step_done", "setup_schedule_step_done", "setup_branding_step_done"):
+        expected[key] = True
+    assert result["ok"] is True
+    assert saved == expected
+    assert api.serial.auto_reconnect_enabled == expected["auto_reconnect"]
+    assert api._backup_interval_minutes == expected["auto_backup_interval_minutes"]
+    assert api.processor.cooldown_seconds == expected["cooldown"]
+    assert api.processor.min_confidence == expected["min_confidence"]
+    assert api.profiler.enabled == expected["enable_profiler"]
+    assert api._session_timeout_seconds == expected["idle_timeout_minutes"] * 60
+    set_session_role.assert_called_with("admin", expected["idle_timeout_minutes"] * 60)
 
 
 if __name__ == "__main__":

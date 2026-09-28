@@ -89,6 +89,7 @@ def test_unknown_attendance_rows_use_unknown_data_label():
 
 def test_rfid_registration_waits_for_verified_write_result():
     script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    api_source = (ROOT / "python" / "gui_web" / "api.py").read_text(encoding="utf-8")
 
     assert "payload.method === 'rfid_register'" in script
     assert "payload.event === 'saved'" in script
@@ -96,6 +97,11 @@ def test_rfid_registration_waits_for_verified_write_result():
     assert "Write and verify" in script
     assert "payload.card_type" in script
     assert "Verified erase" in script
+    assert "Present and hold each card on the reader until the log confirms the erase." in script
+    assert "Place a different card on the reader to replace it." in script
+    assert "Keep it on the reader while encrypted data is written and verified." in api_source
+    assert "second presentation" not in script
+    assert "PICC_WakeupA" in (ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "ESP32_DSIS_AllInOne.ino").read_text(encoding="utf-8")
     assert "payload.card_type" in script
     assert "Verified erase" in script
 
@@ -113,6 +119,100 @@ def test_scan_shows_popup_when_esp32_is_disconnected():
     assert "ESP32 not connected. Connect first to start scanning." in script
     assert "const connection = await api().get_connection_status();" in script
     assert "Could not start scanning. Check that the ESP32 is ready." in script
+    assert "Place and hold a finger on the sensor or a card on the RC522 until detected." in script
+
+
+def test_startup_auto_connect_uses_persisted_delay_and_can_be_disabled():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+
+    assert "Reconnect automatically after disconnect" in html
+    assert "Connect automatically when the app starts" in html
+    assert 'id="set-auto-connect"' in html
+    assert 'id="set-startup-connect-delay" type="number" min="0" max="30000" step="100"' in html
+    assert "function scheduleStartupAutoConnect(settings)" in script
+    assert "if (!settings.auto_connect_on_startup) return;" in script
+    assert "Math.max(0, Math.min(30000, configuredDelay))" in script
+    assert "toggleConnect({ silent: true, startup: true })" in script
+    assert "scheduleStartupAutoConnect(s)" in script
+    assert "clearTimeout(startupConnectTimer)" in script
+
+
+def test_startup_connect_delay_is_clamped_when_settings_are_saved(monkeypatch):
+    from gui_web.api import Api
+    from settings_store import default_settings
+
+    api = Api()
+    captured = {}
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.load_settings", default_settings)
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: captured.update(settings))
+
+    for delay, expected in ((-50, 0), (60000, 30000)):
+        result = api.save_ui_settings({
+            "auto_connect_on_startup": True,
+            "startup_connect_delay_ms": delay,
+        })
+        assert result["ok"] is True
+        assert captured["startup_connect_delay_ms"] == expected
+        assert captured["auto_connect_on_startup"] is True
+
+
+def test_restore_defaults_cancels_autosave_then_reloads_all_settings():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    start = script.index("async function restoreDefaultSettings()")
+    end = script.index("\n}", start)
+    restore_function = script[start:end]
+
+    assert restore_function.index("clearTimeout(settingsSaveTimer)") < restore_function.index("api().restore_default_settings()")
+    assert "settingsSaveTimer = null" in restore_function
+    assert "await loadSettingsPage()" in restore_function
+    assert "await loadDashboard()" in restore_function
+    assert "Defaults restored" in restore_function
+
+
+def test_role_auth_password_supports_enter_and_clipboard_paste():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+
+    assert "event.key === 'Enter' && event.target.id === 'role-auth-password'" in script
+    assert 'id="role-auth-password" class="settings-text-input" type="password"' in html
+    assert ".settings-text-input {" in styles and "user-select: text;" in styles
+
+
+def test_batch_rfid_erase_dialog_has_responsive_live_log():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+
+    assert 'aria-label="RFID erase log"' in script
+    assert 'id="batch-rfid-log" class="batch-rfid-log" role="log"' in script
+    assert "function appendBatchRfidEraseLog(event, message)" in script
+    assert "Erase verified:" in script
+    assert "Card detected:" in script
+    assert "Skipped:" in script
+    assert "while (log.children.length > 50)" in script
+    assert "batchRfidEraseWaitTimer = setTimeout" in script
+    assert "}, 12000);" in script
+    assert "second presentation" not in script
+    assert "grid-template-columns: minmax(0, 1fr) 240px;" in styles
+    assert "@media (max-width: 760px)" in styles
+
+
+def test_delete_and_wipe_are_blocked_while_scan_is_active():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "Scan is active. Stop attendance scanning before ${action}." in script
+    workflows = (
+        ("async function deleteSelectedStudent()", "async function deleteSelectedStudents()"),
+        ("async function deleteSelectedStudents()", "async function processBatchDelete()"),
+        ("async function processBatchDelete()", "function deleteOneForBatch("),
+        ("async function wipeAllFingerprints()", "async function wipeAllData()"),
+        ("async function wipeAllData()", "function waitForWipe("),
+    )
+    for start, end in workflows:
+        section = script[script.index(start):script.index(end)]
+        assert "guardScanStopped(" in section
 
 
 def test_role_switch_keeps_teacher_as_teacher():

@@ -22,6 +22,8 @@ def default_settings() -> Dict[str, Any]:
         "theme": "dark",
         "auto_reconnect": True,
         "auto_detect_serial": True,
+        "auto_connect_on_startup": False,
+        "startup_connect_delay_ms": 1000,
         # compact sidebar (icons-only) to save vertical space
         "compact_sidebar": False,
         # enable lightweight UI profiler (records timing of key UI events)

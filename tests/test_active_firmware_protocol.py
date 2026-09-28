@@ -25,6 +25,10 @@ def test_firmware_destructive_commands_require_host_connection():
             classic = (ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "src" / "rfid" / "ClassicAdapter.cpp").read_text(encoding="utf-8")
             type2 = (ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "src" / "rfid" / "Type2Adapter.cpp").read_text(encoding="utf-8")
             assert '"CARD_ERASE"' in source
+            assert "pendingCardWriteHex = true;" in source
+            assert "for (byte i = 0; i < 96; i++) pendingCardWrite += '0';" in source
+            assert "present and hold one card until its data blocks are cleared and verified" in source
+            assert "pendingCardWriteAwaitRemoval" not in source
             assert "payloadText.length() != 96" in source
             assert "offset < 3" in classic
             assert "MIFARE_Read(firstBlock + offset, verifyBuffer, &verifySize)" in classic
@@ -43,8 +47,19 @@ def test_firmware_destructive_commands_require_host_connection():
             assert '"NTAG_215"' in detector and '"NTAG_216"' in detector
             assert "pageBuffer[3] != 0" in detector
             assert "MIFARE_Ultralight_Write" in type2
+            assert "TYPE2_IO_ATTEMPTS = 3" in type2
+            assert type2.count("attempt < TYPE2_IO_ATTEMPTS") == 2
+            assert "wakeSameType2Card(reader, expectedUid)" in type2
+            assert "sameType2Uid(reader.uid, expectedUid)" in type2
+            assert "reader.PICC_HaltA();" in type2
+            assert "reader.PICC_WakeupA(atqa, &atqaSize)" in type2
+            assert "Card payload could not be read after retries" in source
+            assert "readType2Group(reader, firstPage, payload + group * 16)" in type2
+            assert "writeType2Group(reader, firstPage, payload + group * 16, expectedUid)" in type2
             assert "readType2Payload(rfid, payloadBuffer)" in source
             assert "writeType2Payload(rfid, payloadBuffer)" in source
+            assert "PICC_WakeupA(atqa, &atqaSize)" in source
+            assert "place and hold a card on the reader" in source
             assert "operation" in source and "verified" in source
             assert "erase_verified" in source and "write_verified" in source
             classic = (ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "src" / "rfid" / "ClassicAdapter.cpp").read_text(encoding="utf-8")

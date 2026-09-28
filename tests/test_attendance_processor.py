@@ -353,6 +353,7 @@ class AttendanceProcessorTests(unittest.TestCase):
         find_student.assert_not_called()
         clear_card.assert_not_called()
         self.assertEqual(push_mock.call_args.args[1]["event"], "skipped")
+        self.assertIn("locked/password-protected", push_mock.call_args.args[1]["reason"])
 
     def test_batch_rfid_erase_requires_uid_even_when_payload_is_verified(self):
         api = Api()
@@ -384,25 +385,26 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertEqual(push_mock.call_args.args[1]["event"], "skipped")
 
     def test_batch_rfid_erase_unlinks_after_verified_zero_readback(self):
-        api = Api()
-        api._batch_rfid_erase_active = True
-        api._batch_rfid_erase_unlink = True
-        api._batch_rfid_erase_waiting_uid = "E1:F9:40:66"
-        api._batch_rfid_erase_waiting_card_type = "MIFARE_1K"
-        student = {"fingerprint_id": 7}
-        with patch.object(db, "get_student_by_card_uid", return_value=student) as find_student, \
-             patch.object(db, "clear_student_card", return_value=(True, "Student card cleared.")) as clear_card, \
-             patch.object(api, "_push") as push_mock:
-            handled = api._handle_rfid_session_card_event(
-                '{"type":"card_write","uid":"E1:F9:40:66","card_type":"MIFARE_1K",'
-                '"operation":"erase","event":"erase_verified","data_hex":"' + "00" * 48 + '",'
-                '"success":true,"verified":true}'
-            )
+        for operation, event in (("erase", "erase_verified"), ("write", "write_verified")):
+            api = Api()
+            api._batch_rfid_erase_active = True
+            api._batch_rfid_erase_unlink = True
+            api._batch_rfid_erase_waiting_uid = "E1:F9:40:66"
+            api._batch_rfid_erase_waiting_card_type = "MIFARE_1K"
+            student = {"fingerprint_id": 7}
+            with patch.object(db, "get_student_by_card_uid", return_value=student) as find_student, \
+                 patch.object(db, "clear_student_card", return_value=(True, "Student card cleared.")) as clear_card, \
+                 patch.object(api, "_push") as push_mock:
+                handled = api._handle_rfid_session_card_event(
+                    '{"type":"card_write","uid":"E1:F9:40:66","card_type":"MIFARE_1K",'
+                    f'"operation":"{operation}","event":"{event}","data_hex":"' + "00" * 48 + '",'
+                    '"success":true,"verified":true}'
+                )
 
-        self.assertTrue(handled)
-        find_student.assert_called_once_with("E1:F9:40:66")
-        clear_card.assert_called_once_with(7)
-        self.assertEqual(push_mock.call_args.args[1]["event"], "erased")
+            self.assertTrue(handled)
+            find_student.assert_called_once_with("E1:F9:40:66")
+            clear_card.assert_called_once_with(7)
+            self.assertEqual(push_mock.call_args.args[1]["event"], "erased")
 
     def test_invalid_card_payload_is_unknown_even_when_uid_is_linked(self):
         logged = []

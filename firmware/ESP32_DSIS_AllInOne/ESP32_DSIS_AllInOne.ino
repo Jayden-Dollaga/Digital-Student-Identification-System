@@ -53,7 +53,7 @@
  *    3. Type ENROLL:1  -> scan student 1 finger twice -> saved
  *    4. Type ENROLL:2  -> scan student 2 finger twice -> saved
  *    5. Repeat up to ENROLL:30
- *    6. (Optional) Type CARD_WRITE_HEX:<hex>, tap a card to write the payload
+ *    6. (Optional) Type CARD_WRITE_HEX:<hex>, present a card to write the payload
  *    7. Type SCAN      -> now reading attendance (finger + card), Python can connect
  *    8. Type STOP      -> go back to command mode anytime
  *
@@ -589,8 +589,8 @@ void loop() {
   if (scanMode) {
     scanFinger();
     scanCard();
-  } else if (pendingCardWrite.length() > 0) {
-    // Allow a one-off card write while still in command mode.
+  } else if (pendingCardWrite.length() > 0 || pendingCardErase) {
+    // Allow one-off writes and two-presentation erases in command mode.
     scanCard();
   }
 }
@@ -755,13 +755,13 @@ void handleCommand(String input) {
     pendingCardWrite = "";
     for (byte i = 0; i < 96; i++) pendingCardWrite += '0';
     expectedCardWriteUid = "";
-    Serial.println("\n>> Card erase armed - tap a card now to clear its data blocks.");
+    Serial.println("\n>> Card erase armed - present and hold one card until its data blocks are cleared and verified.");
     return;
   }
 
   if (normalized == "CARD_KEYCHECK") {
     pendingKeyCheck = true;
-    Serial.println("\n>> Key check armed - tap a card now to test it against all known keys.");
+    Serial.println("\n>> Key check armed - place and hold a card on the reader to test it against all known keys.");
     return;
   }
 
@@ -784,7 +784,7 @@ void handleCommand(String input) {
     pendingCardWrite = payloadText;
     Serial.print("\n>> Card write armed (hex): \"");
     Serial.print(pendingCardWrite);
-    Serial.println("\" - tap a card now to write and verify the encrypted payload.");
+    Serial.println("\" - present and hold the card while its data is written and verified.");
     return;
   }
 
@@ -1115,7 +1115,9 @@ void scanCard() {
       ledSuccess();
       emitJsonCardMatch(uidStr, result, cardType);
     } else {
-      emitJsonCardUnreadable(uidStr, cardType, "Card payload storage could not be read.");
+        emitJsonCardUnreadable(
+          uidStr, cardType,
+          "Card payload could not be read after retries; check RF positioning or whether the tag is password/read protected.");
     }
   }
 
@@ -1137,7 +1139,7 @@ void printHelp() {
   Serial.println("    LIST       Show stored fingerprint count");
   Serial.println("    SCAN       Start attendance scan mode (finger + card)");
   Serial.println("    STOP       Stop scanning, return to commands");
-  Serial.println("    CARD_WRITE_HEX:<hex>  Arm encrypted write, tap a card");
+  Serial.println("    CARD_WRITE_HEX:<hex>  Arm encrypted write, present the card");
   Serial.println("    CARD_KEYCHECK  Test a tapped card against all known keys (read-only)");
   Serial.println();
 }

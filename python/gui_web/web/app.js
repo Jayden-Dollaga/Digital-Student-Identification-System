@@ -10,6 +10,7 @@ const PAGE_TITLES = {
 
 let connected = false;
 let connectAttemptInFlight = false;
+let startupConnectTimer = null;
 let scanning = false;
 let selectedStudent = null;
 const selectedStudentIds = new Set();
@@ -48,6 +49,14 @@ function refreshAdminOnlyVisibility() {
 function guardPermission(action, label) {
   if (!hasPermission(action)) {
     alert(`${label || 'This action'} requires the ${action} permission for the current role.`);
+    return false;
+  }
+  return true;
+}
+
+function guardScanStopped(action) {
+  if (scanning) {
+    alert(`Scan is active. Stop attendance scanning before ${action}.`);
     return false;
   }
   return true;
@@ -567,7 +576,11 @@ function setStatus(state) {
   updateSerialMeta();
 }
 
-async function toggleConnect() {
+async function toggleConnect(options = {}) {
+  if (!options.startup && startupConnectTimer !== null) {
+    clearTimeout(startupConnectTimer);
+    startupConnectTimer = null;
+  }
   if (!api()) return;
   if (connectAttemptInFlight) return; // a discovery pass is already running - don't start a second one on top of it
   if (!connected) {
@@ -589,8 +602,12 @@ async function toggleConnect() {
         smAppend(`--- Serial port ${res.port || '?'} opened at ${res.baud || '?'} baud ---`, 'serial-sys');
       } else {
         setStatus('disconnected');
-        alert('Could not connect: ' + res.message);
-        showSerialTroubleshooting('connect_failed');
+        if (options.silent) {
+          smAppend(`--- Startup auto-connect failed: ${res.message} ---`, 'serial-sys');
+        } else {
+          alert('Could not connect: ' + res.message);
+          showSerialTroubleshooting('connect_failed');
+        }
       }
     } finally {
       connectAttemptInFlight = false;
@@ -604,6 +621,21 @@ async function toggleConnect() {
     smAppend('--- Serial port closed ---', 'serial-sys');
   }
   refreshConnectedDevicePanel();
+}
+
+function scheduleStartupAutoConnect(settings) {
+  if (!settings.auto_connect_on_startup) return;
+  const configuredDelay = Number(settings.startup_connect_delay_ms);
+  const delay = Number.isFinite(configuredDelay)
+    ? Math.max(0, Math.min(30000, configuredDelay))
+    : 1000;
+  startupConnectTimer = setTimeout(async () => {
+    startupConnectTimer = null;
+    if (!api() || connected || connectAttemptInFlight) return;
+    await toggleConnect({ silent: true, startup: true });
+    const setupDeviceModal = document.getElementById('setup-device-modal');
+    if (setupDeviceModal && !setupDeviceModal.hidden) await updateSetupDeviceStatus();
+  }, delay);
 }
 
 // Disables every "Connect" entry point (top bar + wizard device step) while
@@ -679,7 +711,7 @@ async function toggleScan() {
     btn.classList.add('danger');
     setStatus('scanning');
     document.getElementById('scan-name').textContent = 'Waiting for scan\u2026';
-    document.getElementById('scan-meta').textContent = 'Place a finger on the sensor.';
+    document.getElementById('scan-meta').textContent = 'Place and hold a finger on the sensor or a card on the RC522 until detected.';
     document.getElementById('scan-tag').textContent = 'SCANNING';
     document.getElementById('scan-tag').className = 'scan-status-tag idle';
   } else {
@@ -763,6 +795,26 @@ function handleFingerprintCount(payload) {
   if (count) count.textContent = `Device fingerprints: ${deviceFingerprintCount}`;
 }
 
+function appendBatchRfidEraseLog(event, message) {
+  if (!batchRfidEraseModal) return;
+  const log = batchRfidEraseModal.querySelector('#batch-rfid-log');
+  if (!log) return;
+  const empty = log.querySelector('.batch-rfid-log-empty');
+  if (empty) empty.remove();
+
+  const entry = document.createElement('div');
+  entry.className = `batch-rfid-log-entry ${event}`;
+  const time = document.createElement('time');
+  time.textContent = new Date().toLocaleTimeString();
+  const detail = document.createElement('span');
+  detail.textContent = message;
+  entry.append(time, detail);
+  log.appendChild(entry);
+
+  while (log.children.length > 50) log.removeChild(log.firstElementChild);
+  log.scrollTop = log.scrollHeight;
+}
+
 function handleScanResult(payload) {
   if (batchRfidEraseModal && payload && payload.method === 'batch_rfid_erase') {
     const status = batchRfidEraseModal.querySelector('#batch-rfid-status');
@@ -770,21 +822,35 @@ function handleScanResult(payload) {
     const uid = payload.uid || 'unknown card';
     const family = payload.card_type ? ` (${payload.card_type})` : '';
     if (payload.event === 'erased') {
+      clearTimeout(batchRfidEraseWaitTimer);
+      batchRfidEraseWaitTimer = null;
+      appendBatchRfidEraseLog('success', `Erase verified: ${uid}${family}. ${payload.reason || 'Card data verified empty.'}`);
       if (status) {
         status.textContent = `${payload.reason || `Verified erase ${payload.count}`}: ${uid}${family}`;
         status.className = 'rfid-modal-status success';
       }
       if (count) count.textContent = `Cards erased: ${payload.count}`;
     } else if (payload.event === 'skipped') {
+      clearTimeout(batchRfidEraseWaitTimer);
+      batchRfidEraseWaitTimer = null;
+      appendBatchRfidEraseLog('error', `Skipped: ${uid}${family}. ${payload.reason || 'Erase was not verified.'}`);
       if (status) {
         status.textContent = `${payload.reason || 'Erase not verified; student link retained.'}: ${uid}${family}`;
         status.className = 'rfid-modal-status error';
       }
     } else if (payload.event === 'armed') {
+      clearTimeout(batchRfidEraseWaitTimer);
+      appendBatchRfidEraseLog('active', `Card detected: ${uid}${family}. Writing and verifying now.`);
       if (status) {
-        status.textContent = `Waiting for the same card: ${uid}${family}`;
+        status.textContent = `Card detected; keep it on the reader while erase is verified: ${uid}${family}`;
         status.className = 'rfid-modal-status active';
       }
+      batchRfidEraseWaitTimer = setTimeout(() => {
+        if (!batchRfidEraseModal || !status) return;
+        status.textContent = `Still waiting for erase verification: ${uid}${family}. Keep the card steady.`;
+        status.className = 'rfid-modal-status error';
+        appendBatchRfidEraseLog('error', `No erase verification received for ${uid}${family}. Keep the card steady or retry.`);
+      }, 12000);
     }
     return;
   }
@@ -1365,6 +1431,7 @@ function updateStudentDetailButtons() {
 
 let manageRfidModal = null;
 let batchRfidEraseModal = null;
+let batchRfidEraseWaitTimer = null;
 let rfidSessionTimeout = null;
 
 function markManageRfidModified() {
@@ -1383,6 +1450,8 @@ function setManageRfidProgress(stage) {
 }
 
 async function closeBatchRfidEraseDialog() {
+  clearTimeout(batchRfidEraseWaitTimer);
+  batchRfidEraseWaitTimer = null;
   if (api && api().stop_batch_rfid_erase) {
     await api().stop_batch_rfid_erase();
   }
@@ -1410,13 +1479,19 @@ function openBatchRfidEraseDialog() {
   modal.innerHTML = `
     <div class="modal-card rfid-modal batch-rfid-modal">
       <div class="modal-title">Erase RFID card data</div>
-      <div class="modal-sub">Tap each card to clear the data inside. UID is not changed.</div>
-      <div class="batch-rfid-warning">This will erase hidden card data on every card you tap until you click Done.</div>
+      <div class="modal-sub">Present and hold each card on the reader until the log confirms the erase. UID is not changed.</div>
+      <div class="batch-rfid-warning">This clears hidden card data on each card you present until you click Done.</div>
       <div class="rfid-progress-panel batch-rfid-panel">
-        <div class="rfid-modal-status active" id="batch-rfid-status">Waiting for card\u2026</div>
+        <div class="rfid-modal-status active" id="batch-rfid-status">Present and hold one card on the reader.</div>
         <label class="batch-rfid-checkbox"><input type="checkbox" id="batch-rfid-unlink"> <span>Also unlink this UID from a student if it is registered</span></label>
         <div id="batch-rfid-count" class="batch-rfid-count">Cards erased: 0</div>
       </div>
+      <aside class="rfid-progress-panel batch-rfid-log-panel" aria-label="RFID erase log">
+        <div class="rfid-progress-title">Erase log</div>
+        <div id="batch-rfid-log" class="batch-rfid-log" role="log" aria-live="polite" aria-relevant="additions">
+          <div class="batch-rfid-log-empty">No cards processed yet.</div>
+        </div>
+      </aside>
       <div class="modal-actions rfid-modal-actions">
         <button id="batch-rfid-start" class="hdr-btn danger">Start listening</button>
         <button id="batch-rfid-done" class="hdr-btn">Done</button>
@@ -1437,9 +1512,11 @@ function openBatchRfidEraseDialog() {
     if (!result || !result.ok) {
       start.disabled = false;
       setStatus(result && result.message ? result.message : 'Could not start RFID listening.', 'error');
+      appendBatchRfidEraseLog('error', result && result.message ? result.message : 'Could not start RFID listening.');
       return;
     }
-    setStatus('Waiting for card…', 'active');
+    appendBatchRfidEraseLog('active', 'RFID listening started.');
+    setStatus('Present and hold one card on the reader.', 'active');
   };
   done.onclick = () => closeBatchRfidEraseDialog();
   modal.addEventListener('click', event => {
@@ -1487,8 +1564,8 @@ function openManageRfidDialog() {
             <div class="rfid-step"><span>3</span><strong>Write and verify</strong></div>
             <div class="rfid-step"><span>4</span><strong>Saved</strong></div>
           </div>
-          <div id="rfid-mode-cue" class="rfid-mode-cue" ${existingCard ? '' : 'hidden'}>This student already has a card. Tap a new card to replace it.</div>
-          <div id="rfid-modal-status" class="rfid-modal-status">Waiting for card…</div>
+          <div id="rfid-mode-cue" class="rfid-mode-cue" ${existingCard ? '' : 'hidden'}>This student already has a card. Place a different card on the reader to replace it.</div>
+          <div id="rfid-modal-status" class="rfid-modal-status">Present and hold one card on the reader until it is detected.</div>
         </div>
       </div>
       <div id="rfid-unlink-confirm" class="rfid-unlink-confirm" hidden>
@@ -1529,7 +1606,7 @@ function openManageRfidDialog() {
     if (modeCue) {
       modeCue.hidden = !replaceMode;
       if (replaceMode) {
-        modeCue.textContent = 'This student already has a card. Tap a new card to replace it.';
+        modeCue.textContent = 'This student already has a card. Place a different card on the reader to replace it.';
       }
     }
     if (unlink) unlink.disabled = !uid;
@@ -1564,7 +1641,7 @@ function openManageRfidDialog() {
       setStatus(result && result.message ? result.message : 'Could not start RFID listening.', 'error');
       return;
     }
-    setStatus('Waiting for card…', 'active');
+    setStatus('Present and hold the card on the reader while it is registered.', 'active');
     if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
     rfidSessionTimeout = setTimeout(async () => {
       await api().stop_rfid_register_session();
@@ -1671,6 +1748,7 @@ function showDestructiveConfirm(title, message, confirmLabel) {
 
 async function deleteSelectedStudent() {
   if (!guardPermission('delete', 'Deleting a student')) return;
+  if (!guardScanStopped('deleting a student')) return;
   if (!selectedStudent || !selectedStudent.fingerprint_id) return;
   const fpid = selectedStudent.fingerprint_id;
   const name = selectedStudent.student_name;
@@ -1700,6 +1778,7 @@ async function deleteSelectedStudent() {
 
 async function deleteSelectedStudents() {
   if (!guardPermission('delete', 'Deleting students')) return;
+  if (!guardScanStopped('deleting students')) return;
   const ids = Array.from(selectedStudentIds);
   if (!ids.length) return;
   if (!connected) {
@@ -1724,6 +1803,7 @@ async function deleteSelectedStudents() {
 async function processBatchDelete() {
   if (!batchDeleteResult || batchDeletePending) return;
   if (!guardPermission('delete', 'Deleting students')) return;
+  if (!guardScanStopped('deleting students')) return;
   batchDeletePending = true;
   updateStudentSelectionUi();
   while (batchDeleteResult.remainingIds.length) {
@@ -1940,6 +2020,7 @@ async function saveEditedStudentDetails(fingerprintId) {
 
 async function wipeAllFingerprints() {
   if (!guardPermission('wipe', 'Wiping metadata')) return;
+  if (!guardScanStopped('wiping metadata')) return;
   if (!connected) { alert('Connect to the ESP32 first.'); return; }
   const confirmed = await showDestructiveConfirm(
     'Confirm Wipe Metadata',
@@ -1970,6 +2051,7 @@ async function wipeAllFingerprints() {
 
 async function wipeAllData() {
   if (!guardPermission('wipe', 'Wiping local data')) return;
+  if (!guardScanStopped('wiping local data')) return;
   if (!confirm('Wipe all students and attendance data from the database? Device fingerprints will not be changed.')) return;
   const res = await api().wipe_all_data();
   if (!res.ok) {
@@ -2915,6 +2997,8 @@ async function loadSettingsPage() {
   const s = await api().get_settings();
   document.getElementById('set-auto-reconnect').classList.toggle('on', !!s.auto_reconnect);
   document.getElementById('set-auto-detect').classList.toggle('on', !!s.auto_detect_serial);
+  document.getElementById('set-auto-connect').classList.toggle('on', !!s.auto_connect_on_startup);
+  document.getElementById('set-startup-connect-delay').value = s.startup_connect_delay_ms ?? 1000;
   applyTheme(s.theme);
   applyCompact(!!s.compact_sidebar);
   document.getElementById('set-school-name').value = s.school_name || '';
@@ -2944,6 +3028,7 @@ async function loadSettingsPage() {
 let settingsSaveTimer = null;
 const AUTO_SAVE_SETTING_IDS = new Set([
   'set-port-override', 'set-baud-rate-select', 'set-auto-reconnect', 'set-auto-detect',
+  'set-auto-connect', 'set-startup-connect-delay',
   'set-theme', 'settings-compact-toggle', 'set-cooldown', 'set-confidence',
   'set-log-to-file', 'set-debug-logging', 'set-time-in', 'set-time-out',
   'set-early-threshold', 'set-late-threshold', 'set-absent-threshold', 'set-backup-interval',
@@ -3031,6 +3116,8 @@ async function saveSettings(silent = false) {
     school_name: document.getElementById('set-school-name').value.trim(),
     auto_reconnect: document.getElementById('set-auto-reconnect').classList.contains('on'),
     auto_detect_serial: document.getElementById('set-auto-detect').classList.contains('on'),
+    auto_connect_on_startup: document.getElementById('set-auto-connect').classList.contains('on'),
+    startup_connect_delay_ms: Math.max(0, Math.min(30000, parseInt(document.getElementById('set-startup-connect-delay').value, 10) || 0)),
     compact_sidebar: document.getElementById('settings-compact-toggle').classList.contains('on'),
     cooldown: parseInt(document.getElementById('set-cooldown').value, 10),
     min_confidence: parseInt(document.getElementById('set-confidence').value, 10),
@@ -3064,12 +3151,19 @@ async function restoreDefaultSettings() {
     return;
   }
   if (!await showDestructiveConfirm('Restore Defaults', 'Reset all application settings to their default values?', 'Restore Defaults')) return;
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = null;
   const result = await api().restore_default_settings();
   if (!result.ok) {
     alert(result.message || 'Could not restore defaults.');
     return;
   }
+  clearTimeout(startupConnectTimer);
+  startupConnectTimer = null;
   await loadSettingsPage();
+  await loadDashboard();
+  const status = document.getElementById('settings-save-status');
+  if (status) status.textContent = 'Defaults restored';
 }
 
 function openLogFolder() { api().open_log_folder(); }
@@ -3128,6 +3222,7 @@ whenApiReady(() => {
     applyTheme(s.theme);
     applyCompact(!!s.compact_sidebar);
     applySchoolName(s.school_name);
+    scheduleStartupAutoConnect(s);
   });
   runSetupWizardRouter();
   sessionTouchTimer = setInterval(async () => {

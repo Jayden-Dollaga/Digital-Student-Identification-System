@@ -139,6 +139,26 @@ class TestBackendPermissionEnforcement:
         assert api._scanning is False
         assert api._device_mode == "command"
 
+    @pytest.mark.parametrize(
+        ("operation", "command"),
+        (("delete_on_device", "cmd_delete"), ("wipe_all_on_device", "cmd_wipe")),
+    )
+    def test_destructive_device_operations_are_rejected_during_scan(self, monkeypatch, operation, command):
+        from gui_web.api import Api
+
+        api = Api()
+        api.serial.is_connected = MagicMock(return_value=True)
+        api._scanning = True
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        command_mock = MagicMock(return_value=True)
+        monkeypatch.setattr(f"gui_web.api.cmds.{command}", command_mock)
+
+        result = getattr(api, operation)(7) if operation == "delete_on_device" else getattr(api, operation)()
+
+        assert result["ok"] is False
+        assert "Scan is active" in result["message"]
+        command_mock.assert_not_called()
+
     def test_unexpected_disconnect_clears_pending_operations_and_publishes_state(self):
         from gui_web.api import Api
 

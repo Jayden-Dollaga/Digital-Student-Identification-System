@@ -257,7 +257,7 @@
   /* ─ Calendar entry modal ─ */
   .cal-type-options { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
   .cal-type-option { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
-  .settings-text-input { box-sizing: border-box; width: 100%; margin: 4px 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface2); color: var(--text); }
+  .settings-text-input { box-sizing: border-box; width: 100%; margin: 4px 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface2); color: var(--text); user-select: text; }
 
   /* ── App body ── */
   #app {
@@ -864,12 +864,42 @@
   .rfid-modal-primary,
   .rfid-modal-danger { flex: 1; min-height: 38px; }
   .rfid-modal-cancel { flex: 0 0 auto; }
-  .batch-rfid-modal { width: min(520px, calc(100vw - 28px)); }
+  .batch-rfid-modal {
+    width: min(780px, calc(100vw - 28px));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    column-gap: 14px;
+  }
+  .batch-rfid-modal > .modal-title,
+  .batch-rfid-modal > .modal-sub,
+  .batch-rfid-modal > .batch-rfid-warning,
+  .batch-rfid-modal > .rfid-modal-actions { grid-column: 1 / -1; }
+  .batch-rfid-log-panel { min-width: 0; }
+  .batch-rfid-log {
+    display: grid;
+    gap: 9px;
+    max-height: 190px;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+  .batch-rfid-log-entry { display: grid; gap: 2px; color: var(--text); }
+  .batch-rfid-log-entry time { color: var(--muted); font-size: 9px; }
+  .batch-rfid-log-entry.success { color: var(--green); }
+  .batch-rfid-log-entry.error { color: var(--red); }
+  .batch-rfid-log-entry.active { color: var(--text); }
+  .batch-rfid-log-empty { color: var(--muted); }
   .batch-rfid-warning { margin: 10px 0; padding: 8px 10px; border: 1px solid rgba(234, 179, 8, .45); border-radius: 4px; background: rgba(234, 179, 8, .08); color: var(--text); font-size: 11.5px; line-height: 1.5; }
   .batch-rfid-panel { display: grid; gap: 12px; }
   .batch-rfid-checkbox { display: flex; align-items: flex-start; gap: 7px; color: var(--text); font-size: 11.5px; line-height: 1.4; cursor: pointer; }
   .batch-rfid-checkbox input { margin-top: 2px; accent-color: var(--accent); }
   .batch-rfid-count { color: var(--green); font-size: 12px; font-weight: 700; }
+  @media (max-width: 760px) {
+    .batch-rfid-modal { grid-template-columns: minmax(0, 1fr); }
+    .batch-rfid-log { max-height: 130px; }
+  }
   .confirm-modal { width: min(420px, calc(100vw - 28px)); }
   .confirm-warning { margin: 10px 0; padding: 8px 10px; border: 1px solid #E7A5A8; border-radius: 4px; background: #FDECEC; color: #B4232A; font-size: 11px; line-height: 1.4; }
   .confirm-modal .hdr-btn.danger { color: #B4232A; background: #FDECEC; border-color: #E7A5A8; }

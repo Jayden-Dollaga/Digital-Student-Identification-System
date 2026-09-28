@@ -437,15 +437,23 @@
                 <select class="settings-text-input" id="set-baud-rate-select"></select>
               </div>
               <div class="settings-row">
-                <span class="settings-row-label">Auto-reconnect</span>
+                <span class="settings-row-label">Reconnect automatically after disconnect</span>
                 <div class="toggle-switch" id="set-auto-reconnect" onclick="this.classList.toggle('on')"></div>
               </div>
               <div class="settings-row">
                 <span class="settings-row-label">Auto-discover ESP32 when connecting</span>
                 <div class="toggle-switch" id="set-auto-detect" onclick="this.classList.toggle('on')"></div>
               </div>
+              <div class="settings-row">
+                <span class="settings-row-label">Connect automatically when the app starts</span>
+                <div class="toggle-switch" id="set-auto-connect" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-row-label" for="set-startup-connect-delay">Startup connection delay (ms)</label>
+                <input class="settings-text-input" id="set-startup-connect-delay" type="number" min="0" max="30000" step="100" style="max-width:140px;">
+              </div>
 
-              <div class="conn-hint">Only needed if auto-discovery can't find your device. Otherwise leave this alone — the app finds the ESP32 on its own and the panel above will show it once connected.</div>
+              <div class="conn-hint">Startup auto-connect uses the saved port, baud rate, and discovery setting. Set the delay to 0 for an immediate attempt.</div>
             </div>
           </div>
 

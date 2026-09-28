@@ -432,7 +432,7 @@ class Api:
         if self._pending_wipe:
             return "Fingerprint wipe is already in progress."
         if operation != "scan" and self._scanning:
-            return "Stop attendance scanning before starting this operation."
+            return "Scan is active. Stop attendance scanning before starting this operation."
         return None
 
     def start_scan(self) -> bool:
@@ -489,7 +489,7 @@ class Api:
             self._scanning = True
             self._device_mode = "scan"
             self._push("mode_changed", {"mode": "scan"})
-        return {"ok": True, "message": "Waiting for card…"}
+            return {"ok": True, "message": "Present and hold the card on the reader until it is verified."}
 
     def stop_rfid_register_session(self) -> Dict[str, Any]:
         if not self._rfid_session_active:
@@ -604,17 +604,29 @@ class Api:
                 self._push_batch_erase_result("skipped", uid, "Erase verification returned a different card family.", card_type)
                 return True
             erased_data = str(parsed.get("data_hex") or "").strip().upper()
+            erase_event_verified = (
+                parsed.get("operation") == "erase"
+                and parsed.get("event") == "erase_verified"
+            )
+            zero_write_verified = (
+                parsed.get("operation") == "write"
+                and parsed.get("event") == "write_verified"
+            )
             if (
                 not uid
-                or parsed.get("event") != "erase_verified"
-                or parsed.get("operation") != "erase"
+                or not (erase_event_verified or zero_write_verified)
                 or parsed.get("success") is not True
                 or parsed.get("verified") is not True
                 or erased_data != "00" * 48
             ):
+                failure_message = "Erase was not verified as empty; the student link was retained."
+                if parsed.get("success") is False or parsed.get("verified") is False:
+                    failure_message = (
+                        "Card write/readback failed after retries; the tag may be locked/password-protected "
+                        "or RF communication was interrupted. The student link was retained."
+                    )
                 self._push_batch_erase_result(
-                    "skipped", uid,
-                    "Erase was not verified as empty; the student link was retained.", card_type,
+                    "skipped", uid, failure_message, card_type,
                 )
                 return True
             self._batch_rfid_erase_count += 1
@@ -642,7 +654,7 @@ class Api:
             return True
         self._batch_rfid_erase_waiting_uid = uid
         self._batch_rfid_erase_waiting_card_type = card_type
-        self._push_batch_erase_result("armed", uid, "Waiting for the same card to complete erase.", card_type)
+        self._push_batch_erase_result("armed", uid, "Card detected. Keep it on the reader while erase is verified.", card_type)
         return True
 
     def _handle_rfid_session_card_event(self, line: str) -> bool:
@@ -746,7 +758,7 @@ class Api:
             )
             return
         if self._rfid_pending_uid:
-            self._push_rfid_registration_result("error", uid, "Finish or cancel the pending card write before tapping another card.")
+            self._push_rfid_registration_result("error", uid, "Finish or cancel the pending card write before presenting another card.")
             return
         if fingerprint_id is None:
             self._push_rfid_registration_result("error", uid, "No student is selected for RFID registration.")
@@ -781,11 +793,7 @@ class Api:
         self._rfid_pending_fingerprint_id = int(fingerprint_id)
         self._rfid_pending_payload_hex = payload_hex
         self._rfid_pending_card_type = card_type
-        self._push_rfid_registration_result(
-            "writing", uid,
-            "Card detected. Keep it on the reader while encrypted data is written and verified; retap if you removed it.",
-            card_type=card_type,
-        )
+        self._push_rfid_registration_result("writing", uid, "Card detected. Keep it on the reader while encrypted data is written and verified.", card_type=card_type)
 
     def _handle_rfid_registration_write(self, parsed: Dict[str, Any]) -> None:
         uid = db.normalize_card_uid(parsed.get("uid"))
@@ -1112,7 +1120,7 @@ class Api:
     def _parse_scan_line(self, line: str) -> None:
         result = self.processor.process_line(line)
         if result is None:
-            return
+            self._push_batch_erase_result("armed", uid, "Card detected. Keep it on the reader while erase is verified.", card_type)
         student = self.processor.lookup_student(result["fingerprint_id"]) if result.get("fingerprint_id") else None
         attendance_status = "Unknown"
         if result.get("fingerprint_id") and result.get("logged") and result.get("timestamp"):
@@ -1884,6 +1892,10 @@ class Api:
             early_threshold = max(0, min(120, int(settings.get("early_threshold_minutes", merged.get("early_threshold_minutes", 15)))))
             late_threshold = max(0, min(120, int(settings.get("late_threshold_minutes", merged.get("late_threshold_minutes", 15)))))
             absent_threshold = max(0, min(120, int(settings.get("absent_threshold_minutes", merged.get("absent_threshold_minutes", 0)))))
+            startup_connect_delay_ms = max(
+                0,
+                min(30000, int(settings.get("startup_connect_delay_ms", merged.get("startup_connect_delay_ms", 1000)))),
+            )
         except (TypeError, ValueError):
             return {"ok": False, "message": "Settings must be valid numbers."}
         
@@ -1910,6 +1922,7 @@ class Api:
             "early_threshold_minutes": early_threshold,
             "late_threshold_minutes": late_threshold,
             "absent_threshold_minutes": absent_threshold,
+            "startup_connect_delay_ms": startup_connect_delay_ms,
             "time_in": time_in,
             "time_out": time_out,
         })
@@ -1934,11 +1947,20 @@ class Api:
         defaults = default_settings()
         defaults["auth"] = current.get("auth", {})
         defaults["current_role"] = permissions.get_current_role()
+        for key in (
+            "setup_device_step_done",
+            "setup_schedule_step_done",
+            "setup_branding_step_done",
+        ):
+            defaults[key] = current.get(key, defaults[key])
         save_settings(defaults)
         self.serial.auto_reconnect_enabled = bool(defaults["auto_reconnect"])
         self._backup_interval_minutes = float(defaults["auto_backup_interval_minutes"])
         self.processor.cooldown_seconds = int(defaults["cooldown"])
         self.processor.min_confidence = int(defaults["min_confidence"])
+        self.profiler.enabled = bool(defaults["enable_profiler"])
+        self._session_timeout_seconds = max(60.0, float(defaults["idle_timeout_minutes"]) * 60.0)
+        permissions.set_session_role(defaults["current_role"], self._session_timeout_seconds)
         return {"ok": True, "message": "Settings restored to defaults."}
 
     def get_current_role(self) -> str:
