@@ -202,6 +202,7 @@ class Api:
         self.serial = SerialHandler()
         self.processor = AttendanceProcessor()
         self._read_thread: Optional[threading.Thread] = None
+        self._read_thread_lock = threading.Lock()
         self._read_stop = threading.Event()
         self._observed_connected = False
         self._scanning = False  # whether we've told the device to enter SCAN_MODE
@@ -974,11 +975,12 @@ class Api:
         read_line() to receive them. This mirrors v2's SerialWorker, which
         runs continuously for the whole time the device is connected.
         """
-        if self._read_thread and self._read_thread.is_alive():
-            return
-        self._read_stop.clear()
-        self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
-        self._read_thread.start()
+        with self._read_thread_lock:
+            if self._read_thread and self._read_thread.is_alive():
+                return
+            self._read_stop.clear()
+            self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
+            self._read_thread.start()
 
     def _stop_read_loop(self) -> None:
         self._read_stop.set()

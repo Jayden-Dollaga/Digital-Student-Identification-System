@@ -1142,13 +1142,16 @@ function attendanceBadgeClass(status) {
 
 // ── Attendance ──
 let attendanceOffset = 0;
+let attendanceLoadRequestId = 0;
 const ATT_PAGE_SIZE = 100;
 
 async function loadAttendancePage() {
   if (!api()) return;
+  const requestId = ++attendanceLoadRequestId;
   const mode = document.getElementById('att-mode').value;
   const modeKey = mode === 'Recent' ? 'recent' : mode === 'Last 30 Days' ? 'last30' : 'today';
   const res = await api().get_attendance(modeKey, attendanceOffset);
+  if (requestId !== attendanceLoadRequestId) return;
   renderAttendanceRows(res.rows);
   document.getElementById('att-count').textContent = `${res.rows.length} records`;
 
