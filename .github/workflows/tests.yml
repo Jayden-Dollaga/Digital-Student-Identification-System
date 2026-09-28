@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +70,9 @@ jobs:
 
       - name: Check active JavaScript syntax
         run: node --check python/gui_web/web/app.js
+
+      - name: Run attendance refresh race test
+        run: node tests/test_attendance_refresh_race.js
 
       - name: Run v3 and shared tests (unit + integration + unmarked)
         # Includes unit + integration + anything nobody has tagged yet, so
