@@ -26,6 +26,31 @@ except ImportError:  # pragma: no cover - direct script execution fallback
     from core.logger import log
 
 
+def resolve_window_size(screen_width: int | None = None, screen_height: int | None = None) -> tuple[int, int]:
+    """Return a window size that fits the current display without clipping controls."""
+    if screen_width is None or screen_height is None:
+        screen_width = 1280
+        screen_height = 800
+        try:
+            screens = getattr(webview, "screens", None) or []
+            if screens:
+                primary = screens[0]
+                screen_width = int(getattr(primary, "width", screen_width) or screen_width)
+                screen_height = int(getattr(primary, "height", screen_height) or screen_height)
+        except Exception:
+            pass
+
+    screen_width = max(760, int(screen_width))
+    screen_height = max(540, int(screen_height))
+
+    width = min(screen_width - 40, 1180)
+    height = min(screen_height - 40, 740)
+
+    width = max(760, width)
+    height = max(540, height)
+    return width, height
+
+
 def _logo_path() -> Path:
     bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
     return bundle_root / "assets" / "icon" / "DSIS_LOGO.ico"
@@ -60,14 +85,15 @@ def main() -> None:
     api = Api()
     web_dir = Path(__file__).parent / "web"
     index_path = web_dir / "index.html"
+    width, height = resolve_window_size()
 
     window = webview.create_window(
         title="DSIS \u2014 Digital Student Identification System",
         url=str(index_path),
         js_api=api,
-        width=1180,
-        height=740,
-        min_size=(900, 600),
+        width=width,
+        height=height,
+        min_size=(760, 540),
     )
     api.set_window(window)
 

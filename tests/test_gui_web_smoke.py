@@ -123,6 +123,83 @@ def test_role_switch_keeps_teacher_as_teacher():
     assert "const normalized = normalizeRoleKey(role);" in script
 
 
+def test_v3_window_size_fits_common_small_windows():
+    import importlib.util
+    import sys
+    import types
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    gui_web_dir = root / "python" / "gui_web"
+
+    original_gui_pkg = sys.modules.get("gui_web")
+    original_gui_api = sys.modules.get("gui_web.api")
+    original_webview = sys.modules.get("webview")
+    original_core_logger = sys.modules.get("core.logger")
+    original_api = sys.modules.get("api")
+
+    try:
+        fake_webview = types.ModuleType("webview")
+        fake_webview.create_window = lambda *args, **kwargs: kwargs
+        fake_webview.start = lambda *args, **kwargs: None
+        sys.modules["webview"] = fake_webview
+
+        fake_log = types.SimpleNamespace(
+            info=lambda *args, **kwargs: None,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            exception=lambda *args, **kwargs: None,
+            success=lambda *args, **kwargs: None,
+        )
+        sys.modules["core.logger"] = types.ModuleType("core.logger")
+        sys.modules["core.logger"].log = fake_log
+
+        fake_api = types.ModuleType("api")
+        fake_api.Api = object
+        sys.modules["api"] = fake_api
+
+        fake_pkg_api = types.ModuleType("gui_web.api")
+        fake_pkg_api.Api = object
+
+        gui_pkg = types.ModuleType("gui_web")
+        gui_pkg.__path__ = [str(gui_web_dir)]
+        gui_pkg.api = fake_pkg_api
+        sys.modules["gui_web"] = gui_pkg
+        sys.modules["gui_web.api"] = fake_pkg_api
+
+        spec = importlib.util.spec_from_file_location("gui_web.main_web", gui_web_dir / "main_web.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["gui_web.main_web"] = module
+        spec.loader.exec_module(module)
+
+        width, height = module.resolve_window_size(1024, 768)
+        assert width <= 1024 - 40
+        assert height <= 768 - 40
+        assert width >= 760
+        assert height >= 540
+    finally:
+        if original_gui_pkg is None:
+            sys.modules.pop("gui_web", None)
+        else:
+            sys.modules["gui_web"] = original_gui_pkg
+        if original_gui_api is None:
+            sys.modules.pop("gui_web.api", None)
+        else:
+            sys.modules["gui_web.api"] = original_gui_api
+        if original_webview is None:
+            sys.modules.pop("webview", None)
+        else:
+            sys.modules["webview"] = original_webview
+        if original_core_logger is None:
+            sys.modules.pop("core.logger", None)
+        else:
+            sys.modules["core.logger"] = original_core_logger
+        if original_api is None:
+            sys.modules.pop("api", None)
+        else:
+            sys.modules["api"] = original_api
+
+
 def test_enrollment_requires_connection_and_blocks_while_scanning():
     script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
 
