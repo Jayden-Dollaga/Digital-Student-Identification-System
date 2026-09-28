@@ -1,76 +1,52 @@
 # Security Policy
 
-> The active security model is the v3 local desktop model: backend permission checks, first-run administrator password creation, salted PBKDF2-HMAC-SHA256 verification, and local SQLite protection. The application has no built-in default administrator password.
+This repository's active product uses a local, desktop-first security model. The application stores the primary auth state and attendance data on disk in the local `data/` directory, but authorization is enforced in memory through the active session and backend checks.
 
-This file describes how to report a vulnerability in DSIS. It is separate from
-the [security audit history](docs/SECURITY_AUDIT_REPORT.md) and remediation
-record (see [the documentation index](docs/INDEX.md)).
+## Security model
 
-## Supported Versions
+- There is no default administrator password.
+- The initial admin password is created during the first-run wizard.
+- Passwords are stored using PBKDF2-HMAC-SHA256 with a random salt.
+- Session role elevation is checked in memory, not by trusting a stored role value in `data/settings.json`.
+- Guest access is intentionally limited; teacher/admin access is granted only after authentication or a valid session.
+- Device operations, restore operations, and export operations are gated by the backend permission model.
 
-The repository has a `v2.5.0` tag, but current v3 webview work remains
-unreleased. Security fixes are considered for the tagged release line and the
-current `main` branch; no v3 release support window has been published yet.
+## Data sensitivity
 
-| Version | Supported |
-| --- | --- |
-| `v2.5.x` | Yes |
-| `main` | Best effort while v3 remains unreleased |
-| Older or unversioned snapshots | No commitment |
+Treat the following as sensitive local-school data:
 
-## Authentication model
+- `data/settings.json`
+- `data/attendance.db`
+- `data/backups/`
+- `data/logs/`
+- `data/exports/`
+- any admin auth marker files created during the first-run flow
 
-The maintained v3 application requires first-run administrator password creation; there is no built-in default/fallback administrator password. New passwords must be at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a random salt and 310,000 iterations. Role elevation verifies the password and creates an in-memory session with a 600-second idle timeout. Authorization uses the active in-memory session role rather than trusting the stored role value in `data/settings.json`.
+Protect these files with appropriate Windows ACLs and avoid storing them in shared or public directories.
 
-First-run setup also gates normal application use until the device, schedule, and branding steps are completed. Device setup validates the DSIS handshake; schedule and branding completion flags are persisted in settings so an interrupted wizard can resume.
+## Reset and recovery
 
-Administrator and Teacher sessions can access identifiable records through `read_records`; Guest remains able to scan and see aggregate/live status but cannot read the full roster or attendance history. Attendance Evaluation is also restricted to authenticated record readers. Other operations remain restricted by their role permission sets.
+The supported recovery path is a valid administrator-controlled backup or a legitimate password-change flow. There is no supported "delete `settings.json` and reset the password" procedure. The app intentionally prevents silent resets when the admin initialization marker and password state disagree.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Email vulnerability reports to [jaydendollaga4@gmail.com](mailto:jaydendollaga4@gmail.com). This address is
-also the maintainer address recorded in the repository's community files and
-Git history.
+Email the maintainer at: [jaydendollaga4@gmail.com](mailto:jaydendollaga4@gmail.com)
 
 Please include:
 
-- A short description of the issue and its impact
-- The affected version or commit
-- Reproduction steps or a proof of concept, if safe to share
-- Any suggested mitigation
+- the vulnerability and affected component
+- the version or commit in use
+- reproduction details if safe to share
+- impact and suggested mitigation
 
-Please do not disclose an unresolved vulnerability publicly before the project
-maintainer has had an opportunity to assess it.
+Do not disclose a vulnerability publicly before it has been assessed.
 
-## Response Expectations
+## Additional guidance
 
-We aim to acknowledge a report within 3 business days and provide an initial
-assessment or status update within 7 business days. Timing may vary for reports
-requiring hardware reproduction or third-party coordination.
+See:
 
-Accepted reports will be tracked to a fix or mitigation when practical. Reports
-that are declined will receive an explanation when the available information
-allows a clear determination.
+- [docs/Security/security-model.md](docs/Security/security-model.md)
+- [docs/INDEX.md](docs/INDEX.md)
+- [LICENSE](LICENSE)
 
-## Scope Notes
-
-DSIS may process student and attendance data locally. Do not include real
-student records, fingerprint data, database files, or private logs in a report;
-use redacted examples instead.
-
-See [LICENSE](LICENSE) for the project's software license.
-
-
-## Current implementation details
-
-For security review, the active implementation uses a process-memory role session with a 600-second default idle timeout, backend permission checks, salted PBKDF2-HMAC-SHA256 password verification, and restore-path containment for database backups.
-
-There is no forgotten-password recovery flow. `change_admin_password` requires the current administrator password, and deleting `data/settings.json` is not a supported password-reset procedure.
-
-On first successful password creation, DSIS writes `data/.admin_initialized`. If that marker exists while the password record is missing or settings are corrupted, DSIS refuses to offer first-run password creation and displays a recovery message. Recover the installation through an administrator-controlled backup or documented local recovery procedure; do not delete settings or the marker to reset access.
-
-Treat `data/attendance.db`, `data/settings.json`, `data/backups/`, `data/logs/`, and generated exports as sensitive local school data.
-
-Protect the entire `data/` directory with Windows ACLs so kiosk users cannot replace settings, databases, backups, authentication records, or logs.
-
-See [the implementation security model](docs/Security/security-model.md).
+The archived UI work under `archive/legacy-ui/` is historical and is not the supported product boundary for current security review.

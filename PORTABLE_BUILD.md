@@ -1,62 +1,53 @@
-# Portable Windows Build
+# Portable Build Guide
 
-> Packaging documents describe the current v3 build boundary. A packaged application still requires the supported Windows USB serial driver and a separately flashed ESP32 firmware device.
+This guide covers the current DSIS v3 packaging path. The active build output is based on the v3 pywebview app and uses the repo source launcher `run_web_gui.py`.
 
-The current source application is the HTML/pywebview v3 interface. The
-PyInstaller specification is [Build/DSIS_v3.spec](Build/DSIS_v3.spec), and it
-bundles the V3 web assets.
+> Historical portable build scripts tied to the older CustomTkinter or Qt paths are archived and must not be treated as the current supported package.
 
-## Build
+## Active spec
 
-From the repository root, run:
+The maintained packaging target is:
 
-```text
+- `Build/DSIS_v3.spec`
+
+The app writes runtime data to the local `data/` directory, not inside the bundled frozen app. The packaged app must be deployed with a writable data folder next to the executable.
+
+## Build command
+
+From the repository root:
+
+```powershell
 python -m PyInstaller Build\DSIS_v3.spec --clean --noconfirm --workpath Build\build-v3 --distpath Build\DSIS_v3
 ```
 
-The command invokes PyInstaller with `Build\DSIS_v3.spec` and writes the executable to:
+Expected output:
 
 ```text
 Build\DSIS_v3\DSIS\DSIS.exe
 ```
 
-The build keeps `data/` external and writable. Copy the generated `Build\DSIS_v3\DSIS`
-directory together with a writable `data/` directory when testing on another
-machine; settings, the SQLite database, backups, charts, and logs must not be
-written inside the bundled executable area.
+## Deployment checklist
 
-## Historical Portable Workflow
+1. Copy the built package together with a writable `data/` directory.
+2. Keep `settings.json`, `attendance.db`, `backups/`, `logs/`, and `exports/` outside the frozen executable tree.
+3. Ensure the target Windows machine has the correct ESP32 USB driver installed.
+4. Verify the device is flashed with the maintained firmware at `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`.
+5. Run the app and validate the first-run wizard and device connection flow.
+6. Confirm attendance scan, enrollment, backup/restore, and export flows still work on the packaged build.
 
-The repository also retains `tools/build_portable.bat` and
-`tools/fingerprint_portable.spec`. That workflow packages the older
-CustomTkinter application and should be treated as read-only compatibility
-tooling, not as the supported v3 pywebview build. `tools/portable_bootstrap.bat` installs the
-requirements used by that portable setup.
+## Validation checklist
 
-The older CustomTkinter workflow remains compatibility tooling only. For current
-source launches, use `run_web_gui.bat`. Verify any packaged build on a
-disposable test machine before distribution.
+Before a release or package handoff:
 
-## Validation
+- run `python run_web_gui.py` as a source smoke test
+- run the PyInstaller command above
+- verify the packaged app starts and loads the v3 UI
+- verify the serial connection and handshake succeed
+- verify enrollment and scan flows operate normally
+- verify restore and export paths remain writable and valid
 
-Before distributing a build:
+## Historical packaging notes
 
-1. Run `python run_web_gui.py` from the repository root as a source launch smoke test.
-2. Run the PyInstaller command above and confirm `Build\DSIS_v3\DSIS\DSIS.exe` exists.
-3. Confirm `Build\DSIS_v3\DSIS\_internal\gui_web\web\index.html`, `app.js`, and `styles.css` exist.
-4. Test the executable on a clean Windows machine or USB copy.
-5. Confirm serial connection, enrollment, attendance, backups, and database access.
-6. Confirm `data\settings.json`, `data\attendance.db`, `data\backups`, and `data\logs` remain writable.
+The repository contains older portable tooling and legacy packaging spec files in `tools/` and historical archive paths. Those are kept as reference only and may package earlier UI implementations; they should not be used for the current v3 distribution.
 
-The source build was validated on 2026-09-09. A clean-machine package test and physical ESP32/AS608 validation still require the target hardware/environment. See the [Testing and Validation](docs/UserGuide/testing-results.md) record for documented hardware checks.
-
-Last reviewed: 2026-09-16, against commit `64d80c9`.
-
-
-## Current v3 build facts
-
-The maintained specification is `Build/DSIS_v3.spec`. Its PyInstaller configuration uses `run_web_gui.py` as the source entry point, collects the v3 web assets, and names the packaged application `DSIS-v3.exe` inside the `DSIS-v3` distribution directory.
-
-Writable runtime data remains external to the frozen application and is resolved from the packaged executable directory. Keep `data/` beside the packaged runtime.
-
-See [Release and Portable Build](docs/Development/release-and-portable-build.md) for the validation checklist.
+See [docs/Development/release-and-portable-build.md](docs/Development/release-and-portable-build.md) for the release validation workflow.

@@ -1,27 +1,43 @@
-# DSIS Release Guide
+# Release Guide
 
-> Release documentation is authoritative only for a tagged or explicitly named commit. The current repository may contain unreleased v3 work; do not describe `main` as a published v3 release without a tag and validated artifact.
+This project is released from the maintained v3 app and its matching firmware. A release is only valid when the source, firmware, package, and documentation describe the same product boundary.
 
-## Versioning
-
-Use a version tag in the form `vMAJOR.MINOR.PATCH`. Update `docs/Development/change-log.md` before tagging, moving the verified unreleased entries under the new version heading. Keep `SECURITY.md`, build documentation, and release notes on the same supported release line.
+> A repo snapshot without a clear tag and a tested package should be treated as unreleased work, not a published release.
 
 ## Release checklist
 
-1. Start from a clean `main` branch and confirm the working tree contains no runtime data or build artifacts.
-2. Run `python -m pytest -q`, `python -m compileall python`, and `node --check python/gui_web/web/app.js`.
-3. Build the Windows package using the documented PyInstaller process in `PORTABLE_BUILD.md`.
-4. Validate the package on a clean Windows machine with the required Python/runtime files and the correct USB serial driver installed.
-5. Verify the maintained firmware sketch, ESP32 board selection, AS608 wiring, and host handshake at 115200 baud.
-6. Record the firmware sketch and commit in the release notes. Do not publish `firmware/prebuilt/attendance_v1.0.bin` as a usable image; it is a placeholder.
-7. Verify the README, installation, API, architecture, hardware, troubleshooting, and security documentation describe the same release behavior.
-8. Tag the release and publish the generated artifact together with installation and troubleshooting links.
+- Confirm the work is on the intended branch and the tree is clean.
+- Run the validation commands:
 
-Hardware validation is required for serial or firmware changes but may be documented as unavailable for documentation-only releases.
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pytest -q
+python -m compileall python
+node --check python/gui_web/web/app.js
+```
 
+- Validate the maintained firmware at `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` on the target hardware.
+- Verify the app launches from the repo root using `python run_web_gui.py`.
+- Build the Windows package with the v3 PyInstaller spec in `Build/DSIS_v3.spec`.
+- Confirm the packaged app works on a clean Windows machine with the proper USB driver.
+- Verify `data/` remains writable and separate from the bundled executable.
+- Update the changelog and relevant docs to reflect the exact release contents.
+- Tag the release and publish the built artifact with installation and troubleshooting references.
 
-## Documentation validation gate
+## Release notes expectations
 
-Before a release, verify the documentation against the same source commit as the artifact. At minimum, review the v3 architecture/bridge, database/data model, attendance rules, roles, first-run wizard, firmware/protocol, backup/restore/export, and troubleshooting guides.
+A release note should state:
 
-Run the repository checks already listed above, and perform physical ESP32/AS608 validation for hardware or serial changes.
+- whether the app is the v3 pywebview build or a legacy UI build
+- the firmware sketch and board target used for validation
+- any hardware issues or required driver steps
+- whether the release includes database or schema changes
+- the exact validation commands and results
+
+## Current support model
+
+- Active product: DSIS v3 webview desktop app
+- Active firmware: ESP32 DSIS all-in-one sketch
+- Archived product: v1/v2 GUI implementations
+
+See [docs/Development/change-log.md](docs/Development/change-log.md), [docs/Development/release-and-portable-build.md](docs/Development/release-and-portable-build.md), and [PORTABLE_BUILD.md](PORTABLE_BUILD.md) for implementation details.

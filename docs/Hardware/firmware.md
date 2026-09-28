@@ -10,7 +10,7 @@ The maintained embedded program is:
 | --- | --- |
 | Device identifier | Digital Student Identification System |
 | Board | ESP32 |
-| Firmware | 1.0.10 |
+| Firmware | 1.6.2 |
 | Sensor | AS608 |
 | Protocol | 1 |
 | Host serial | 115200 baud |

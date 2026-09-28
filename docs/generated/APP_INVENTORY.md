@@ -1,176 +1,236 @@
-# DSIS Application Inventory
+# Application Inventory
 
-Code-first inventory of the maintained product at commit `37445e8`. Source and tests take precedence when this snapshot becomes stale.
+This document is the canonical code-level inventory for the maintained DSIS product. It records the supported runtime, the public API surface, the database model, and the active firmware boundary. When a historical note or an older doc disagrees with the code, this inventory reflects the code.
 
-## 1. Entry points and support boundary
+## 1. Active entry points
 
-| Surface | State | Description |
+| Path | State | Notes |
 | --- | --- | --- |
-| `run_web_gui.py` | Active | Source launcher for the v3 HTML/pywebview desktop application. |
+| `run_web_gui.py` | Active | Source launcher for the v3 desktop app. |
 | `run_web_gui.bat` | Active | Windows convenience launcher. |
-| `python/gui_web/main_web.py` | Active | Creates the pywebview window, attaches `Api`, and disconnects on close. |
-| `Build/DSIS_v3.spec` | Active | PyInstaller specification for the v3 package. |
-| `Build/DSIS_v3/` | Generated | v3 distribution output. |
-| `python/main.py` | Legacy/verify | Retained compatibility launcher; not the documented product path. |
-| `archive/legacy-ui/v1` | Archived | CustomTkinter application. |
-| `archive/legacy-ui/v2` | Archived | PySide6/Qt application. |
-| `python/gui_qt/`, `python/gui/legacy/` | Archived/reference | Historical UI code only. |
+| `python/gui_web/main_web.py` | Active | Creates the native pywebview window and binds `Api`. |
+| `Build/DSIS_v3.spec` | Active | PyInstaller spec for the current v3 package. |
+| `python/main.py` | Archived/compat | Older launcher path; not the maintained entry point. |
+| `archive/legacy-ui/` | Archived | Historical v1 and v2 UI code. |
+| `python/gui_qt/` and `python/gui/` | Archived/reference | Legacy UI attachments and compatibility code. |
 
-The active firmware is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, which includes AS608 fingerprint and RC522 RFID support. `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` is the earlier fingerprint-only variant and is not the feature-complete target.
+## 2. Public API surface (`python/gui_web/api.py`)
 
-## 2. Public `Api` methods
+`Api` is exposed at `window.pywebview.api` and is the central JS-to-Python bridge. Methods return JSON-safe values or structured dictionaries. The backend continues to enforce permissions even if the UI hides a control.
 
-All methods below are callable as `window.pywebview.api.<method>`. Return values are JSON-compatible unless noted. Failed operations normally return `{ok: false, message: ...}`. Python authorization remains authoritative even when JavaScript hides a control.
+### Connection and device management
 
-### Lifecycle and device
-
-| Method and arguments | Return | Permission | Effects |
-| --- | --- | --- | --- |
-| `start_background_tasks()` | `None` | lifecycle | Starts the daemon auto-backup loop. |
-| `stop_background_tasks()` | `None` | lifecycle | Stops the backup loop. |
-| `set_window(window)` | `None` | lifecycle | Attaches the native window and starts background work. |
-| `list_ports()` | `list[str]` | guest | Reads available serial ports. |
-| `list_ports_detailed()` | `list[dict]` | guest | Reads port device, VID/PID, and description. |
-| `forget_saved_port()` | `dict` | teacher/admin | Writes an empty saved COM port. |
-| `connect(port="", baud=0, auto_detect=None)` | `dict` | `scan` | Opens serial, performs device discovery/handshake, and starts reads. |
-| `disconnect()` | `dict` | teacher/admin | Stops reads and closes serial. |
-| `get_connection_status()` | `dict` | guest | Reads connection/device state. |
-| `start_scan()` | `bool` | `scan` | Sends `SCAN` and changes device mode. |
-| `stop_scan()` | `bool` | `scan` | Sends `STOP` and exits scan mode. |
-| `request_fingerprint_count()` | `bool` | `scan` | Sends `LIST`; result arrives asynchronously. |
-| `get_serial_troubleshooting()` | `dict` | guest | Returns connection diagnostics. |
-| `open_device_manager()` | `dict` | guest | Opens Windows Device Manager. |
-| `open_driver_help()` | `dict` | guest | Opens driver guidance. |
-| `send_serial_command(cmd)` | `bool` | admin | Sends an allow-listed raw serial command. |
-| `reset_device()` | `bool` | admin | Sends the device reset/stop command. |
+- `list_ports()` → returns a list of detected serial ports.
+- `list_ports_detailed()` → returns port metadata with device, VID:PID, and label.
+- `forget_saved_port()` → clears the saved COM port, teacher/admin required.
+- `connect(port="", baud=0, auto_detect=None)` → opens the serial port and starts the read loop.
+- `disconnect()` → closes the serial device connection.
+- `get_connection_status()` → reports connection state, port, and mode.
+- `start_scan()` → sends the SCAN command and flips the device mode to scan.
+- `stop_scan()` → stops scan mode.
+- `request_fingerprint_count()` → sends LIST and requests a reply from the device.
+- `get_serial_troubleshooting()` → returns connection diagnostics.
+- `open_device_manager()` → opens Windows Device Manager.
+- `open_driver_help()` → opens driver info.
+- `send_serial_command(cmd)` → allow-listed raw command for admins.
+- `reset_device()` → resets the connected device when permitted.
 
 ### Enrollment, deletion, and RFID
 
-| Method and arguments | Return | Permission | Effects |
-| --- | --- | --- | --- |
-| `start_rfid_register_session(fingerprint_id, mode="register")` | `dict` | admin + `enroll` | Arms RFID register/read mode and changes serial state. |
-| `stop_rfid_register_session()` | `dict` | session | Stops RFID mode and restores prior state. |
-| `start_batch_rfid_erase(unlink_registered=False)` | `dict` | `enroll` | Starts batch card erase; can unlink local UIDs. |
-| `stop_batch_rfid_erase()` | `dict` | session | Cancels batch erase. |
-| `start_enroll()` | `dict` | `enroll` | Starts device enrollment tracking. |
-| `validate_student_fields(student_no, student_name, grade, section)` | `dict` | guest | Validates without writing. |
-| `cancel_enroll()` | `dict` | `enroll` | Cancels pending device enrollment. |
-| `discard_enrollment(fingerprint_id)` | `dict` | `enroll` | Removes staged local enrollment data. |
-| `delete_on_device(fingerprint_id)` | `dict` | `delete` | Sends device delete and coordinates local cleanup after success. |
-| `wipe_all_on_device()` | `dict` | `wipe` | Sends destructive device wipe. |
-| `wipe_all_data()` | `dict` | `wipe` | Destructively clears local student and attendance data. |
-| `save_student(fingerprint_id, student_no, student_name, grade, section, previous_fingerprint_id)` | `dict` | `enroll` | Writes or updates a student row. |
-| `bind_student_card(fingerprint_id, card_uid)` | `dict` | `enroll` | Writes a normalized UID link. |
-| `clear_student_card(fingerprint_id)` | `dict` | `enroll` | Removes a local UID link. |
-| `delete_student(fingerprint_id)` | `dict` | `delete` | Deletes the profile and remaps retained attendance to ID 0. |
+- `start_enroll()` → begins device enrollment and waits for firmware-progress events.
+- `validate_student_fields(student_no, student_name, grade, section)` → validates the student form without writing.
+- `cancel_enroll()` → cancels an active enrollment.
+- `discard_enrollment(fingerprint_id)` → removes a not-yet-saved device template.
+- `delete_on_device(fingerprint_id)` → sends DELETE:\<id\> and waits for firmware confirmation before local deletion.
+- `wipe_all_on_device()` → sends WIPE for the attached device.
+- `wipe_all_data()` → wipes local student and attendance rows without changing device fingerprints.
+- `save_student(...)` → creates or updates a student row with a fingerprint ID.
+- `delete_student(fingerprint_id)` → deletes the local student row only after the device confirms deletion.
+- `start_rfid_register_session(...)` → starts RFID registration for a student record.
+- `stop_rfid_register_session()` → ends the RFID-registration session.
+- `start_batch_rfid_erase(unlink_registered=False)` → arms batch card erase logic.
+- `stop_batch_rfid_erase()` → cancels an active RFID erase flow.
+- `clear_student_card(fingerprint_id)` → removes a saved RFID link.
 
-### Reads, attendance, reports, and calendar
+### Reporting and attendance
 
-| Method and arguments | Return | Permission | Effects |
-| --- | --- | --- | --- |
-| `get_dashboard_stats()` | `dict` | guest | Reads dashboard totals. |
-| `get_recent_activity(limit=25)` | `list[dict]` | `read_records` | Reads recent attendance. Guest receives an empty result. |
-| `get_attendance(mode="today", offset=0)` | `dict` | `read_records` | Reads attendance rows. Guest receives an empty result. |
-| `export_attendance_csv(mode, offset, week_start)` | `dict` | `export` | Writes a selected CSV. |
-| `get_students()` | `list[dict]` | `read_records` | Reads roster. Guest receives an empty result. |
-| `get_student(fingerprint_id)` | `dict` | `read_records` | Reads one profile. |
-| `export_students_csv()` | `dict` | `export` | Writes a student CSV. |
-| `get_attendance_evaluation(period="month", ref_date="")` | `dict` | `attendance_evaluation` + `read_records` | Calculates identifiable day/week/month evaluation. |
-| `export_attendance_evaluation_csv(period="month", ref_date="")` | `dict` | `export` | Writes evaluation CSV. |
-| `get_calendar_month(year, month)` | `dict` | guest | Reads calendar exceptions. |
-| `set_calendar_entry(date, entry_type, label, time_in, time_out)` | `dict` | `manage_calendar` | Writes holiday, suspension, or half-day settings. |
-| `remove_calendar_entry(date)` | `dict` | `manage_calendar` | Removes a calendar exception. |
-| `get_statistics_report()` | `dict` | export or backup | Reads report metrics. |
-| `export_statistics_report()` | `dict` | `export` | Writes report output and optional charts. |
+- `get_dashboard_stats()` → dashboard counts and summary values.
+- `get_recent_activity(limit=25)` → recent attendance rows.
+- `get_attendance(mode="today", offset=0)` → attendance query results by window.
+- `export_attendance_csv(...)` → writes CSV exports.
+- `get_students()` → all student rows.
+- `get_student(fingerprint_id)` → one student row, including summary status.
+- `export_students_csv()` → exports student roster to CSV.
+- `get_attendance_evaluation(period="month", ref_date="")` → per-student attendance evaluation.
+- `export_attendance_evaluation_csv(...)` → evaluation export.
+- `get_calendar_month(year, month)` → reads calendar exceptions.
+- `set_calendar_entry(...)` → sets holiday, suspension, or half-day entries.
+- `remove_calendar_entry(date)` → removes a calendar exception.
+- `get_statistics_report()` → overall report summary.
+- `export_statistics_report()` → writes a text summary.
 
-### Backup, settings, auth, and logs
+### Settings, auth, backups, logs
 
-| Method and arguments | Return | Permission | Effects |
-| --- | --- | --- | --- |
-| `list_backups()` | `list[dict]` | `backup` | Lists backup files. |
-| `create_backup()` | `dict` | `backup` | Writes `data/backups/attendance_YYYYMMDD_HHMMSS.db`. |
-| `restore_backup(backup_path)` | `dict` | `restore` | Validates and replaces the active DB. |
-| `get_settings()` | `dict` | guest | Reads UI-safe settings; backup names and log path are withheld from Guest. |
-| `save_ui_settings(settings)` | `dict` | admin for protected settings | Persists permitted settings. |
-| `restore_default_settings()` | `dict` | admin | Restores defaults. |
-| `get_current_role()` | `str` | guest | Reads the in-memory role. |
-| `set_current_role(role)` | `dict` | session rules | Allows downgrades; upward elevation requires password authentication. |
-| `is_first_run_setup_required()` | `dict` | guest | Reads first-run status. |
-| `complete_first_run_setup(password, confirm_password)` | `dict` | first-run guest | Writes the initial password hash and sets admin. |
-| `get_setup_wizard_step()` | `dict` | guest | Returns the next setup step. |
-| `complete_setup_device_step(connected=False)` | `dict` | admin | Writes device-step completion. |
-| `complete_setup_schedule_step(time_in, time_out, early_threshold_minutes, late_threshold_minutes, absent_threshold_minutes, school_weekdays_off)` | `dict` | admin | Writes schedule and weekday exceptions. |
-| `complete_setup_branding_step(school_name="", theme="dark")` | `dict` | admin | Writes branding and completion. |
-| `authenticate_role(role, password)` | `dict` | guest/session | Verifies and sets an in-memory role. |
-| `get_session_state()` | `dict` | guest | Reads session role and timeout state. |
-| `touch_session()` | `dict` | session | Refreshes idle expiry. |
-| `lock_session()` | `dict` | session | Returns the session to guest. |
-| `change_admin_password(current_password, new_password)` | `dict` | admin | Replaces the hash after verification. |
-| `get_role_permissions(role)` | `list[str]` | guest | Returns configured permission names. |
-| `open_log_folder()` | `dict` | guest | Opens the log directory. |
-| `get_app_log(max_lines=500)` | `list[str]` | guest | Returns recent in-memory log lines. |
+- `list_backups()` → lists backups.
+- `create_backup()` → writes a timestamped DB backup to `data/backups/`.
+- `restore_backup(backup_path)` → replaces the active SQLite database.
+- `get_settings()` → reads the active settings object.
+- `save_ui_settings(settings)` → persists UI settings.
+- `restore_default_settings()` → resets settings to defaults.
+- `get_current_role()` → returns the in-memory session role.
+- `set_current_role(role)` → role selection with password requirement for admin elevation.
+- `is_first_run_setup_required()` → reports setup state.
+- `complete_first_run_setup(password, confirm_password)` → creates the initial admin hash.
+- `get_setup_wizard_step()` → returns the next required step.
+- `complete_setup_device_step(...)` → completes the device step.
+- `complete_setup_schedule_step(...)` → saves schedule settings and completion.
+- `complete_setup_branding_step(...)` → saves branding and completion.
+- `authenticate_role(role, password)` → validates the password for the requested role.
+- `get_session_state()` → reports session role, permissions, and timeout.
+- `touch_session()` → refreshes the idle timeout.
+- `lock_session()` → drops the session back to guest.
+- `change_admin_password(current_password, new_password)` → rotates the password hash.
+- `get_role_permissions(role)` → returns the configured permission strings.
+- `open_log_folder()` → opens the log directory.
+- `get_app_log(max_lines=500)` → returns recent log lines from the live run buffer.
 
-## 3. Maintained Python modules
+## 3. Core modules and responsibilities
 
-- `core/auth.py`: password validation, salted PBKDF2-HMAC-SHA256 hashing, verification, and first-run password state.
-- `core/permissions.py`: in-memory role session, role hierarchy, permission checks, and idle expiry. It never authorizes from `settings.json`.
-- `core/database.py`: SQLite schema/migrations, validation, students, attendance, reports, exports, backups, restore, and ID 0 placeholder handling.
-- `core/serial_handler.py`: COM open/close, serial reads/writes, reconnect, and connection state.
-- `core/attendance.py`: fingerprint/card event processing, desktop cooldown, confidence filtering, and attendance writes.
-- `core/attendance_status.py`: present/late/early/absent/half-day calculations.
-- `core/attendance_calendar.py`: calendar exceptions and recurring school weekdays off.
-- `core/commands.py`: serial command wrappers and privileged command checks.
-- `core/device_discovery.py`: candidate-port discovery and device handshake metadata.
-- `core/firmware_helper.py`: firmware asset discovery and descriptions.
-- `core/logger.py`: console, rotating file, UI log buffering, and structured logging.
-- `core/setup_wizard.py`: next-step selection for password, device, schedule, and branding.
-- `core/rfid_card.py`: encrypted RFID payload operations.
-- `core/utils.py`: JSON-line parsing and small shared helpers.
-- `services/student_service.py`: service wrapper for student operations.
-- `services/attendance_service.py`: service wrapper for attendance operations; some v3 API paths call core modules directly.
+- `python/config.py` — project root, runtime config, default roles, and port heuristics.
+- `python/settings_store.py` — default settings schema and persistence helpers.
+- `python/core/auth.py` — password hashing, verification, validation, and first-run admin requirements.
+- `python/core/permissions.py` — in-memory role/session model and authorization checks.
+- `python/core/setup_wizard.py` — next-step router for password, device, schedule, and branding.
+- `python/core/database.py` — SQLite schema, CRUD, validation, reports, backup/restore, and exports.
+- `python/core/serial_handler.py` — COM port open/close, reconnect logic, and device reads/writes.
+- `python/core/attendance.py` — fingerprint/card processing, confidence gating, cooldown, and attendance insertion.
+- `python/core/attendance_status.py` — present/time-in/time-out and rule evaluation.
+- `python/core/attendance_calendar.py` — calendar exceptions and school-day rules.
+- `python/core/commands.py` — send-command wrappers for device actions.
+- `python/core/device_discovery.py` — port heuristics and metadata discovery.
+- `python/core/logger.py` — logs to console and rotating files, plus live UI logging.
+- `python/core/rfid_card.py` — encrypted RFID payload creation and verification.
+- `python/core/utils.py` — JSON parsing and helper logic.
+- `python/services/student_service.py` — student-related service layer.
+- `python/services/attendance_service.py` — attendance-related service layer.
 
-## 4. SQLite and migrations
+## 4. SQLite schema and runtime data
 
-Default file: `data/attendance.db`. Connections enable foreign keys, WAL mode, a 5-second busy timeout, and a 30-second connection timeout.
+The active database is `data/attendance.db`.
 
-`students` columns are `fingerprint_id INTEGER PRIMARY KEY`, `student_no TEXT NOT NULL UNIQUE`, `student_name TEXT NOT NULL`, `grade TEXT NOT NULL`, `section TEXT NOT NULL`, `card_uid TEXT UNIQUE`, `enrollment_date TEXT NOT NULL`, and `updated_date TEXT NOT NULL`. Indexes are the partial unique `idx_students_card_uid`, `idx_student_no`, and `idx_grade_section` on `(grade, section)`.
+### `students`
 
-`attendance` columns are `id INTEGER PRIMARY KEY AUTOINCREMENT`, `fingerprint_id INTEGER NOT NULL`, `date TEXT NOT NULL`, `time TEXT NOT NULL`, `confidence INTEGER NOT NULL`, `status TEXT NOT NULL`, `timestamp TEXT NOT NULL`, and nullable `event_type`, with a foreign key to `students(fingerprint_id)`. Indexes are `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`.
+Columns:
 
-Initialization adds missing `card_uid` and `event_type` columns, backfills event types by student/date order (`time_in`, then `time_out`), removes invalid negative-ID rows while preserving ID 0 unknown scans, and ensures permanent placeholder student ID 0 (`Unregistered`) exists. Student deletion remaps retained attendance to ID 0. Restore is replacement, not merge, and validates containment and SQLite structure first.
+- `fingerprint_id INTEGER PRIMARY KEY`
+- `student_no TEXT NOT NULL UNIQUE`
+- `student_name TEXT NOT NULL`
+- `grade TEXT NOT NULL`
+- `section TEXT NOT NULL`
+- `card_uid TEXT UNIQUE`
+- `enrollment_date TEXT NOT NULL`
+- `updated_date TEXT NOT NULL`
 
-## 5. Runtime files under `data/`
+Indexed and validated fields include `student_no`, `card_uid`, and grade/section grouping.
 
-- `settings.json`: connection, theme/branding, cooldown/confidence, logging, auto-backup, schedule, calendar, wizard flags, display role, and `auth` hash/salt/iteration data. It is sensitive; editing `current_role` does not elevate a session.
-- `.admin_initialized`: marker written after first administrator password creation; its presence prevents settings deletion from restarting password setup.
-- `attendance.db`: local student/card and attendance data, unencrypted at rest.
-- `backups/`: timestamped database snapshots.
-- `logs/`: rotating runtime logs.
-- `exports/`: user-selected CSV/report files.
-- `charts/`: generated report charts when requested.
+### `attendance`
+
+Columns:
+
+- `id INTEGER PRIMARY KEY AUTOINCREMENT`
+- `fingerprint_id INTEGER NOT NULL`
+- `date TEXT NOT NULL`
+- `time TEXT NOT NULL`
+- `confidence INTEGER NOT NULL`
+- `status TEXT NOT NULL`
+- `timestamp TEXT NOT NULL`
+- `event_type TEXT` (nullable, often `time_in` or `time_out`)
+
+The application uses `fingerprint_id = 0` as a reserved placeholder for unregistered or unknown scans. Student deletion preserves these rows by remapping them to ID 0 rather than losing the record entirely.
+
+## 5. Data directory contents
+
+The current runtime writes to the local `data/` directory:
+
+- `settings.json` — UI settings, auth hash, wizard progress, and local preferences
+- `.admin_initialized` — written after the initial admin password is created
+- `attendance.db` — primary SQLite database
+- `backups/` — timestamped database snapshots
+- `logs/` — rotating app logs
+- `exports/` — CSV exports and report output
 
 ## 6. Active firmware and protocol
 
-The active sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` (firmware identifier `1.2.5`, protocol `1`). PC to ESP32 is 115200 baud; ESP32 UART2 to AS608 is 57600 baud. Fingerprint IDs are 1-127. AS608 uses ESP32 RX GPIO14 and TX GPIO27. RC522 uses SS/SDA GPIO5, RST GPIO4, MISO GPIO19, MOSI GPIO23, and SCK GPIO18.
+The active sketch is:
 
-Fingerprint commands are `ID?`, `SCAN`, `STOP`, `LIST`, `ENROLL`, `ENROLL:<id>`, `DELETE:<id>`, and `WIPE`. Host status messages use `STATUS:<state>`. RFID uses typed events and separate Classic block and Type 2 page adapters; supported profiles are Classic Mini/1K/4K, 48-byte Ultralight, NTAG215, and NTAG216. Positively identified MIFARE Plus and ambiguous 144-byte Ultralight profiles are detection-only; ISO/IEC 14443-4 cards are reported unclassified, with no DESFire I/O. Card write and erase results include operation and verification status; batch erase only unlinks after verified empty readback. Text output includes `READY`, `SCAN_MODE`, `CMD_MODE`, `ID:n`, `CONFIDENCE:n`, `UNKNOWN`, enrollment progress, delete/wipe results, and card results. Firmware fingerprint cooldown is 2000 ms; halted cards are polled without a blocking RFID cooldown, and Python applies the configured desktop attendance cooldown and minimum confidence.
+- `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`
 
-## 7. Roles and setup
+It identifies itself as:
+
+- device: `Digital Student Identification System`
+- board: `ESP32`
+- firmware: `1.6.2`
+- sensor: `AS608`
+- protocol: `1`
+
+### Serial boundary
+
+- PC to ESP32: 115200 baud
+- ESP32 to AS608: 57600 baud
+
+### Commands
+
+- `ID?`
+- `SCAN`
+- `STOP`
+- `LIST`
+- `ENROLL`
+- `ENROLL:<id>`
+- `DELETE:<id>`
+- `WIPE`
+- `STATUS:<state>`
+
+### Device output notes
+
+The firmware emits text and JSON payloads including scan matches, mode transitions, enrollment progress, delete/wipe progress, and card events. Fingerprint IDs are in the 1-127 range, and the firmware restricts recognition attempts to a minimum confidence threshold and a device-level cooldown.
+
+## 7. Role model and first-run wizard
+
+Roles are defined in `python/config.py` and enforced in `python/core/permissions.py`.
 
 | Role | Permissions |
 | --- | --- |
-| `guest` | `scan` |
+| `guest` | `scan`, `attendance_evaluation` |
 | `teacher` | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
 | `admin` | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
-Every launch starts guest. Admin elevation requires the configured password. Idle expiry defaults to 10 minutes and locking returns to guest. First-run order is password, device, schedule, branding; device connection may be deferred.
+The wizard order is:
 
-## 8. UI and behavioral tests
+1. password
+2. device
+3. schedule
+4. branding
 
-`python/gui_web/web/index.html` contains Dashboard, Attendance, Students, Reports, Logs, Settings, and Calendar pages plus first-run, authentication, password, enrollment, RFID, and calendar modals. `app.js` calls the bridge and consumes `window.dsisEvent`; `styles.css` provides presentation. There is no local web server.
+The password step is determined by the presence of the stored password hash, not by a separate settings flag.
 
-`tests/test_v3_authentication.py` documents salted hashing, role hierarchy, first-run/elevation, expiry, and guest settings rejection. Attendance tests cover parsing, refresh, status, evaluation, export rows, and cooldown. Database tests cover initialization, reserved ID 0, reset, backup, restore containment, and reports. Serial, firmware-helper, dialog, UI-regression, and physical smoke tests cover remaining boundaries; physical tests require hardware.
+## 8. Historical stack and archive boundary
 
-## 9. Historical stack
+- v1: CustomTkinter-based app
+- v2: Qt/PySide-based app
+- v3: HTML/pywebview desktop app
 
-v1 was CustomTkinter, v2 was PySide6/Qt, and v3 is HTML loaded in a native pywebview window. v1/v2 code and notes remain for lineage and comparison only. They are archived and unsupported as current launch or operating paths.
+The v1 and v2 sources remain in `archive/legacy-ui/` and other legacy directories for lineage, regression reference, and historical comparison. They are not the current operating or support path.
+
+## 9. Behavioral evidence from tests
+
+The active tests treat the following behaviors as required:
+
+- salted password hashing and verification
+- guest-to-teacher/admin elevation rules
+- admin password requirement for privilege changes
+- in-memory role authorization rather than `settings.json`-based trust
+- attendance row event tagging and evaluation logic
+- backup and restore validation
+- database initialization and ID 0 placeholder handling
+
+This is the same source-of-truth boundary used by the docs in this repository.

@@ -1,4 +1,4 @@
-# Security Audit Report: AI-Assisted Fingerprint Attendance System
+# Security Audit Report: Digital-Student-Identification-System
 
 **Date:** August 14, 2026  
 **Project:** Digital Student Identification System (DSIS)  
@@ -22,7 +22,7 @@ This security audit identified **15 vulnerabilities** across the fingerprint att
 
 ### 1. **Shell Injection via subprocess.Popen with shell=True**
 
-**Location:** [python/gui/serial_troubleshooting.py](../python/gui/serial_troubleshooting.py#L50)
+**Location:** [archive/legacy-ui/v2/python/gui/serial_troubleshooting.py](../archive/legacy-ui/v2/python/gui/serial_troubleshooting.py)
 
 **Severity:** CRITICAL
 
@@ -131,7 +131,7 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
 
 ### 3. **Insecure Dynamic Module Loading**
 
-**Location:** [python/gui/legacy/reports_table_page.py](../python/gui/legacy/reports_table_page.py#L12-L28)
+**Location:** [archive/legacy-ui/v2/python/gui/reports_page.py](../archive/legacy-ui/v2/python/gui/reports_page.py)
 
 **Severity:** CRITICAL
 
@@ -210,7 +210,7 @@ except Exception as exc:
 
 ### 4. **Weak Client-Side Authorization Model**
 
-**Location:** [python/config.py](../python/config.py#L36-L48), [python/gui/app.py](../python/gui/app.py#L136), [python/gui/app.py](../python/gui/app.py#L289-L291)
+**Location:** [python/config.py](../python/config.py), [archive/legacy-ui/v2/python/gui/app.py](../archive/legacy-ui/v2/python/gui/app.py), and [archive/legacy-ui/v2/python/gui/settings_page.py](../archive/legacy-ui/v2/python/gui/settings_page.py)
 
 **Severity:** HIGH
 
@@ -289,7 +289,7 @@ class AuthService:
 
 ### 5. **Missing Input Validation on Student Data**
 
-**Location:** [python/core/database.py](../python/core/database.py#L178-L206), [python/services/student_service.py](../python/services/student_service.py#L10)
+**Location:** [python/core/database.py](../python/core/database.py), [python/services/student_service.py](../python/services/student_service.py)
 
 **Severity:** HIGH
 
@@ -389,7 +389,7 @@ def add_student(
 
 ### 6. **Improper Exception Handling with Information Disclosure**
 
-**Location:** Multiple files - [python/core/database.py](../python/core/database.py#L807-L817), [python/gui/reports_page.py](../python/gui/reports_page.py#L46-L71)
+**Location:** Multiple files - [python/core/database.py](../python/core/database.py) and [archive/legacy-ui/v2/python/gui/reports_page.py](../archive/legacy-ui/v2/python/gui/reports_page.py)
 
 **Severity:** HIGH
 
@@ -443,7 +443,7 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
 
 ### 7. **Race Condition in Wipe Operation**
 
-**Location:** [python/gui/app.py](../python/gui/app.py#L113-L125)
+**Location:** [archive/legacy-ui/v2/python/gui/app.py](../archive/legacy-ui/v2/python/gui/app.py)
 
 **Severity:** HIGH
 
@@ -510,7 +510,7 @@ class FingerprintApp(ctk.CTk):
 
 ### 8. **SQL Injection Risk in Dynamic Query Building**
 
-**Location:** [python/core/database.py](../python/core/database.py#L390-L416)
+**Location:** [python/core/database.py](../python/core/database.py)
 
 **Severity:** MEDIUM
 
@@ -694,7 +694,7 @@ def backup_database_encrypted() -> Tuple[bool, str, Optional[str]]:
 
 ### 11. **Missing Validation on Port and Baud Rate**
 
-**Location:** [python/gui/app.py](../python/gui/app.py#L380-L390)
+**Location:** [archive/legacy-ui/v2/python/gui/app.py](../archive/legacy-ui/v2/python/gui/app.py)
 
 **Severity:** MEDIUM
 
@@ -764,7 +764,7 @@ def _get_selected_port(self) -> str:
 
 ### 12. **Bare Except Clauses Hiding Errors**
 
-**Location:** Multiple locations - [python/gui/app.py](../python/gui/app.py#L97), [python/core/device_discovery.py](../python/core/device_discovery.py#L160)
+**Location:** Multiple locations - [archive/legacy-ui/v2/python/gui/app.py](../archive/legacy-ui/v2/python/gui/app.py), [python/core/device_discovery.py](../python/core/device_discovery.py)
 
 **Severity:** MEDIUM
 
