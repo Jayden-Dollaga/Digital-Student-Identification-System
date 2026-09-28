@@ -16,14 +16,15 @@ A document in a lower category may be valuable evidence without being a current 
 
 ## Product boundary
 
-DSIS v3 is the maintained application. `run_web_gui.py` launches `python.gui_web.main_web`, which creates a pywebview window over `python/gui_web/web/index.html` and exposes `python/gui_web/api.py` as `window.pywebview.api`. The API delegates to shared modules in `python/core/` and `python/services/`; it does not create a separate web server.
+DSIS v3 is the maintained application. `run_web_gui.py` (or the Windows wrapper `run_web_gui.bat`) launches `python/gui_web/main_web.py`, which creates a pywebview window over `python/gui_web/web/index.html` and exposes `python/gui_web/api.py` as `window.pywebview.api`. The API delegates to shared modules in `python/core/` and `python/services/`, with configuration in `python/config.py` and `python/settings_store.py`; it does not create a separate web server. The compatibility packages `python/gui/` and `python/gui_qt/` exist for historical imports/tests and are not active UI implementations.
 
 The current hardware path is the maintained all-in-one sketch at `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. It connects the ESP32 to an AS608 sensor over UART, an RC522 reader over SPI, and the desktop application to the ESP32 over USB serial.
 
 ## Historical and non-authoritative areas
 
 - `python/gui_web/v2_reference/` is a preserved Qt implementation used for comparison and migration reference.
-- `archive/legacy-ui/` contains v1 CustomTkinter, older v2 material, prototypes, and investigations. It is not the supported launch path.
+- `archive/legacy-ui/` contains read-only v1 CustomTkinter, v2 Qt, prototypes, and investigations. These files are not shipped in the supported v3 app and must not be copied back into the active source tree.
+- `python/gui_web/v2_reference/` is a read-only Qt reference snapshot, not part of the active v3 runtime.
 - `docs/generated/` contains generated snapshots. Regenerate or verify them before relying on details.
 - `docs/Research/` contains concept and study material, not product requirements.
 - `docs/Dup/`, old diagnostic reports, and `audit/` preserve history and findings. Their claims are scoped to the snapshot named in each file.

@@ -99,7 +99,7 @@ The `Research/` directory contains concept and study material. It is intentional
 
 DSIS has gone through multiple UI and implementation generations. The current supported desktop application is the **v3 HTML/pywebview application** launched with `run_web_gui.py` or `run_web_gui.bat`.
 
-Older Qt/CustomTkinter implementations and experimental prototypes remain in the repository because they are useful for comparison, regression investigation, and project history. They are not automatically supported production launchers.
+Older Qt/CustomTkinter implementations and experimental prototypes remain in the repository because they are useful for comparison, regression investigation, and project history. Treat them as read-only historical references; they are not shipped in or supported as production launchers for v3.
 
 ## Documentation maintenance
 

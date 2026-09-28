@@ -1,6 +1,8 @@
 # PROJECT FORENSIC AUDIT
 
-This report is an analysis-only forensic audit of the repository as it exists today. No source files were modified, deleted, or “fixed.” The repository itself is treated as the primary source of truth.
+> Historical snapshot: statements describing Qt as the newer/current GUI reflect the audit's original source baseline and are superseded by the current product boundary in [README.md](../../README.md) and [documentation-authority.md](../Development/documentation-authority.md). This audit is retained for provenance, not as a current source map.
+
+This report is an analysis-only forensic audit of the repository at its recorded audit baseline. No source files were modified, deleted, or “fixed.” The repository itself was treated as the primary source of truth at that time.
 
 ---
 

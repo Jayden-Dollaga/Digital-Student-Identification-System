@@ -71,7 +71,7 @@ jobs:
       - name: Check active JavaScript syntax
         run: node --check python/gui_web/web/app.js
 
-      - name: Run tests (unit + integration + unmarked)
+      - name: Run v3 and shared tests (unit + integration + unmarked)
         # Includes unit + integration + anything nobody has tagged yet, so
         # a newly-added test can't silently skip CI just because it wasn't
         # marked.
@@ -80,13 +80,13 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: pytest -m "not ui_qt and not ui_tk and not hardware" -v
 
-      - name: Run tests (ui_tk - archived v1, customtkinter)
+      - name: Run archived v1 UI tests (CustomTkinter, legacy)
         env:
           PYTHONPATH: python
           QT_QPA_PLATFORM: offscreen
         run: pytest -m "ui_tk" -v
 
-      - name: Run tests (ui_qt - archived v2, PySide6)
+      - name: Run archived v2 UI tests (PySide6, legacy)
         # MUST run with --forked (pytest-forked), and MUST be its own step
         # separate from ui_tk. PySide6 has a known segfault-on-interpreter-
         # exit bug under a headless/offscreen display: confirmed locally by

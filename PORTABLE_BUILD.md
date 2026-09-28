@@ -29,8 +29,8 @@ written inside the bundled executable area.
 
 The repository also retains `tools/build_portable.bat` and
 `tools/fingerprint_portable.spec`. That workflow packages the older
-CustomTkinter application and should be treated as compatibility tooling, not as
-the supported Qt release build. `tools/portable_bootstrap.bat` installs the
+CustomTkinter application and should be treated as read-only compatibility
+tooling, not as the supported v3 pywebview build. `tools/portable_bootstrap.bat` installs the
 requirements used by that portable setup.
 
 The older CustomTkinter workflow remains compatibility tooling only. For current

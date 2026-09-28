@@ -38,6 +38,12 @@ The current maintained interface is the **v3 HTML/pywebview application**. The b
 
 > **Documentation status:** The canonical current guides are grouped under [`docs/`](docs/README.md): User Guide, Architecture, Hardware, Development, Troubleshooting, History, and API. v1 CustomTkinter and v2 Qt material is retained for lineage and comparison; it is not the supported launch path. Generated and forensic reports are scoped to their recorded snapshot.
 
+## Which code is live?
+
+The supported app starts at `run_web_gui.py` (`run_web_gui.bat` on Windows), opens `python/gui_web/`, and uses shared modules in `python/core/` and `python/services/` plus `python/config.py` and `python/settings_store.py`. The small `python/gui/` and `python/gui_qt/` packages are compatibility import facades, not active UI implementations.
+
+Treat `archive/legacy-ui/` and `python/gui_web/v2_reference/` as read-only historical code; they are not shipped in the supported v3 app. Make v3 changes in the active paths above, not by copying archived implementations back into `python/`.
+
 ## Features
 
 ### Student Identification

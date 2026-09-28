@@ -2,7 +2,7 @@
 
 This folder preserves experimental, diagnostic, and legacy UI assets that were separated from the active runtime tree during the project reorganization.
 
-Nothing in this folder is part of the supported DSIS runtime. The active desktop
+Everything in this folder is archived, read-only, and not shipped in the supported DSIS runtime. The active desktop
 workflow is the HTML/pywebview v3 application launched by `run_web_gui.py`; these files remain for
 historical reference and troubleshooting only.
 
