@@ -18,8 +18,12 @@ from pathlib import Path
 
 import webview
 
-from api import Api
-from core.logger import log
+try:
+    from .api import Api
+    from ..core.logger import log
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from api import Api
+    from core.logger import log
 
 
 def _logo_path() -> Path:

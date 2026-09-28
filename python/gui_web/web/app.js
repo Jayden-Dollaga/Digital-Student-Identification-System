@@ -24,6 +24,12 @@ const ROLE_LEVELS = { guest: 0, teacher: 1, admin: 2 };
 let deviceFingerprintCount = null;
 let connectionPollTimer = null;
 
+function normalizeRoleKey(role) {
+  const key = String(role || 'guest').trim().toLowerCase();
+  if (key === 'administrator') return 'admin';
+  return key in ROLE_LEVELS ? key : 'guest';
+}
+
 function hasPermission(action) {
   return currentPermissions.has(action);
 }
@@ -106,8 +112,8 @@ function nav(el, key) {
 
 function applySessionState(state) {
   if (!state || !state.ok) return;
-  const roleKey = String(state.role || 'guest').toLowerCase();
-  currentRole = roleKey === 'administrator' ? 'admin' : roleKey;
+  const roleKey = normalizeRoleKey(state.role);
+  currentRole = roleKey;
   currentPermissions = new Set(state.permissions || ['scan']);
   paintTitlebarRole(currentRole);
   const titlebar = document.getElementById('titlebar-role');
@@ -434,12 +440,13 @@ document.addEventListener('keydown', event => {
 });
 
 async function requestRoleChange(role) {
-  if (role === 'guest') { await lockSession(); return; }
-  if (role === currentRole) return;
+  const normalized = normalizeRoleKey(role);
+  if (normalized === 'guest') { await lockSession(); return; }
+  if (normalized === currentRole) return;
 
-  const result = await api().set_current_role(role);
+  const result = await api().set_current_role(normalized);
   if (result.requires_password === true) {
-    openRoleAuthModal(role);
+    openRoleAuthModal(normalized);
     return;
   }
   if (result.ok) applySessionState(result);
@@ -648,12 +655,26 @@ async function showSerialTroubleshooting(reason = 'manual') {
 
 async function toggleScan() {
   if (!guardPermission('scan', 'Scanning')) return;
-  if (!connected || !api()) return;
+  if (!api()) return;
+  if (!connected) {
+    alert('ESP32 not connected. Connect first to start scanning.');
+    return;
+  }
   scanning = !scanning;
   const btn = document.getElementById('scan-btn');
   if (scanning) {
     const ok = await api().start_scan();
-    if (!ok) { scanning = false; return; }
+    if (!ok) {
+      scanning = false;
+      const connection = await api().get_connection_status();
+      connected = !!(connection && connection.connected);
+      if (!connected) {
+        alert('ESP32 not connected. Connect first to start scanning.');
+      } else {
+        alert('Could not start scanning. Check that the ESP32 is ready.');
+      }
+      return;
+    }
     btn.textContent = 'STOP';
     btn.classList.add('danger');
     setStatus('scanning');
@@ -779,6 +800,7 @@ function handleScanResult(payload) {
       setManageRfidProgress(3);
     } else if (payload.event === 'saved') {
       setManageRfidProgress(4);
+      markManageRfidModified();
       if (selectedStudent) selectedStudent.card_uid = payload.uid || '';
       const currentCard = manageRfidModal.querySelector('#rfid-current-card');
       if (currentCard) currentCard.textContent = payload.uid || 'Not linked';
@@ -800,7 +822,6 @@ function handleScanResult(payload) {
       updateStudentDetailButtons();
       if (rfidSessionTimeout) clearTimeout(rfidSessionTimeout);
       rfidSessionTimeout = null;
-      setTimeout(() => closeManageRfidDialog(), 900);
       return;
     }
     if (status) {
@@ -1343,6 +1364,13 @@ let manageRfidModal = null;
 let batchRfidEraseModal = null;
 let rfidSessionTimeout = null;
 
+function markManageRfidModified() {
+  if (!manageRfidModal) return;
+  manageRfidModal.dataset.modified = 'true';
+  const closeButton = manageRfidModal.querySelector('#rfid-modal-close');
+  if (closeButton) closeButton.textContent = 'Done';
+}
+
 function setManageRfidProgress(stage) {
   if (!manageRfidModal) return;
   manageRfidModal.querySelectorAll('.rfid-step').forEach((step, index) => {
@@ -1470,7 +1498,7 @@ function openManageRfidDialog() {
       <div class="modal-actions rfid-modal-actions">
         <button id="rfid-modal-primary" class="hdr-btn primary rfid-modal-primary">${existingCard ? 'Replace RFID' : 'Register RFID'}</button>
         <button id="rfid-modal-unlink" class="hdr-btn danger rfid-modal-danger" ${existingCard ? '' : 'disabled'}>Unlink RFID</button>
-        <button class="hdr-btn rfid-modal-cancel" data-rfid-cancel>Cancel</button>
+        <button id="rfid-modal-close" class="hdr-btn rfid-modal-cancel" data-rfid-close>Close</button>
       </div>
     </div>
   `;
@@ -1564,10 +1592,10 @@ function openManageRfidDialog() {
         }
         selectedStudent.card_uid = '';
         updateCardReadout();
+        markManageRfidModified();
         renderUnlinkConfirm(false);
         setStatus('Card unlinked.', 'success');
         await loadStudentsPage();
-        setTimeout(() => closeManageRfidDialog(), 750);
       };
     }
     if (backButton) {
@@ -1578,7 +1606,7 @@ function openManageRfidDialog() {
     }
   });
 
-  modal.querySelector('[data-rfid-cancel]').addEventListener('click', () => {
+  modal.querySelector('[data-rfid-close]').addEventListener('click', () => {
     closeManageRfidDialog();
   });
   modal.addEventListener('click', event => {
@@ -1982,7 +2010,11 @@ let enrollState = null; // { existing, resolveId }
 function reenrollSelectedStudent() {
   if (!selectedStudent || !selectedStudent.fingerprint_id) return;
   if (!connected) {
-    alert('Connect to the ESP32 first.');
+    alert('ESP32 not connected. Connect first before enrolling a student.');
+    return;
+  }
+  if (scanning) {
+    alert('Stop attendance scanning before enrolling a student.');
     return;
   }
   openEnrollDialog(selectedStudent);
@@ -1990,6 +2022,14 @@ function reenrollSelectedStudent() {
 
 function openEnrollDialog(existing) {
   if (!guardPermission('enroll', 'Student enrollment')) return;
+  if (!connected) {
+    alert('ESP32 not connected. Connect first before enrolling a student.');
+    return;
+  }
+  if (scanning) {
+    alert('Stop attendance scanning before enrolling a student.');
+    return;
+  }
   closeEnrollDialog();
   const overlay = document.createElement('div');
   overlay.id = 'enroll-modal-overlay';
@@ -2109,6 +2149,15 @@ function enrollPrimaryAction() {
 }
 
 async function startEnrollment() {
+  if (!connected) {
+    alert('ESP32 not connected. Connect first before enrolling a student.');
+    return;
+  }
+  if (scanning) {
+    alert('Stop attendance scanning before enrolling a student.');
+    return;
+  }
+
   const sno = document.getElementById('em-sno').value.trim();
   const name = document.getElementById('em-name').value.trim();
   const grade = document.getElementById('em-grade').value.trim();
@@ -3033,7 +3082,7 @@ function paintTitlebarRole(key) {
 }
 
 function updateRole() {
-  const key = document.getElementById('role-select').value;
+  const key = normalizeRoleKey(document.getElementById('role-select').value);
   requestRoleChange(key);
 }
 

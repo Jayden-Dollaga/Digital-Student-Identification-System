@@ -23,6 +23,35 @@ class ProjectStructureTests(unittest.TestCase):
         self.assertTrue(hasattr(serial_handler, "SerialHandler"))
         self.assertTrue(hasattr(attendance, "AttendanceProcessor"))
 
+    def test_v3_package_import_uses_canonical_entrypoint(self):
+        import importlib
+        import sys
+        import types
+
+        previous_webview = sys.modules.get("webview")
+        webview_stub = types.ModuleType("webview")
+        webview_stub.create_window = lambda *args, **kwargs: None
+        webview_stub.start = lambda *args, **kwargs: None
+        sys.modules["webview"] = webview_stub
+
+        try:
+            for name in [
+                "python.gui_web.main_web",
+                "python.gui_web.api",
+                "gui_web.main_web",
+                "gui_web.api",
+            ]:
+                sys.modules.pop(name, None)
+
+            module = importlib.import_module("python.gui_web.main_web")
+        finally:
+            if previous_webview is None:
+                sys.modules.pop("webview", None)
+            else:
+                sys.modules["webview"] = previous_webview
+
+        self.assertTrue(hasattr(module, "main"))
+
 
 if __name__ == "__main__":
     unittest.main()

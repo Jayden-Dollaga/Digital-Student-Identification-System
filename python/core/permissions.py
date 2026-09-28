@@ -38,10 +38,18 @@ _session_expires_at: Optional[float] = None
 _session_timeout_seconds = 600.0
 
 
+def normalize_role_key(role_key: Optional[str]) -> str:
+    """Canonicalize a role label to the app's internal role keys."""
+    key = str(role_key or "guest").strip().lower()
+    if key == "administrator":
+        return "admin"
+    return key if key in ROLE_LEVELS else "guest"
+
+
 def set_session_role(role_key: Optional[str], timeout_seconds: Optional[float] = None) -> None:
     """Set the in-memory role used by the active v3 API session."""
     global _session_role, _session_expires_at, _session_timeout_seconds
-    _session_role = role_key if role_key in ROLE_LEVELS else "guest"
+    _session_role = normalize_role_key(role_key)
     if timeout_seconds is not None:
         _session_timeout_seconds = max(0.01, float(timeout_seconds))
     _session_expires_at = time.monotonic() + _session_timeout_seconds if _session_role != "guest" else None
@@ -87,7 +95,7 @@ def has_permission(action: str, role_key: Optional[str] = None) -> bool:
         True if the role grants this permission, False otherwise (including
         for unknown roles - fail closed, not open).
     """
-    role_key = role_key or get_current_role()
+    role_key = normalize_role_key(role_key or get_current_role())
     role = CONFIG.user_roles.get(role_key)
     if not role:
         log.warning("Permission check against unknown role", role=role_key, action=action)

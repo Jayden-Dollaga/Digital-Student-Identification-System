@@ -32,6 +32,8 @@ python -m pip install openpyxl numpy
 
 .venv\Scripts\activate
 
+pytest -q -rs
+
 python archive\legacy-ui\v1\python/gui/app.py
 python archive\legacy-ui\v2\run_qt_gui.py
 python run_web_gui.py

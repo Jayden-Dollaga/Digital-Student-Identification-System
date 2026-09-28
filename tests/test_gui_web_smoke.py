@@ -107,6 +107,31 @@ def test_student_refresh_preserves_the_selected_fingerprint():
     assert "students.find(s => Number(s.fingerprint_id) === previousFingerprintId) || students[0]" in script
 
 
+def test_scan_shows_popup_when_esp32_is_disconnected():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "ESP32 not connected. Connect first to start scanning." in script
+    assert "const connection = await api().get_connection_status();" in script
+    assert "Could not start scanning. Check that the ESP32 is ready." in script
+
+
+def test_role_switch_keeps_teacher_as_teacher():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "function normalizeRoleKey" in script
+    assert "return key in ROLE_LEVELS ? key : 'guest';" in script
+    assert "const normalized = normalizeRoleKey(role);" in script
+
+
+def test_enrollment_requires_connection_and_blocks_while_scanning():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "ESP32 not connected. Connect first before enrolling a student." in script
+    assert "Stop attendance scanning before enrolling a student." in script
+    assert "if (!connected) {" in script
+    assert "if (scanning) {" in script
+
+
 def test_v3_validation_api_returns_field_feedback(monkeypatch):
     from gui_web.api import Api
 

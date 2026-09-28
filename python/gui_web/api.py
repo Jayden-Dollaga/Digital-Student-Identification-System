@@ -37,27 +37,50 @@ from typing import Any, Dict, List, Optional
 
 import webview
 
-from config import get_config
-from core import commands as cmds
-from core import database as db
-from core.rfid_card import encrypt_student_card_payload
-from core import auth
-from core import attendance_calendar
-from core import setup_wizard
-from core import permissions
-from core.attendance import AttendanceProcessor
-from core.attendance_status import calculate_attendance_status
-from core.logger import LOG, LOG_FILE, AppFormatter, log
-from core.serial_handler import SerialHandler, list_serial_ports
-from core.utils import parse_json_line
-from gui_web.perf_profiler import PerfProfiler
-from settings_store import (
-    admin_initialization_marker_exists,
-    default_settings,
-    load_settings,
-    save_settings,
-    write_admin_initialization_marker,
-)
+try:
+    from ..config import get_config
+    from ..core import auth
+    from ..core import attendance_calendar
+    from ..core import commands as cmds
+    from ..core import database as db
+    from ..core import permissions
+    from ..core import setup_wizard
+    from ..core.attendance import AttendanceProcessor
+    from ..core.attendance_status import calculate_attendance_status
+    from ..core.logger import LOG, LOG_FILE, AppFormatter, log
+    from ..core.rfid_card import encrypt_student_card_payload
+    from ..core.serial_handler import SerialHandler, list_serial_ports
+    from ..core.utils import parse_json_line
+    from ..settings_store import (
+        admin_initialization_marker_exists,
+        default_settings,
+        load_settings,
+        save_settings,
+        write_admin_initialization_marker,
+    )
+    from .perf_profiler import PerfProfiler
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from config import get_config
+    from core import auth
+    from core import attendance_calendar
+    from core import commands as cmds
+    from core import database as db
+    from core import permissions
+    from core import setup_wizard
+    from core.attendance import AttendanceProcessor
+    from core.attendance_status import calculate_attendance_status
+    from core.logger import LOG, LOG_FILE, AppFormatter, log
+    from core.rfid_card import encrypt_student_card_payload
+    from core.serial_handler import SerialHandler, list_serial_ports
+    from core.utils import parse_json_line
+    from gui_web.perf_profiler import PerfProfiler
+    from settings_store import (
+        admin_initialization_marker_exists,
+        default_settings,
+        load_settings,
+        save_settings,
+        write_admin_initialization_marker,
+    )
 
 CONFIG = get_config()
 ADMIN_LOGIN_MAX_FAILURES = 5
@@ -1920,17 +1943,20 @@ class Api:
         return permissions.get_current_role()
 
     def set_current_role(self, role: str) -> Dict[str, Any]:
-        if role not in CONFIG.user_roles:
+        normalized = permissions.normalize_role_key(role)
+        if normalized not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
+
         current = permissions.get_current_role()
-        if permissions.ROLE_LEVELS.get(role, -1) > permissions.ROLE_LEVELS.get(current, -1):
+        if normalized == "admin" and permissions.ROLE_LEVELS.get(current, -1) < permissions.ROLE_LEVELS.get("admin", 0):
             return {
                 "ok": False,
                 "status": 401,
                 "requires_password": True,
-                "message": "Password authentication is required to elevate this session.",
+                "message": "Administrator password is required to elevate this session.",
             }
-        permissions.set_session_role(role, self._session_timeout_seconds)
+
+        permissions.set_session_role(normalized, self._session_timeout_seconds)
         return self.get_session_state()
 
     def is_first_run_setup_required(self) -> Dict[str, Any]:
@@ -2039,14 +2065,15 @@ class Api:
 
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
         """Authenticate a role that requires credentials."""
-        if role not in CONFIG.user_roles:
+        normalized = permissions.normalize_role_key(role)
+        if normalized not in CONFIG.user_roles:
             return {"ok": False, "message": "Unknown role."}
 
-        if role != "admin":
+        if normalized != "admin":
             current = permissions.get_current_role()
-            if not permissions.has_role_permission(current, role):
+            if not permissions.has_role_permission(current, normalized):
                 return {"ok": False, "message": "This role change does not use password elevation."}
-            permissions.set_session_role(role, self._session_timeout_seconds)
+            permissions.set_session_role(normalized, self._session_timeout_seconds)
             return self.get_session_state()
 
         locked_until = getattr(self, "_admin_locked_until", 0.0)

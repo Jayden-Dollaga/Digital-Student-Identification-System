@@ -62,15 +62,14 @@ def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     assert authenticated["role"] == "admin"
 
 
-def test_guest_cannot_elevate_to_teacher_without_password():
+def test_guest_can_switch_to_teacher_without_password():
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
     permissions.set_session_role("guest", 600.0)
 
     teacher = instance.set_current_role("teacher")
-    assert teacher["ok"] is False
-    assert teacher["requires_password"] is True
-    assert instance.get_current_role() == "guest"
+    assert teacher["ok"] is True
+    assert teacher["role"] == "teacher"
 
     guest = instance.set_current_role("guest")
     assert guest["ok"] is True
@@ -85,6 +84,21 @@ def test_admin_can_switch_down_to_teacher_without_password():
     teacher = instance.set_current_role("teacher")
     assert teacher["ok"] is True
     assert teacher["role"] == "teacher"
+
+
+def test_role_aliases_are_canonicalized_and_teacher_stays_teacher():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("admin", 600.0)
+
+    teacher = instance.set_current_role("Teacher")
+    assert teacher["ok"] is True
+    assert teacher["role"] == "teacher"
+
+    admin = instance.set_current_role("Administrator")
+    assert admin["ok"] is False
+    assert admin["requires_password"] is True
+    assert instance.get_current_role() == "teacher"
 
 
 def test_teacher_to_admin_requires_password_without_changing_role():

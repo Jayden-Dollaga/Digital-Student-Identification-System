@@ -6,6 +6,10 @@ PYTHON_ROOT = ROOT / "python"
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
+import pytest
+
+pytest.importorskip("customtkinter")
+
 from gui.serial_troubleshooting import build_common_port_candidates
 from gui.app import FingerprintApp
 
@@ -34,9 +38,7 @@ class DummySerialHandler:
         return self.ports
 
 
-import pytest
-
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.ui_tk]
 
 def test_common_port_candidates_include_common_values():
     candidates = build_common_port_candidates(["COM3", "COM4"])

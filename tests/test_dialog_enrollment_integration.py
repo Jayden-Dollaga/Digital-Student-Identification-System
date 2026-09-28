@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / "python"))
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import QTimer
 
+from conftest import grant_test_session_role
 from core.serial_handler import SerialHandler
 from core.commands import cmd_enroll, cmd_stop
 from core.attendance import AttendanceProcessor
@@ -93,87 +94,122 @@ def test_enrollment_dialog_in_gui():
     # Setup serial
     print("\n1. Setting up serial communication...")
     serial_handler = SerialHandler()
-    serial_handler.connect()
-    time.sleep(0.5)
-    
-    if not serial_handler.is_connected():
-        print("   [FAIL] Not connected")
-        return _skip_or_fail("A serial port was detected but no ESP32 responded - nothing to test against.")
-    
-    print("   [OK] Connected")
-    
-    # Setup SerialWorker
-    print("\n2. Starting SerialWorker...")
-    attendance_processor = AttendanceProcessor(serial_handler)
-    serial_worker = SerialWorker(serial_handler, attendance_processor)
-    serial_worker.start()
-    time.sleep(0.5)
-    print("   [OK] Started")
-    
-    # Create dialog
-    print("\n3. Creating EnrollDialog...")
-    dialog = EnrollDialog(serial_handler, serial_worker, parent=main_window)
-    print("   [OK] Dialog created")
-    
-    # Track signals
-    print("\n4. Monitoring for enrollment signals...")
-    received_signals = []
-    
-    def track_enroll_progress(progress):
-        event = progress.get("event")
-        id_val = progress.get("id")
-        print(f"   [SIGNAL] Enrollment event: {event} (ID={id_val})")
-        received_signals.append(event)
-    
-    # Keep the dialog's own handler connected; close() owns its disconnect.
-    dialog.serial_worker.enroll_progress.connect(track_enroll_progress)
-    
-    # Setup auto-send of enrollment command after dialog opens
-    print("\n5. Setting up auto-enrollment in 1 second...")
-    
-    def auto_enroll():
-        print("   Sending STOP...")
-        cmd_stop(serial_handler)
-        time.sleep(0.3)
-        print("   Sending ENROLL...")
-        result = cmd_enroll(serial_handler)
-        print(f"   cmd_enroll() returned: {result}")
-    
-    timer = QTimer()
-    timer.setSingleShot(True)
-    timer.timeout.connect(auto_enroll)
-    timer.start(1000)
-    
-    # Show dialog and process events
-    print("\n6. Showing dialog and processing events...")
-    print("   (Will wait for enrollment signal for 10 seconds)")
-    
-    start_time = time.time()
-    while time.time() - start_time < 10:
-        app.processEvents()
+    serial_worker = None
+    dialog = None
+    timer = None
+    track_enroll_progress = None
+    try:
+        serial_handler.connect()
+        time.sleep(0.5)
+        
+        if not serial_handler.is_connected():
+            print("   [FAIL] Not connected")
+            return _skip_or_fail("A serial port was detected but no ESP32 responded - nothing to test against.")
+        
+        print("   [OK] Connected")
+
+        grant_test_session_role("admin", "enroll", 600.0)
+        print("   [OK] Session role set to admin for enrollment")
+        
+        # Setup SerialWorker
+        print("\n2. Starting SerialWorker...")
+        attendance_processor = AttendanceProcessor(serial_handler)
+        serial_worker = SerialWorker(serial_handler, attendance_processor)
+        serial_worker.start()
+        time.sleep(0.5)
+        print("   [OK] Started")
+        
+        # Create dialog
+        print("\n3. Creating EnrollDialog...")
+        dialog = EnrollDialog(serial_handler, serial_worker, parent=main_window)
+        print("   [OK] Dialog created")
+        
+        # Track signals
+        print("\n4. Monitoring for enrollment signals...")
+        received_signals = []
+        
+        def track_enroll_progress(progress):
+            event = progress.get("event")
+            id_val = progress.get("id")
+            print(f"   [SIGNAL] Enrollment event: {event} (ID={id_val})")
+            received_signals.append(event)
+        
+        # Keep the dialog's own handler connected; close() owns its disconnect.
+        dialog.serial_worker.enroll_progress.connect(track_enroll_progress)
+        
+        # Setup auto-send of enrollment command after dialog opens
+        print("\n5. Setting up auto-enrollment in 1 second...")
+        enroll_results = []
+        
+        def auto_enroll():
+            print("   Sending STOP...")
+            cmd_stop(serial_handler)
+            time.sleep(0.3)
+            print("   Sending ENROLL...")
+            result = cmd_enroll(serial_handler)
+            enroll_results.append(result)
+            print(f"   cmd_enroll() returned: {result}")
+        
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(auto_enroll)
+        timer.start(1000)
+        
+        # Show dialog and process events
+        print("\n6. Showing dialog and processing events...")
+        print("   (Will wait for enrollment signal for 10 seconds)")
+        
+        start_time = time.time()
+        while time.time() - start_time < 10:
+            app.processEvents()
+            if "enrolling" in received_signals:
+                print(f"   [OK] Received enrolling signal at {time.time()-start_time:.1f}s!")
+                break
+            time.sleep(0.05)
+
+        assert enroll_results, "cmd_enroll() was never called from the Qt timer callback"
+        assert enroll_results[-1] is True, (
+            "cmd_enroll() returned False - check the log for 'Blocked action' (permissions) or serial errors"
+        )
+        
+        print()
+        print("=" * 70)
         if "enrolling" in received_signals:
-            print(f"   [OK] Received enrolling signal at {time.time()-start_time:.1f}s!")
-            break
-        time.sleep(0.05)
-    
-    # Cleanup
-    print("\n7. Cleaning up...")
-    dialog.serial_worker.enroll_progress.disconnect(track_enroll_progress)
-    dialog.close()
-    serial_worker.stop()
-    serial_handler.disconnect()
-    
-    print()
-    print("=" * 70)
-    if "enrolling" in received_signals:
-        print("SUCCESS: Dialog received enrollment signal from SerialWorker")
-        print(f"Received signals: {received_signals}")
-    else:
-        print("FAIL: Dialog did NOT receive enrollment signal")
-        print(f"Received signals: {received_signals if received_signals else 'NONE'}")
-    print("=" * 70)
-    
-    assert "enrolling" in received_signals, f"Dialog did not receive enrollment signal: {received_signals or 'NONE'}"
+            print("SUCCESS: Dialog received enrollment signal from SerialWorker")
+            print(f"Received signals: {received_signals}")
+        else:
+            print("FAIL: Dialog did NOT receive enrollment signal")
+            print(f"Received signals: {received_signals if received_signals else 'NONE'}")
+        print("=" * 70)
+        
+        assert "enrolling" in received_signals, f"Dialog did not receive enrollment signal: {received_signals or 'NONE'}"
+    finally:
+        print("\n7. Cleaning up...")
+        if dialog is not None and dialog.serial_worker is not None:
+            if track_enroll_progress is not None:
+                try:
+                    dialog.serial_worker.enroll_progress.disconnect(track_enroll_progress)
+                except Exception:
+                    pass
+            try:
+                dialog.close()
+            except Exception:
+                pass
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+        if serial_worker is not None:
+            try:
+                serial_worker.stop()
+            except Exception:
+                pass
+        if serial_handler is not None:
+            try:
+                serial_handler.disconnect()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
