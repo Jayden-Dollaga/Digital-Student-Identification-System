@@ -188,8 +188,13 @@ class _UILogHandler(logging.Handler):
 class Api:
     """Exposed to the web page as ``window.pywebview.api``."""
 
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        instance._window = None
+        return instance
+
     def __init__(self) -> None:
-        self._window = None  # set by main_web.py after window creation
+        self._window = getattr(self, "_window", None)
         self._app_log_lines: List[str] = []
         self._app_log_lock = threading.Lock()
 
@@ -301,10 +306,17 @@ class Api:
         self.start_background_tasks()
 
     def _choose_csv_path(self, filename: str) -> Optional[Path]:
-        """Open a native Save As dialog and return the user's selected path."""
-        if self._window is None:
-            return None
-        selected = self._window.create_file_dialog(
+        """Open a native Save As dialog and return the user's selected path.
+
+        When the API is used in a non-UI context (tests, headless scripts), the
+        export directory is still usable even without a live pywebview window.
+        """
+        window = getattr(self, "_window", None)
+        if window is None:
+            export_dir = Path(CONFIG.export_folder)
+            export_dir.mkdir(parents=True, exist_ok=True)
+            return export_dir / filename
+        selected = window.create_file_dialog(
             dialog_type=webview.FileDialog.SAVE,
             directory=str(CONFIG.export_folder),
             save_filename=filename,
@@ -322,12 +334,13 @@ class Api:
         defines; failures here (e.g. window not ready yet) are swallowed
         so a UI hiccup never takes down the backend thread.
         """
-        if self._window is None:
+        window = getattr(self, "_window", None)
+        if window is None:
             return
         try:
             event_json = json.dumps(event, ensure_ascii=True, allow_nan=False)
             payload_json = json.dumps(payload, default=str, ensure_ascii=True, allow_nan=False)
-            self._window.evaluate_js(
+            window.evaluate_js(
                 f"window.dsisEvent && window.dsisEvent({event_json}, {payload_json})"
             )
         except Exception:
@@ -431,6 +444,8 @@ class Api:
             return "Fingerprint deletion is already in progress."
         if self._pending_wipe:
             return "Fingerprint wipe is already in progress."
+        if operation in {"delete", "wipe"}:
+            return None
         if operation != "scan" and self._scanning:
             return "Scan is active. Stop attendance scanning before starting this operation."
         return None
@@ -902,7 +917,14 @@ class Api:
         if conflict:
             return {"ok": False, "message": conflict}
         self._pending_delete_id = int(fingerprint_id)
-        cmds.cmd_stop(self.serial)
+        if self._scanning:
+            stop_ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+            self._push("mode_changed", {"mode": "command"})
+            if not stop_ok:
+                self._pending_delete_id = None
+                return {"ok": False, "message": "Stop attendance scanning before deleting this fingerprint."}
         ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
         if not ok:
             self._pending_delete_id = None
@@ -928,6 +950,14 @@ class Api:
         if conflict:
             return {"ok": False, "message": conflict}
         self._pending_delete_id = int(fingerprint_id)
+        if self._scanning:
+            stop_ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+            self._push("mode_changed", {"mode": "command"})
+            if not stop_ok:
+                self._pending_delete_id = None
+                return {"ok": False, "message": "Stop attendance scanning before deleting this fingerprint."}
         ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
         if not ok:
             self._pending_delete_id = None
@@ -943,6 +973,14 @@ class Api:
         if conflict:
             return {"ok": False, "message": conflict}
         self._pending_wipe = True
+        if self._scanning:
+            stop_ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+            self._push("mode_changed", {"mode": "command"})
+            if not stop_ok:
+                self._pending_wipe = False
+                return {"ok": False, "message": "Stop attendance scanning before wiping fingerprints."}
         ok = cmds.cmd_wipe(self.serial)
         if not ok:
             self._pending_wipe = False
@@ -1120,7 +1158,7 @@ class Api:
     def _parse_scan_line(self, line: str) -> None:
         result = self.processor.process_line(line)
         if result is None:
-            self._push_batch_erase_result("armed", uid, "Card detected. Keep it on the reader while erase is verified.", card_type)
+            return
         student = self.processor.lookup_student(result["fingerprint_id"]) if result.get("fingerprint_id") else None
         attendance_status = "Unknown"
         if result.get("fingerprint_id") and result.get("logged") and result.get("timestamp"):

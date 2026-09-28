@@ -724,6 +724,11 @@ void handleCommand(String input) {
 
   // ── DELETE:ID ─────────────────────────────────────────────────
   if (normalized.startsWith("DELETE:")) {
+    scanMode = false;
+    pendingCardWrite = "";
+    pendingCardWriteHex = false;
+    pendingCardErase = false;
+    expectedCardWriteUid = "";
     ledReady();
     int id = payload.toInt();
     if (id < 1 || id > 127) {

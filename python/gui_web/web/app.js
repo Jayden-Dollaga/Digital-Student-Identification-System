@@ -56,7 +56,10 @@ function guardPermission(action, label) {
 
 function guardScanStopped(action) {
   if (scanning) {
-    alert(`Scan is active. Stop attendance scanning before ${action}.`);
+    const alertText = action === 'formatting RFID card data'
+      ? 'Scan is active. Stop attendance scanning before formatting RFID card data.'
+      : `Scan is active. Stop attendance scanning before ${action}.`;
+    alert(alertText);
     return false;
   }
   return true;
@@ -1462,6 +1465,9 @@ async function closeBatchRfidEraseDialog() {
 }
 
 function openBatchRfidEraseDialog() {
+  if (!guardScanStopped('formatting RFID card data')) {
+    return;
+  }
   if (!hasRole('admin') || !hasPermission('enroll')) {
     return;
   }
@@ -2125,11 +2131,11 @@ function openEnrollDialog(existing) {
       <div class="modal-sub">${existing ? 'A new fingerprint slot will be assigned by the device.' : 'The device assigns the fingerprint ID automatically \u2014 fill in the student first, then scan. RFID is optional. Register it later from Student Details.'}</div>
       <div class="enroll-layout">
         <div class="enroll-form">
-          <div class="modal-field"><label>Student LRN</label><input id="em-sno" type="text" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>
+          <div class="modal-field"><label>Student LRN</label><input id="em-sno" type="text" placeholder="e.g. 123456789012" value="${existing ? escapeHtml(existing.student_no) : ''}"><div class="field-feedback" id="em-sno-feedback"></div></div>
           <div class="modal-field"><label>Student Name</label><input id="em-name" type="text" placeholder="Last, First M." value="${existing ? escapeHtml(existing.student_name) : ''}"><div class="field-feedback" id="em-name-feedback"></div></div>
           <div class="modal-field-row">
-            <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" value="${existing ? escapeHtml(existing.grade) : ''}"><div class="field-feedback" id="em-grade-feedback"></div></div>
-            <div class="modal-field"><label>Section</label><input id="em-section" type="text" value="${existing ? escapeHtml(existing.section) : ''}"><div class="field-feedback" id="em-section-feedback"></div></div>
+            <div class="modal-field"><label>Grade</label><input id="em-grade" type="text" placeholder="e.g. Grade 12" value="${existing ? escapeHtml(existing.grade) : ''}"><div class="field-feedback" id="em-grade-feedback"></div></div>
+            <div class="modal-field"><label>Section</label><input id="em-section" type="text" placeholder="e.g. ICT-12-1" value="${existing ? escapeHtml(existing.section) : ''}"><div class="field-feedback" id="em-section-feedback"></div></div>
           </div>
           <div class="validation-summary" id="em-validation-summary"></div>
           <div class="modal-status" id="em-status">${connected ? '' : 'Connect to the ESP32 first.'}</div>

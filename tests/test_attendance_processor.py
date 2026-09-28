@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_ROOT = ROOT / "python"
@@ -335,6 +335,15 @@ class AttendanceProcessorTests(unittest.TestCase):
                 api.stop_batch_rfid_erase()
         finally:
             permissions.set_session_role("guest")
+
+    def test_ignored_scan_line_does_not_emit_batch_erase_event(self):
+        api = Api()
+        api.processor.process_line = MagicMock(return_value=None)
+        api._push = MagicMock()
+
+        api._parse_scan_line("READY")
+
+        api._push.assert_not_called()
 
     def test_batch_rfid_erase_does_not_unlink_without_verified_zero_readback(self):
         api = Api()

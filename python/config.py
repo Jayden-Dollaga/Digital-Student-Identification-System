@@ -44,12 +44,18 @@ DEFAULT_USER_ROLES: Dict[str, Dict[str, Any]] = {
     },
     "teacher": {
         "name": "Teacher",
-        "permissions": ["scan", "read_records", "attendance_evaluation"],
+        "permissions": [
+            "scan",
+            "read_records",
+            "export",
+            "backup",
+            "attendance_evaluation",
+        ],
         "can_manage_users": False,
     },
     "guest": {
         "name": "Guest",
-        "permissions": ["scan"],
+        "permissions": ["scan", "attendance_evaluation"],
         "can_manage_users": False,
     },
 }

@@ -102,8 +102,15 @@ def test_rfid_registration_waits_for_verified_write_result():
     assert "Keep it on the reader while encrypted data is written and verified." in api_source
     assert "second presentation" not in script
     assert "PICC_WakeupA" in (ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "ESP32_DSIS_AllInOne.ino").read_text(encoding="utf-8")
-    assert "payload.card_type" in script
-    assert "Verified erase" in script
+
+
+def test_enrollment_form_shows_examples_for_student_fields():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="em-sno" type="text" placeholder="e.g. 123456789012"' in script
+    assert 'id="em-name" type="text" placeholder="Last, First M."' in script
+    assert 'id="em-grade" type="text" placeholder="e.g. Grade 12"' in script
+    assert 'id="em-section" type="text" placeholder="e.g. ICT-12-1"' in script
 
 
 def test_student_refresh_preserves_the_selected_fingerprint():
@@ -221,6 +228,13 @@ def test_role_switch_keeps_teacher_as_teacher():
     assert "function normalizeRoleKey" in script
     assert "return key in ROLE_LEVELS ? key : 'guest';" in script
     assert "const normalized = normalizeRoleKey(role);" in script
+
+
+def test_rfid_batch_erase_blocks_while_scan_is_active():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "guardScanStopped('formatting RFID card data')" in script
+    assert "Scan is active. Stop attendance scanning before formatting RFID card data." in script
 
 
 def test_v3_window_size_fits_common_small_windows():

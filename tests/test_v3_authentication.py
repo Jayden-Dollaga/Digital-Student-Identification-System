@@ -29,13 +29,32 @@ def test_role_hierarchy_is_ordered():
     assert not permissions.has_role_permission("unknown", "guest")
 
 
-def test_export_and_backup_are_admin_only():
-    assert not permissions.has_permission("export", role_key="teacher")
-    assert not permissions.has_permission("backup", role_key="teacher")
-    assert permissions.has_permission("export", role_key="admin")
-    assert permissions.has_permission("backup", role_key="admin")
+def test_default_role_permissions_match_the_session_policy():
+    roles = api_module.CONFIG.user_roles
+
+    assert roles["guest"]["permissions"] == ["scan", "attendance_evaluation"]
+    assert roles["teacher"]["permissions"] == [
+        "scan",
+        "read_records",
+        "export",
+        "backup",
+        "attendance_evaluation",
+    ]
+
+
+def test_expected_role_permissions_match_documented_policy():
+    assert permissions.has_permission("scan", role_key="guest")
+    assert permissions.has_permission("attendance_evaluation", role_key="guest")
     assert not permissions.has_permission("export", role_key="guest")
     assert not permissions.has_permission("backup", role_key="guest")
+
+    assert permissions.has_permission("export", role_key="teacher")
+    assert permissions.has_permission("backup", role_key="teacher")
+    assert permissions.has_permission("read_records", role_key="teacher")
+    assert permissions.has_permission("attendance_evaluation", role_key="teacher")
+
+    assert permissions.has_permission("export", role_key="admin")
+    assert permissions.has_permission("backup", role_key="admin")
 
 
 def test_all_roles_can_access_attendance_evaluation(monkeypatch):
@@ -85,15 +104,15 @@ def test_guest_can_switch_to_teacher_without_password():
     assert guest["role"] == "guest"
 
 
-def test_export_and_backup_api_methods_reject_teacher_and_allow_admin(monkeypatch, tmp_path):
+def test_export_and_backup_api_methods_allow_teacher_and_admin(monkeypatch, tmp_path):
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
     permissions.set_session_role("teacher", 600.0)
 
-    assert instance.export_attendance_csv()["message"] == "Current role does not have export permission."
-    assert instance.export_students_csv()["message"] == "Current role does not have export permission."
-    assert instance.export_statistics_report()["message"] == "Current role does not have export permission."
-    assert instance.create_backup()["message"] == "Current role does not have backup permission."
+    assert instance.export_attendance_csv()["message"] != "Current role does not have export permission."
+    assert instance.export_students_csv()["message"] != "Current role does not have export permission."
+    assert instance.export_statistics_report()["message"] != "Current role does not have export permission."
+    assert instance.create_backup()["message"] != "Current role does not have backup permission."
 
     permissions.set_session_role("admin", 600.0)
     monkeypatch.setattr(api_module.db, "export_attendance_range_with_time_in_out", lambda *args, **kwargs: [{

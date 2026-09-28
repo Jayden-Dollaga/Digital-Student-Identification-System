@@ -140,24 +140,29 @@ class TestBackendPermissionEnforcement:
         assert api._device_mode == "command"
 
     @pytest.mark.parametrize(
-        ("operation", "command"),
-        (("delete_on_device", "cmd_delete"), ("wipe_all_on_device", "cmd_wipe")),
+        ("operation", "command", "expected_id"),
+        (("delete_on_device", "cmd_delete", 7), ("wipe_all_on_device", "cmd_wipe", None)),
     )
-    def test_destructive_device_operations_are_rejected_during_scan(self, monkeypatch, operation, command):
+    def test_destructive_device_operations_stop_scan_before_running(self, monkeypatch, operation, command, expected_id):
         from gui_web.api import Api
 
         api = Api()
         api.serial.is_connected = MagicMock(return_value=True)
         api._scanning = True
+        api._push = MagicMock()
         monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        stop_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_stop", stop_mock)
         command_mock = MagicMock(return_value=True)
         monkeypatch.setattr(f"gui_web.api.cmds.{command}", command_mock)
 
-        result = getattr(api, operation)(7) if operation == "delete_on_device" else getattr(api, operation)()
+        result = getattr(api, operation)(expected_id) if operation == "delete_on_device" else getattr(api, operation)()
 
-        assert result["ok"] is False
-        assert "Scan is active" in result["message"]
-        command_mock.assert_not_called()
+        assert result["ok"] is True
+        stop_mock.assert_called_once_with(api.serial)
+        command_mock.assert_called_once_with(api.serial, expected_id) if operation == "delete_on_device" else command_mock.assert_called_once_with(api.serial)
+        assert api._scanning is False
+        api._push.assert_any_call("mode_changed", {"mode": "command"})
 
     def test_unexpected_disconnect_clears_pending_operations_and_publishes_state(self):
         from gui_web.api import Api
@@ -281,6 +286,25 @@ class TestBackendPermissionEnforcement:
         assert result["ok"] is True
         assert api._pending_delete_id == 22
         delete_mock.assert_called_once_with(api.serial, 22)
+
+    def test_delete_on_device_stops_scan_before_deleting(self, monkeypatch):
+        from gui_web.api import Api
+
+        api = Api()
+        api._scanning = True
+        api.serial.is_connected = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+        stop_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_stop", stop_mock)
+        delete_mock = MagicMock(return_value=True)
+        monkeypatch.setattr("gui_web.api.cmds.cmd_delete", delete_mock)
+
+        result = api.delete_on_device(7)
+
+        assert result["ok"] is True
+        stop_mock.assert_called_once_with(api.serial)
+        delete_mock.assert_called_once_with(api.serial, 7)
+        assert api._scanning is False
 
     def test_commands_help_action_sends_intentional_unknown_command(self, monkeypatch):
         from gui_web.api import Api
