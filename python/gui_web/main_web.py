@@ -16,6 +16,15 @@ import threading
 import traceback
 from pathlib import Path
 
+if __name__ == "__main__":
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from run_web_gui import main as launch_with_preflight
+
+    launch_with_preflight()
+    raise SystemExit(0)
+
 import webview
 
 try:
