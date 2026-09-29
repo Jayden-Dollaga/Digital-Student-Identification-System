@@ -43,6 +43,7 @@ def test_missing_runtime_package_is_a_hard_failure(tmp_path):
 
     assert result.ok is False
     assert any("pyserial" in message for message in result.errors)
+    assert any("install_requirements.bat" in message for message in result.errors)
     assert not any("PySide6" in message or "pytest" in message for message in result.errors)
     assert not {"customtkinter", "PySide6", "pytest", "pytest_forked", "PyInstaller"}.intersection(imported)
 

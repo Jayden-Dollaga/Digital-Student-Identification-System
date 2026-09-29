@@ -61,7 +61,7 @@ def check_startup_preflight(
             errors.append(
                 f"Missing or unusable runtime package {distribution} "
                 f"(import {module_name!r}): {exc}. Install with "
-                "python -m pip install -r requirements.txt."
+                "install_requirements.bat from the project root."
             )
 
     if is_windows and not webview2_available:
