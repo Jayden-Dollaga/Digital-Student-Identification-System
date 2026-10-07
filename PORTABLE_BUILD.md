@@ -23,7 +23,7 @@ python -m PyInstaller Build\DSIS_v3.spec --clean --noconfirm --workpath Build\bu
 Expected output:
 
 ```text
-Build\DSIS_v3\DSIS\DSIS.exe
+Build\DSIS_v3\DSIS-v3\DSIS-v3.exe
 ```
 
 ## Deployment checklist

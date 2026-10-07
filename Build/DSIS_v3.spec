@@ -20,7 +20,7 @@ a = Analysis(
         (str(ROOT / "python" / "gui_web" / "web"), "gui_web/web"),
         (str(LOGO_ICO), "assets/icon"),
     ],
-    hiddenimports=collect_submodules("webview") + [
+    hiddenimports=collect_submodules("webview") + collect_submodules("openpyxl") + [
         "webview",
         "gui_web.main_web",
         "gui_web.api",
@@ -55,7 +55,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    console=True,
     icon=str(LOGO_ICO),
     disable_windowed_traceback=False,
     argv_emulation=False,
