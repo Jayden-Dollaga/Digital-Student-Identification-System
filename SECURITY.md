@@ -8,8 +8,8 @@ This repository's active product uses a local, desktop-first security model. The
 - The initial admin password is created during the first-run wizard.
 - Passwords are stored using PBKDF2-HMAC-SHA256 with a random salt.
 - Session role elevation is checked in memory, not by trusting a stored role value in `data/settings.json`.
-- The current role selector permits Guest-to-Teacher without password verification. Teacher permissions include record reads, exports, and backups; do not rely on Guest mode as a confidentiality boundary. See [the implementation security model](docs/Security/security-model.md).
-- Backend permission checks exist for many privileged operations, but not every public bridge method is role-gated. Consult the method-level [application inventory](docs/generated/APP_INVENTORY.md); UI control visibility is not authorization.
+- Guest-to-Teacher elevation is denied by the backend; teacher mode can only be selected from an authenticated administrator session. Admin elevation remains password-gated. See [the implementation security model](docs/Security/security-model.md).
+- Backend permission checks protect record reads and privileged mutations. Some diagnostic/aggregate bridge methods remain available without record-read permission; UI control visibility is not authorization.
 
 ## Data sensitivity
 
@@ -24,7 +24,9 @@ Treat the following as sensitive local-school data:
 
 Protect these files with appropriate Windows ACLs and avoid storing them in shared or public directories.
 
-The AES-GCM RFID application key is stored in `data/settings.json`. The current unguarded `get_settings()` bridge method returns this key to JavaScript (while removing the password hash record). Do not treat RFID payload encryption as protection from someone who can interact with the running app; the key is also not encrypted at rest by this application.
+The AES-GCM RFID application key is stored in `data/settings.json` and is not encrypted at rest. The `get_settings()` bridge method omits RFID key material, but anyone who can read the data directory can still obtain it. Do not treat RFID payload encryption as protection from someone with access to the application data files.
+
+Database backups use SQLite's online backup API so committed WAL data is included. Restore checks path containment, file type, SQLite header, and SQLite `quick_check` before replacing the live database.
 
 ## Reset and recovery
 

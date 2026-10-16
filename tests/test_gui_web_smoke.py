@@ -469,6 +469,24 @@ def test_v3_student_detail_without_scan_is_absent(monkeypatch):
     assert api.get_student(7)["attendance_status"] == "Absent"
 
 
+def test_dashboard_does_not_count_fallback_history_as_today(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api.__new__(Api)
+    monkeypatch.setattr("gui_web.api.db.get_today_attendance_info", lambda: {
+        "is_fallback": True,
+        "rows": [{"student_no": "S-1", "time": "08:00:00"}],
+    })
+    monkeypatch.setattr("gui_web.api.db.get_student_count", lambda: 1)
+
+    stats = api.get_dashboard_stats()
+
+    assert stats["is_fallback"] is True
+    assert stats["scans_today"] == 0
+    assert stats["present_count"] == 0
+    assert stats["last_scan_time"] is None
+
+
 def test_v3_push_json_round_trips_unicode_names():
     from gui_web.api import Api
 

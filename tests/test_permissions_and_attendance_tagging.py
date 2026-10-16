@@ -222,6 +222,8 @@ class TestBackendPermissionEnforcement:
         from gui_web.api import Api
 
         api = Api()
+        from core import permissions
+        permissions.set_session_role("admin", 600.0)
         api.serial.connect = MagicMock(return_value=(False, "not found"))
         monkeypatch.setattr(api, "_start_read_loop", MagicMock())
 

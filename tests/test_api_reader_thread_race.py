@@ -29,6 +29,7 @@ def test_concurrent_connect_calls_start_only_one_reader_thread(monkeypatch):
     )
     monkeypatch.setattr(api_module, "save_settings", lambda settings: None)
     monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: True)
+    monkeypatch.setattr(api_module.permissions, "get_current_role", lambda: "admin")
 
     api = api_module.Api()
     api.serial.connected = True

@@ -383,15 +383,54 @@ class Api:
     def connect(self, port: str = "", baud: int = 0, auto_detect: Optional[bool] = None) -> Dict[str, Any]:
         if not permissions.require_permission("scan"):
             return {"connected": False, "message": "Current role does not have scan permission."}
+        role = permissions.get_current_role()
+        requested_port = (port or "").strip()
+        requested_baud = int(baud or 0)
+        settings = load_settings()
+        if role == "guest":
+            saved_port = str(settings.get("com_port") or "").strip()
+            if self.serial.is_connected():
+                current_port = str(self.serial.reconnect_port or "")
+                current_baud = int(self.serial.reconnect_baud or CONFIG.baud_rate)
+                if requested_port and requested_port.casefold() != current_port.casefold():
+                    return {"connected": True, "message": "Teacher or administrator permission is required to switch serial ports."}
+                if requested_baud and requested_baud != current_baud:
+                    return {"connected": True, "message": "Teacher or administrator permission is required to change the baud rate."}
+                return {
+                    "connected": True,
+                    "message": "Already connected to the configured device.",
+                    "port": current_port,
+                    "baud": current_baud,
+                    "device_metadata": self.serial.device_metadata,
+                }
+            if requested_port and (not saved_port or requested_port.casefold() != saved_port.casefold()):
+                return {"connected": False, "message": "Teacher or administrator permission is required to select a serial port."}
+            if saved_port:
+                available_ports = list_serial_ports()
+                if saved_port.casefold() not in {str(value).casefold() for value in available_ports}:
+                    return {"connected": False, "message": "The configured serial port is unavailable. Ask an administrator to update the connection settings."}
+                configured_baud = int(settings.get("baud_rate") or CONFIG.baud_rate)
+                if requested_baud and requested_baud != configured_baud:
+                    return {"connected": False, "message": "Teacher or administrator permission is required to change the baud rate."}
+                port = saved_port
+                baud = configured_baud
+                auto_detect = False
+            else:
+                if requested_baud and requested_baud != CONFIG.baud_rate:
+                    return {"connected": False, "message": "Teacher or administrator permission is required to change the baud rate."}
+                port = ""
+                baud = CONFIG.baud_rate
+                if auto_detect is None:
+                    auto_detect = bool(settings.get("auto_detect_serial", True))
         baud = baud or CONFIG.baud_rate
         if auto_detect is None:
-            auto_detect = bool(load_settings().get("auto_detect_serial", True))
+            auto_detect = bool(settings.get("auto_detect_serial", True))
         ok, message = self.serial.connect(port=port or "", baud=baud, auto_detect=bool(auto_detect))
         if ok:
-            settings = load_settings()
-            settings["com_port"] = self.serial.reconnect_port or port
-            settings["baud_rate"] = baud
-            save_settings(settings)
+            if role != "guest":
+                settings["com_port"] = self.serial.reconnect_port or port
+                settings["baud_rate"] = baud
+                save_settings(settings)
             self._start_read_loop()
             self._push("connection_status", self.get_connection_status())
             self.request_fingerprint_count()
@@ -1289,7 +1328,7 @@ class Api:
     # -- dashboard / attendance -------------------------------------------------
     def get_dashboard_stats(self) -> Dict[str, Any]:
         info = db.get_today_attendance_info()
-        rows = info["rows"]
+        rows = [] if info.get("is_fallback") else info["rows"]
         scans_today = len(rows)
         total_students = db.get_student_count()
         unknown_scans = sum(1 for r in rows if not r.get("student_no") or r.get("student_no") == "N/A")
@@ -1896,6 +1935,8 @@ class Api:
     def get_settings(self) -> Dict[str, Any]:
         settings = load_settings()
         settings.pop("auth", None)
+        for key in ("rfid_aes_gcm_key", "rfid_app_key_hex", "rfid_payload_key"):
+            settings.pop(key, None)
         settings["current_role"] = permissions.get_current_role()
         settings["available_ports"] = list_serial_ports()
         if permissions.has_permission("backup") or permissions.has_role_permission(permissions.get_current_role(), "admin"):
@@ -2010,6 +2051,13 @@ class Api:
             return {"ok": False, "message": "Unknown role."}
 
         current = permissions.get_current_role()
+        if normalized == "teacher" and current == "guest":
+            return {
+                "ok": False,
+                "status": 401,
+                "requires_password": True,
+                "message": "Teacher mode requires an authenticated administrator session.",
+            }
         if normalized == "admin" and permissions.ROLE_LEVELS.get(current, -1) < permissions.ROLE_LEVELS.get("admin", 0):
             return {
                 "ok": False,

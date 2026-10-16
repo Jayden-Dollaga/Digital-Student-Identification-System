@@ -1476,7 +1476,13 @@ def backup_database() -> Tuple[bool, str, Optional[str]]:
         backup_path = backup_dir / f'attendance_{timestamp}.db'
 
         if Path(DB_PATH).exists():
-            shutil.copy2(DB_PATH, backup_path)
+            source = sqlite3.connect(DB_PATH, timeout=30)
+            destination = sqlite3.connect(backup_path)
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
+                source.close()
             log.success(f"Database backed up to {backup_path}")
             return True, f"Backup created: {backup_path.name}", str(backup_path)
         return False, 'Database file not found', None
@@ -1526,8 +1532,15 @@ def _is_valid_sqlite_db_file(path: Path) -> bool:
             return False
         with path.open('rb') as handle:
             header = handle.read(16)
-        return header == b'SQLite format 3\x00'
-    except (OSError, ValueError):
+        if header != b'SQLite format 3\x00':
+            return False
+        connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+        try:
+            result = connection.execute("PRAGMA quick_check").fetchone()
+            return bool(result and result[0] == "ok")
+        finally:
+            connection.close()
+    except (OSError, ValueError, sqlite3.DatabaseError):
         return False
 
 

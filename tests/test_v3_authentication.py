@@ -32,7 +32,7 @@ def test_role_hierarchy_is_ordered():
 def test_default_role_permissions_match_the_session_policy():
     roles = api_module.CONFIG.user_roles
 
-    assert roles["guest"]["permissions"] == ["scan", "attendance_evaluation"]
+    assert roles["guest"]["permissions"] == ["scan"]
     assert roles["teacher"]["permissions"] == [
         "scan",
         "read_records",
@@ -44,7 +44,7 @@ def test_default_role_permissions_match_the_session_policy():
 
 def test_expected_role_permissions_match_documented_policy():
     assert permissions.has_permission("scan", role_key="guest")
-    assert permissions.has_permission("attendance_evaluation", role_key="guest")
+    assert not permissions.has_permission("attendance_evaluation", role_key="guest")
     assert not permissions.has_permission("export", role_key="guest")
     assert not permissions.has_permission("backup", role_key="guest")
 
@@ -90,14 +90,15 @@ def test_api_starts_guest_and_requires_password_for_elevation(monkeypatch):
     assert authenticated["role"] == "admin"
 
 
-def test_guest_can_switch_to_teacher_without_password():
+def test_guest_cannot_switch_to_teacher_without_admin_session():
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
     permissions.set_session_role("guest", 600.0)
 
     teacher = instance.set_current_role("teacher")
-    assert teacher["ok"] is True
-    assert teacher["role"] == "teacher"
+    assert teacher["ok"] is False
+    assert teacher["requires_password"] is True
+    assert instance.get_current_role() == "guest"
 
     guest = instance.set_current_role("guest")
     assert guest["ok"] is True
@@ -157,6 +158,17 @@ def test_admin_can_switch_down_to_teacher_without_password():
     teacher = instance.set_current_role("teacher")
     assert teacher["ok"] is True
     assert teacher["role"] == "teacher"
+
+
+def test_teacher_can_reselect_current_role():
+    instance = api_module.Api.__new__(api_module.Api)
+    instance._session_timeout_seconds = 600.0
+    permissions.set_session_role("teacher", 600.0)
+
+    result = instance.set_current_role("teacher")
+
+    assert result["ok"] is True
+    assert result["role"] == "teacher"
 
 
 def test_role_aliases_are_canonicalized_and_teacher_stays_teacher():
@@ -306,3 +318,42 @@ def test_guest_settings_update_is_rejected(monkeypatch):
     result = instance.save_ui_settings({"cooldown": 1})
     assert result["ok"] is False
     assert result["status"] == 403
+
+
+def test_get_settings_never_returns_rfid_key_material(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    permissions.set_session_role("guest", 600.0)
+    monkeypatch.setattr(api_module, "load_settings", lambda: {
+        "auth": {"password_hash": "hash"},
+        "rfid_aes_gcm_key": "A1" * 32,
+        "rfid_app_key_hex": "B2" * 32,
+        "rfid_payload_key": "secret",
+    })
+    monkeypatch.setattr(api_module, "list_serial_ports", lambda: [])
+
+    settings = instance.get_settings()
+
+    assert "auth" not in settings
+    assert "rfid_aes_gcm_key" not in settings
+    assert "rfid_app_key_hex" not in settings
+    assert "rfid_payload_key" not in settings
+
+
+def test_guest_cannot_select_an_arbitrary_serial_port(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    instance = api_module.Api.__new__(api_module.Api)
+    instance.serial = SimpleNamespace(
+        is_connected=MagicMock(return_value=False),
+        connect=MagicMock(return_value=(True, "OK")),
+    )
+    monkeypatch.setattr(api_module.permissions, "get_current_role", lambda: "guest")
+    monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: {"com_port": "COM5", "baud_rate": 115200})
+
+    result = instance.connect(port="COM6", baud=115200, auto_detect=False)
+
+    assert result["connected"] is False
+    assert "permission" in result["message"].lower()
+    instance.serial.connect.assert_not_called()

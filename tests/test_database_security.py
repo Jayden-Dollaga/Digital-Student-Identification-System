@@ -1,6 +1,7 @@
 """Security tests for database module - path traversal and validation."""
 
 import sys
+import sqlite3
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -17,8 +18,38 @@ from core import database
 
 pytestmark = pytest.mark.integration
 
+
+def create_valid_sqlite_db(path):
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("CREATE TABLE validation_probe (value TEXT)")
+        connection.commit()
+    finally:
+        connection.close()
+
 class TestRestoreDatabasePathTraversal:
     """Test that restore_database prevents path traversal attacks."""
+
+    def test_backup_includes_committed_wal_records(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "attendance.db"
+            source = __import__("sqlite3").connect(db_path)
+            source.execute("PRAGMA journal_mode=WAL")
+            source.execute("CREATE TABLE records (value TEXT)")
+            source.execute("INSERT INTO records VALUES (?)", ("committed",))
+            source.commit()
+            assert Path(str(db_path) + "-wal").exists()
+
+            with patch.object(database, "DB_PATH", str(db_path)):
+                success, _message, backup_path = database.backup_database()
+
+            source.close()
+            assert success is True
+            restored = __import__("sqlite3").connect(backup_path)
+            try:
+                assert restored.execute("SELECT value FROM records").fetchall() == [("committed",)]
+            finally:
+                restored.close()
 
     def test_connection_enables_wal_and_busy_timeout(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -56,8 +87,8 @@ class TestRestoreDatabasePathTraversal:
             backups_dir.mkdir()
 
             backup_file = backups_dir / 'attendance_20240101.db'
-            backup_file.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
-            db_path.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
+            create_valid_sqlite_db(backup_file)
+            create_valid_sqlite_db(db_path)
 
             with patch('core.database.DB_PATH', str(db_path)):
                 result_ok, result_msg = restore_database(str(backup_file))
@@ -102,8 +133,8 @@ class TestRestoreDatabasePathTraversal:
             backups_dir.mkdir()
 
             tampered_backup = backups_dir / 'attendance_tampered.db'
-            tampered_backup.write_bytes(b'not a real sqlite database\x00\x01\x02')
-            db_path.write_bytes(b'SQLite format 3')
+            tampered_backup.write_bytes(b'SQLite format 3\x00' + b'\x00' * 32)
+            create_valid_sqlite_db(db_path)
 
             with patch('core.database.DB_PATH', str(db_path)):
                 result_ok, result_msg = restore_database(str(tampered_backup))
@@ -156,8 +187,8 @@ class TestRestoreDatabasePathTraversal:
             nested_dir.mkdir(parents=True)
 
             backup_file = nested_dir / 'attendance_20260817.db'
-            backup_file.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
-            db_path.write_bytes(b'SQLite format 3\x00' + b'\x00' * 12)
+            create_valid_sqlite_db(backup_file)
+            create_valid_sqlite_db(db_path)
 
             with patch('core.database.DB_PATH', str(db_path)):
                 result_ok, result_msg = restore_database(str(backup_file))

@@ -55,7 +55,7 @@ DEFAULT_USER_ROLES: Dict[str, Dict[str, Any]] = {
     },
     "guest": {
         "name": "Guest",
-        "permissions": ["scan", "attendance_evaluation"],
+        "permissions": ["scan"],
         "can_manage_users": False,
     },
 }
