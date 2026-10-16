@@ -291,6 +291,8 @@ def test_v3_window_size_fits_common_small_windows():
         assert height <= 768 - 40
         assert width >= 760
         assert height >= 540
+        narrow_width, narrow_height = module.resolve_window_size(720, 520)
+        assert (narrow_width, narrow_height) == (680, 480)
     finally:
         if original_gui_pkg is None:
             sys.modules.pop("gui_web", None)
@@ -862,3 +864,15 @@ def test_v3_styles_define_narrow_window_layout_rules():
     assert "@media" in styles
     assert "max-width" in styles
     assert "overflow" in styles
+    assert ".split-layout { min-width: 720px; }" not in styles
+    assert "#page-students .split-layout { flex-direction: column;" in styles
+    assert "--chrome-bg:" in styles
+    assert ".light-theme .badge.early" in styles
+
+
+def test_theme_selector_previews_theme_immediately():
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'onchange="applyTheme(this.value)"' in html
+    assert "document.body.classList.toggle('light-theme', t === 'light')" in script

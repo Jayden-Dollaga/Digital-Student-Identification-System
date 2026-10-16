@@ -49,14 +49,11 @@ def resolve_window_size(screen_width: int | None = None, screen_height: int | No
         except Exception:
             pass
 
-    screen_width = max(760, int(screen_width))
-    screen_height = max(540, int(screen_height))
+    screen_width = max(1, int(screen_width))
+    screen_height = max(1, int(screen_height))
 
-    width = min(screen_width - 40, 1180)
-    height = min(screen_height - 40, 740)
-
-    width = max(760, width)
-    height = max(540, height)
+    width = max(1, min(screen_width - 40, 1180))
+    height = max(1, min(screen_height - 40, 740))
     return width, height
 
 
@@ -102,7 +99,7 @@ def main() -> None:
         js_api=api,
         width=width,
         height=height,
-        min_size=(760, 540),
+        min_size=(min(560, width), min(400, height)),
     )
     api.set_window(window)
 
