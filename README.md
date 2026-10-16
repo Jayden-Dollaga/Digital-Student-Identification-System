@@ -241,7 +241,7 @@ The evaluation system:
 4. Groups results into the application's attendance categories.
 5. Allows the current evaluation to be exported as CSV.
 
-Attendance Evaluation uses the dedicated `attendance_evaluation` permission. In the default role configuration, Administrator, Teacher, and Guest can view evaluation data; CSV export remains controlled by the `export` permission.
+The API requires both `attendance_evaluation` and `read_records` for identifiable evaluation rows. Guest has the first permission configured but not the second; Guest therefore cannot view those rows. The evaluation CSV method delegates to the same checks and does not separately require `export`. Note that the current role selector allows Guest to select Teacher without a password, which grants Teacher's configured record-read, export, and backup permissions. See the [roles and permissions guide](docs/UserGuide/roles-and-permissions.md) for this current security limitation.
 
 For the detailed workflow, see the [v3 Workflow Guide](docs/UserGuide/v3-workflows.md).
 

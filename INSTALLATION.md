@@ -7,7 +7,7 @@ This is the installation guide for the maintained DSIS v3 HTML/pywebview desktop
 ## Supported environment
 
 - Windows 10 or Windows 11
-- Python 3.10+ (use the repo virtual environment if available)
+- Python 3.11 through 3.14 (the startup preflight rejects versions outside this range)
 - ESP32 development board
 - AS608 fingerprint sensor
 - RC522 RFID reader (optional hardware on the same maintained firmware)

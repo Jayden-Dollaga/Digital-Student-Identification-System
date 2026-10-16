@@ -14,7 +14,7 @@ The supported launchers are `run_web_gui.py` and `run_web_gui.bat`. No applicati
 | --- | --- |
 | Device | Digital Student Identification System |
 | Board | ESP32 |
-| Firmware | 1.0.10 |
+| Firmware | 1.6.2 |
 | Sensor | AS608 |
 | Protocol | 1 |
 | Host serial | 115200 baud |
@@ -101,7 +101,7 @@ The denominator is based on dates with attendance activity in the selected perio
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-Evaluation viewing uses `attendance_evaluation`; CSV export uses `export`.
+The API requires both `attendance_evaluation` and `read_records` to return per-student rows. Although Guest is configured with `attendance_evaluation`, it lacks `read_records` and receives an error. The evaluation CSV method delegates to this evaluation call and does not add a separate `export` permission check.
 
 ## Delete and wipe
 
@@ -128,15 +128,17 @@ Create a backup before destructive maintenance.
 
 ## Roles and authentication
 
-| Role | Permissions |
+| Role | Configured permissions |
 | --- | --- |
-| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
-| Teacher | scan, export, backup, attendance evaluation |
-| Guest | scan, attendance evaluation |
+| Administrator | scan, read_records, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
+| Teacher | scan, read_records, export, backup, attendance_evaluation |
+| Guest | scan, attendance_evaluation |
 
 Non-guest sessions expire after 600 seconds of inactivity by default. The persisted `current_role` value is not trusted for authorization.
 
 There is no built-in default administrator password. First-run passwords require at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations.
+
+Current authorization limitation: `set_current_role("teacher")` accepts Guest-to-Teacher without password verification; Teacher permissions include record reads, exports, and backups. The current authentication test asserts this behavior. Do not treat Guest mode as a confidentiality boundary for someone who can interact with the app. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
 
 ## Failure handling
 
@@ -146,4 +148,4 @@ Current v3 behavior includes stale-port recovery, identity-validated discovery, 
 
 v1 and v2 UI implementations are preserved under `archive/legacy-ui/`; `python/gui_web/v2_reference/` is reference-only; `tests/Prototype/` contains isolated visual prototypes. None is the supported v3 launcher.
 
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-10-16.

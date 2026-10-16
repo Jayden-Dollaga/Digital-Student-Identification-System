@@ -27,7 +27,9 @@ Default authenticated idle timeout: 600 seconds.
 
 `touch_session()` refreshes an active session. `lock_session()` returns to Guest. Expiration also returns to Guest.
 
-`current_role` in `settings.json` is not an authorization source. Guest may scan and view aggregate/live status, but `read_records` is required for the roster, student details, attendance history, and identifiable attendance evaluation. Guest-to-Teacher/Admin elevation is rejected by `set_current_role`; authenticated role changes are required.
+`current_role` in `settings.json` is not an authorization source. Guest may scan and `get_dashboard_stats()` returns aggregate values without a role check. `read_records` is required for roster, student details, and attendance history. `get_attendance_evaluation()` also checks `read_records`, so Guest does not receive its identifiable rows even though Guest is configured with `attendance_evaluation`.
+
+**Current authorization limitation:** `set_current_role("teacher")` accepts Guest-to-Teacher without password verification. Teacher permissions include record reads, exports, and backup operations. The current UI role selector invokes this method, and `tests/test_v3_authentication.py` asserts the transition. Do not treat Guest mode as a confidentiality boundary for someone who can interact with the running app. Admin elevation remains password-gated. Several public bridge methods also have no direct role check; see the [method-level inventory](../generated/APP_INVENTORY.md). This is documented current behavior, not a security guarantee.
 
 First-run password creation is protected by `data/.admin_initialized`. If settings lose the password after that marker exists, the application reports a recovery state instead of creating a new administrator password.
 
@@ -40,8 +42,8 @@ The default role permissions are:
 | Role | Permissions |
 | --- | --- |
 | Guest | scan, attendance_evaluation |
-| Teacher | scan, export, backup, attendance_evaluation |
-| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
+| Teacher | scan, read_records, export, backup, attendance_evaluation |
+| Administrator | scan, read_records, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
 
 Privileged API/core paths perform the authorization checks. UI visibility is not treated as security.
 
@@ -70,7 +72,7 @@ Protect:
     data/exports/
     data/charts/
 
-These locations can contain student information, attendance history, authentication material, or diagnostic records.
+These locations can contain student information, attendance history, authentication material, RFID key material, or diagnostic records. The AES-GCM RFID key is stored in `data/settings.json`; the unguarded `get_settings()` bridge method strips the password `auth` record but currently returns this RFID key to JavaScript. Do not treat card-payload encryption as protection from a caller who can interact with the running webview bridge.
 
 ## Restore containment
 

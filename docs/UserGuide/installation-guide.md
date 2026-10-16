@@ -7,7 +7,7 @@ This guide covers the maintained DSIS v3 HTML/pywebview application on Windows, 
 Prepare:
 
 - Windows PC;
-- Python installation suitable for the repository requirements;
+- Python 3.11 through 3.14 (the launcher preflight rejects versions outside this range);
 - Arduino IDE with ESP32 board support;
 - ESP32 WROOM-32 development board;
 - AS608 fingerprint sensor;
@@ -61,7 +61,7 @@ Select **ESP32 Arduino → ESP32 Dev Module** for the documented WROOM-32 target
 
 The maintained sketch is the supported firmware path. Historical standalone sketches and `firmware/prebuilt/attendance_v1.0.bin` are not substitutes.
 
-The current sketch advertises firmware 1.0.10 and protocol 1.
+The current sketch advertises firmware 1.6.2 and protocol 1.
 
 ## 6. Start DSIS
 
@@ -151,7 +151,7 @@ Category bands:
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-CSV export of evaluation requires the `export` permission.
+Evaluation data requires both `attendance_evaluation` and `read_records`. The current API's evaluation CSV method delegates to the same check and does not separately require `export`. Guest is configured with `attendance_evaluation` but lacks `read_records`; it cannot obtain identifiable evaluation output. See [Roles and Permissions](roles-and-permissions.md) for the current Guest-to-Teacher limitation.
 
 ## 12. Backups
 
@@ -212,4 +212,4 @@ Review the configurable application `min_confidence`. A WEAK MATCH is still reco
 - [v3 Architecture](../Architecture/v3-system.md)
 - [Troubleshooting](../Troubleshooting/README.md)
 
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-10-16.

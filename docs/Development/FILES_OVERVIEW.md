@@ -51,7 +51,7 @@ The active frontend is `python/gui_web/web/`. It communicates with Python throug
 | Property | Value |
 | --- | --- |
 | Device | Digital Student Identification System |
-| Firmware | 1.0.10 |
+| Firmware | 1.6.2 |
 | Protocol | 1 |
 | Host serial | 115200 |
 | AS608 UART | 57600 |

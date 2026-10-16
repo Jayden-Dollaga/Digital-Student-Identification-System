@@ -14,7 +14,7 @@ Current firmware metadata embedded in the sketch:
 | --- | --- |
 | Device identifier | Digital Student Identification System |
 | Board | ESP32 |
-| Firmware | 1.0.10 |
+| Firmware | 1.6.2 |
 | Sensor | AS608 |
 | Protocol | 1 |
 | Host baud | 115200 |
@@ -45,7 +45,7 @@ The firmware emits human-readable compatibility messages and structured JSON.
 Examples:
 
 ```json
-{"device":"Digital Student Identification System","board":"ESP32","firmware":"1.0.10","sensor":"AS608","protocol":1,"serial_number":"..."}
+{"device":"Digital Student Identification System","board":"ESP32","firmware":"1.6.2","sensor":"AS608","protocol":1,"serial_number":"..."}
 ```
 
 ```json

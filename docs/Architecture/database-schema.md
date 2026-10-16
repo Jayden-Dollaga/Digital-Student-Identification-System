@@ -137,7 +137,9 @@ Backup files are stored under:
 data/backups/
 ```
 
-Restore is permission-gated and validates the selected backup path and `.db` extension before replacing the active database.
+Restore requires the `restore` permission and checks resolved containment under the backups directory, regular-file existence, `.db` suffix, minimum header length, and the SQLite file magic before replacing the active database. It does not validate the application schema or row-level integrity before copying.
+
+Backup creation currently copies only the main database file with `shutil.copy2()`. Connections use WAL mode, but the backup routine does not explicitly checkpoint WAL or call SQLite's online backup API. Completeness for a copy taken while uncheckpointed writes remain in the WAL is therefore not guaranteed by the implementation and is not covered by tests.
 
 A restore is a replacement of the active database, not a merge.
 

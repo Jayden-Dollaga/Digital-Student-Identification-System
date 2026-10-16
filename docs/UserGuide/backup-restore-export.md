@@ -4,6 +4,8 @@
 
 Backups are SQLite filesystem copies created by `core.database.backup_database()`.
 
+The current implementation uses `shutil.copy2()` on the main `.db` file. Database connections use WAL mode, but backup creation does not explicitly checkpoint the WAL or use SQLite's online backup API. The code therefore does not guarantee that a copy taken during writes contains every committed WAL-only page. Treat backups as best-effort recovery copies and verify restoration against a known database before relying on them; this limitation is not covered by the current tests.
+
 Filename:
 
     attendance_YYYYMMDD_HHMMSS.db

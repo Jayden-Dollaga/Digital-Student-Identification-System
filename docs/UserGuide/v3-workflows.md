@@ -231,13 +231,15 @@ Create a fresh backup before restoring.
 
 The effective role is held in an in-memory session. The persisted `current_role` setting is not trusted for authorization.
 
-| Role | Permissions |
+| Role | Configured permissions |
 | --- | --- |
-| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
-| Teacher | scan, export, backup, attendance evaluation |
-| Guest | scan, attendance evaluation |
+| Administrator | scan, read_records, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
+| Teacher | scan, read_records, export, backup, attendance_evaluation |
+| Guest | scan, attendance_evaluation |
 
 Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
+
+Important: the current API allows Guest to select Teacher without password verification; Teacher includes record reads, exports, and backups. Do not rely on Guest mode to protect identifiable data from someone who can interact with the app. The evaluation API also requires `read_records`, so Guest does not receive per-student evaluation rows even though its configured permission list includes `attendance_evaluation`. See [Roles and Permissions](roles-and-permissions.md).
 
 ## 12. Settings
 
@@ -279,4 +281,4 @@ Close DSIS
 
 See [v3 System Architecture](../Architecture/v3-system.md) for technical details and [Troubleshooting](../Troubleshooting/README.md) for recovery procedures.
 
-Last reviewed: 2026-09-21.
+Last reviewed: 2026-10-16.

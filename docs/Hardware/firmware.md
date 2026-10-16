@@ -78,7 +78,7 @@ The Python desktop processor has a separate configurable cooldown, default 10 se
 
 The LED manager contains states for boot, ready, scan, success, enrollment, firmware, error, database error, communication error, host connected, host disconnected, and sleep.
 
-HOST_CONNECTED and HOST_DISCONNECTED are status indicators only. They are not an authorization gate.
+`HOST_CONNECTED` and `HOST_DISCONNECTED` are not cryptographic authentication, but the current firmware uses the host-connected flag as a protocol gate: `ENROLL`, `DELETE`, `WIPE`, `CARD_ERASE`, and `CARD_WRITE_HEX` are rejected until the host reports `HOST_CONNECTED`. Direct USB serial access can still send status commands, so this is not protection against a person with physical access to the port.
 
 ## Compatibility note
 

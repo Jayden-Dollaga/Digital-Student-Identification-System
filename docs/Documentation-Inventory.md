@@ -1,133 +1,51 @@
-# DSIS Documentation Inventory
+# Documentation Inventory
 
-This inventory classifies the repository's documentation so readers can distinguish current v3 guidance from historical, generated, research, duplicate, cache, and reference material.
+This page classifies retained project documentation. [The documentation index](INDEX.md) is the complete link catalog for retained textual docs and audit artifacts. The source-backed [application inventory](generated/APP_INVENTORY.md) records the maintained runtime, API, permissions, persistence, firmware, and tests.
 
-## Classification
+## Authority
 
-| Class | Meaning |
-| --- | --- |
-| Current | Describes the maintained v3 implementation or current development/release process |
-| Historical | Preserves earlier implementation behavior, investigations, or plans |
-| Generated | Point-in-time audit/metric/inventory output |
-| Research | Concept/study material; not a runtime contract |
-| Archive | Preserved legacy UI or experiment documentation |
-| Reference | Supporting material that does not define runtime behavior |
-| Cache | Tool/cache material; not project documentation |
+1. Current checked-out source and focused tests define behavior.
+2. The current operator, architecture, hardware, development, troubleshooting, security, and API guides linked from [INDEX.md](INDEX.md) explain that behavior.
+3. Root `README.md`, `INSTALLATION.md`, `PORTABLE_BUILD.md`, `RELEASE.md`, `SECURITY.md`, and `CONTRIBUTING.md` provide project entry and policy guidance.
+4. History, investigations, research, generated reports, prototypes, and archived implementations are preserved evidence. Their claims are scoped to their date, commit, or earlier product version.
 
-When documentation conflicts, prefer current source code and tests, then Current documents, then root release/deployment/security documents, then Historical/Generated material.
+Do not treat an old report as a current implementation guarantee. Where any current guide conflicts with source/tests, correct the guide; do not rewrite historical findings to make them appear current.
 
-## Current root documentation
+## Maintained Product
 
-- README.md — Product overview and navigation
-- INSTALLATION.md — Current Windows/source installation and firmware setup
-- PORTABLE_BUILD.md — Current v3 PyInstaller build workflow
-- CONTRIBUTING.md — Contribution and validation rules
-- RELEASE.md — Release procedure
-- SECURITY.md — Security reporting and supported-version policy
-- CODE_OF_CONDUCT.md — Community conduct
+The maintained desktop application is the HTML/pywebview v3 runtime launched by `run_web_gui.py` or `run_web_gui.bat`. The active UI is under `python/gui_web/web/`; its Python bridge is `python/gui_web/api.py`; shared behavior is in `python/core/`, `python/services/`, `python/config.py`, and `python/settings_store.py`. The maintained firmware is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` and its `src/rfid/` adapters.
 
-## Current docs navigation
+The v1 CustomTkinter and v2 Qt applications, `python/gui/legacy/`, `python/gui_web/v2_reference/`, standalone/diagnostic firmware, old package outputs, and `tests/Prototype/` are historical or experimental, not alternate supported v3 launch paths. See [archive README](../archive/README.md) and [UI lineage](History/ui-lineage.md).
 
-- docs/README.md — Documentation orientation
-- docs/INDEX.md — Main documentation index
-- docs/Documentation-Overhaul.md — Documentation architecture and accuracy corrections
-- docs/Documentation-Inventory.md — This classification
+## Documentation Classes
 
-## Current architecture
+| Class | Meaning | Location examples |
+| --- | --- | --- |
+| Current product guidance | Current operational, architectural, hardware, development, and security behavior; verify against source/tests | `UserGuide/`, `Architecture/`, `Hardware/`, `Development/`, `Troubleshooting/`, `Security/`, `API/` |
+| Root policy and onboarding | Canonical project entry, install, release, contribution, and security policy | repository root guides listed above |
+| Historical or investigative | Records prior implementation behavior, regressions, security reviews, or plans; not current authority | `History/`, dated diagnostics, security reports, prior phase notes |
+| Generated snapshot | Generated inventory, metrics, architecture, test, or forensic snapshot; may become stale | `generated/`, metrics and inventory outputs |
+| Research | Study and concept material; not runtime requirements | `Research/` |
+| Preserved duplicate or intake | Superseded duplicate notes or unprocessed documentation assets | `Dup/`, `_inbox/` |
+| Binary supporting asset | Screenshot or image illustrating a UI snapshot; not an independent procedure | `UserGuide/images/` |
 
-- docs/Architecture/v3-system.md — Authoritative v3 runtime architecture
-- docs/Architecture/system-architecture.md — Architectural component reference
-- docs/Architecture/software-flow.md — Startup, discovery, enrollment, scan, evaluation, wipe, backup, and shutdown flow
-- docs/Architecture/database-schema.md — SQLite schema, validation, migration, and data relationships
+## Canonical Current References
 
-## Current hardware
+- [Documentation index](INDEX.md)
+- [Application inventory](generated/APP_INVENTORY.md)
+- [v3 system architecture](Architecture/v3-system.md)
+- [Database schema](Architecture/database-schema.md)
+- [Full API reference](API/README.md)
+- [User workflows](UserGuide/v3-workflows.md)
+- [Roles and permissions](UserGuide/roles-and-permissions.md)
+- [Maintained firmware](Hardware/firmware.md)
+- [Serial protocol](Hardware/serial-protocol.md)
+- [Security model](Security/security-model.md)
+- [Developer testing](Development/testing.md)
+- [Troubleshooting](Troubleshooting/README.md)
 
-- docs/Hardware/hardware-connections.md — Hardware overview and exact connections
-- docs/Hardware/wiring.md — GPIO, UART, power, and board notes
-- docs/Hardware/firmware-variants.md — Current firmware metadata, protocol, commands, and historical sketches
+## Completeness and Maintenance
 
-## Current user guides
+The index links all retained Markdown, plain-text, and CSV documents in `docs/`. It does not enumerate individual screenshots, other binary assets, generated build outputs, or archived source files. Update `INDEX.md` when adding, moving, or removing a textual document. Update the closest current guide and the application inventory whenever a maintained public surface, data contract, permission, or hardware protocol changes.
 
-- docs/UserGuide/project-overview.md — Product, data model, architecture, and security overview
-- docs/UserGuide/installation-guide.md — Detailed Windows installation and daily-use setup
-- docs/UserGuide/v3-workflows.md — Operator workflow reference
-- docs/UserGuide/testing-results.md — Documented software/hardware validation
-- docs/Troubleshooting/README.md — Current recovery guide
-- docs/TROUBLESHOOTING.md — Longer diagnostic reference
-
-## Current development documentation
-
-- docs/Development/documentation-map.md — Source-of-truth and documentation boundaries
-- docs/Development/FILES_OVERVIEW.md — Current repository/source-tree overview
-- docs/Development/FILES_DETAILED.md — Active Python module reference
-- docs/Development/database-updates.md — SQLite maintenance and migration
-- docs/Development/logging-guide.md — Logging behavior and diagnostics
-- docs/Development/runtime-data.md — Runtime storage and retention
-- docs/Development/tools-catalog.md — Developer/diagnostic tools
-- docs/Development/ui-prototypes.md — Prototype scope and execution
-
-## API documentation
-
-- docs/API/README.md — Current JavaScript-to-Python bridge and public Api method reference
-
-## Historical and investigation documents
-
-These are retained for provenance and should not override current v3 behavior:
-
-- docs/History/ui-lineage.md
-- docs/Development/database-integration-summary.md
-- docs/Development/ESP32_Fingerprint_AllInOne_firmware_explanation.md
-- docs/Development/logger_usage.md
-- docs/Development/logging-quick-reference.md
-- docs/Development/logging-summary.md
-- docs/Development/migration-example.md
-- docs/Development/polish-phase-complete.md
-- docs/Development/polish-phase-roadmap.md
-- docs/Development/SHUTDOWN_CRASH.md
-- docs/Development/structure.txt
-- docs/Development/todo.md
-- docs/ENROLLMENT_REGRESSION_DIAGNOSTIC.md
-- docs/REGRESSION_INVESTIGATION_SUMMARY.md
-- docs/ROOT_CAUSE_ANALYSIS.md
-
-## Security reports
-
-Security audit/remediation files are historical evidence of findings and fixes. Use them together with the current SECURITY.md and current source:
-
-- docs/SECURITY_AUDIT_REPORT.md
-- docs/SECURITY_REMEDIATION_REPORT.md
-
-## Generated documents
-
-Generated metrics, inventories, forensic audits, and generated architecture/database/testing reports are snapshots. They should be regenerated deliberately and must not be treated as the authoritative runtime contract:
-
-- docs/CODE_METRICS.md
-- docs/generated/ARCHITECTURE.md
-- docs/generated/DATABASE.md
-- docs/generated/FILE_INVENTORY.md
-- docs/generated/FIRMWARE.md
-- docs/generated/GUI.md
-- docs/generated/INDEX.md
-- docs/generated/PROJECT_FORENSIC_AUDIT.md
-- docs/generated/PROJECT_OVERVIEW.md
-- docs/generated/REPOSITORY_AUDIT.md
-- docs/generated/SERIAL_PROTOCOL.md
-- docs/generated/TESTING.md
-
-## Research boundary
-
-docs/Research/ contains concept-paper and study material. It is intentionally excluded from the product documentation path and does not define current implementation behavior.
-
-## Preserved/other material
-
-- docs/Dup/ — duplicates and superseded material
-- docs/_inbox/ — documentation asset intake
-- archive/ — historical implementations and diagnostics
-- python/gui_web/v2_reference/ — v2 reference implementation
-- tests/Prototype/ — isolated interface prototypes
-
-## Maintenance rule
-
-Whenever implementation behavior changes, update the nearest Current document in the same change when practical. Include exact paths, commands, defaults, protocol values, failure behavior, and review dates.
-
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-10-16.
