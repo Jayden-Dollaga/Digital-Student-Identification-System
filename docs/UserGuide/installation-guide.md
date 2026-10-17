@@ -130,17 +130,17 @@ Press **STOP** before enrollment, deletion, or wipe operations.
 
 | Role | Default permissions |
 | --- | --- |
-| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
-| Teacher | scan, export, backup, attendance evaluation |
-| Guest | scan, attendance evaluation |
+| Administrator | scan, read records, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, read records, export, backup, attendance evaluation |
+| Guest | scan only |
 
-Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
+Authenticated non-guest sessions expire after 600 seconds of inactivity by default. Guest-to-Teacher/Admin changes require authentication. Identifiable evaluation requires both `attendance_evaluation` and `read_records`; exporting that evaluation also requires `export`.
 
 ## 11. Attendance evaluation
 
 The Dashboard supports Day, Monday-Sunday Week, and Calendar Month evaluation.
 
-Evaluation counts distinct attendance dates per student. The observed-day denominator is based on attendance activity in the selected range rather than every empty calendar date.
+Evaluation counts distinct qualifying attendance dates per student. The denominator enumerates elapsed scheduled weekdays and excludes recurring days off, weekends, holidays, and suspensions whether or not a scan occurred. Empty scan days/device outages still count, future dates in the active period are excluded, and each student's eligible denominator starts no earlier than enrollment.
 
 Category bands:
 
