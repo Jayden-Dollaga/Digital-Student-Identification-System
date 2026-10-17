@@ -18,7 +18,7 @@ Permission checks are performed against the in-memory session. The `current_role
 - A Guest session cannot switch directly to Teacher or Administrator. Those transitions require authentication; the administrator password is verified before elevation.
 - An authenticated administrator can switch down to Teacher or Guest without re-entering the password.
 - Non-Guest sessions expire after the configured idle timeout (10 minutes by default); locking the session returns it to Guest.
-- Passwords are stored as salted PBKDF2-HMAC-SHA256 verifiers. Verification rejects malformed records and iteration values outside a bounded range.
+- Passwords are 8–1,024 characters and stored as salted PBKDF2-HMAC-SHA256 verifiers. Verification rejects malformed salt/digest records and iteration counts outside 100,000–1,000,000. Five failed administrator login attempts trigger a 30-second lockout persisted in the local settings file, so restarting DSIS does not immediately reset it.
 
 ## Data access and diagnostics
 
