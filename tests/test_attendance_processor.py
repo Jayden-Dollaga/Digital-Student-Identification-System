@@ -621,6 +621,21 @@ class AttendanceProcessorTests(unittest.TestCase):
                     "",
                 )
 
+    def test_rfid_key_persistence_failure_is_reported_as_configuration_error(self):
+        from settings_store import default_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                save_settings(default_settings(), settings_path)
+                with patch("core.database.has_linked_rfid_cards", return_value=False), \
+                     patch("core.rfid_card.save_settings", side_effect=OSError("read-only settings")):
+                    with self.assertRaisesRegex(
+                        rfid_card.RFIDKeyConfigurationError,
+                        "could not safely persist",
+                    ):
+                        rfid_card.get_or_create_rfid_app_key()
+
     def test_malformed_saved_rfid_key_is_not_silently_replaced(self):
         from settings_store import load_settings, save_settings
 
