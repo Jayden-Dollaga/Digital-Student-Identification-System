@@ -64,11 +64,36 @@ def verify_password(password: str, record: Dict[str, Any]) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def has_password_set(settings: Dict[str, Any]) -> bool:
-    """Return True if settings already has a usable password hash record."""
+def has_password_material(settings: Dict[str, Any]) -> bool:
+    """Return True if settings contain any non-empty persisted verifier material.
+
+    A partial/malformed verifier must trigger recovery, not first-run setup;
+    otherwise a broken existing install could be silently re-enrolled.
+    """
     record = settings.get("auth")
-    return isinstance(record, dict) and bool(record.get(PASSWORD_HASH_KEY)) and bool(
-        record.get(PASSWORD_SALT_KEY)
+    if not isinstance(record, dict):
+        return False
+    return any(
+        record.get(key) not in (None, "")
+        for key in (PASSWORD_HASH_KEY, PASSWORD_SALT_KEY)
+    )
+
+
+def has_password_set(settings: Dict[str, Any]) -> bool:
+    """Return True only if the stored password verifier is structurally usable."""
+    record = settings.get("auth")
+    if not isinstance(record, dict):
+        return False
+    try:
+        salt = base64.b64decode(record[PASSWORD_SALT_KEY], validate=True)
+        digest = base64.b64decode(record[PASSWORD_HASH_KEY], validate=True)
+        iterations = int(record.get("iterations", PBKDF2_ITERATIONS))
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+    return (
+        len(salt) == PASSWORD_SALT_BYTES
+        and len(digest) == PASSWORD_DIGEST_BYTES
+        and MIN_PBKDF2_ITERATIONS <= iterations <= MAX_PBKDF2_ITERATIONS
     )
 
 
