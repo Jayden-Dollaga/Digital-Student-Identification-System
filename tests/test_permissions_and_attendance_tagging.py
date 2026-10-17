@@ -443,11 +443,11 @@ class TestTodayAttendanceFallbackFlag:
         api = api_module.Api()
         assert api._backup_thread is None
 
-        api.set_window(object())
+        api._set_window(object())
         assert api._backup_thread is not None
         assert api._backup_thread.is_alive()
 
-        api.stop_background_tasks()
+        api._stop_background_tasks()
         assert api._backup_thread is not None
         assert not api._backup_thread.is_alive()
 
