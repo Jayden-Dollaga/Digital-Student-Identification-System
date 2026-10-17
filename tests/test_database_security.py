@@ -28,6 +28,23 @@ def create_valid_sqlite_db(path):
     finally:
         connection.close()
 
+def test_has_linked_rfid_cards_tracks_nonempty_card_links():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.has_linked_rfid_cards() is False
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            assert database.has_linked_rfid_cards() is False
+
+            ok, message = database.bind_student_card(1, "AA:BB:CC:DD")
+            assert ok, message
+            assert database.has_linked_rfid_cards() is True
+
+            database.clear_student_card(1)
+            assert database.has_linked_rfid_cards() is False
+
+
 def test_daily_attendance_summary_prefers_good_match_over_older_weak_match():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "attendance.db"
