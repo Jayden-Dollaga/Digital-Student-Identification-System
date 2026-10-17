@@ -3,6 +3,7 @@
 import sys
 import sqlite3
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -26,6 +27,23 @@ def create_valid_sqlite_db(path):
         connection.commit()
     finally:
         connection.close()
+
+def test_daily_attendance_summary_keeps_same_named_students_separate():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            assert database.register_student(2, "LRN-002", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 180, "GOOD MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(2, 190, "GOOD MATCH", datetime(2026, 10, 15, 8, 1, 0))
+
+            rows = database.get_daily_attendance_summary("2026-10-15", "2026-10-15")
+
+        assert len(rows) == 2
+        assert {row["student_no"] for row in rows} == {"LRN-001", "LRN-002"}
+        assert {row["student_name"] for row in rows} == {"Alex Reyes"}
+
 
 class TestRestoreDatabasePathTraversal:
     """Test that restore_database prevents path traversal attacks."""
