@@ -109,6 +109,12 @@ def _quarantine_invalid_settings(settings_path: Path) -> Dict[str, Any]:
     return default_settings()
 
 
+def has_quarantined_settings(path: str | Path | None = None) -> bool:
+    """Return whether a prior malformed settings file is preserved nearby."""
+    settings_path = Path(path or SETTINGS_FILE)
+    return any(settings_path.parent.glob(f"{settings_path.name}.corrupt-*"))
+
+
 def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     settings_path = Path(path or SETTINGS_FILE)
     if not settings_path.exists():
