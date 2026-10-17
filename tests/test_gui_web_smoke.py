@@ -376,6 +376,39 @@ def test_v3_statistics_report_includes_students_without_attendance(monkeypatch):
     assert result["connected"] is False
 
 
+def test_statistics_report_does_not_count_historical_weak_matches(monkeypatch):
+    from gui_web import api as api_module
+
+    api = api_module.Api()
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_name": "Alice",
+        "student_no": "S-001",
+        "grade": "12",
+        "section": "CSS",
+    }])
+    monkeypatch.setattr(api_module.db, "get_attendance_all", lambda: [
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-10",
+            "status": "WEAK MATCH",
+        },
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-11",
+            "status": "GOOD MATCH",
+        },
+    ])
+    monkeypatch.setattr(api.serial, "is_connected", lambda: False)
+
+    result = api.get_statistics_report()
+
+    assert result["total_records"] == 1
+    assert result["all_students"][0]["count"] == 1
+    assert result["recent_attendance"] == [{"date": "2026-09-11", "count": 1}]
+
+
 def test_v3_serial_troubleshooting_message_uses_detected_ports(monkeypatch):
     from gui_web.api import Api
 
@@ -444,6 +477,7 @@ def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
         "fingerprint_id": 7,
         "event_type": "time_in",
         "time": "08:20:00",
+        "status": "GOOD MATCH",
     }])
     monkeypatch.setattr("gui_web.api.load_settings", lambda: {
         "time_in": "08:00", "time_out": "17:00",
@@ -454,6 +488,25 @@ def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
     student = api.get_student(7)
 
     assert student["attendance_status"] == "Late"
+
+
+def test_v3_student_detail_does_not_count_historical_weak_match(monkeypatch):
+    from gui_web import api as api_module
+
+    api = api_module.Api()
+    permissions.set_session_role("teacher", 600.0)
+    monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
+        "fingerprint_id": fingerprint_id,
+        "student_name": "Alice",
+    })
+    monkeypatch.setattr("gui_web.api.db.get_attendance_by_date", lambda date: [{
+        "fingerprint_id": 7,
+        "event_type": "time_in",
+        "time": "08:00:00",
+        "status": "WEAK MATCH",
+    }])
+
+    assert api.get_student(7)["attendance_status"] == "Not Counted"
 
 
 def test_v3_student_detail_without_scan_is_absent(monkeypatch):
