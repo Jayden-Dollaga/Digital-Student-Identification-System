@@ -28,6 +28,24 @@ def create_valid_sqlite_db(path):
     finally:
         connection.close()
 
+def test_legacy_statistics_report_counts_only_qualifying_matches_and_enrolled_students():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0))
+            database.log_attendance(0, 0, "UNKNOWN", datetime(2026, 10, 15, 8, 7, 0))
+
+            report = database.generate_statistics_report()
+
+        assert "Total Students Enrolled: 1" in report
+        assert "Total Attendance Records: 1" in report
+        assert "Alex Reyes" in report
+        assert "Unregistered" not in report
+
+
 def test_has_persisted_records_detects_existing_student_or_attendance_data():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "attendance.db"
