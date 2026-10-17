@@ -119,6 +119,32 @@ def test_existing_malformed_password_verifier_requires_recovery(monkeypatch):
         api_module.LOG.removeHandler(instance._log_handler)
 
 
+def test_quarantined_settings_without_marker_cannot_open_first_run_setup(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "has_quarantined_settings", lambda: True)
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+        assert instance.complete_first_run_setup("some password", "some password")["ok"] is False
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
 def test_password_record_presence_is_separate_from_verifier_validity():
     valid_settings = {"auth": auth.hash_password("correct horse battery")}
     assert auth.has_password_material(valid_settings)
