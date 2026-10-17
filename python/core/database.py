@@ -987,7 +987,9 @@ def get_daily_attendance_summary(
     grouped: Dict[Tuple[str, str], RowDict] = {}
     for row in rows:
         row_dict = dict(row)
-        key = (row_dict["student_name"], row_dict["date"])
+        # Display names are not unique. Group by stable ID so two students
+        # with the same name cannot have their attendance merged.
+        key = (row_dict["fingerprint_id"], row_dict["date"])
         entry = grouped.setdefault(
             key,
             {
