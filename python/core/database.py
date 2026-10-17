@@ -1316,19 +1316,26 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
 def generate_statistics_report() -> str:
     conn = get_connection()
     try:
-        total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()["count"]
-        total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()["count"]
+        qualifying_sql = "LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')"
+        total_students = conn.execute(
+            "SELECT COUNT(*) as count FROM students WHERE fingerprint_id > 0"
+        ).fetchone()["count"]
+        total_attendance = conn.execute(
+            f"SELECT COUNT(*) as count FROM attendance WHERE {qualifying_sql}"
+        ).fetchone()["count"]
 
         attendance_by_date = conn.execute(
-            "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
+            f"SELECT date, COUNT(*) as count FROM attendance WHERE {qualifying_sql} "
+            "GROUP BY date ORDER BY date DESC LIMIT 30"
         ).fetchall()
 
         top_students = conn.execute(
-            """
+            f"""
             SELECT COALESCE(s.student_name, 'Unknown') as name,
                    COUNT(a.id) as count
             FROM attendance a
             LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+            WHERE {qualifying_sql} AND a.fingerprint_id > 0
             GROUP BY a.fingerprint_id
             ORDER BY count DESC
             LIMIT 10
@@ -1336,11 +1343,12 @@ def generate_statistics_report() -> str:
         ).fetchall()
 
         grade_stats = conn.execute(
-            "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
+            "SELECT grade, COUNT(*) as count FROM students WHERE fingerprint_id > 0 GROUP BY grade"
         ).fetchall()
 
         enrolled_students = conn.execute(
-            "SELECT student_name, student_no, grade, section FROM students ORDER BY student_name COLLATE NOCASE, fingerprint_id ASC"
+            "SELECT student_name, student_no, grade, section FROM students "
+            "WHERE fingerprint_id > 0 ORDER BY student_name COLLATE NOCASE, fingerprint_id ASC"
         ).fetchall()
 
         report_lines = [
