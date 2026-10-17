@@ -139,7 +139,10 @@ def set_initial_password(settings: Dict[str, Any], password: str) -> Dict[str, A
     second, quieter "admin"/"admin"-style bypass). Use change_admin_password
     (which requires the current password) for that instead.
     """
-    if has_password_set(settings):
-        raise ValueError("A password is already set; first-run setup cannot run again.")
+    if has_password_material(settings):
+        raise ValueError(
+            "Administrator password material already exists; first-run setup cannot overwrite it. "
+            "Use the administrator recovery process."
+        )
     settings["auth"] = hash_password(password)
     return settings
