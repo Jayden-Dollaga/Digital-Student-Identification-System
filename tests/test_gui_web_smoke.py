@@ -631,7 +631,12 @@ def test_v3_today_export_uses_visible_fallback_rows(monkeypatch):
 
     assert result == {"ok": True}
     exported_rows = api._rows_to_csv.call_args.args[0]
-    assert exported_rows == [{"student_name": "Garcia, José R.", "time_in": "08:00:00", "attendance_status": "Present"}]
+    assert exported_rows == [{
+        "student_name": "Garcia, José R.",
+        "time_in": "08:00:00",
+        "status": "GOOD MATCH",
+        "attendance_status": "Present",
+    }]
     assert api._rows_to_csv.call_args.args[1] == Path("C:/chosen/attendance.csv")
 
 
