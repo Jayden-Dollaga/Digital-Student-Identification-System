@@ -795,9 +795,15 @@ def test_v3_attendance_evaluation_ignores_weekend_activity(monkeypatch):
 
     result = api.get_attendance_evaluation("week", "2026-09-20")
 
-    assert result["school_days"] == []
-    assert result["total_days"] == 0
-    assert result["rows"][0]["attendance_rate"] is None
+    # Weekends with activity must be ignored, while scheduled weekdays
+    # still count in the denominator even if nobody scanned that day.
+    assert result["school_days"] == [
+        "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18",
+    ]
+    assert result["total_days"] == 5
+    assert result["rows"][0]["days_present"] == 0
+    assert result["rows"][0]["days_absent"] == 5
+    assert result["rows"][0]["attendance_rate"] == 0.0
 
 
 def test_v3_recent_export_uses_visible_page(monkeypatch):
