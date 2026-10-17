@@ -231,3 +231,14 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
+
+def test_atomic_settings_save_round_trip_and_no_temp_file_left():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        save_settings({"com_port": "COM17"}, settings_file)
+        loaded = load_settings(settings_file)
+        assert loaded["com_port"] == "COM17"
+        assert json.loads(settings_file.read_text(encoding="utf-8"))["com_port"] == "COM17"
+        assert list(Path(tmpdir).glob(".settings.json.*.tmp")) == []
