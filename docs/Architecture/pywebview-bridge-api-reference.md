@@ -57,8 +57,8 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 
 | Method | Arguments | Access | Main effect / return |
 | --- | --- | --- | --- |
-| `start_background_tasks` | none | lifecycle | Starts automatic backup worker; returns None |
-| `stop_background_tasks` | none | lifecycle | Stops API background tasks; returns None |
+| `_start_background_tasks` | none | private lifecycle hook | Starts automatic backup worker from Python host code |
+| `_stop_background_tasks` | none | private lifecycle hook | Stops the worker from Python host code |
 | `set_window` | `window` | lifecycle | Stores pywebview window and starts background tasks |
 | `list_ports` | none | Guest | Returns COM port names |
 | `list_ports_detailed` | none | Guest | Returns detailed COM-port metadata |
@@ -69,8 +69,8 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `start_scan` | none | `scan` | Sends `SCAN`; returns boolean |
 | `stop_scan` | none | `scan` | Sends `STOP`; returns boolean |
 | `start_enroll` | none | `enroll` | Sends enrollment command; begins enrollment state |
-| `validate_student_fields` | student_no, student_name, grade, section | Guest | Returns per-field validation feedback |
-| `cancel_enroll` | none | Guest | Cancels active enrollment through stop handling |
+| `validate_student_fields` | student_no, student_name, grade, section | `enroll` | Returns per-field validation feedback; guards student-number existence check |
+| `cancel_enroll` | none | `enroll` | Cancels active enrollment through stop handling |
 | `discard_enrollment` | `fingerprint_id` | `delete` | Removes a partially stored fingerprint through the delete path |
 | `delete_on_device` | `fingerprint_id` | `delete` | Sends `DELETE:id` and waits for device result |
 | `wipe_all_on_device` | none | `wipe` | Sends `WIPE`; successful device wipe triggers local cleanup |
@@ -91,7 +91,7 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `delete_student` | `fingerprint_id` | `delete` | Deletes local student record; historical attendance becomes ID 0 |
 | `export_students_csv` | none | `export` | Writes student CSV |
 | `get_attendance_evaluation` | `period="month", ref_date=""` | `attendance_evaluation` | Returns day/week/month per-student evaluation |
-| `export_attendance_evaluation_csv` | same as evaluation | inherits evaluation check | Calls evaluation then exports CSV |
+| `export_attendance_evaluation_csv` | same as evaluation | `export` plus evaluation/read checks | Calls evaluation then exports CSV |
 | `get_calendar_month` | `year, month` | Guest | Returns calendar exceptions for month |
 | `set_calendar_entry` | date, type, label, optional times | `manage_calendar` | Writes holiday/suspension/half-day entry |
 | `remove_calendar_entry` | `date` | `manage_calendar` | Removes a stored calendar entry |
@@ -117,8 +117,8 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `lock_session` | none | Guest | Returns active role to Guest |
 | `change_admin_password` | current_password, new_password | Administrator | Verifies current password and writes new hash |
 | `get_role_permissions` | `role` | Guest | Returns configured permission strings |
-| `open_log_folder` | none | Guest | Opens local log folder |
-| `get_app_log` | `max_lines=500` | Guest | Returns recent application log lines |
+| `open_log_folder` | none | Administrator | Opens local log folder |
+| `get_app_log` | `max_lines=500` | Administrator | Returns up to 1,000 recent application log lines |
 
 ## Important access details
 
@@ -127,7 +127,7 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 - `reset_device` is Administrator-only.
 - `save_ui_settings` is Administrator-only because it can change attendance/auth-adjacent runtime settings.
 - `get_statistics_report` requires either export or backup permission.
-- `export_attendance_evaluation_csv` reuses the attendance-evaluation permission through its call to `get_attendance_evaluation`.
+- `export_attendance_evaluation_csv` requires export permission and then reuses the attendance-evaluation and record-read checks.
 - Frontend permission checks are UX controls; backend checks are authoritative.
 
 ## Return conventions
