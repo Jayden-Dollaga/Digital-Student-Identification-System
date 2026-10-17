@@ -1,6 +1,6 @@
 # DSIS Security Model
 
-This document summarizes the implementation for security reviewers. The public reporting process remains in the repository-root [SECURITY.md](../../SECURITY.md).
+This document summarizes the implementation for security reviewers. The [security remediation status](REMEDIATION_STATUS.md) tracks what this branch changes and what still requires operational validation. The public reporting process remains in the repository-root [SECURITY.md](../../SECURITY.md).
 
 ## Authentication
 
