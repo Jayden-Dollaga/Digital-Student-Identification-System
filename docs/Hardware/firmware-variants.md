@@ -72,7 +72,7 @@ Enrollment selects the next available ID when `ENROLL` is used, or accepts expli
 
 The firmware waits for a finger, captures and converts the image, searches the sensor database, emits a match/unknown/low-confidence event, and applies a 2-second firmware-level post-scan delay.
 
-The firmware-level minimum confidence is **50**. The desktop application independently classifies matches using its configurable `min_confidence` setting (default 100). A weak application classification is still recorded by the current attendance processor.
+The firmware-level match floor is **50**. The desktop application independently applies configurable `min_confidence` (raw AS608 score, range 1–255; default 100). A regular match below that threshold is returned as `WEAK MATCH` for diagnostics and is not recorded as attendance. The maintained all-in-one sketch now keeps its main loop running if the AS608 is offline, allowing RFID operation to continue; fingerprint-only commands report a sensor-unavailable error.
 
 ## Deletion behavior
 
