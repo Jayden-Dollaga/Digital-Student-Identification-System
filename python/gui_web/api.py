@@ -53,6 +53,7 @@ try:
     from ..core.utils import parse_json_line
     from ..settings_store import (
         admin_initialization_marker_exists,
+        has_quarantined_settings,
         default_settings,
         load_settings,
         save_settings,
@@ -253,13 +254,18 @@ class Api:
         settings = load_settings()
         has_password = auth.has_password_set(settings)
         has_password_material = auth.has_password_material(settings)
+        quarantined_settings = has_quarantined_settings()
         marker_exists = admin_initialization_marker_exists()
-        # A partial/malformed existing verifier is a recovery condition, not
-        # a fresh install. Persist the marker before allowing any setup UI.
-        if (has_password or has_password_material) and not marker_exists:
+        # Any existing verifier material or quarantined settings indicates
+        # this may be an existing installation, not a fresh install. Fail
+        # closed when the initialization marker is absent instead of allowing
+        # corrupted settings to downgrade into password creation.
+        if (has_password or has_password_material or quarantined_settings) and not marker_exists:
             write_admin_initialization_marker()
             marker_exists = True
-        self._first_run_setup_required = not has_password_material and not marker_exists
+        self._first_run_setup_required = (
+            not has_password_material and not quarantined_settings and not marker_exists
+        )
         self._first_run_recovery_required = marker_exists and not has_password
         self._failed_admin_attempts = 0
         self._admin_locked_until = 0.0
