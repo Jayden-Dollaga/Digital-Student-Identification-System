@@ -103,6 +103,35 @@ def test_identifiable_exports_require_record_read_permission(monkeypatch):
     assert instance.export_statistics_report()["status"] == 403
 
 
+@pytest.mark.parametrize(
+    "method_name",
+    ["export_attendance_csv", "export_students_csv", "export_statistics_report"],
+)
+def test_csv_and_statistics_exports_require_record_read_permission(monkeypatch, method_name):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(
+        api_module.permissions,
+        "require_permission",
+        lambda action: action == "export",
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_attendance_all",
+        lambda: pytest.fail("Export must not read attendance without read_records"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_all_students",
+        lambda: pytest.fail("Export must not read roster without read_records"),
+    )
+
+    result = getattr(instance, method_name)()
+
+    assert result["ok"] is False
+    assert result["status"] == 403
+    assert "record-reading permission" in result["message"].lower()
+
+
 def test_statistics_report_requires_record_read_permission(monkeypatch):
     instance = api_module.Api.__new__(api_module.Api)
     monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: action == "export")
