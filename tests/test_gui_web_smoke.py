@@ -876,6 +876,46 @@ def test_attendance_evaluation_excludes_historical_weak_matches(monkeypatch):
     assert result["rows"][0]["attendance_rate"] == 0.0
 
 
+def test_dashboard_presence_counts_only_qualifying_attendance_statuses(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_today_attendance_info", lambda: {
+        "is_fallback": False,
+        "rows": [
+            {"student_no": "LRN-001", "status": "WEAK MATCH", "time": "08:00:00"},
+            {"student_no": "LRN-002", "status": "GOOD MATCH", "time": "08:05:00"},
+        ],
+    })
+    monkeypatch.setattr(api_module.db, "get_student_count", lambda: 2)
+
+    result = api_module.Api.__new__(api_module.Api).get_dashboard_stats()
+
+    assert result["scans_today"] == 2
+    assert result["present_count"] == 1
+    assert result["attendance_rate"] == 50
+
+
+def test_weak_match_attendance_row_is_not_labelled_present(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_attendance_today", lambda: [{
+        "student_no": "LRN-001",
+        "student_name": "Student One",
+        "fingerprint_id": 1,
+        "date": "2026-09-22",
+        "time": "08:00:00",
+        "confidence": 80,
+        "status": "WEAK MATCH",
+    }])
+    monkeypatch.setattr(api_module, "load_settings", lambda: {})
+
+    result = api_module.Api.__new__(api_module.Api).get_attendance("today")
+
+    assert result["rows"][0]["attendance_status"] == "Not Counted"
+
+
 def test_v3_recent_export_uses_visible_page(monkeypatch):
     from gui_web.api import Api
 
