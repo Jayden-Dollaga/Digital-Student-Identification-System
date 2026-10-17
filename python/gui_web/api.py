@@ -234,8 +234,16 @@ class Api:
 
         try:
             db.init_database()
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error(f"Database initialization failed: {exc}")
+        except Exception as exc:
+            # A partially initialized app can display misleading empty reports
+            # and fail unpredictably on the first write. Stop startup clearly
+            # instead of exposing a broken UI as if the database were ready.
+            LOG.removeHandler(self._log_handler)
+            log.critical(f"Database initialization failed; DSIS startup aborted: {exc}")
+            raise RuntimeError(
+                "DSIS could not initialize its local database. Check the application log "
+                "and database path, then restart after resolving the error."
+            ) from exc
 
         # Apply persisted connection preferences to the handler itself -
         # v3 previously loaded auto_reconnect/auto_detect_serial into the
@@ -259,7 +267,7 @@ class Api:
         self.serial.auto_reconnect_enabled = bool(settings.get("auto_reconnect", True))
         try:
             self.processor.cooldown_seconds = max(1, int(settings.get("cooldown", self.processor.cooldown_seconds)))
-            self.processor.min_confidence = max(1, min(100, int(settings.get("min_confidence", self.processor.min_confidence))))
+            self.processor.min_confidence = max(1, min(255, int(settings.get("min_confidence", self.processor.min_confidence))))
         except (TypeError, ValueError):
             log.warning("Invalid persisted attendance settings; using processor defaults")
 
@@ -919,6 +927,14 @@ class Api:
         section: str,
     ) -> Dict[str, Any]:
         """Return live enrollment feedback without touching persisted data."""
+        if not permissions.require_permission("enroll"):
+            return {
+                "all_valid": False,
+                "fields": {},
+                "ok": False,
+                "status": 403,
+                "message": "Administrator enrollment permission is required.",
+            }
         feedback = db.get_student_field_feedback(
             1, student_no, student_name, grade, section
         )
@@ -937,6 +953,8 @@ class Api:
 
     def cancel_enroll(self) -> Dict[str, Any]:
         """Cancel an active enrollment before the modal is closed."""
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator enrollment permission is required."}
         if not self._pending_enroll:
             return {"ok": True, "message": "No enrollment is active."}
         if not self.serial.is_connected():
@@ -1764,6 +1782,8 @@ class Api:
         }
 
     def export_attendance_evaluation_csv(self, period: str = "month", ref_date: str = "") -> Dict[str, Any]:
+        if not permissions.require_permission("export"):
+            return {"ok": False, "message": "Current role does not have export permission."}
         report = self.get_attendance_evaluation(period, ref_date)
         if not report.get("ok"):
             return {"ok": False, "message": report.get("message", "Could not generate report.")}
@@ -1984,7 +2004,7 @@ class Api:
             return {"ok": False, "status": 403, "message": "Administrator authentication is required for attendance time rules."}
         try:
             cooldown = max(1, min(60, int(settings.get("cooldown", merged.get("cooldown", 10)))))
-            confidence = max(1, min(100, int(settings.get("min_confidence", merged.get("min_confidence", 96)))))
+            confidence = max(1, min(255, int(settings.get("min_confidence", merged.get("min_confidence", 100)))))
             backup_interval = max(1, min(180, int(settings.get("auto_backup_interval_minutes", merged.get("auto_backup_interval_minutes", 25)))))
             early_threshold = max(0, min(120, int(settings.get("early_threshold_minutes", merged.get("early_threshold_minutes", 15)))))
             late_threshold = max(0, min(120, int(settings.get("late_threshold_minutes", merged.get("late_threshold_minutes", 15)))))
