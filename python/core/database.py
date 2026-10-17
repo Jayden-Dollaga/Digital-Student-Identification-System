@@ -1031,6 +1031,7 @@ def get_daily_attendance_summary(
         rows = conn.execute(query, tuple(params)).fetchall()
 
     grouped: Dict[Tuple[int, str], RowDict] = {}
+    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row in rows:
         row_dict = dict(row)
         # Display names are not unique. Group by stable ID so two students
@@ -1041,35 +1042,37 @@ def get_daily_attendance_summary(
             {
                 "student_name": row_dict["student_name"],
                 "student_no": row_dict["student_no"],
+                "fingerprint_id": row_dict["fingerprint_id"],
                 "grade": row_dict["grade"],
                 "section": row_dict["section"],
                 "date": row_dict["date"],
-                "time_in": row_dict["time"],
-                "time_out": row_dict["time"],
+                "time_in": "",
+                "time_out": "",
                 "match_status": row_dict["status"],
+                "status": row_dict["status"],
+                "_qualifying_scan_count": 0,
             },
         )
 
-        # Prefer the event_type tagged at scan time. Rows written before the
-        # event_type migration (or ones that somehow slipped through without
-        # one) fall back to the old "last scan seen = time_out" behavior so
-        # nothing breaks for older data.
-        event_type = row_dict.get("event_type")
-        if event_type == "time_in":
-            entry["time_in"] = row_dict["time"]
-        elif event_type == "time_out":
-            entry["time_out"] = row_dict["time"]
-        else:
-            entry["time_out"] = row_dict["time"]
+        status = str(row_dict.get("status") or "").strip()
+        if status.lower() in qualifying_statuses:
+            # Historical versions tagged event_type based on every raw scan,
+            # including WEAK MATCH rows. Re-derive time-in/out from qualifying
+            # events so an old weak scan cannot become time-in for a later valid
+            # match. The first qualifying scan is time-in; later ones are time-out.
+            entry["_qualifying_scan_count"] += 1
+            if entry["_qualifying_scan_count"] == 1:
+                entry["time_in"] = row_dict["time"]
+                entry["time_out"] = ""
+            else:
+                entry["time_out"] = row_dict["time"]
+            entry["status"] = status
+            entry["match_status"] = status
 
-        # Prefer any qualifying status over a historical weak/unknown
-        # status earlier on the same day. Older releases wrote WEAK MATCH rows;
-        # retaining those rows for audit must not mask a later valid match.
-        if str(row_dict["status"]).strip().lower() in {"good match", "present", "logged", "ok"}:
-            entry["status"] = row_dict["status"]
-            entry["match_status"] = row_dict["status"]
-
-    return list(grouped.values())
+    result = list(grouped.values())
+    for entry in result:
+        entry.pop("_qualifying_scan_count", None)
+    return result
 
 
 def get_attendance_by_date(date_str: str) -> List[AttendanceRow]:
