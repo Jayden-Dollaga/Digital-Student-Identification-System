@@ -342,6 +342,20 @@ class AttendanceProcessor:
 
         if fingerprint_id is None:
             return None
+        if not 1 <= fingerprint_id <= 127 or not 0 <= confidence <= 255:
+            log.warning(
+                "Out-of-range legacy fingerprint match event ignored",
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status="INVALID MATCH",
+                timestamp=now,
+                logged=False,
+                reason="Fingerprint ID must be 1-127 and confidence must be 0-255.",
+            ).to_dict()
 
         if self._is_in_cooldown(fingerprint_id, now):
             log.info(
@@ -396,6 +410,21 @@ class AttendanceProcessor:
     def _handle_json_match_scan(self, fingerprint_id: int, confidence: int) -> Optional[ScanResult]:
         now = datetime.now()
 
+        if not 1 <= fingerprint_id <= 127 or not 0 <= confidence <= 255:
+            log.warning(
+                "Out-of-range JSON fingerprint match event ignored",
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status="INVALID MATCH",
+                timestamp=now,
+                logged=False,
+                reason="Fingerprint ID must be 1-127 and confidence must be 0-255.",
+            ).to_dict()
+
         if self._is_in_cooldown(fingerprint_id, now):
             log.info(
                 "Scan skipped due to cooldown",
@@ -445,6 +474,10 @@ class AttendanceProcessor:
             return None
 
     def _parse_json_int(self, value: Any) -> Optional[int]:
+        # bool is a subclass of int in Python; JSON true/false must not be
+        # accepted as numeric fingerprint IDs or confidence values.
+        if isinstance(value, bool):
+            return None
         if isinstance(value, int):
             return value
         if isinstance(value, str):
