@@ -83,6 +83,10 @@ def test_daily_attendance_summary_prefers_good_match_over_older_weak_match():
         assert len(rows) == 1
         assert rows[0]["status"] == "GOOD MATCH"
         assert rows[0]["match_status"] == "GOOD MATCH"
+        # The older weak scan must not become time-in just because its old
+        # event_type migration marked it as the first raw scan of the day.
+        assert rows[0]["time_in"] == "08:05:00"
+        assert rows[0]["time_out"] == ""
 
 
 def test_daily_attendance_summary_keeps_same_named_students_separate():
