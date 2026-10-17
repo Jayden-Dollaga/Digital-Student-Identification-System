@@ -718,6 +718,21 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
         conn.close()
 
 
+def has_persisted_records() -> bool:
+    """Return whether the database already contains student or attendance rows.
+
+    This is used only to prevent a missing settings file on a data-bearing
+    installation from being mistaken for a clean first launch when an older
+    install has no initialization marker yet.
+    """
+    with get_connection() as conn:
+        for table in ("students", "attendance"):
+            row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+            if row is not None:
+                return True
+    return False
+
+
 def has_linked_rfid_cards() -> bool:
     """Return whether the roster has any non-empty RFID card links.
 
