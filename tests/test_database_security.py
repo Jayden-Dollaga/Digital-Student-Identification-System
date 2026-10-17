@@ -46,6 +46,27 @@ def test_legacy_statistics_report_counts_only_qualifying_matches_and_enrolled_st
         assert "Unregistered" not in report
 
 
+def test_first_valid_match_after_historical_weak_scan_is_time_in():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            success, message = database.register_student(
+                1, "LRN-001", "Alex Reyes", "12", "CSS"
+            )
+            assert success, message
+            database.log_attendance(
+                1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0)
+            )
+            database.log_attendance(
+                1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0)
+            )
+
+            rows = database.get_attendance_by_student(1)
+
+        assert [row["event_type"] for row in rows] == ["time_in", "time_in"]
+
+
 def test_has_persisted_records_detects_existing_student_or_attendance_data():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "attendance.db"
