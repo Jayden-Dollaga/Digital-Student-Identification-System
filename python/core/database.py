@@ -1281,7 +1281,7 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
                 "confidence": row_dict.get("confidence"),
                 "status": status,
                 "_has_qualifying_match": False,
-                "_legacy_scan_count": 0,
+                "_qualifying_scan_count": 0,
             }
         entry = grouped[key]
 
@@ -1295,24 +1295,21 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
         entry["_has_qualifying_match"] = True
         entry["status"] = status
         entry["confidence"] = row_dict.get("confidence")
-        event_type = row_dict.get("event_type")
-        if event_type == "time_in":
+        # Older event_type values were assigned from every raw scan, including
+        # weak scans. Recompute time fields using qualifying scans only, so the
+        # first valid scan becomes time-in even if its stored event_type says
+        # time_out because an earlier weak scan existed.
+        entry["_qualifying_scan_count"] += 1
+        if entry["_qualifying_scan_count"] == 1:
             entry["time_in"] = row_dict["time"]
-        elif event_type == "time_out":
-            entry["time_out"] = row_dict["time"]
+            entry["time_out"] = ""
         else:
-            # Backward compatibility for rows without event_type. Only
-            # qualifying scans participate in the first-in/second-out fallback.
-            entry["_legacy_scan_count"] += 1
-            if not entry["time_in"]:
-                entry["time_in"] = row_dict["time"]
-            elif not entry["time_out"]:
-                entry["time_out"] = row_dict["time"]
+            entry["time_out"] = row_dict["time"]
 
     result = list(grouped.values())
     for row in result:
         row.pop("_has_qualifying_match", None)
-        row.pop("_legacy_scan_count", None)
+        row.pop("_qualifying_scan_count", None)
     result.sort(key=lambda row: (export_name_sort_key(row.get("student_name")), row.get("date", "")))
     return result
 
