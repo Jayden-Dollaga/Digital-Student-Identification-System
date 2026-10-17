@@ -489,6 +489,7 @@ void updateLed() {
 
 // ── Mode ──────────────────────────────────────────────────────────────────────
 bool scanMode = false;  // false = command mode, true = scan mode
+bool fingerprintSensorReady = false;  // RFID should remain usable when AS608 is offline
 String pendingCommand = "";
 
 // NOTE: The firmware is intentionally kept in a single sketch for now.
@@ -531,20 +532,20 @@ void setup() {
   finger.begin(57600);
 
   if (finger.verifyPassword()) {
+    fingerprintSensorReady = true;
     Serial.println("Sensor found!");
     ledReady();
+    finger.getTemplateCount();
+    Serial.print("Stored fingerprints: ");
+    Serial.println(finger.templateCount);
   } else {
-    Serial.println("ERROR: Sensor not found. Check wiring.");
+    // Keep servicing Serial and the RC522 even when the AS608 is unplugged
+    // or fails authentication. Fingerprint-only commands are rejected below.
+    fingerprintSensorReady = false;
+    Serial.println("WARNING: Fingerprint sensor not found. Check wiring; RFID remains available.");
+    Serial.println("Stored fingerprints: unavailable (sensor offline)");
     ledError();
-    while (1) {
-      updateLed();
-      delay(1);
-    }
   }
-
-  finger.getTemplateCount();
-  Serial.print("Stored fingerprints: ");
-  Serial.println(finger.templateCount);
 
   SPI.begin();
   rfid.PCD_Init();
@@ -613,6 +614,16 @@ void handleCommand(String input) {
   String normalized = command;
   if (payload.length() > 0) {
     normalized += ":" + payload;
+  }
+
+  // Reject fingerprint-only operations if the AS608 failed initialization,
+  // but allow SCAN mode so an available RC522 can still read RFID attendance.
+  if (!fingerprintSensorReady &&
+      (normalized == "WIPE" || normalized == "ENROLL" ||
+       normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
+       normalized == "LIST")) {
+    Serial.println("ERROR: Fingerprint sensor unavailable. Check AS608 wiring.");
+    return;
   }
 
   // ID? discovery is public; destructive commands require the host-connected
@@ -983,6 +994,7 @@ void enrollFinger(int id) {
 // ==============================================================================
 
 void scanFinger() {
+  if (!fingerprintSensorReady) return;
   uint8_t p = finger.getImage();
   if (p == FINGERPRINT_NOFINGER) return;
   if (p != FINGERPRINT_OK)       return;
