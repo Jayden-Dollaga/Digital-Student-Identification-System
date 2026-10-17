@@ -136,7 +136,7 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `open_driver_help()` | `{ok,url,message?}` | No role gate; opens Silicon Labs driver page. |
 | `send_serial_command(cmd)` | `bool` | Requires admin role; connected device and allow-list `LIST`, `HELP`, `COMMANDS`, `STOP`, `SCAN`, `ID?`. |
 | `reset_device()` | `bool` | Requires admin role and connection; requests DTR reset. |
-| `get_dashboard_stats()` | summary dictionary | No role gate; returns aggregate student/attendance counts and last scan time; do not add identifiable record fields without a permission check. |
+| `get_dashboard_stats()` | summary dictionary or restricted placeholders | Requires `read_records`; Guest receives no school-wide attendance counts. |
 | `get_recent_activity(limit=25)` | `list[attendance row]` | Requires `read_records`; otherwise empty list. |
 | `get_attendance(mode="today", offset=0)` | `{rows,offset,has_more}` | Requires `read_records`; otherwise empty restricted result. Modes include today, last30, and paginated recent fallback. |
 | `export_attendance_csv(mode="today", offset=0, week_start="")` | `{ok,message,path?}` | Requires `export`; writes selected records via Save As (or export dir without UI), UTF-8 BOM, formula-neutralized cells. |
@@ -190,7 +190,7 @@ Default permission identifiers in `python/config.py` are `scan`, `read_records`,
 | `teacher` | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
 | `admin` | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
-These lists are not a complete description of effective access. Guest-to-Teacher and Guest-to-Administrator transitions require authentication; Teacher includes record-read, export, and backup privileges. The evaluation API requires `read_records` in addition to `attendance_evaluation`, and CSV export additionally requires `export`. `get_app_log` and `open_log_folder` are Administrator-only. Limited aggregate/diagnostic helpers such as `get_dashboard_stats`, `get_calendar_month`, settings and port listing remain available without `read_records`; do not include identifiable student data in those results. UI visibility is not an authorization boundary.
+These lists are not a complete description of effective access. Guest-to-Teacher and Guest-to-Administrator transitions require authentication; Teacher includes record-read, export, and backup privileges. The evaluation API requires `read_records` in addition to `attendance_evaluation`, and CSV export additionally requires `export`. `get_app_log` and `open_log_folder` are Administrator-only. The dashboard aggregate helper `get_dashboard_stats` requires `read_records`; calendar, sanitized settings and port listing remain available without that permission and must not return identifiable student data. UI visibility is not an authorization boundary.
 
 Non-guest sessions default to a 600-second idle timeout. The timeout is refreshed through explicit `touch_session()` calls; lock or expiry returns to Guest. `settings.json`'s `current_role` is not used by `core.permissions` to authorize calls.
 
