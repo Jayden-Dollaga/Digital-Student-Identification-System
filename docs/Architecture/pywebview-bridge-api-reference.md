@@ -81,7 +81,7 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `open_driver_help` | none | Guest | Opens driver help/resource |
 | `send_serial_command` | `cmd` | Administrator | Sends allow-listed diagnostic serial commands |
 | `reset_device` | none | Administrator | Pulses DTR to intentionally reboot ESP32 |
-| `get_dashboard_stats` | none | Guest | Returns dashboard totals/status |
+| `get_dashboard_stats` | none | Requires `read_records`; Guest receives placeholders | Returns aggregate dashboard totals/status without disclosing counts to Guest |
 | `get_recent_activity` | `limit=25` | `read_records` | Returns recent attendance rows with calculated status |
 | `get_attendance` | `mode="today", offset=0` | `read_records` | Returns attendance page/range data |
 | `export_attendance_csv` | `mode, offset, week_start` | `export` | Writes UTF-8 CSV using selected range |
