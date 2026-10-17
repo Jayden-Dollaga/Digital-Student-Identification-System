@@ -554,6 +554,8 @@ class Api:
             return {"ok": True, "message": "Present and hold the card on the reader until it is verified."}
 
     def stop_rfid_register_session(self) -> Dict[str, Any]:
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator enrollment permission is required."}
         if not self._rfid_session_active:
             self._clear_pending_rfid_registration()
             return {"ok": True, "message": "No RFID session is active."}
@@ -604,6 +606,8 @@ class Api:
         return {"ok": True, "message": "RFID erase listening started."}
 
     def stop_batch_rfid_erase(self) -> Dict[str, Any]:
+        if not permissions.require_role("admin") or not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator permission is required."}
         if not self._batch_rfid_erase_active:
             return {"ok": True, "message": "No RFID erase session is active."}
         was_scanning = self._batch_rfid_erase_was_scanning
@@ -1865,8 +1869,10 @@ class Api:
         return {"ok": True, "date": date}
 
     def get_statistics_report(self) -> Dict[str, Any]:
-        if not (permissions.has_permission("export") or permissions.has_permission("backup")):
-            return {"ok": False, "message": "Current role does not have report permission."}
+        if not permissions.has_permission("read_records") or not (
+            permissions.has_permission("export") or permissions.has_permission("backup")
+        ):
+            return {"ok": False, "message": "Record-reading and report permission are required."}
         attendance_rows = db.get_attendance_all()
         attendance_totals: Dict[str, Dict[str, Any]] = {}
         attendance_by_date: Dict[str, int] = {}
