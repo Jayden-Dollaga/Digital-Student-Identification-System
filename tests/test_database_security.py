@@ -43,7 +43,10 @@ def test_has_persisted_records_detects_existing_student_or_attendance_data():
             assert success, message
             assert database.has_persisted_records() is True
 
-            database.delete_student(1)
+            # Remove the test row directly; the helper is about persisted
+            # state detection, not this test's authorization path.
+            with database.get_connection() as conn:
+                conn.execute("DELETE FROM students WHERE fingerprint_id = 1")
             assert database.has_persisted_records() is False
 
             database.log_attendance(
