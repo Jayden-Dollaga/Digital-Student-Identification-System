@@ -45,8 +45,8 @@ The public methods are exposed as `window.pywebview.api.*`. They are the JS-to-P
 | `wipe_all_on_device` | `wipe` | Wipe all fingerprints | writes serial command |
 | `wipe_all_data` | `wipe` | Clear DB + student rows + attendance | destructive DB writes |
 | `request_fingerprint_count` | guest | Ask device for count | writes serial command |
-| `send_serial_command` | guest | Raw command to device | writes serial command |
-| `reset_device` | guest | Reset device state | writes serial command |
+| `send_serial_command` | admin | Allow-listed serial diagnostics | writes serial command |
+| `reset_device` | admin | Reset device state | pulses DTR |
 | `get_dashboard_stats` | guest | Dashboard totals | DB read |
 | `get_recent_activity` | guest | Recent attendance entries | DB read |
 | `get_attendance` | guest | Attendance rows by mode/offset | DB read |
@@ -83,8 +83,8 @@ The public methods are exposed as `window.pywebview.api.*`. They are the JS-to-P
 | `lock_session` | guest | Lock current session | session state |
 | `change_admin_password` | guest | Change password | auth write |
 | `get_role_permissions` | guest | Return permission strings | none |
-| `open_log_folder` | guest | Open logs folder | OS open |
-| `get_app_log` | guest | Return recent log lines | none |
+| `open_log_folder` | admin | Open logs folder | OS open |
+| `get_app_log` | admin | Return recent log lines | none |
 
 ## 3. Core module inventory
 
