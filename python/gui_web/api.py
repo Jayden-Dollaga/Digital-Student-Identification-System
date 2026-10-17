@@ -296,7 +296,7 @@ class Api:
                 log.error(f"Auto-backup check failed: {exc}")
             if self._backup_stop.wait(max(5.0, (self._backup_interval_minutes * 60) / 5)):
                 break
-    def start_background_tasks(self) -> None:
+    def _start_background_tasks(self) -> None:
         """Start background work only after the real web window is attached."""
         if self._backup_thread is not None and self._backup_thread.is_alive():
             return
@@ -304,14 +304,14 @@ class Api:
         self._backup_thread = threading.Thread(target=self._auto_backup_loop, daemon=True)
         self._backup_thread.start()
 
-    def stop_background_tasks(self) -> None:
+    def _stop_background_tasks(self) -> None:
         self._backup_stop.set()
         if self._backup_thread is not None and self._backup_thread.is_alive():
             self._backup_thread.join(timeout=3.0)
 
-    def set_window(self, window) -> None:
+    def _set_window(self, window) -> None:
         self._window = window
-        self.start_background_tasks()
+        self._start_background_tasks()
 
     def _choose_csv_path(self, filename: str) -> Optional[Path]:
         """Open a native Save As dialog and return the user's selected path.
