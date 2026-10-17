@@ -159,7 +159,7 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `restore_backup(backup_path)` | `{ok,message}` | Requires `restore`; replaces DB when validation passes and pushes `data_changed`. |
 | `get_settings()` | settings dictionary | No direct role gate; removes `auth` and RFID key material, overlays in-memory role and ports, and includes backup metadata only for backup-capable/admin sessions. |
 | `save_ui_settings(settings)` | `{ok}` or error | Requires admin; validates/clamps numeric schedule settings, removes caller-supplied `auth`, persists only known keys and applies selected live settings. |
-| `restore_default_settings()` | `{ok,message}` | Requires admin; preserves auth and completed wizard flags, resets other defaults and live settings. |
+| `restore_default_settings()` | `{ok,message}` | Requires admin; preserves auth, RFID AES-GCM key, and completed wizard flags; resets other preferences and live settings. |
 | `get_current_role()` | role string | No role gate; returns in-memory effective role. |
 | `set_current_role(role)` | session state or denial | Guest cannot switch directly to Teacher/Admin; authentication is required for elevation. Admin can demote to Teacher/Guest. |
 | `is_first_run_setup_required()` | `{required,recovery_required}` | No role gate; reads API initialization state. |
