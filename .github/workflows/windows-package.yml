@@ -1,0 +1,74 @@
+name: Windows package smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "python/**"
+      - "run_web_gui.py"
+      - "Build/DSIS_v3.spec"
+      - "assets/icon/DSIS_LOGO.ico"
+      - "requirements.txt"
+      - ".github/workflows/windows-package.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "python/**"
+      - "run_web_gui.py"
+      - "Build/DSIS_v3.spec"
+      - "assets/icon/DSIS_LOGO.ico"
+      - "requirements.txt"
+      - ".github/workflows/windows-package.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install runtime and packaging dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Byte-compile active Python source
+        run: python -m compileall -q python
+
+      - name: Check active JavaScript syntax
+        run: node --check python/gui_web/web/app.js
+
+      - name: Package the Windows v3 application
+        run: python -m PyInstaller --noconfirm --clean Build/DSIS_v3.spec
+
+      - name: Verify expected Windows executable exists
+        shell: pwsh
+        run: |
+          $exe = "dist/DSIS-v3/DSIS-v3.exe"
+          if (!(Test-Path $exe)) {
+            throw "PyInstaller completed without the expected executable at $exe"
+          }
+          Get-Item $exe | Select-Object FullName, Length
+
+      - name: Upload packaged app for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSIS-v3-windows-${{ github.sha }}
+          path: dist/DSIS-v3/
+          if-no-files-found: error
+          retention-days: 7
