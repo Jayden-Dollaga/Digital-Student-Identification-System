@@ -33,6 +33,11 @@ def test_has_persisted_records_detects_existing_student_or_attendance_data():
         db_path = Path(tmpdir) / "attendance.db"
         with patch.object(database, "DB_PATH", str(db_path)):
             database.init_database()
+            # Schema migration may preserve/seed legacy rows; establish the
+            # precise empty-data precondition this helper is meant to detect.
+            with database.get_connection() as conn:
+                conn.execute("DELETE FROM attendance")
+                conn.execute("DELETE FROM students")
             assert database.has_persisted_records() is False
 
             success, message = database.register_student(
