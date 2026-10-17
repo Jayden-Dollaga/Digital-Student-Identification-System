@@ -88,6 +88,27 @@ def default_settings() -> Dict[str, Any]:
     }
 
 
+def _quarantine_invalid_settings(settings_path: Path) -> Dict[str, Any]:
+    """Move malformed settings aside before starting from defaults.
+
+    Keeping the original file is important: it may contain the only copy of
+    the administrator verifier or RFID encryption key. The admin-init marker
+    continues to force the existing recovery path if the verifier is lost.
+    """
+    quarantined = settings_path.with_name(
+        f"{settings_path.name}.corrupt-{time.time_ns()}"
+    )
+    try:
+        os.replace(settings_path, quarantined)
+    except OSError as exc:
+        # Do not continue with defaults if the invalid source cannot be
+        # preserved; a later save could otherwise overwrite the only copy.
+        raise RuntimeError(
+            f"Settings are invalid and could not be preserved for recovery: {settings_path}"
+        ) from exc
+    return default_settings()
+
+
 def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     settings_path = Path(path or SETTINGS_FILE)
     if not settings_path.exists():
@@ -96,12 +117,18 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     try:
         with settings_path.open("r", encoding="utf-8") as handle:
             loaded = json.load(handle)
-    except (json.JSONDecodeError, OSError):
-        return default_settings()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return _quarantine_invalid_settings(settings_path)
+    except OSError as exc:
+        # An unreadable file is not the same as a fresh installation. Fail
+        # visibly rather than treating it as defaults and later overwriting it.
+        raise RuntimeError(f"Could not read DSIS settings: {settings_path}") from exc
+
+    if not isinstance(loaded, dict):
+        return _quarantine_invalid_settings(settings_path)
 
     merged = default_settings()
-    if isinstance(loaded, dict):
-        merged.update({key: value for key, value in loaded.items() if key in merged})
+    merged.update({key: value for key, value in loaded.items() if key in merged})
     if not isinstance(merged.get("auth"), dict):
         merged["auth"] = {}
     return merged
