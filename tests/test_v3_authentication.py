@@ -175,6 +175,16 @@ def test_existing_database_without_settings_or_marker_requires_recovery(monkeypa
         api_module.LOG.removeHandler(instance._log_handler)
 
 
+def test_initial_password_cannot_overwrite_malformed_existing_verifier():
+    settings = {"auth": {
+        "password_salt": "AA==",
+        "password_hash": "invalid",
+    }}
+
+    with pytest.raises(ValueError, match="password material already exists"):
+        auth.set_initial_password(settings, "some secure password")
+
+
 def test_password_record_presence_is_separate_from_verifier_validity():
     valid_settings = {"auth": auth.hash_password("correct horse battery")}
     assert auth.has_password_material(valid_settings)
