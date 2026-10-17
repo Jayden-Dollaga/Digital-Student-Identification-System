@@ -546,6 +546,24 @@ class AttendanceProcessorTests(unittest.TestCase):
                 self.assertEqual(rfid_card.decrypt_student_card_payload(ciphertext, "AA:BB:CC:DD"), (21, "STUDENT-21"))
                 self.assertNotEqual(original.hex(), wrong_key.hex())
 
+    def test_malformed_saved_rfid_key_is_not_silently_replaced(self):
+        from settings_store import load_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                settings = load_settings()
+                settings["rfid_aes_gcm_key"] = "malformed-key"
+                save_settings(settings)
+
+                with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                    rfid_card.get_or_create_rfid_app_key()
+
+                self.assertEqual(
+                    load_settings()["rfid_aes_gcm_key"],
+                    "malformed-key",
+                )
+
     def test_new_rfid_key_is_separate_from_legacy_xor_keys(self):
         from settings_store import load_settings, save_settings
 
