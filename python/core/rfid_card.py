@@ -13,6 +13,10 @@ _STUDENT_NO_BYTES = 17
 _PAYLOAD_VERSION = 1
 
 
+class RFIDKeyConfigurationError(RuntimeError):
+    """The persisted RFID application key is unavailable or malformed."""
+
+
 def _decode_rfid_key(encoded: str) -> Optional[bytes]:
     cleaned = str(encoded or "").strip()
     if len(cleaned) != 64:
@@ -34,9 +38,9 @@ def get_or_create_rfid_app_key() -> bytes:
     # First-run setup may create a key. A present-but-invalid value is different:
     # silently replacing it would make cards encrypted with the old key unreadable.
     if stored_value not in (None, ""):
-        raise ValueError(
+        raise RFIDKeyConfigurationError(
             "The stored DSIS RFID encryption key is invalid. Restore a trusted "
-            "settings backup or re-enroll affected cards; the key was not replaced."
+            "settings backup; the key was not replaced and existing cards may not decrypt."
         )
 
     key = secrets.token_bytes(32)
@@ -87,9 +91,13 @@ def decrypt_student_card_payload(data_hex: str, card_uid: str) -> Optional[Tuple
         return None
     if len(raw) != _CARD_BYTES or raw[0] != _PAYLOAD_VERSION:
         return None
+    # Load the application key outside the payload-invalidity handler. A
+    # malformed persisted key is an installation/recovery problem, not proof
+    # that the card itself is invalid.
+    key = get_or_create_rfid_app_key()
     try:
         aad = _payload_aad(card_uid)
-        plaintext = AESGCM(get_or_create_rfid_app_key()).decrypt(
+        plaintext = AESGCM(key).decrypt(
             raw[1:1 + _NONCE_BYTES], raw[1 + _NONCE_BYTES:], aad
         )
     except (InvalidTag, ValueError):
