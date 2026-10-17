@@ -142,6 +142,33 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertFalse(result["logged"])
         self.assertEqual(logged, [])
 
+    def test_out_of_range_fingerprint_match_events_are_not_recorded(self):
+        logged = []
+        processor = AttendanceProcessor(
+            min_confidence=1,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        legacy = processor.process_line("ID:128")
+        self.assertIsNone(legacy)
+        legacy = processor.process_line("CONFIDENCE:200")
+        self.assertIsNotNone(legacy)
+        self.assertEqual(legacy["status"], "INVALID MATCH")
+        self.assertFalse(legacy["logged"])
+
+        json_result = processor.process_line(
+            '{"type":"attendance","event":"match","id":1,"confidence":256}'
+        )
+        self.assertIsNotNone(json_result)
+        self.assertEqual(json_result["status"], "INVALID MATCH")
+        self.assertFalse(json_result["logged"])
+
+        # JSON booleans are not integer fields and must be rejected pre-handler.
+        self.assertIsNone(processor.process_line(
+            '{"type":"attendance","event":"match","id":true,"confidence":255}'
+        ))
+        self.assertEqual(logged, [])
+
     def test_process_json_attendance_match(self):
         logged = []
 
