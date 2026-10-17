@@ -30,9 +30,9 @@ Default authenticated idle timeout: 600 seconds.
 
 `touch_session()` refreshes an active session. `lock_session()` returns to Guest. Expiration also returns to Guest.
 
-`current_role` in `settings.json` is not an authorization source. Guest may scan and `get_dashboard_stats()` returns aggregate values without a role check. `read_records` is required for roster, student details, attendance history, statistics reports, and identifiable evaluation rows. Evaluation CSV export additionally requires `export`. Guest permissions are scan-only.
+`current_role` in `settings.json` is not an authorization source. Guest may scan, but `get_dashboard_stats()` returns restricted placeholders unless the active role has `read_records`. That permission is required for roster, student details, attendance history, dashboard aggregates, statistics reports, and identifiable evaluation rows. Evaluation CSV export additionally requires `export`. Guest permissions are scan-only.
 
-`set_current_role("teacher")` now requires an existing authenticated administrator session; Guest-to-Teacher is denied. Admin elevation remains password-gated. Some aggregate and diagnostic bridge methods (for example dashboard metrics and port listing) are available without `read_records`; avoid adding student-identifiable data to those responses.
+`set_current_role("teacher")` requires an existing authenticated administrator session; Guest-to-Teacher is denied. Admin elevation remains password-gated. Some diagnostic bridge methods (for example port listing and sanitized settings) remain available without `read_records`; avoid adding student-identifiable data to those responses.
 
 First-run password creation is protected by `data/.admin_initialized`. If settings lose the password after that marker exists, the application reports a recovery state instead of creating a new administrator password.
 
