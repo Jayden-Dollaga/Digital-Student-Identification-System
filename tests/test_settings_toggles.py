@@ -234,6 +234,33 @@ if __name__ == "__main__":
 
 
 
+def test_malformed_settings_are_preserved_instead_of_deleted():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = '{"rfid_aes_gcm_key": "broken",'
+        settings_file.write_text(original, encoding="utf-8")
+
+        loaded = load_settings(settings_file)
+
+        assert loaded["auth"] == {}
+        assert not settings_file.exists()
+        preserved = list(Path(tmpdir).glob("settings.json.corrupt-*"))
+        assert len(preserved) == 1
+        assert preserved[0].read_text(encoding="utf-8") == original
+
+
+def test_non_object_settings_json_is_quarantined():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        settings_file.write_text("[]", encoding="utf-8")
+
+        loaded = load_settings(settings_file)
+
+        assert loaded == default_settings()
+        assert not settings_file.exists()
+        assert len(list(Path(tmpdir).glob("settings.json.corrupt-*"))) == 1
+
+
 def test_atomic_settings_save_round_trip_and_no_temp_file_left():
     with tempfile.TemporaryDirectory() as tmpdir:
         settings_file = Path(tmpdir) / "settings.json"
