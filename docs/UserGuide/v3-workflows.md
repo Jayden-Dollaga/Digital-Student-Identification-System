@@ -139,6 +139,10 @@ Weak matches remain visible to diagnostics but are not attendance records. This 
 - firmware post-scan delay: approximately 2 seconds;
 - application per-fingerprint cooldown: 10 seconds by default.
 
+### Time-in/time-out policy
+
+The first accepted attendance scan for a student on a date is tagged `time_in`. Every later accepted scan that same day is tagged `time_out`; summary views use the first time-in and the last time-out. This is a first-in/last-out policy, not an alternating check-in/check-out toggle. Duplicate scans are limited by the firmware delay and application cooldown.
+
 ### Unknown fingerprint
 
 Unknown scans are stored using the reserved row:
@@ -179,7 +183,7 @@ Current category bands:
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-The observed-day denominator is based on dates with attendance activity in the selected range. Completely empty calendar dates are not automatically counted as school days by this evaluation.
+The denominator enumerates elapsed scheduled weekdays, excluding recurring days off, weekends, holidays, and suspensions whether or not anyone scanned. Empty scan days and device outages still count as school days; future dates are excluded from the active period. Each student's denominator starts no earlier than their enrollment date.
 
 Results can be sorted by presence, attendance rate, or name. Authorized roles can export the selected evaluation as CSV.
 
