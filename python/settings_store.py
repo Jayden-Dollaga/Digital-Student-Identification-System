@@ -122,9 +122,9 @@ def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> P
     )
     temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\\n") as handle:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             json.dump(payload, handle, indent=2, ensure_ascii=False)
-            handle.write("\\n")
+            handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary_path, settings_path)
