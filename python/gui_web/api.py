@@ -1539,20 +1539,27 @@ class Api:
             row for row in db.get_attendance_by_date(today)
             if row.get("fingerprint_id") == int(fingerprint_id)
         ]
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
+        qualifying_rows = [
+            row for row in today_rows
+            if str(row.get("status") or row.get("match_status") or "").strip().lower()
+            in qualifying_statuses
+        ]
         time_in_row = next(
-            (row for row in today_rows if row.get("event_type") == "time_in"),
-            today_rows[0] if today_rows else None,
+            (row for row in qualifying_rows if row.get("event_type") == "time_in"),
+            qualifying_rows[0] if qualifying_rows else None,
         )
-        student["attendance_status"] = (
-            calculate_attendance_status(
+        if time_in_row:
+            student["attendance_status"] = calculate_attendance_status(
                 time_in_row.get("time", "00:00:00"),
                 "time_in",
                 load_settings(),
                 time_in_row.get("date") or today,
             )
-            if time_in_row
-            else "Absent"
-        )
+        elif any(str(row.get("status") or "").strip().lower() == "weak match" for row in today_rows):
+            student["attendance_status"] = "Not Counted"
+        else:
+            student["attendance_status"] = "Absent"
         return student
 
     def save_student(
@@ -1929,7 +1936,12 @@ class Api:
             permissions.has_permission("export") or permissions.has_permission("backup")
         ):
             return {"ok": False, "message": "Record-reading and report permission are required."}
-        attendance_rows = db.get_attendance_all()
+        # Keep older WEAK MATCH diagnostic rows visible in the activity log,
+        # but do not count them as attendance in aggregate statistics.
+        attendance_rows = [
+            row for row in db.get_attendance_all()
+            if str(row.get("status") or row.get("match_status") or "").strip().lower() != "weak match"
+        ]
         attendance_totals: Dict[str, Dict[str, Any]] = {}
         attendance_by_date: Dict[str, int] = {}
         attendance_by_grade: Dict[str, int] = {}
