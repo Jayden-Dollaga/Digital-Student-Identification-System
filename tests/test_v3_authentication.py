@@ -43,6 +43,52 @@ def test_student_field_validation_requires_enrollment_permission(monkeypatch):
     assert result["fields"] == {}
 
 
+def test_api_fails_startup_when_database_initialization_fails(monkeypatch):
+    monkeypatch.setattr(
+        api_module.db,
+        "init_database",
+        lambda: (_ for _ in ()).throw(OSError("database unavailable")),
+    )
+
+    with pytest.raises(RuntimeError, match="could not initialize its local database"):
+        api_module.Api()
+
+
+def test_application_logs_and_log_folder_are_admin_only(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    permissions.set_session_role("guest", 600.0)
+    monkeypatch.setattr(
+        api_module.os,
+        "startfile",
+        lambda path: pytest.fail("Guest must not open the application log folder"),
+        raising=False,
+    )
+
+    assert instance.get_app_log() == []
+    denied = instance.open_log_folder()
+    assert denied["ok"] is False
+    assert denied["status"] == 403
+
+    permissions.set_session_role("teacher", 600.0)
+    assert instance.get_app_log() == []
+    assert instance.open_log_folder()["status"] == 403
+
+
+def test_statistics_report_requires_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: action == "export")
+    monkeypatch.setattr(
+        api_module.db,
+        "get_attendance_all",
+        lambda: pytest.fail("Identifiable attendance must not be read without read_records"),
+    )
+
+    result = instance.get_statistics_report()
+
+    assert result["ok"] is False
+    assert "record-reading" in result["message"].lower()
+
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")
