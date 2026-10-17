@@ -18,7 +18,7 @@ Restoring only `attendance.db` does not restore the RFID key. If the restored da
 
 Malformed JSON or a non-object JSON document is moved to a timestamped `settings.json.corrupt-*` file so the original bytes are retained. DSIS uses default settings for repair, and an existing `.admin_initialized` marker still prevents silently creating a new administrator password.
 
-If the original RFID key cannot be recovered, DSIS intentionally refuses to generate a replacement key automatically while quarantined settings remain. This prevents a key rotation from making every currently enrolled card appear tampered with. Do not point the app at live attendance records until the recovery decision is complete.
+If the original RFID key cannot be recovered, DSIS intentionally refuses to generate a replacement key automatically while quarantined settings remain. It also refuses to silently generate a replacement when the key field is empty but the live student roster still contains linked RFID card UIDs. This prevents a key rotation from making enrolled cards appear tampered with. Do not point the app at live attendance records until the recovery decision is complete.
 
 ## If the original RFID key is permanently lost
 
