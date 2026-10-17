@@ -102,6 +102,7 @@ def test_existing_malformed_password_verifier_requires_recovery(monkeypatch):
     marker = {"exists": False}
 
     monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: False)
     monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
     monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
 
@@ -126,6 +127,7 @@ def test_quarantined_settings_without_marker_cannot_open_first_run_setup(monkeyp
     marker = {"exists": False}
 
     monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: False)
     monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
     monkeypatch.setattr(api_module, "has_quarantined_settings", lambda: True)
     monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
@@ -141,6 +143,34 @@ def test_quarantined_settings_without_marker_cannot_open_first_run_setup(monkeyp
         assert instance._first_run_recovery_required is True
         assert instance.is_first_run_setup_required()["recovery_required"] is True
         assert instance.complete_first_run_setup("some password", "some password")["ok"] is False
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
+def test_existing_database_without_settings_or_marker_requires_recovery(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "has_quarantined_settings", lambda: False)
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+        result = instance.complete_first_run_setup("safe enough pass", "safe enough pass")
+        assert result["ok"] is False
     finally:
         api_module.LOG.removeHandler(instance._log_handler)
 
