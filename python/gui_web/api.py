@@ -2120,7 +2120,12 @@ class Api:
             return {"ok": False, "message": "Time Out must be later than Time In."}
         
         settings = dict(settings)
+        # These values are internal key material, not UI preferences. Ignore
+        # any caller-supplied copies so a settings save cannot overwrite the
+        # key used to decrypt already-enrolled RFID cards.
         settings.pop("auth", None)
+        for key in ("rfid_aes_gcm_key", "rfid_app_key_hex", "rfid_payload_key"):
+            settings.pop(key, None)
         settings["current_role"] = permissions.get_current_role()
         if "school_name" in settings:
             settings["school_name"] = str(settings.get("school_name") or "").strip()[:100]
