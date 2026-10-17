@@ -241,7 +241,7 @@ The evaluation system:
 4. Groups results into the application's attendance categories.
 5. Allows the current evaluation to be exported as CSV.
 
-The API requires both `attendance_evaluation` and `read_records` for identifiable evaluation rows. Guest has the first permission configured but not the second; Guest therefore cannot view those rows. The evaluation CSV method delegates to the same checks and does not separately require `export`. Note that the current role selector allows Guest to select Teacher without a password, which grants Teacher's configured record-read, export, and backup permissions. See the [roles and permissions guide](docs/UserGuide/roles-and-permissions.md) for this current security limitation.
+The API requires both `attendance_evaluation` and `read_records` for identifiable evaluation rows, and the CSV export additionally requires `export`. Guest-to-Teacher role changes are denied unless the session has already authenticated as an administrator. The Python attendance processor records only matches at or above the configured confidence threshold; weak matches are diagnostic-only.
 
 For the detailed workflow, see the [v3 Workflow Guide](docs/UserGuide/v3-workflows.md).
 
