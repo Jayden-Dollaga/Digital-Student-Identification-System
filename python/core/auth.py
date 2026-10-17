@@ -51,8 +51,20 @@ def verify_password(password: str, record: Dict[str, Any]) -> bool:
     ):
         return False
     try:
-        salt = base64.b64decode(record[PASSWORD_SALT_KEY], validate=True)
-        expected = base64.b64decode(record[PASSWORD_HASH_KEY], validate=True)
+        salt_text = record[PASSWORD_SALT_KEY]
+        hash_text = record[PASSWORD_HASH_KEY]
+        # Canonical base64 lengths are fixed for these fixed-size values.
+        # Check before decoding so a huge malformed local field can't allocate
+        # excessive memory during login.
+        if (
+            not isinstance(salt_text, str)
+            or len(salt_text) != 24
+            or not isinstance(hash_text, str)
+            or len(hash_text) != 44
+        ):
+            return False
+        salt = base64.b64decode(salt_text, validate=True)
+        expected = base64.b64decode(hash_text, validate=True)
         iterations = int(record.get("iterations", PBKDF2_ITERATIONS))
         if not MIN_PBKDF2_ITERATIONS <= iterations <= MAX_PBKDF2_ITERATIONS:
             return False
@@ -85,8 +97,17 @@ def has_password_set(settings: Dict[str, Any]) -> bool:
     if not isinstance(record, dict):
         return False
     try:
-        salt = base64.b64decode(record[PASSWORD_SALT_KEY], validate=True)
-        digest = base64.b64decode(record[PASSWORD_HASH_KEY], validate=True)
+        salt_text = record[PASSWORD_SALT_KEY]
+        hash_text = record[PASSWORD_HASH_KEY]
+        if (
+            not isinstance(salt_text, str)
+            or len(salt_text) != 24
+            or not isinstance(hash_text, str)
+            or len(hash_text) != 44
+        ):
+            return False
+        salt = base64.b64decode(salt_text, validate=True)
+        digest = base64.b64decode(hash_text, validate=True)
         iterations = int(record.get("iterations", PBKDF2_ITERATIONS))
     except (KeyError, TypeError, ValueError, OverflowError):
         return False
