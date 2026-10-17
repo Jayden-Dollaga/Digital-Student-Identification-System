@@ -269,6 +269,53 @@ class TestRestoreDatabasePathTraversal:
                 assert not result_ok
                 assert 'file type' in result_msg.lower() or '.db' in result_msg
 
+    def test_restore_database_rolls_back_if_restore_copy_fails(self):
+        """A failed restore attempt must preserve the original live records."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            backup_file = backups_dir / "attendance_restore_test.db"
+            create_valid_sqlite_db(db_path)
+            create_valid_sqlite_db(backup_file)
+
+            current = sqlite3.connect(db_path)
+            try:
+                current.execute(
+                    "INSERT INTO students "
+                    "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                    "VALUES (1, 'KEEP-1', 'Keep This Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+                )
+                current.commit()
+            finally:
+                current.close()
+
+            original_backup = database._sqlite_backup_file
+            calls = {"count": 0}
+
+            def fail_first_restore(source_path, destination_path):
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    raise OSError("simulated restore write failure")
+                return original_backup(source_path, destination_path)
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                with patch.object(database, "_sqlite_backup_file", side_effect=fail_first_restore):
+                    result_ok, result_msg = restore_database(str(backup_file))
+
+            assert not result_ok
+            assert "recovered" in result_msg.lower()
+            connection = sqlite3.connect(db_path)
+            try:
+                row = connection.execute(
+                    "SELECT student_name FROM students WHERE student_no = 'KEEP-1'"
+                ).fetchone()
+            finally:
+                connection.close()
+            assert row == ("Keep This Student",)
+            assert calls["count"] == 2
+
     def test_restore_database_rejects_valid_sqlite_with_unrelated_schema(self):
         """A readable SQLite file must not replace the DSIS database unless its schema matches."""
         with tempfile.TemporaryDirectory() as tmpdir:
