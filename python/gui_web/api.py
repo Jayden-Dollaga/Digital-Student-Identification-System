@@ -1516,7 +1516,8 @@ class Api:
             return {"ok": False, "message": "No data to export."}
         settings = load_settings()
         for row in rows:
-            if str(row.get("status") or "").strip().lower() == "weak match":
+            status = str(row.get("status") or row.get("match_status") or "").strip().lower()
+            if status not in {"good match", "present", "logged", "ok"}:
                 row["attendance_status"] = "Not Counted"
             else:
                 row["attendance_status"] = calculate_attendance_status(
@@ -1947,9 +1948,11 @@ class Api:
             return {"ok": False, "message": "Record-reading and report permission are required."}
         # Keep older WEAK MATCH diagnostic rows visible in the activity log,
         # but do not count them as attendance in aggregate statistics.
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
         attendance_rows = [
             row for row in db.get_attendance_all()
-            if str(row.get("status") or row.get("match_status") or "").strip().lower() != "weak match"
+            if str(row.get("status") or row.get("match_status") or "").strip().lower()
+            in qualifying_statuses
         ]
         attendance_totals: Dict[str, Dict[str, Any]] = {}
         attendance_by_date: Dict[str, int] = {}
