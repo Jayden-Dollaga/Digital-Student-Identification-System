@@ -169,6 +169,7 @@ def test_restore_default_settings_resets_values_but_preserves_auth_and_setup(mon
     persisted = default_settings()
     persisted.update({
         "auth": {"password_hash": "keep-this-hash"},
+        "rfid_aes_gcm_key": "AB" * 32,
         "current_role": "teacher",
         "setup_device_step_done": True,
         "setup_schedule_step_done": True,
@@ -200,6 +201,7 @@ def test_restore_default_settings_resets_values_but_preserves_auth_and_setup(mon
 
     expected = default_settings()
     expected["auth"] = persisted["auth"]
+    expected["rfid_aes_gcm_key"] = persisted["rfid_aes_gcm_key"]
     expected["current_role"] = "admin"
     for key in ("setup_device_step_done", "setup_schedule_step_done", "setup_branding_step_done"):
         expected[key] = True
