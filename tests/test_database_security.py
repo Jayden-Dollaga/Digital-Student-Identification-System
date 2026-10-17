@@ -21,9 +21,33 @@ pytestmark = pytest.mark.integration
 
 
 def create_valid_sqlite_db(path):
+    """Create a minimal structurally valid DSIS database for restore tests."""
     connection = sqlite3.connect(path)
     try:
-        connection.execute("CREATE TABLE validation_probe (value TEXT)")
+        connection.execute(
+            """CREATE TABLE students (
+                fingerprint_id INTEGER PRIMARY KEY,
+                student_no TEXT NOT NULL UNIQUE,
+                student_name TEXT NOT NULL,
+                grade TEXT NOT NULL,
+                section TEXT NOT NULL,
+                card_uid TEXT UNIQUE,
+                enrollment_date TEXT NOT NULL,
+                updated_date TEXT NOT NULL
+            )"""
+        )
+        connection.execute(
+            """CREATE TABLE attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fingerprint_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                confidence INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                event_type TEXT
+            )"""
+        )
         connection.commit()
     finally:
         connection.close()
@@ -244,6 +268,75 @@ class TestRestoreDatabasePathTraversal:
                 # Should fail because it's not a .db file
                 assert not result_ok
                 assert 'file type' in result_msg.lower() or '.db' in result_msg
+
+    def test_restore_database_rejects_valid_sqlite_with_unrelated_schema(self):
+        """A readable SQLite file must not replace the DSIS database unless its schema matches."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            unrelated_backup = backups_dir / "unrelated.db"
+            connection = sqlite3.connect(unrelated_backup)
+            try:
+                connection.execute("CREATE TABLE validation_probe (value TEXT)")
+                connection.commit()
+            finally:
+                connection.close()
+            create_valid_sqlite_db(db_path)
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                result_ok, result_msg = restore_database(str(unrelated_backup))
+
+            assert not result_ok
+            assert "DSIS database schema" in result_msg
+            connection = sqlite3.connect(db_path)
+            try:
+                tables = {
+                    row[0] for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            finally:
+                connection.close()
+            assert {"students", "attendance"}.issubset(tables)
+
+    def test_restore_database_creates_verified_pre_restore_safety_backup(self):
+        """The live database is preserved before a valid backup is restored."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            backup_file = backups_dir / "attendance_restore_test.db"
+            create_valid_sqlite_db(db_path)
+            create_valid_sqlite_db(backup_file)
+
+            current = sqlite3.connect(db_path)
+            try:
+                current.execute(
+                    "INSERT INTO students "
+                    "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                    "VALUES (1, 'CURRENT-1', 'Current Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+                )
+                current.commit()
+            finally:
+                current.close()
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+            assert result_ok, result_msg
+            safety_backups = list(backups_dir.glob("pre_restore_*.db"))
+            assert len(safety_backups) == 1
+            safety = sqlite3.connect(safety_backups[0])
+            try:
+                row = safety.execute(
+                    "SELECT student_name FROM students WHERE student_no = 'CURRENT-1'"
+                ).fetchone()
+            finally:
+                safety.close()
+            assert row == ("Current Student",)
 
     def test_restore_database_rejects_tampered_db_file_with_invalid_sqlite_header(self):
         """A .db file that is not actually a SQLite database must be rejected."""
