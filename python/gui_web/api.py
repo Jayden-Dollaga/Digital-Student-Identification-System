@@ -1380,9 +1380,14 @@ class Api:
         scans_today = len(rows)
         total_students = db.get_student_count()
         unknown_scans = sum(1 for r in rows if not r.get("student_no") or r.get("student_no") == "N/A")
-        present_students = len(
-            {r.get("student_no") for r in rows if r.get("student_no") and r.get("student_no") != "N/A"}
-        )
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
+        present_students = len({
+            r.get("student_no")
+            for r in rows
+            if r.get("student_no")
+            and r.get("student_no") != "N/A"
+            and str(r.get("status") or r.get("match_status") or "").strip().lower() in qualifying_statuses
+        })
         rate = round((present_students / total_students) * 100) if total_students else 0
         last_scan = rows[0] if rows else None
         return {
@@ -1407,16 +1412,19 @@ class Api:
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            row["attendance_status"] = (
-                calculate_attendance_status(
-                    row.get("time", "00:00:00"),
-                    row.get("event_type"),
-                    settings,
-                    row.get("date"),
+            if str(row.get("status") or "").strip().lower() == "weak match":
+                row["attendance_status"] = "Not Counted"
+            else:
+                row["attendance_status"] = (
+                    calculate_attendance_status(
+                        row.get("time", "00:00:00"),
+                        row.get("event_type"),
+                        settings,
+                        row.get("date"),
+                    )
+                    if row.get("fingerprint_id")
+                    else "Unknown"
                 )
-                if row.get("fingerprint_id")
-                else "Unknown"
-            )
         return rows
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
@@ -1438,16 +1446,19 @@ class Api:
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            row["attendance_status"] = (
-                calculate_attendance_status(
-                    row.get("time", "00:00:00"),
-                    row.get("event_type"),
-                    settings,
-                    row.get("date"),
+            if str(row.get("status") or "").strip().lower() == "weak match":
+                row["attendance_status"] = "Not Counted"
+            else:
+                row["attendance_status"] = (
+                    calculate_attendance_status(
+                        row.get("time", "00:00:00"),
+                        row.get("event_type"),
+                        settings,
+                        row.get("date"),
+                    )
+                    if row.get("fingerprint_id")
+                    else "Unknown"
                 )
-                if row.get("fingerprint_id")
-                else "Unknown"
-            )
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
     def export_attendance_csv(
@@ -1495,12 +1506,15 @@ class Api:
             return {"ok": False, "message": "No data to export."}
         settings = load_settings()
         for row in rows:
-            row["attendance_status"] = calculate_attendance_status(
-                row.get("time_in", "00:00:00"),
-                "time_in",
-                settings,
-                row.get("date"),
-            )
+            if str(row.get("status") or "").strip().lower() == "weak match":
+                row["attendance_status"] = "Not Counted"
+            else:
+                row["attendance_status"] = calculate_attendance_status(
+                    row.get("time_in", "00:00:00"),
+                    "time_in",
+                    settings,
+                    row.get("date"),
+                )
         
         # Prepare file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
