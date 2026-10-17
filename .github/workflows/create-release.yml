@@ -6,27 +6,72 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  tests:
+    name: Full Python test matrix
+    uses: ./.github/workflows/tests.yml
 
-      - name: Create release from the pushed version tag
+  firmware:
+    name: Compile ESP32 firmware
+    uses: ./.github/workflows/firmware-build.yml
+
+  windows-package:
+    name: Build Windows package
+    uses: ./.github/workflows/windows-package.yml
+
+  release:
+    name: Publish tested release assets
+    needs:
+      - tests
+      - firmware
+      - windows-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download matching Windows package artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: DSIS-v3-windows-${{ github.sha }}
+          path: release-assets/windows
+          merge-multiple: true
+
+      - name: Download matching ESP32 firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: DSIS-firmware-${{ github.sha }}
+          path: release-assets/firmware
+          merge-multiple: true
+
+      - name: Verify release files and create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f release-assets/windows/DSIS-v3-windows.zip
+          find release-assets/firmware -maxdepth 1 -type f -name '*.bin' -print
+          test -n "$(find release-assets/firmware -maxdepth 1 -type f -name '*.bin' -print -quit)"
+          sha256sum release-assets/windows/DSIS-v3-windows.zip release-assets/firmware/*.bin > release-assets/SHA256SUMS.txt
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Create release only after checks and packaging pass
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          if gh release view "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists; leaving it unchanged."
             exit 0
           fi
 
           gh release create "$RELEASE_TAG" \
-            --repo "${{ github.repository }}" \
+            release-assets/windows/DSIS-v3-windows.zip \
+            release-assets/firmware/*.bin \
+            release-assets/SHA256SUMS.txt \
+            --repo "$REPOSITORY" \
             --title "$RELEASE_TAG" \
             --generate-notes
