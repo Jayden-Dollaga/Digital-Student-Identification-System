@@ -85,10 +85,11 @@ The firmware emits a match only when hardware confidence is at least 50. The Pyt
 
 | Confidence | Status |
 | ---: | --- |
-| >= 100 | GOOD MATCH |
-| 50-99 | WEAK MATCH |
+| At or above configured min_confidence (1-255) | GOOD MATCH — recorded |
+| A regular firmware match below min_confidence | WEAK MATCH — diagnostic only |
+| Below firmware confidence floor (50) | No attendance row |
 
-A WEAK MATCH is still recorded by the current processor.
+A WEAK MATCH is **not** recorded as attendance. It means the sensor reported a match, but the Python application threshold rejected it. Raise/lower the threshold only after considering false-acceptance risk; the value is a raw AS608 score, not a percentage.
 
 ## 7. Repeated scans
 
@@ -156,7 +157,7 @@ Run hardware tests only against an approved test device and test data set. Avoid
 - leaving Arduino Serial Monitor open;
 - using a historical standalone firmware sketch with v3;
 - assuming COM4 or COM5 is universal;
-- assuming WEAK MATCH means the event was rejected;
+- assuming WEAK MATCH means the event was recorded; weak matches are diagnostic-only and rejected for attendance;
 - wiping the device without a fresh database backup;
 - restoring a database without preserving the current database first.
 
