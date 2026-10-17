@@ -215,10 +215,12 @@ def test_password_verification_rejects_malformed_or_expensive_records():
     excessive = dict(record, iterations=10**12)
     bad_salt = dict(record, password_salt="AA==")
     bad_hash = dict(record, password_hash="not-a-real-hash")
+    oversized_hash = dict(record, password_hash="A" * 100_000)
 
     assert not auth.verify_password("correct horse battery", excessive)
     assert not auth.verify_password("correct horse battery", bad_salt)
     assert not auth.verify_password("correct horse battery", bad_hash)
+    assert not auth.verify_password("correct horse battery", oversized_hash)
     assert not auth.verify_password(None, record)
     assert not auth.verify_password("x", None)
 
