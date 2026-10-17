@@ -399,6 +399,11 @@ def test_statistics_report_does_not_count_historical_weak_matches(monkeypatch):
             "grade": "12", "section": "CSS", "date": "2026-09-11",
             "status": "GOOD MATCH",
         },
+        {
+            "fingerprint_id": 0, "student_name": "Unregistered", "student_no": "N/A",
+            "grade": "N/A", "section": "N/A", "date": "2026-09-12",
+            "status": "UNKNOWN",
+        },
     ])
     monkeypatch.setattr(api.serial, "is_connected", lambda: False)
 
