@@ -546,6 +546,22 @@ class AttendanceProcessorTests(unittest.TestCase):
                 self.assertEqual(rfid_card.decrypt_student_card_payload(ciphertext, "AA:BB:CC:DD"), (21, "STUDENT-21"))
                 self.assertNotEqual(original.hex(), wrong_key.hex())
 
+    def test_missing_rfid_key_is_not_replaced_when_linked_cards_exist(self):
+        from settings_store import default_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                save_settings(default_settings(), settings_path)
+                with patch("core.database.has_linked_rfid_cards", return_value=True):
+                    with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                        rfid_card.get_or_create_rfid_app_key()
+
+                self.assertEqual(
+                    rfid_card.load_settings()["rfid_aes_gcm_key"],
+                    "",
+                )
+
     def test_malformed_saved_rfid_key_is_not_silently_replaced(self):
         from settings_store import load_settings, save_settings
 
