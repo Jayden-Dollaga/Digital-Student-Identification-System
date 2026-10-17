@@ -22,6 +22,23 @@ def test_password_hash_is_salted_and_verifies():
     assert "correct horse battery" not in str(first)
 
 
+def test_password_verification_rejects_malformed_or_expensive_records():
+    record = auth.hash_password("correct horse battery")
+    excessive = dict(record, iterations=10**12)
+    bad_salt = dict(record, password_salt="AA==")
+    bad_hash = dict(record, password_hash="not-a-real-hash")
+
+    assert not auth.verify_password("correct horse battery", excessive)
+    assert not auth.verify_password("correct horse battery", bad_salt)
+    assert not auth.verify_password("correct horse battery", bad_hash)
+    assert not auth.verify_password(None, record)
+    assert not auth.verify_password("x", None)
+
+
+def test_password_validation_rejects_non_text_inputs():
+    assert auth.validate_new_password(123, 123) == "Password fields must be text."
+
+
 def test_role_hierarchy_is_ordered():
     assert permissions.has_role_permission("admin", "teacher")
     assert permissions.has_role_permission("teacher", "guest")
