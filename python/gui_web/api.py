@@ -1680,17 +1680,28 @@ class Api:
         summary_rows = db.get_daily_attendance_summary(start_date=start_date, end_date=end_date)
         settings = load_settings()
 
-        # A date only counts as an observed school day if activity happened
-        # on it AND it isn't explicitly marked holiday/suspension. Without
-        # this, a single stray scan on a declared non-school day (a teacher
-        # testing the device, a guard walking past the sensor) would count
-        # that day as "school happened" and then mark every OTHER student
-        # absent for correctly staying home.
-        school_days = sorted({
-            row["date"] for row in summary_rows
-            if datetime.strptime(row["date"], "%Y-%m-%d").weekday() < 5
-            and not attendance_calendar.is_non_school_day(settings, row["date"])
-        })
+        # Build the denominator from the configured school calendar, not
+        # observed scans. Otherwise a device outage or a day when nobody scans
+        # disappears from the denominator and inflates attendance rates.
+        weekdays_off = settings.get("school_weekdays_off", [])
+        if not isinstance(weekdays_off, (list, tuple, set)):
+            weekdays_off = []
+        weekdays_off = {
+            int(day) for day in weekdays_off
+            if isinstance(day, int) or (isinstance(day, str) and day.isdigit())
+            if 0 <= int(day) <= 6
+        }
+        school_days = []
+        current_day = start_dt.date()
+        final_day = end_dt.date()
+        while current_day <= final_day:
+            date_text = current_day.strftime("%Y-%m-%d")
+            if (
+                current_day.weekday() not in weekdays_off
+                and not attendance_calendar.is_non_school_day(settings, date_text)
+            ):
+                school_days.append(date_text)
+            current_day += timedelta(days=1)
         total_days = len(school_days)
 
         present_dates_by_student: Dict[str, set] = {}
