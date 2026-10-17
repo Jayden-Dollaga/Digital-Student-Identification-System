@@ -726,10 +726,16 @@ def has_persisted_records() -> bool:
     install has no initialization marker yet.
     """
     with get_connection() as conn:
-        for table in ("students", "attendance"):
-            row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
-            if row is not None:
-                return True
+        # ID 0 is a permanent "Unregistered/Unknown" placeholder inserted
+        # by init_database() on every clean install. It is schema infrastructure,
+        # not evidence that a school has enrolled students or recorded attendance.
+        row = conn.execute(
+            "SELECT 1 FROM students WHERE fingerprint_id > 0 LIMIT 1"
+        ).fetchone()
+        if row is not None:
+            return True
+        row = conn.execute("SELECT 1 FROM attendance LIMIT 1").fetchone()
+        return row is not None
     return False
 
 
