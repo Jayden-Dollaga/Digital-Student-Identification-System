@@ -1696,8 +1696,15 @@ class Api:
         final_day = end_dt.date()
         while current_day <= final_day:
             date_text = current_day.strftime("%Y-%m-%d")
+            # Python uses Monday=0, but DSIS stores recurring days off
+            # as Sunday=0 ... Saturday=6. Keep weekends excluded by default,
+            # matching the existing school-day policy, and honor configured
+            # recurring days off using the DSIS numbering.
+            dsis_weekday = (current_day.weekday() + 1) % 7
+            is_weekend = current_day.weekday() >= 5
             if (
-                current_day.weekday() not in weekdays_off
+                not is_weekend
+                and dsis_weekday not in weekdays_off
                 and not attendance_calendar.is_non_school_day(settings, date_text)
             ):
                 school_days.append(date_text)
