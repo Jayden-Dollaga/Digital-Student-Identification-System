@@ -181,6 +181,25 @@ def test_dashboard_stats_are_restricted_without_record_read_permission(monkeypat
     assert result["attendance_rate"] is None
 
 
+def test_malformed_far_future_lockout_deadline_is_clamped_and_persisted(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    settings = {
+        "auth": {
+            "password_hash": "retained",
+            "lockout_until_epoch": time.time() + 10**8,
+            "failed_attempts": 0,
+        }
+    }
+    saved = {}
+    monkeypatch.setattr(api_module, "save_settings", lambda value: saved.update(value))
+
+    remaining = instance._admin_lockout_remaining(settings)
+
+    assert 0 <= remaining <= api_module.ADMIN_LOGIN_LOCKOUT_SECONDS
+    assert saved["auth"]["lockout_until_epoch"] <= time.time() + api_module.ADMIN_LOGIN_LOCKOUT_SECONDS + 1
+    assert saved["auth"]["password_hash"] == "retained"
+
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")
