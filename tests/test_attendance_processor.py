@@ -239,6 +239,25 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertTrue(result["logged"])
         self.assertEqual(len(logged), 1)
 
+    def test_invalid_rfid_application_key_is_reported_without_unknown_record(self):
+        logged = []
+        processor = AttendanceProcessor(log_attendance_fn=lambda *args: logged.append(args))
+        message = (
+            '{"type":"attendance","event":"card","uid":"AA:BB:CC:DD",'
+            '"data_hex":"' + "00" * 48 + '"}'
+        )
+
+        with patch(
+            "core.attendance.decrypt_student_card_payload",
+            side_effect=rfid_card.RFIDKeyConfigurationError("stored key invalid"),
+        ):
+            result = processor.process_line(message)
+
+        self.assertEqual(result["status"], "RFID KEY ERROR")
+        self.assertFalse(result["logged"])
+        self.assertIn("stored key invalid", result["reason"])
+        self.assertEqual(logged, [])
+
     def test_card_event_accepts_data_hex_payload(self):
         student_record = {
             "fingerprint_id": 11,
