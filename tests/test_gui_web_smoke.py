@@ -473,6 +473,7 @@ def test_v3_student_detail_without_scan_is_absent(monkeypatch):
 def test_dashboard_does_not_count_fallback_history_as_today(monkeypatch):
     from gui_web.api import Api
 
+    monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: True)
     api = Api.__new__(Api)
     monkeypatch.setattr("gui_web.api.db.get_today_attendance_info", lambda: {
         "is_fallback": True,
