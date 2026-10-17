@@ -120,12 +120,12 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `get_connection_status()` | `{connected,port,baud,device_metadata,scanning,device_mode}` | No role gate; reports device state. |
 | `start_scan()` / `stop_scan()` | `bool` | Require `scan`; send SCAN/STOP and update mode/event state. |
 | `start_rfid_register_session(fingerprint_id, mode="register")` | `{ok,message}` | Requires connection and `enroll`, selected student must exist and scan must be stopped; starts card listening. |
-| `stop_rfid_register_session()` | `{ok,message}` | No direct role gate; clears pending registration and stops listening when appropriate. |
+| `stop_rfid_register_session()` | `{ok,message}` | Requires `enroll`; clears pending registration and stops listening when appropriate. |
 | `start_batch_rfid_erase(unlink_registered=False)` | `{ok,message}` | Requires admin role and `enroll`, plus connection; arms card erase and optionally clears verified linked card. |
-| `stop_batch_rfid_erase()` | `{ok,message}` | No direct role gate; stops erase mode and restores prior scan state when possible. |
+| `stop_batch_rfid_erase()` | `{ok,message}` | Requires Administrator role plus `enroll`; stops erase mode and restores prior scan state when possible. |
 | `start_enroll()` | `{ok,message}` | Requires connection and `enroll`; sends STOP then ENROLL and waits for progress events. |
-| `validate_student_fields(student_no, student_name, grade, section)` | `{all_valid,fields}` | No role gate or persistence; returns per-field validation feedback. |
-| `cancel_enroll()` | `{ok,message}` | No direct role gate; sends STOP for pending enrollment or clears local pending state on disconnect. |
+| `validate_student_fields(student_no, student_name, grade, section)` | `{all_valid,fields}` or denial | Requires `enroll`; guards the student-number existence check. |
+| `cancel_enroll()` | `{ok,message}` or denial | Requires `enroll`; sends STOP for pending enrollment or clears local pending state on disconnect. |
 | `discard_enrollment(fingerprint_id)` | `{ok,message}` | Requires `delete` and connection; deletes unsaved device template, no student DB write. |
 | `delete_on_device(fingerprint_id)` | `{ok,message}` | Requires `delete` and connection; sends device command only; local row must wait for confirmed event. |
 | `wipe_all_on_device()` | `{ok,message}` | Requires `wipe` and connection; sends device WIPE; API event handler clears local DB only after firmware success. |
@@ -157,11 +157,11 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `list_backups()` | `list[backup metadata]` | Requires `backup`; otherwise empty list. |
 | `create_backup()` | `{ok,message,path?}` | Requires `backup`; creates a database snapshot. |
 | `restore_backup(backup_path)` | `{ok,message}` | Requires `restore`; replaces DB when validation passes and pushes `data_changed`. |
-| `get_settings()` | settings dictionary | No direct role gate; strips `auth`, overlays in-memory role and ports; includes log folder/last backup for backup-capable or admin sessions. It does not strip `rfid_aes_gcm_key`, so the local card-encryption key is returned to the frontend bridge caller. |
+| `get_settings()` | settings dictionary | No direct role gate; removes `auth` and RFID key material, overlays in-memory role and ports, and includes backup metadata only for backup-capable/admin sessions. |
 | `save_ui_settings(settings)` | `{ok}` or error | Requires admin; validates/clamps numeric schedule settings, removes caller-supplied `auth`, persists only known keys and applies selected live settings. |
 | `restore_default_settings()` | `{ok,message}` | Requires admin; preserves auth and completed wizard flags, resets other defaults and live settings. |
 | `get_current_role()` | role string | No role gate; returns in-memory effective role. |
-| `set_current_role(role)` | session state or denial | No password check for Guest/Teacher selection or demotion; admin elevation from lower role returns `requires_password`. **See authorization limitation below.** |
+| `set_current_role(role)` | session state or denial | Guest cannot switch directly to Teacher/Admin; authentication is required for elevation. Admin can demote to Teacher/Guest. |
 | `is_first_run_setup_required()` | `{required,recovery_required}` | No role gate; reads API initialization state. |
 | `complete_first_run_setup(password, confirm_password)` | `{ok,...session}` or error | Only while initial setup is required and not in recovery; validates password, saves hash/marker, elevates creator to admin. |
 | `get_setup_wizard_step()` | `{step}` or recovery object | No role gate; reports next incomplete step. |
@@ -174,11 +174,11 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `lock_session()` | session state | No role gate; resets role to guest. |
 | `change_admin_password(current_password,new_password)` | `{ok,message}` | Requires admin role and current password; new password minimum 8; same failed-attempt lockout state. |
 | `get_role_permissions(role)` | `list[str]` | No role gate; returns configured permission strings. |
-| `open_log_folder()` | `{ok}` or error | No role gate; launches configured local log directory. |
-| `get_app_log(max_lines=500)` | `list[str]` | No role gate; reads this-run in-memory lines or current log file. |
-| `start_background_tasks()` | `None` | No role gate; starts the API's recurring automatic-backup worker if it is not already running. |
-| `stop_background_tasks()` | `None` | No role gate; signals the backup worker to stop and joins briefly. |
-| `set_window(window)` | `None` | No role gate; stores the native pywebview window and starts background tasks; called by `main_web.py` during startup. |
+| `open_log_folder()` | `{ok}` or denial | Administrator-only; launches configured local log directory. |
+| `get_app_log(max_lines=500)` | `list[str]` or empty list | Administrator-only; clamps reads to at most 1,000 recent lines. |
+| `_start_background_tasks()` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
+| `_stop_background_tasks()` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
+| `_set_window(window)` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
 
 ### Authorization findings that affect documentation
 
@@ -186,11 +186,11 @@ Default permission identifiers in `python/config.py` are `scan`, `read_records`,
 
 | Role | Configured permissions |
 | --- | --- |
-| `guest` | `scan`, `attendance_evaluation` |
+| `guest` | `scan` |
 | `teacher` | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
 | `admin` | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
-These lists are not a complete description of effective access. `set_current_role("teacher")` accepts a Guest session without password verification; tests explicitly assert that transition. Teacher grants record reads, CSV exports, and backup creation/listing. Treat this as an implementation security limitation, not as an intended authentication guarantee. Admin elevation still requires authentication. Also, the evaluation API requires `read_records` in addition to `attendance_evaluation`, so Guest cannot get its student-level report rows despite its configured evaluation permission. `get_dashboard_stats`, `get_calendar_month`, settings/log access and several serial status helpers have no direct role gate. UI visibility is not an authorization boundary.
+These lists are not a complete description of effective access. Guest-to-Teacher and Guest-to-Administrator transitions require authentication; Teacher includes record-read, export, and backup privileges. Admin elevation still requires authentication. Also, the evaluation API requires `read_records` in addition to `attendance_evaluation`, so Guest cannot get its student-level report rows despite its configured evaluation permission. `get_dashboard_stats`, `get_calendar_month`, settings/log access and several serial status helpers have no direct role gate. UI visibility is not an authorization boundary.
 
 Non-guest sessions default to a 600-second idle timeout. The timeout is refreshed through explicit `touch_session()` calls; lock or expiry returns to Guest. `settings.json`'s `current_role` is not used by `core.permissions` to authorize calls.
 
@@ -236,7 +236,7 @@ Never include actual settings, hashes, keys, student rows, logs, or production b
 
 ## Firmware and device protocol
 
-Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with RFID adapter code under `src/rfid/`. Identity constants are device `Digital Student Identification System`, board `ESP32`, firmware `1.6.2`, sensor `AS608`, protocol `1`. The sketch starts host `Serial` at 115200 and AS608 UART on `HardwareSerial(2)` at 57600, RX GPIO14/TX GPIO27. RC522 uses SPI with SDA/SS GPIO5, RST GPIO4, MISO GPIO19, MOSI GPIO23, SCK GPIO18; IRQ is not connected. Sensor initialization failure enters a non-returning error loop; missing RC522 warns while fingerprint operation remains available.
+Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with RFID adapter code under `src/rfid/`. Identity constants are device `Digital Student Identification System`, board `ESP32`, firmware `1.6.2`, sensor `AS608`, protocol `1`. The sketch starts host `Serial` at 115200 and AS608 UART on `HardwareSerial(2)` at 57600, RX GPIO14/TX GPIO27. RC522 uses SPI with SDA/SS GPIO5, RST GPIO4, MISO GPIO19, MOSI GPIO23, SCK GPIO18; IRQ is not connected. AS608 initialization failure is reported but no longer blocks the main loop, so RC522 RFID scanning can continue; fingerprint-only commands are rejected while the sensor is offline.
 
 | Host command | Behavior / gate |
 | --- | --- |
@@ -251,7 +251,7 @@ Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with 
 
 Identity JSON includes `device`, `board`, `firmware`, `sensor`, `protocol`, and ESP32 eFuse serial number. Discovery sends `ID?` and accepts matching identifier with integer protocol >=1; probe timeout is 3 seconds. It also checks unprompted boot identity before waiting for the reply, to handle sensor-failure boot output. Successful connection tells firmware `HOST_CONNECTED`; disconnect sends `HOST_DISCONNECTED` and STOP.
 
-Firmware fingerprint match floor is confidence 50; its post-match delay is 2,000 ms, and unknown scan delay is 1,000 ms. The Python processor has separate default minimum confidence 100 (50-99 is still stored as `WEAK MATCH`) and per-fingerprint cooldown default 10 seconds. Both settings are configurable through application settings; firmware floor/cooldown are constants.
+Firmware fingerprint match floor is confidence 50; its post-match delay is 2,000 ms, and unknown scan delay is 1,000 ms. The Python processor has separate default minimum confidence 100 (weak matches are diagnostics only and are not stored as attendance) and per-fingerprint cooldown default 10 seconds. Both settings are configurable through application settings; firmware floor/cooldown are constants.
 
 Firmware emits status text/JSON; attendance JSON events include fingerprint `match`, `unknown`, `low_confidence`, card `card`, `card_unreadable`; card write events identify operation, UID, card type, data hex, success, verification, and result event. It also emits textual enrollment/delete/wipe/count progress consumed by the host parser. RFID supports Classic Mini/1K/4K and Type 2 variants that the detector can safely identify (Ultralight 48-byte, NTAG215, NTAG216); ambiguous 144-byte Type 2 variants are unsupported. Classic authentication/write/read behavior varies by card family and adapter; it must not be generalized to arbitrary RFID cards.
 
