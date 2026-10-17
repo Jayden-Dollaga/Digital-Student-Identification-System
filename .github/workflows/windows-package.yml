@@ -48,6 +48,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Smoke-test active backend startup on Windows
+        shell: pwsh
+        run: |
+          $env:FINGERPRINT_DB_PATH = Join-Path $env:TEMP "dsis-ci-smoke-$env:GITHUB_RUN_ID.db"
+          $env:FINGERPRINT_LOG_FOLDER = Join-Path $env:TEMP "dsis-ci-smoke-logs-$env:GITHUB_RUN_ID"
+          $env:FINGERPRINT_LOG_TO_FILE = "false"
+          python -c "import sys; sys.path.insert(0, 'python'); from gui_web.api import Api; api = Api(); state = api.get_session_state(); assert state.get('ok') is True; print('DSIS backend startup succeeded; role=' + api.get_current_role())"
+
       - name: Byte-compile active Python source
         run: python -m compileall -q python
 
