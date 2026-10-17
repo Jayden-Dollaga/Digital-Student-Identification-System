@@ -8,6 +8,27 @@ pytestmark = pytest.mark.unit
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_rfid_service_continues_when_fingerprint_sensor_is_offline():
+    source = (
+        ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "ESP32_DSIS_AllInOne.ino"
+    ).read_text(encoding="utf-8")
+
+    setup_start = source.index("void setup()")
+    loop_start = source.index("void loop()", setup_start)
+    setup = source[setup_start:loop_start]
+    scan_start = source.index("void scanFinger()")
+    scan_end = source.index("//  RFID CARD", scan_start)
+    scan_finger = source[scan_start:scan_end]
+
+    assert "bool fingerprintSensorReady = false" in source
+    assert "fingerprintSensorReady = false;" in setup
+    assert "RFID remains available" in setup
+    assert "SPI.begin();" in setup
+    assert "while (1)" not in setup
+    assert "if (!fingerprintSensorReady) return;" in scan_finger
+    assert "ERROR: Fingerprint sensor unavailable." in source
+
+
 def test_firmware_destructive_commands_require_host_connection():
     sketches = (
         ROOT / "firmware" / "ESP32_DSIS_AllInOne" / "ESP32_DSIS_AllInOne.ino",
