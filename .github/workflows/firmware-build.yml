@@ -12,6 +12,7 @@ on:
       - "firmware/**"
       - ".github/workflows/firmware-build.yml"
   workflow_dispatch: {}
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -36,4 +37,18 @@ jobs:
 
       - name: Compile maintained DSIS ESP32 firmware
         run: |
-          arduino-cli compile --warnings all --fqbn esp32:esp32:esp32 firmware/ESP32_DSIS_AllInOne
+          mkdir -p build/firmware
+          arduino-cli compile --warnings all --fqbn esp32:esp32:esp32 --output-dir build/firmware firmware/ESP32_DSIS_AllInOne
+
+      - name: Verify compiled firmware images
+        run: |
+          find build/firmware -maxdepth 1 -type f -name '*.bin' -print
+          test -n "$(find build/firmware -maxdepth 1 -type f -name '*.bin' -print -quit)"
+
+      - name: Upload compiled firmware images
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSIS-firmware-${{ github.sha }}
+          path: build/firmware/*.bin
+          if-no-files-found: error
+          retention-days: 7
