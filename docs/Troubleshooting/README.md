@@ -81,7 +81,7 @@ Try cleaning the sensor, using the enrolled finger consistently, checking that t
 
 ### Confidence interpretation
 
-The firmware emits a match only when hardware confidence is at least 50. The Python processor labels recorded matches using its default configurable threshold of 100:
+The firmware emits a match only when hardware confidence is at least 50. The Python processor classifies hardware match events using the configurable threshold (default 100); only matches at or above the threshold are recorded:
 
 | Confidence | Status |
 | ---: | --- |
