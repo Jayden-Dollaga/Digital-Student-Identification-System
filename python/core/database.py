@@ -1695,17 +1695,32 @@ def _create_restore_safety_backup() -> Optional[Path]:
     return safety_path
 
 
+def _sqlite_backup_file(source_path: Path, destination_path: Path) -> None:
+    """Copy a consistent SQLite snapshot through SQLite, including WAL content."""
+    source = sqlite3.connect(f"{source_path.resolve().as_uri()}?mode=ro", uri=True, timeout=30)
+    destination = sqlite3.connect(str(destination_path), timeout=30)
+    try:
+        source.backup(destination)
+        destination.commit()
+    finally:
+        destination.close()
+        source.close()
+
+
 def restore_database(backup_path: str) -> Tuple[bool, str]:
     """Safely restore a validated DSIS database backup.
 
     The selected backup must be inside the backups directory and contain the
     expected DSIS tables. Before modifying the live database, create a verified
-    safety snapshot. SQLite's backup API is used instead of copying file bytes
-    so active WAL state is handled by SQLite.
+    safety snapshot. If restore fails after it starts, attempt to roll back to
+    that snapshot before returning an error.
     """
+    live_path = Path(DB_PATH)
+    safety_backup: Optional[Path] = None
+    restore_started = False
     try:
         backup_file = Path(backup_path).resolve()
-        backup_dir = (Path(DB_PATH).parent / "backups").resolve()
+        backup_dir = (live_path.parent / "backups").resolve()
 
         if not _is_path_within_directory(backup_file, backup_dir):
             log.error("Restore attempted from outside backups directory")
@@ -1719,37 +1734,28 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
         if not _has_dsis_schema(backup_file):
             return False, "Invalid backup file. It does not contain the required DSIS database schema."
 
-        live_path = Path(DB_PATH)
         live_path.parent.mkdir(parents=True, exist_ok=True)
         safety_backup = _create_restore_safety_backup() if live_path.exists() else None
 
-        source = sqlite3.connect(f"{backup_file.as_uri()}?mode=ro", uri=True, timeout=30)
-        destination = sqlite3.connect(str(live_path), timeout=30)
-        try:
-            source.backup(destination)
-            destination.commit()
-        finally:
-            destination.close()
-            source.close()
+        restore_started = True
+        _sqlite_backup_file(backup_file, live_path)
 
         if not _is_valid_sqlite_db_file(live_path) or not _has_dsis_schema(live_path):
-            if safety_backup is not None:
-                recovery_source = sqlite3.connect(
-                    f"{safety_backup.as_uri()}?mode=ro", uri=True, timeout=30
-                )
-                recovery_destination = sqlite3.connect(str(live_path), timeout=30)
-                try:
-                    recovery_source.backup(recovery_destination)
-                    recovery_destination.commit()
-                finally:
-                    recovery_destination.close()
-                    recovery_source.close()
-            return False, "Restore validation failed. The previous database was recovered from its safety backup."
+            raise RuntimeError("Restored database failed integrity or schema validation")
 
         log.success(f"Database restored from {backup_file.name}")
         return True, "Database restored successfully"
     except Exception as exc:
         log.error(f"Database restore failed: {exc}")
+        if restore_started and safety_backup is not None:
+            try:
+                _sqlite_backup_file(safety_backup, live_path)
+                if not _is_valid_sqlite_db_file(live_path) or not _has_dsis_schema(live_path):
+                    raise RuntimeError("Recovered database did not pass validation")
+                return False, "Restore failed. The original database was recovered from its pre-restore safety backup."
+            except Exception as recovery_exc:
+                log.error(f"Pre-restore database recovery failed: {recovery_exc}")
+                return False, "Restore and automatic recovery failed. Preserve the pre-restore safety backup and contact support."
         return False, "Restore failed. Check logs and the pre-restore safety backup before retrying."
 
 def list_backups() -> List[RowDict]:
