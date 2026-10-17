@@ -159,7 +159,7 @@ Supported calendar exception types are `holiday`, `suspension`, and `half_day`. 
 
 Evaluation supports **Day**, **Monday-Sunday Week**, and **Calendar Month**.
 
-For each student, DSIS counts distinct attendance dates in the selected period. The evaluation's observed-day denominator is based on dates with attendance activity in the selected range; completely empty calendar dates are not automatically treated as school days by this evaluation.
+For each student, DSIS counts distinct qualifying attendance dates in the selected period. The denominator enumerates elapsed configured school weekdays and excludes recurring days off, weekends, holidays, and suspensions whether or not a scan occurred; device outages and empty scan days no longer inflate attendance rates by disappearing from the denominator. Future dates are excluded from the active period, and a student's eligible denominator starts on or after their enrollment date.
 
 | Rate | Category |
 | ---: | --- |
