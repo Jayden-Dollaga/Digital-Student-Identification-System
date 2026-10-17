@@ -1765,7 +1765,11 @@ def list_backups() -> List[RowDict]:
             return []
 
         backups: List[RowDict] = []
-        for backup_file in sorted(backup_dir.glob('attendance_*.db'), reverse=True):
+        # Include automatic pre-restore safety snapshots so an operator can
+        # manually recover one if the restore rollback itself ever fails.
+        backup_files = list(backup_dir.glob('attendance_*.db'))
+        backup_files.extend(backup_dir.glob('pre_restore_*.db'))
+        for backup_file in sorted(backup_files, key=lambda item: item.stat().st_mtime, reverse=True):
             stat = backup_file.stat()
             backups.append(
                 {
