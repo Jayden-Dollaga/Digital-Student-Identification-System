@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from settings_store import load_settings, save_settings
+from settings_store import has_quarantined_settings, load_settings, save_settings
 
 _CARD_BYTES = 48
 _NONCE_BYTES = 12
@@ -41,6 +41,15 @@ def get_or_create_rfid_app_key() -> bytes:
         raise RFIDKeyConfigurationError(
             "The stored DSIS RFID encryption key is invalid. Restore a trusted "
             "settings backup; the key was not replaced and existing cards may not decrypt."
+        )
+    if has_quarantined_settings():
+        # A malformed settings file may have contained the only copy of this
+        # key. Never create a replacement automatically after quarantine,
+        # because that would make existing cards appear invalid.
+        raise RFIDKeyConfigurationError(
+            "DSIS has a quarantined settings file and no current RFID key. "
+            "Recover the original key from a trusted backup or deliberately "
+            "re-enroll the affected cards before generating a new key."
         )
 
     key = secrets.token_bytes(32)
