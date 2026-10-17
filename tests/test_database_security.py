@@ -379,6 +379,9 @@ class TestRestoreDatabasePathTraversal:
             assert result_ok, result_msg
             safety_backups = list(backups_dir.glob("pre_restore_*.db"))
             assert len(safety_backups) == 1
+            with patch("core.database.DB_PATH", str(db_path)):
+                listed_names = {item["name"] for item in database.list_backups()}
+            assert safety_backups[0].name in listed_names
             safety = sqlite3.connect(safety_backups[0])
             try:
                 row = safety.execute(
