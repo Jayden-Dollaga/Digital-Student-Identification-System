@@ -47,7 +47,7 @@ The public methods are exposed as `window.pywebview.api.*`. They are the JS-to-P
 | `request_fingerprint_count` | `scan` | Ask device for count | writes serial command |
 | `send_serial_command` | admin | Allow-listed serial diagnostics | writes serial command |
 | `reset_device` | admin | Reset device state | pulses DTR |
-| `get_dashboard_stats` | guest | Dashboard totals | DB read |
+| `get_dashboard_stats` | `read_records`; Guest gets placeholders | Dashboard totals | DB read |
 | `get_recent_activity` | `read_records` | Recent attendance entries | DB read |
 | `get_attendance` | `read_records` | Attendance rows by mode/offset | DB read |
 | `export_attendance_csv` | `export` | Export attendance rows to CSV | file write |
