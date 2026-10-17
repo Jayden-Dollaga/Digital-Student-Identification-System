@@ -92,7 +92,7 @@ Supported calendar exception types are `holiday`, `suspension`, and `half_day`. 
 
 Evaluation supports Day, Monday-Sunday Week, and Calendar Month. Distinct attendance dates are counted per student.
 
-The denominator is based on dates with attendance activity in the selected period. Empty dates are not automatically counted as school days by this evaluation.
+The denominator enumerates elapsed scheduled weekdays, excluding configured recurring days off, weekends, holidays, and suspensions whether or not scans occurred. A no-scan/outage day still counts as a school day; future dates in the active period are excluded, and a student's denominator starts no earlier than enrollment.
 
 | Rate | Category |
 | ---: | --- |
@@ -101,7 +101,7 @@ The denominator is based on dates with attendance activity in the selected perio
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-The API requires both `attendance_evaluation` and `read_records` to return per-student rows. Although Guest is configured with `attendance_evaluation`, it lacks `read_records` and receives an error. The evaluation CSV method delegates to this evaluation call and does not add a separate `export` permission check.
+The API requires both `attendance_evaluation` and `read_records` to return per-student rows. Evaluation CSV export also requires `export`. Guest has scan permission only and cannot receive identifiable evaluation rows or switch to Teacher/Admin without authentication.
 
 ## Delete and wipe
 
@@ -132,11 +132,11 @@ Create a backup before destructive maintenance.
 | --- | --- |
 | Administrator | scan, read_records, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
 | Teacher | scan, read_records, export, backup, attendance_evaluation |
-| Guest | scan, attendance_evaluation |
+| Guest | scan |
 
 Non-guest sessions expire after 600 seconds of inactivity by default. The persisted `current_role` value is not trusted for authorization.
 
-There is no built-in default administrator password. First-run passwords require at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations.
+There is no built-in default administrator password. Passwords are 8–1,024 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations. Verification rejects malformed records and stored iteration counts outside 100,000–1,000,000. Five failed admin attempts trigger a persisted 30-second lockout.
 
 Guest-to-Teacher role changes are denied unless the current session has already authenticated as an administrator. The Python bridge enforces record, export, enrollment, log, and device-operation permissions; a few non-identifying aggregate/diagnostic helpers remain available without `read_records`. Direct USB serial access is still a physical trust boundary, not cryptographic authentication. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
 
