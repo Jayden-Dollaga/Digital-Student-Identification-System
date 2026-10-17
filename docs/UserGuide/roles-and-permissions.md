@@ -26,7 +26,7 @@ The roster, student detail, attendance history, recent activity, and identifiabl
 
 Student-field validation and enrollment cancellation require the `enroll` permission, since validation can reveal whether a student number is already registered and cancellation can change the device workflow. Reading recent application logs and opening the log directory are administrator-only because diagnostic data can include device identifiers and attendance-related details.
 
-A small set of non-identifying helpers, such as port enumeration and aggregate dashboard metrics, remains available without `read_records`. Keep names, student numbers, scan timestamps tied to identifiable records, authentication data, and encryption keys out of those responses.
+A small set of non-identifying helpers, such as port enumeration and sanitized settings, remains available without `read_records`. Dashboard statistics are restricted to roles with `read_records`; Guest sees placeholders instead of school-wide counts. Keep names, student numbers, scan timestamps tied to identifiable records, authentication data, and encryption keys out of any response that does not require record access.
 
 ## RFID key and settings recovery
 
