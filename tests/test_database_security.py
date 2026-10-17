@@ -28,6 +28,28 @@ def create_valid_sqlite_db(path):
     finally:
         connection.close()
 
+def test_has_persisted_records_detects_existing_student_or_attendance_data():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.has_persisted_records() is False
+
+            success, message = database.register_student(
+                1, "LRN-001", "Alex Reyes", "12", "CSS"
+            )
+            assert success, message
+            assert database.has_persisted_records() is True
+
+            database.delete_student(1)
+            assert database.has_persisted_records() is False
+
+            database.log_attendance(
+                0, 0, "UNKNOWN", datetime(2026, 10, 18, 8, 0, 0)
+            )
+            assert database.has_persisted_records() is True
+
+
 def test_has_linked_rfid_cards_tracks_nonempty_card_links():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "attendance.db"
