@@ -101,7 +101,7 @@ def main() -> None:
         height=height,
         min_size=(min(560, width), min(400, height)),
     )
-    api.set_window(window)
+    api._set_window(window)
 
     def _on_closed() -> None:
         try:
