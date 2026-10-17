@@ -918,15 +918,20 @@ def log_attendance(
     time_str = now.strftime("%H:%M:%S")
 
     with get_connection() as conn:
-        # Tag Time-In/Time-Out at the moment of the scan instead of leaving
-        # it to be inferred later from row order: the first scan for this
-        # fingerprint today is 'time_in', any later scan that day is
-        # 'time_out'.
-        already_scanned_today = conn.execute(
-            "SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ? LIMIT 1",
+        # Tag Time-In/Time-Out at the moment of the scan, considering only
+        # qualifying attendance statuses. Older releases stored WEAK MATCH rows;
+        # those diagnostic rows must not force the first valid match to become
+        # Time-Out after upgrading.
+        already_present_today = conn.execute(
+            """
+            SELECT 1 FROM attendance
+            WHERE fingerprint_id = ? AND date = ?
+              AND LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')
+            LIMIT 1
+            """,
             (fingerprint_id, date_str),
         ).fetchone()
-        event_type = "time_out" if already_scanned_today else "time_in"
+        event_type = "time_out" if already_present_today else "time_in"
 
         conn.execute(
             """
