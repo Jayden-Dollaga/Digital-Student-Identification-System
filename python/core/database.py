@@ -984,7 +984,7 @@ def get_daily_attendance_summary(
     with get_connection() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
 
-    grouped: Dict[Tuple[str, str], RowDict] = {}
+    grouped: Dict[Tuple[int, str], RowDict] = {}
     for row in rows:
         row_dict = dict(row)
         # Display names are not unique. Group by stable ID so two students
@@ -1016,8 +1016,12 @@ def get_daily_attendance_summary(
         else:
             entry["time_out"] = row_dict["time"]
 
-        if str(row_dict["status"]).lower() in {"present", "logged", "ok"}:
+        # Prefer any qualifying status over a historical weak/unknown
+        # status earlier on the same day. Older releases wrote WEAK MATCH rows;
+        # retaining those rows for audit must not mask a later valid match.
+        if str(row_dict["status"]).strip().lower() in {"good match", "present", "logged", "ok"}:
             entry["status"] = row_dict["status"]
+            entry["match_status"] = row_dict["status"]
 
     return list(grouped.values())
 
