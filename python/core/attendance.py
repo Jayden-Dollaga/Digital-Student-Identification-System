@@ -345,7 +345,25 @@ class AttendanceProcessor:
                 reason=self._cooldown_reason(fingerprint_id, now),
             ).to_dict()
 
-        status = "GOOD MATCH" if confidence >= self.min_confidence else "WEAK MATCH"
+        if confidence < self.min_confidence:
+            # A low-confidence match is useful diagnostic feedback, but it must
+            # never create a presence record that could inflate attendance.
+            log.warning(
+                "Weak fingerprint match rejected for attendance",
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                min_confidence=self.min_confidence,
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status="WEAK MATCH",
+                timestamp=now,
+                logged=False,
+                reason="Confidence is below the configured attendance threshold.",
+            ).to_dict()
+
+        status = "GOOD MATCH"
 
         try:
             self._log_and_record(fingerprint_id, confidence, status, now)
@@ -380,7 +398,23 @@ class AttendanceProcessor:
                 reason=self._cooldown_reason(fingerprint_id, now),
             ).to_dict()
 
-        status = "GOOD MATCH" if confidence >= self.min_confidence else "WEAK MATCH"
+        if confidence < self.min_confidence:
+            log.warning(
+                "Weak fingerprint match rejected for attendance",
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                min_confidence=self.min_confidence,
+            )
+            return ScanOutcome(
+                fingerprint_id=fingerprint_id,
+                confidence=confidence,
+                status="WEAK MATCH",
+                timestamp=now,
+                logged=False,
+                reason="Confidence is below the configured attendance threshold.",
+            ).to_dict()
+
+        status = "GOOD MATCH"
 
         try:
             self._log_and_record(fingerprint_id, confidence, status, now)
