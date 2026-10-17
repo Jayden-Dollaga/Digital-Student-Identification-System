@@ -1,40 +1,41 @@
 # Roles and Permissions
 
-This page records the current implementation, including a role-escalation limitation. The behavior below is not a recommendation for deploying identifiable student data. The source of truth is `python/config.py`, `python/core/permissions.py`, and the API checks in `python/gui_web/api.py`.
+This guide describes the active v3 implementation. The main enforcement points are `python/config.py`, `python/core/permissions.py`, and backend checks in `python/gui_web/api.py`. Frontend button visibility is only a usability feature; the Python bridge is the authorization boundary.
 
 ## Configured permissions
 
 | Role | Permission identifiers |
 | --- | --- |
-| Guest | `scan`, `attendance_evaluation` |
+| Guest | `scan` |
 | Teacher | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
 | Administrator | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
-These are configured permission strings, not an exhaustive description of effective access. Some API methods have no direct role check, and a caller can invoke the local pywebview bridge independently of whether the frontend hides a control.
+Permission checks are performed against the in-memory session. The `current_role` settings field is for UI continuity and cannot grant privileges.
 
-## Important limitation: Guest can select Teacher
+## Authentication and role changes
 
-`Api.set_current_role("teacher")` accepts the transition from Guest without password verification. The v3 authentication tests explicitly cover that behavior. Because Teacher includes `read_records`, `export`, and `backup`, a person with access to the running app can obtain those capabilities through the role selector. Do not rely on Guest mode to protect student records from an operator who can use the application. This is an implementation security limitation; it is not a supported authentication guarantee.
+- The app starts in Guest mode.
+- A Guest session cannot switch directly to Teacher or Administrator. Those transitions require authentication; the administrator password is verified before elevation.
+- An authenticated administrator can switch down to Teacher or Guest without re-entering the password.
+- Non-Guest sessions expire after the configured idle timeout (10 minutes by default); locking the session returns it to Guest.
+- Passwords are stored as salted PBKDF2-HMAC-SHA256 verifiers. Verification rejects malformed records and iteration values outside a bounded range.
 
-Administrator elevation from Guest or Teacher still requires the administrator password. The first-run administrator password is hashed using PBKDF2-HMAC-SHA256. Reverting from Admin to Teacher or Guest does not require another password.
+## Data access and diagnostics
 
-## Effective access details
+The roster, student detail, attendance history, recent activity, and identifiable attendance evaluation require record-reading permission. The evaluation API checks both `attendance_evaluation` and `read_records`; exporting that evaluation also requires `export`.
 
-- Guest can scan and read the aggregate values returned by `get_dashboard_stats()`, which has no direct API role check. Guest cannot read the roster or attendance history through methods gated by `read_records`.
-- `get_attendance_evaluation()` requires both `attendance_evaluation` and `read_records`. Although Guest has the former configured, Guest does not receive identifiable evaluation rows; the API returns an error.
-- Teacher is configured for record reading, export, and backup creation/listing. The role-selector limitation above means those configured capabilities are not currently password-protected from Guest.
-- Administrator is configured for all listed permissions, including restore and calendar management. Several settings, log, and serial status APIs have their own checks or no direct role check; consult the [full API inventory](../generated/APP_INVENTORY.md) for method-level behavior.
+Student-field validation and enrollment cancellation require the `enroll` permission, since validation can reveal whether a student number is already registered and cancellation can change the device workflow. Reading recent application logs and opening the log directory are administrator-only because diagnostic data can include device identifiers and attendance-related details.
 
-## Session lifecycle
+A small set of non-identifying helpers, such as port enumeration and aggregate dashboard metrics, remains available without `read_records`. Keep names, student numbers, scan timestamps tied to identifiable records, authentication data, and encryption keys out of those responses.
 
-The API initializes the process as Guest. Non-Guest sessions expire after the configured idle timeout (default 10 minutes / 600 seconds); explicit `touch_session()` refreshes it, and `lock_session()` returns to Guest. Expiration is evaluated when the in-memory permission model is queried. The `current_role` setting in `data/settings.json` is not used by `core.permissions` to authorize actions.
+## RFID key and settings recovery
 
-## Backend and UI checks
+The RFID AES-GCM application key is removed from settings returned to JavaScript. Restoring ordinary settings preserves the key so enrolled encrypted cards are not invalidated. A malformed stored key is not silently rotated. Malformed JSON settings are moved to a timestamped `settings.json.corrupt-*` file before defaults are used; if the administrator initialization marker exists but the verifier is unavailable, the existing recovery-required state remains in effect. Back up the data directory securely before repair or re-enrollment.
 
-The frontend hides or disables controls for convenience, but that is not authorization. The API and shared command helpers enforce checks at many operations; not every public API method has a role check. See the method-by-method notes in the [application inventory](../generated/APP_INVENTORY.md). Tests in `tests/test_v3_authentication.py` include the Guest-to-Teacher transition and should be read as evidence of current behavior, not evidence that the transition is secure.
+## Limits of this security model
 
-## Attendance evaluation
+The desktop app is local-first, not a network service. Someone with direct USB/serial access to the ESP32 is inside the physical trust boundary: the firmware's host-connected status is not cryptographic authentication. The on-device host gate reduces accidental commands; it does not prevent a person with direct serial access from spoofing that status. Local database, settings, log, backup, and export files also rely on OS account permissions and device encryption; the in-app password does not encrypt files against a user who can directly read them.
 
-The `attendance_evaluation` permission is configured for all roles, but the current API also requires `read_records`. Therefore only Teacher and Administrator sessions can obtain identifiable evaluation output through the current method, subject to the Guest-to-Teacher limitation above.
+MIFARE Classic cards and plain UID checks are not clone-resistant credentials. The AES-GCM payload detects altered/forged payload bytes, but copying a complete valid payload onto a compatible cloned UID is a replay risk. Use fingerprint matching or a credential technology with a suitable challenge-response design when clone resistance is a requirement.
 
-Last reviewed: 2026-10-16.
+Last reviewed: 2026-10-18.
