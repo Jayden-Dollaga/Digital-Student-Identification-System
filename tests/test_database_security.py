@@ -294,14 +294,17 @@ class TestRestoreDatabasePathTraversal:
             original_backup = database._sqlite_backup_file
             calls = {"count": 0}
 
-            def fail_first_restore(source_path, destination_path):
+            def fail_after_first_restore_write(source_path, destination_path):
                 calls["count"] += 1
                 if calls["count"] == 1:
-                    raise OSError("simulated restore write failure")
+                    # Simulate a late failure after the selected backup has
+                    # replaced the live DB, forcing the safety snapshot path.
+                    original_backup(source_path, destination_path)
+                    raise OSError("simulated post-write restore failure")
                 return original_backup(source_path, destination_path)
 
             with patch("core.database.DB_PATH", str(db_path)):
-                with patch.object(database, "_sqlite_backup_file", side_effect=fail_first_restore):
+                with patch.object(database, "_sqlite_backup_file", side_effect=fail_after_first_restore_write):
                     result_ok, result_msg = restore_database(str(backup_file))
 
             assert not result_ok
