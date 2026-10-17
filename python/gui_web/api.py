@@ -48,7 +48,7 @@ try:
     from ..core.attendance import AttendanceProcessor
     from ..core.attendance_status import calculate_attendance_status
     from ..core.logger import LOG, LOG_FILE, AppFormatter, log
-    from ..core.rfid_card import encrypt_student_card_payload
+    from ..core.rfid_card import RFIDKeyConfigurationError, encrypt_student_card_payload
     from ..core.serial_handler import SerialHandler, list_serial_ports
     from ..core.utils import parse_json_line
     from ..settings_store import (
@@ -71,7 +71,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
     from core.attendance import AttendanceProcessor
     from core.attendance_status import calculate_attendance_status
     from core.logger import LOG, LOG_FILE, AppFormatter, log
-    from core.rfid_card import encrypt_student_card_payload
+    from core.rfid_card import RFIDKeyConfigurationError, encrypt_student_card_payload
     from core.serial_handler import SerialHandler, list_serial_ports
     from core.utils import parse_json_line
     from gui_web.perf_profiler import PerfProfiler
@@ -859,7 +859,10 @@ class Api:
             return
         try:
             payload_hex = encrypt_student_card_payload(int(fingerprint_id), student_no, uid)
-        except (TypeError, ValueError) as exc:
+        except (RFIDKeyConfigurationError, TypeError, ValueError) as exc:
+            # Missing/malformed key is an explicit recovery state; surface it
+            # in the registration workflow rather than letting the serial-read
+            # loop unwind on this expected configuration failure.
             self._push_rfid_registration_result("error", uid, str(exc), card_type=card_type)
             return
         if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
