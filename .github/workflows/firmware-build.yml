@@ -1,0 +1,39 @@
+name: Firmware build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  compile-esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 platform and sketch libraries
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit Fingerprint Sensor Library"
+          arduino-cli lib install "MFRC522"
+
+      - name: Compile maintained DSIS ESP32 firmware
+        run: |
+          arduino-cli compile --warnings all --fqbn esp32:esp32:esp32 firmware/ESP32_DSIS_AllInOne
