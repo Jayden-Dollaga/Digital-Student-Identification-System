@@ -2,7 +2,7 @@
 
 This reference documents the public Python bridge exposed to the active web UI as `window.pywebview.api`.
 
-The summary below is not the complete bridge inventory. The [application inventory](../generated/APP_INVENTORY.md) records every public `Api` method, its arguments, return shape, authorization checks, and side effects. Current security caveat: Guest can select Teacher through `set_current_role("teacher")` without password verification; Teacher permissions include record reads, exports, and backups. Do not treat the frontend or configured permission table as a stronger access boundary than the implementation provides.
+The summary below is not the complete bridge inventory. The [application inventory](../generated/APP_INVENTORY.md) records public `Api` methods, arguments, return shapes, authorization checks, and side effects. Guest-to-Teacher and Guest-to-Administrator transitions require authentication; record, export, enrollment, log, and device operations are guarded in the backend. Direct USB serial access and local access to the data directory remain part of the physical/OS trust boundary.
 
 The summary below is not the complete bridge inventory. The [application inventory](../generated/APP_INVENTORY.md) records every public `Api` method, its arguments, return shape, authorization checks, and side effects. Current security caveat: Guest can select Teacher through `set_current_role("teacher")` without password verification; Teacher permissions include record reads, exports, and backups. Do not treat the frontend or configured permission table as a stronger access boundary than the implementation provides.
 
@@ -91,9 +91,7 @@ The user-facing identifier is Student LRN; the database field remains `student_n
 
 Attendance Evaluation uses distinct attendance dates per student. The current UI category bands are 90-100% Excellent, 75-89% Good, 50-74% Needs attention, and below 50% Low attendance.
 
-The evaluation API requires both `attendance_evaluation` and `read_records`. Its CSV wrapper delegates to this API and does not separately check `export`; see the full inventory for exact current authorization behavior.
-
-The evaluation API requires both `attendance_evaluation` and `read_records`. Its CSV wrapper delegates to this API and does not separately check `export`; see the full inventory for exact current authorization behavior.
+The evaluation API requires both `attendance_evaluation` and `read_records`, and its CSV wrapper additionally requires `export`.
 
 ## Calendar
 
