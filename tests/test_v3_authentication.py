@@ -90,6 +90,35 @@ def test_statistics_report_requires_record_read_permission(monkeypatch):
     assert "record-reading" in result["message"].lower()
 
 
+def test_existing_malformed_password_verifier_requires_recovery(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    settings["auth"] = {
+        "password_salt": "AA==",
+        "password_hash": "AA==",
+        "iterations": auth.PBKDF2_ITERATIONS,
+    }
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
 def test_password_record_presence_is_separate_from_verifier_validity():
     valid_settings = {"auth": auth.hash_password("correct horse battery")}
     assert auth.has_password_material(valid_settings)
