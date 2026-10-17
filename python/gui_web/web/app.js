@@ -1166,14 +1166,14 @@ async function loadDashboardStats() {
     return;
   }
   document.getElementById('stat-scans').textContent = stats.scans_today;
-  document.getElementById('stat-scans-sub').textContent = stats.last_scan_time ? \`Last: \${stats.last_scan_time}\` : 'No scans yet';
+  document.getElementById('stat-scans-sub').textContent = stats.last_scan_time ? 'Last: ' + stats.last_scan_time : 'No scans yet';
   document.getElementById('stat-students').textContent = stats.total_students;
   document.getElementById('stat-rate').textContent = stats.attendance_rate + '%';
   document.getElementById('stat-rate-sub').textContent =
-    (stats.is_fallback ? 'Recent activity' : 'Today') + \` \\u2014 \${stats.present_count} of \${stats.total_students}\`;
+    (stats.is_fallback ? 'Recent activity' : 'Today') + ' — ' + stats.present_count + ' of ' + stats.total_students;
   document.getElementById('stat-unknown').textContent = stats.unknown_scans;
-  document.getElementById('sb-students').textContent = \`\${stats.total_students} students\`;
-  document.getElementById('sb-scans').textContent = \`\${stats.scans_today} scans today\`;
+  document.getElementById('sb-students').textContent = stats.total_students + ' students';
+  document.getElementById('sb-scans').textContent = stats.scans_today + ' scans today';
 }
 
 async function loadRecentActivity() {
