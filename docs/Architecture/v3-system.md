@@ -68,15 +68,15 @@ Disconnect or cancellation clears the pending operation and returns the device t
 
 The firmware emits structured or compatibility events after fingerprint matching. The Python processor applies an application cooldown and confidence classification before database recording.
 
-The firmware hardware match floor is 50. The Python default classification threshold is 100.
+The firmware hardware match floor is 50. The Python default attendance threshold is 100 on the raw AS608 confidence scale (0–255), and can be configured from 1 to 255.
 
 | Confidence | Application status | Stored? |
 | ---: | --- | --- |
-| >= 100 | GOOD MATCH | Yes |
-| 50-99 | WEAK MATCH | Yes |
-| < 50 | No match event | No |
+| At or above configured threshold | GOOD MATCH | Yes |
+| A regular firmware match below configured threshold | WEAK MATCH | No |
+| Below firmware floor | Low-confidence diagnostic | No |
 
-A WEAK MATCH is still stored by the current processor; 100 is not a second rejection gate.
+A WEAK MATCH is diagnostic-only and is not inserted into the attendance database. Attendance evaluation now counts elapsed scheduled weekdays and configured calendar exceptions whether or not a scan was observed, so a no-scan/device-outage day cannot disappear from the denominator.
 
 Duplicate protection is layered: firmware has an approximately 2-second post-scan delay and the application cooldown defaults to 10 seconds per fingerprint.
 
