@@ -26,11 +26,22 @@ def _decode_rfid_key(encoded: str) -> Optional[bytes]:
 
 def get_or_create_rfid_app_key() -> bytes:
     settings = load_settings()
-    key = _decode_rfid_key(settings.get("rfid_aes_gcm_key"))
-    if key is None:
-        key = secrets.token_bytes(32)
-        settings["rfid_aes_gcm_key"] = key.hex().upper()
-        save_settings(settings)
+    stored_value = settings.get("rfid_aes_gcm_key")
+    key = _decode_rfid_key(stored_value)
+    if key is not None:
+        return key
+
+    # First-run setup may create a key. A present-but-invalid value is different:
+    # silently replacing it would make cards encrypted with the old key unreadable.
+    if stored_value not in (None, ""):
+        raise ValueError(
+            "The stored DSIS RFID encryption key is invalid. Restore a trusted "
+            "settings backup or re-enroll affected cards; the key was not replaced."
+        )
+
+    key = secrets.token_bytes(32)
+    settings["rfid_aes_gcm_key"] = key.hex().upper()
+    save_settings(settings)
     return key
 
 
