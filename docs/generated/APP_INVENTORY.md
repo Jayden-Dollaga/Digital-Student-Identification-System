@@ -148,11 +148,11 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `delete_student(fingerprint_id)` | `{ok,message}` | Requires `delete` and a prior confirmed device-delete event; DB keeps attendance by remapping rows to ID 0. |
 | `export_students_csv()` | `{ok,message,path?}` | Requires `export`; exports roster plus today's time/status fields. |
 | `get_attendance_evaluation(period="month", ref_date="")` | `{ok,period,start_date,end_date,total_days,school_days,rows}` or error | Requires both `attendance_evaluation` and `read_records`; reports per-student distinct days. |
-| `export_attendance_evaluation_csv(period="month", ref_date="")` | `{ok,message,path?}` | Calls evaluation (thus needs both permissions); there is no separate `export` check in this method. |
+| `export_attendance_evaluation_csv(period="month", ref_date="")` | `{ok,message,path?}` | Requires `export`, plus the delegated evaluation and record-read permissions; writes a CSV only after all checks pass. |
 | `get_calendar_month(year, month)` | `{ok,year,month,entries}` or error | No role gate; reads settings calendar. |
 | `set_calendar_entry(date, entry_type, label="", time_in="", time_out="")` | `{ok,date,entry}` or error | Requires `manage_calendar`; saves validated holiday/suspension/half-day settings. |
 | `remove_calendar_entry(date)` | `{ok,date}` | Requires `manage_calendar`; removes entry from settings. |
-| `get_statistics_report()` | report dictionary or error | Requires `export` or `backup`; reads all attendance and student summary data. |
+| `get_statistics_report()` | report dictionary or error | Requires `read_records` plus `export` or `backup`; reads identifiable attendance and student summary data. |
 | `export_statistics_report()` | `{ok,message,path?}` | Requires `export`; writes text report through Save As. |
 | `list_backups()` | `list[backup metadata]` | Requires `backup`; otherwise empty list. |
 | `create_backup()` | `{ok,message,path?}` | Requires `backup`; creates a database snapshot. |
