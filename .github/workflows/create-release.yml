@@ -1,0 +1,46 @@
+name: Create GitHub Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if gh release view v2.6.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v2.6.0 already exists"
+            exit 0
+          fi
+
+          gh release create v2.6.0 --repo "${{ github.repository }}" --title "v2.6.0: Console diagnostics and guest access control" --notes-file - <<'EOF'
+          ## Summary
+          This release adds practical diagnostics and deployment clarity for DSIS users while tightening role enforcement for guest access. It also fixes smaller-screen usability and improves the operational documentation around installation, permissions, backup limits, and API behavior. The net result is a safer and more understandable runtime without a breaking migration path for standard deployments. No operator action is required for normal installs.
+
+          ## Added
+          - Console output is now enabled for DSIS v1 and v3 builds to make startup and runtime diagnostics visible during troubleshooting.
+          - Documentation was expanded to cover backup limitations, installation requirements, roles and permissions, and API behavior so setup and access questions are easier to resolve.
+
+          ## Fixed
+          - Minimum window size constraints were adjusted so the interface remains usable at smaller screen dimensions.
+          - Operational guidance was corrected to better reflect supported setup and runtime expectations.
+
+          ## Security
+          - Guest users are now subject to enforced role-based access control so they cannot perform actions outside their allowed permissions.
+          - Permission checks are more consistent across access paths, reducing the risk of unauthorized use of restricted workflows.
+
+          ## Upgrade notes
+          None.
+          EOF
