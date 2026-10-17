@@ -77,6 +77,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
     from gui_web.perf_profiler import PerfProfiler
     from settings_store import (
         admin_initialization_marker_exists,
+        has_quarantined_settings,
         default_settings,
         load_settings,
         save_settings,
