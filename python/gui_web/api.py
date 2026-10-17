@@ -2327,8 +2327,14 @@ class Api:
         return self.get_session_state()
 
     def change_admin_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
-        if not permissions.require_role("admin"):
-            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+        # Share the same throttle lock as the login bridge path so concurrent
+        # login/password-change calls cannot race the persisted failure counter.
+        with ADMIN_LOGIN_LOCK:
+            if not permissions.require_role("admin"):
+                return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+            return self._change_admin_password_locked(current_password, new_password)
+
+    def _change_admin_password_locked(self, current_password: str, new_password: str) -> Dict[str, Any]:
         password_error = auth.validate_new_password(new_password, new_password)
         if password_error:
             return {"ok": False, "message": password_error}
