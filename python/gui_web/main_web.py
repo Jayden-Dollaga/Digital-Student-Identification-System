@@ -108,6 +108,10 @@ def main() -> None:
             api._disconnect_impl()
         except Exception:
             pass
+        try:
+            api._stop_background_tasks()
+        except Exception as exc:
+            log.warning(f"Could not stop DSIS background tasks cleanly: {exc}")
         log.info("DSIS v3 (web) window closed")
 
     window.events.closed += _on_closed
