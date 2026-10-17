@@ -491,7 +491,7 @@ def test_v3_push_json_round_trips_unicode_names():
     from gui_web.api import Api
 
     api = Api()
-    api.set_window(MagicMock())
+    api._set_window(MagicMock())
     payload = {"student": {"student_name": "José, María Ñ"}}
     api._push("scan_result", payload)
 
@@ -593,7 +593,7 @@ def test_v3_csv_save_dialog_uses_pywebview_save_contract():
     window = MagicMock()
     window.create_file_dialog.return_value = ("C:/chosen/attendance.csv",)
     api = Api()
-    api.set_window(window)
+    api._set_window(window)
 
     selected = api._choose_csv_path("attendance_today.csv")
 
