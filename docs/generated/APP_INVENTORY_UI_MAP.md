@@ -31,57 +31,57 @@ The public methods are exposed as `window.pywebview.api.*`. They are the JS-to-P
 | --- | --- | --- | --- |
 | `list_ports` | guest | List discovered serial ports | none |
 | `list_ports_detailed` | guest | Detailed port metadata | none |
-| `forget_saved_port` | guest | Clear saved COM port preference | writes settings |
-| `connect` | guest | Connect to ESP32 | opens serial port |
-| `disconnect` | guest | Close serial connection | closes serial port |
+| `forget_saved_port` | teacher+ | Clear saved COM port preference | writes settings |
+| `connect` | `scan` with Guest restricted to saved port | Connect to ESP32 | opens serial port |
+| `disconnect` | teacher+ | Close serial connection | closes serial port |
 | `get_connection_status` | guest | Read connection metadata | none |
 | `start_scan` | `scan` | Tell the device to enter scan mode | writes serial command |
 | `stop_scan` | `scan` | Stop active scan mode | writes serial command |
 | `start_enroll` | `enroll` | Begin enrollment flow | writes serial command, DB state transitions |
-| `validate_student_fields` | guest | Validate student entry data | none |
+| `validate_student_fields` | `enroll` | Validate student entry data | checks student-number uniqueness |
 | `cancel_enroll` | `enroll` | Cancel enrollment | writes serial command |
 | `discard_enrollment` | `enroll` | Discard a partially stored fingerprint | DB writes |
 | `delete_on_device` | `delete` | Delete one fingerprint from the sensor | writes serial command, DB writes |
 | `wipe_all_on_device` | `wipe` | Wipe all fingerprints | writes serial command |
 | `wipe_all_data` | `wipe` | Clear DB + student rows + attendance | destructive DB writes |
-| `request_fingerprint_count` | guest | Ask device for count | writes serial command |
+| `request_fingerprint_count` | `scan` | Ask device for count | writes serial command |
 | `send_serial_command` | admin | Allow-listed serial diagnostics | writes serial command |
 | `reset_device` | admin | Reset device state | pulses DTR |
 | `get_dashboard_stats` | guest | Dashboard totals | DB read |
-| `get_recent_activity` | guest | Recent attendance entries | DB read |
-| `get_attendance` | guest | Attendance rows by mode/offset | DB read |
+| `get_recent_activity` | `read_records` | Recent attendance entries | DB read |
+| `get_attendance` | `read_records` | Attendance rows by mode/offset | DB read |
 | `export_attendance_csv` | `export` | Export attendance rows to CSV | file write |
-| `get_students` | guest | List student roster | DB read |
-| `get_student` | guest | Fetch one student row | DB read |
+| `get_students` | `read_records` | List student roster | DB read |
+| `get_student` | `read_records` | Fetch one student row | DB read |
 | `save_student` | `enroll` or equivalent role logic | Save or update student record | DB write |
 | `delete_student` | `delete` | Delete a student record | DB write |
 | `export_students_csv` | `export` | Export student list | file write |
-| `get_attendance_evaluation` | `attendance_evaluation` | Report attendance metrics | DB read |
+| `get_attendance_evaluation` | `attendance_evaluation` + `read_records` | Report attendance metrics | DB read |
 | `export_attendance_evaluation_csv` | `export` | Export evaluation report | file write |
 | `get_calendar_month` | guest | Calendar state for a month | settings read |
 | `set_calendar_entry` | `manage_calendar` | Add holiday/suspension/half-day entry | settings write |
 | `remove_calendar_entry` | `manage_calendar` | Remove a calendar entry | settings write |
-| `get_statistics_report` | guest | Summary metrics | DB read |
+| `get_statistics_report` | `read_records` + `export` or `backup` | Summary metrics | DB read |
 | `export_statistics_report` | `export` | Export statistics report | file write |
-| `list_backups` | guest | List backup archives | directory read |
+| `list_backups` | `backup` | List backup archives | directory read |
 | `create_backup` | `backup` | Create DB snapshot | file write |
 | `restore_backup` | `restore` | Restore DB snapshot | DB overwrite |
-| `get_settings` | guest | Read settings keys | disk read |
-| `save_ui_settings` | guest | Persist UI settings | settings write |
-| `restore_default_settings` | guest | Reset settings to defaults | settings write |
+| `get_settings` | guest; secrets removed | Read sanitized settings keys | disk read |
+| `save_ui_settings` | admin | Persist UI settings | settings write |
+| `restore_default_settings` | admin | Reset settings to defaults | settings write |
 | `get_current_role` | guest | Read in-memory session role | none |
-| `set_current_role` | guest | Set role for current session | session state |
+| `set_current_role` | session-aware; elevation requires auth | Set role for current session | session state |
 | `is_first_run_setup_required` | guest | Check first-run status | none |
 | `complete_first_run_setup` | guest | Create admin password | auth write |
 | `get_setup_wizard_step` | guest | Get next step | none |
-| `complete_setup_device_step` | guest | Mark device step done | settings write |
-| `complete_setup_schedule_step` | guest | Mark schedule step done | settings write |
-| `complete_setup_branding_step` | guest | Mark branding step done | settings write |
+| `complete_setup_device_step` | admin | Mark device step done | settings write |
+| `complete_setup_schedule_step` | admin | Mark schedule step done | settings write |
+| `complete_setup_branding_step` | admin | Mark branding step done | settings write |
 | `authenticate_role` | guest | Login as a role | session state |
 | `get_session_state` | guest | Current session state | none |
 | `touch_session` | guest | Refresh session timeout | session state |
 | `lock_session` | guest | Lock current session | session state |
-| `change_admin_password` | guest | Change password | auth write |
+| `change_admin_password` | admin + current password | Change password | auth write |
 | `get_role_permissions` | guest | Return permission strings | none |
 | `open_log_folder` | admin | Open logs folder | OS open |
 | `get_app_log` | admin | Return recent log lines | none |
