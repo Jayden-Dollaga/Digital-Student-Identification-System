@@ -271,3 +271,43 @@ def test_atomic_settings_save_round_trip_and_no_temp_file_left():
         assert loaded["com_port"] == "COM17"
         assert json.loads(settings_file.read_text(encoding="utf-8"))["com_port"] == "COM17"
         assert list(Path(tmpdir).glob(".settings.json.*.tmp")) == []
+
+def test_save_ui_settings_cannot_overwrite_rfid_key_material(monkeypatch):
+    """UI preferences must never replace the key that decrypts enrolled cards."""
+    from gui_web.api import Api
+
+    persisted = default_settings()
+    persisted.update({
+        "auth": {"password_hash": "preserve-auth"},
+        "rfid_aes_gcm_key": "AB" * 32,
+        "rfid_app_key_hex": "CD" * 32,
+        "rfid_payload_key": "legacy-secret",
+    })
+    saved = {}
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: persisted.copy())
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: saved.update(settings))
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+
+    api = Api.__new__(Api)
+    api.serial = MagicMock()
+    api.processor = MagicMock()
+    api.profiler = MagicMock()
+    api._backup_interval_minutes = 25
+    api._session_timeout_seconds = 600
+
+    result = api.save_ui_settings({
+        "theme": "light",
+        "auth": {"password_hash": "attacker-controlled"},
+        "rfid_aes_gcm_key": "00" * 32,
+        "rfid_app_key_hex": "11" * 32,
+        "rfid_payload_key": "attacker-controlled",
+    })
+
+    assert result["ok"] is True
+    assert saved["theme"] == "light"
+    assert saved["auth"] == persisted["auth"]
+    assert saved["rfid_aes_gcm_key"] == persisted["rfid_aes_gcm_key"]
+    assert saved["rfid_app_key_hex"] == persisted["rfid_app_key_hex"]
+    assert saved["rfid_payload_key"] == persisted["rfid_payload_key"]
+
