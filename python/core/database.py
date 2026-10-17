@@ -718,6 +718,31 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
         conn.close()
 
 
+def has_linked_rfid_cards() -> bool:
+    """Return whether the roster has any non-empty RFID card links.
+
+    A missing AES-GCM key must not be silently regenerated if persisted
+    student records already reference cards that may have been encrypted by
+    the old key. A genuinely empty/new database has no links and is safe.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'students'")
+        if cursor.fetchone() is None or not _student_card_uid_column_exists(cursor):
+            return False
+        row = conn.execute(
+            "SELECT 1 FROM students WHERE card_uid IS NOT NULL AND TRIM(card_uid) <> '' LIMIT 1"
+        ).fetchone()
+        return row is not None
+    except sqlite3.OperationalError as exc:
+        if "no such table: students" in str(exc).lower():
+            return False
+        raise
+    finally:
+        conn.close()
+
+
 def get_student_by_card_uid(uid: Any) -> Optional[StudentRow]:
     normalized = normalize_card_uid(uid)
     if not normalized:
