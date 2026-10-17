@@ -20,6 +20,7 @@ on:
       - "requirements.txt"
       - ".github/workflows/windows-package.yml"
   workflow_dispatch: {}
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -56,7 +57,7 @@ jobs:
       - name: Package the Windows v3 application
         run: python -m PyInstaller --noconfirm --clean Build/DSIS_v3.spec
 
-      - name: Verify expected Windows executable exists
+      - name: Verify and archive expected Windows package
         shell: pwsh
         run: |
           $exe = "dist/DSIS-v3/DSIS-v3.exe"
@@ -64,11 +65,17 @@ jobs:
             throw "PyInstaller completed without the expected executable at $exe"
           }
           Get-Item $exe | Select-Object FullName, Length
+          Compress-Archive -Path "dist/DSIS-v3/*" -DestinationPath "dist/DSIS-v3-windows.zip" -Force
+          if (!(Test-Path "dist/DSIS-v3-windows.zip")) {
+            throw "Expected Windows package archive was not created."
+          }
 
-      - name: Upload packaged app for inspection
+      - name: Upload packaged app for inspection and release
         uses: actions/upload-artifact@v4
         with:
           name: DSIS-v3-windows-${{ github.sha }}
-          path: dist/DSIS-v3/
+          path: |
+            dist/DSIS-v3-windows.zip
+            dist/DSIS-v3/
           if-no-files-found: error
           retention-days: 7
