@@ -232,7 +232,7 @@ The legacy settings keys `rfid_payload_key` and `rfid_app_key_hex` remain in the
 | `data/exports/` | Default output directory when no native save dialog is available; exports can also be saved to a user-selected path. |
 | `data/charts/` | Database reporting/chart helpers may create chart artifacts. |
 
-Never include actual settings, hashes, keys, student rows, logs, or production backups in documentation or source control. The `auth` record uses PBKDF2-HMAC-SHA256, random 16-byte salt, and 310,000 iterations. RFID application key material is locally persisted; AES-GCM card payload encryption does not encrypt the local settings/database/backups.
+Never include actual settings, hashes, keys, student rows, logs, or production backups in documentation or source control. The `auth` record uses PBKDF2-HMAC-SHA256, random 16-byte salt, and 310,000 iterations. Verification checks decoded salt/digest lengths and rejects stored iteration counts outside 100,000–1,000,000 to prevent unbounded work from a malformed local verifier. Invalid settings files are quarantined instead of being silently overwritten; if an RFID key may have been lost with a quarantined settings file, new-key creation is blocked until explicit recovery or card re-enrollment. RFID application key material is locally persisted; AES-GCM card payload encryption does not encrypt the local settings/database/backups.
 
 ## Firmware and device protocol
 
