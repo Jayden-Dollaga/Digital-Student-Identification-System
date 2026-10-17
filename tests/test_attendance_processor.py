@@ -108,6 +108,40 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertFalse(cooldown_result["logged"])
         self.assertEqual(len(logged), 1)
 
+    def test_weak_fingerprint_match_is_not_recorded_as_attendance(self):
+        logged = []
+        processor = AttendanceProcessor(
+            cooldown_seconds=1,
+            min_confidence=200,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        processor.process_line("ID:3")
+        result = processor.process_line("CONFIDENCE:199")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "WEAK MATCH")
+        self.assertFalse(result["logged"])
+        self.assertIn("below the configured", result["reason"])
+        self.assertEqual(logged, [])
+
+    def test_weak_json_match_is_not_recorded_as_attendance(self):
+        logged = []
+        processor = AttendanceProcessor(
+            cooldown_seconds=1,
+            min_confidence=200,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        result = processor.process_line(
+            '{"type":"attendance","event":"match","id":4,"confidence":199}'
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "WEAK MATCH")
+        self.assertFalse(result["logged"])
+        self.assertEqual(logged, [])
+
     def test_process_json_attendance_match(self):
         logged = []
 
