@@ -29,7 +29,13 @@ def _decode_rfid_key(encoded: str) -> Optional[bytes]:
 
 
 def get_or_create_rfid_app_key() -> bytes:
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not read its current settings, so the RFID operation was stopped "
+            "without creating or replacing an encryption key."
+        ) from exc
     stored_value = settings.get("rfid_aes_gcm_key")
     key = _decode_rfid_key(stored_value)
     if key is not None:
@@ -74,7 +80,13 @@ def get_or_create_rfid_app_key() -> bytes:
 
     key = secrets.token_bytes(32)
     settings["rfid_aes_gcm_key"] = key.hex().upper()
-    save_settings(settings)
+    try:
+        save_settings(settings)
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not safely persist its new RFID key, so the operation was stopped. "
+            "No card should be written until settings storage is repaired."
+        ) from exc
     return key
 
 
