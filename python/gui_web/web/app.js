@@ -1198,7 +1198,7 @@ function rowToActivityTr(r) {
   return `<tr><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
     `<td>${known ? escapeHtml(r.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
     `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
-    `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
+    `<td>${escapeHtml(r.confidence != null ? r.confidence + '/255' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
     `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
 }
