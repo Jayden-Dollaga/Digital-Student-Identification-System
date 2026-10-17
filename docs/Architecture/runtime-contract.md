@@ -6,7 +6,7 @@ This document describes how the maintained application moves from process startu
 
 `run_web_gui.py` is the supported script entry point. `python/gui_web/main_web.py` loads configuration and settings, initializes the shared database and logging facilities, creates the API object, and opens the local HTML application in pywebview. The frontend is loaded from `python/gui_web/web/index.html`; the application does not depend on a separately hosted HTTP server. The current v3 shell also loads the configured visual branding/icon assets where the build target provides them.
 
-The API object owns the long-lived serial handler and attendance processor. It also starts the background work needed for device monitoring, automatic backups, and event delivery. The exact timing of background work is implementation detail; callers should use returned state and events rather than assuming a fixed startup order. The first-run UI routes through password, device, schedule, and branding steps using persisted completion flags; the device step may be completed with or without a currently connected board.
+The API object owns the long-lived serial handler and attendance processor. Database initialization failure aborts startup visibly rather than opening a UI whose persistence layer is broken. The API starts the background work needed for device monitoring, automatic backups, and event delivery; the worker is stopped when the desktop window closes. The exact timing of background work is implementation detail; callers should use returned state and events rather than assuming a fixed startup order. The first-run UI routes through password, device, schedule, and branding steps using persisted completion flags; the device step may be completed with or without a currently connected board.
 
 ## 2. Bridge direction
 
@@ -34,8 +34,9 @@ Sensor templates and SQLite rows are separate stores. A database backup does not
 
 In scan mode, firmware emits a match, unknown, or low-confidence event. `core.attendance.AttendanceProcessor` parses the event, resolves a matched fingerprint ID against SQLite, and applies application policy:
 
-- A match at or above `min_confidence` is classified `GOOD MATCH`.
-- A match below that threshold is classified `WEAK MATCH`; the threshold is application configuration and must not be confused with the firmware's sensor-level minimum.
+- A match at or above `min_confidence` is classified `GOOD MATCH` and may be recorded.
+- A regular hardware match below that threshold is classified `WEAK MATCH` for diagnostics only and is not written to the attendance table; this is an application rejection threshold, not just a label.
+- The threshold uses the raw AS608 confidence scale from 0 to 255 (default 100); firmware itself has a separate confidence floor of 50.
 - Unknown scans are represented by reserved fingerprint ID `0`, status `UNKNOWN`, and the `Unregistered` placeholder.
 - A fingerprint ID already processed within the configured cooldown is returned as not logged, with a cooldown reason.
 - Accepted outcomes are written with confidence, status, timestamp, date/time fields, and an explicit event type where the database contract requires it.
