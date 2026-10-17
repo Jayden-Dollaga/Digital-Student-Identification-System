@@ -22,9 +22,11 @@ If the original RFID key cannot be recovered, DSIS intentionally refuses to gene
 
 ## If the original RFID key is permanently lost
 
-Treat every previously enrolled encrypted card as unusable until it is re-enrolled. After making and verifying an offline copy of the quarantined settings and the full data directory, an administrator may deliberately move the `settings.json.corrupt-*` files **out of the active data directory** to a safe recovery folder. The next card-enrollment/write operation can then create a new key in the current settings. This is a deliberate key reset, not a recovery of old cards; all affected cards must be rewritten and verified against the active database.
+Treat every previously enrolled encrypted card as unusable until it is re-enrolled. First restore a valid administrator `auth` record from a trusted settings backup so the admin can use the application. If `.admin_initialized` exists but no valid admin verifier can be restored, the app stays in recovery-required mode; it does not offer an in-app password reset. Do not clear the marker manually as a shortcut.
 
-Do not delete the quarantined copies until the school has decided the old key and cards are no longer needed. Keep the card-rewrite process supervised and test with a non-production card first.
+Only after administrator access is restored, and after making and verifying an offline copy of the quarantined settings and full data directory, an administrator may deliberately move the `settings.json.corrupt-*` files **out of the active data directory** to a safe recovery folder. The next card-enrollment/write operation can then create a new key in the current settings. This is a deliberate key reset, not a recovery of old cards; all affected cards must be rewritten and verified against the active database.
+
+Do not delete the quarantined copies until the school has decided the old key and cards are no longer needed. Keep the card-rewrite process supervised and test with a non-production card first. If no trustworthy settings copy exists, there is currently no unattended recovery shortcut; stop using the installation for authoritative attendance until a controlled recovery plan is approved.
 
 ## Protection at rest
 
