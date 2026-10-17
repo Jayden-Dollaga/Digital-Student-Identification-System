@@ -1652,18 +1652,16 @@ class Api:
         restored from an older backup, in which case this naturally reflects
         whatever is currently loaded, same as every other report.
 
-        "Days present" = number of distinct calendar dates within the window
-        that the student has at least one attendance row (multiple scans on
-        the same day still count once - same dedup get_daily_attendance_summary
-        already does). "Total days" (the report-wide header figure) = number
-        of distinct dates in the window that ANY student had activity AND
-        that isn't marked holiday/suspension in the school calendar (see
-        core.attendance_calendar) - so weekends/declared holidays don't
-        count against anyone, and a single stray scan on a holiday can't
-        manufacture a school day that then flags everyone else absent.
+        "Days present" = number of distinct scheduled school dates in the
+        window where the student has a qualifying attendance row. "Total days"
+        is built from the configured weekday schedule and calendar exceptions,
+        not scan activity. A device outage or a day when nobody scans therefore
+        still counts as a school day, while weekends and declared holidays or
+        suspensions are excluded. Future dates in the active period are not
+        counted until they happen.
 
-        Each student's own denominator is further narrowed to school days
-        on or after their enrollment_date, so a student enrolled mid-month
+        Each student's denominator is further narrowed to eligible school days
+        on or after their enrollment_date, so a student enrolled mid-period
         isn't counted absent for days before they existed in the system.
         If a student's eligible window has zero school days (enrolled after
         the whole period, or the period itself is empty), attendance_rate
@@ -1715,7 +1713,10 @@ class Api:
         }
         school_days = []
         current_day = start_dt.date()
-        final_day = end_dt.date()
+        # Do not mark a student absent for a school day that has not happened
+        # yet. Historical periods still use their full window; the active
+        # period is evaluated only through today's local date.
+        final_day = min(end_dt.date(), datetime.now().date())
         while current_day <= final_day:
             date_text = current_day.strftime("%Y-%m-%d")
             # Python uses Monday=0, but DSIS stores recurring days off
