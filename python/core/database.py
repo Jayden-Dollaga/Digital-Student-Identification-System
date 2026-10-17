@@ -1612,18 +1612,13 @@ def _is_path_within_directory(path: Path, directory: Path) -> bool:
 
 
 def _is_valid_sqlite_db_file(path: Path) -> bool:
-    """Return True if the path looks like a real SQLite database file.
-
-    We validate the magic header instead of opening the file with sqlite3 so we
-    don't hold a file handle open on Windows while the backup file is still in
-    the temp-backups directory and being cleaned up.
-    """
+    """Return True only when a file is a readable, structurally valid SQLite DB."""
     try:
         if not path.exists() or not path.is_file() or path.stat().st_size < 16:
             return False
-        with path.open('rb') as handle:
+        with path.open("rb") as handle:
             header = handle.read(16)
-        if header != b'SQLite format 3\x00':
+        if header != b"SQLite format 3\x00":
             return False
         connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
         try:
@@ -1635,43 +1630,127 @@ def _is_valid_sqlite_db_file(path: Path) -> bool:
         return False
 
 
+def _has_dsis_schema(path: Path) -> bool:
+    """Reject arbitrary SQLite files that are not usable DSIS database backups."""
+    required_columns = {
+        "students": {
+            "fingerprint_id", "student_no", "student_name", "grade", "section",
+            "enrollment_date", "updated_date",
+        },
+        "attendance": {
+            "id", "fingerprint_id", "date", "time", "confidence", "status", "timestamp",
+        },
+    }
+    try:
+        connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            tables = {
+                row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if not set(required_columns).issubset(tables):
+                return False
+            for table, expected in required_columns.items():
+                actual = {
+                    row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')
+                }
+                if not expected.issubset(actual):
+                    return False
+            return True
+        finally:
+            connection.close()
+    except (OSError, ValueError, sqlite3.DatabaseError):
+        return False
+
+
+def _create_restore_safety_backup() -> Optional[Path]:
+    """Create a unique, transactionally consistent safety copy of the live DB."""
+    live_path = Path(DB_PATH)
+    if not live_path.is_file():
+        return None
+    backup_dir = live_path.parent / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safety_path = backup_dir / f"pre_restore_{stamp}_{os.getpid()}.db"
+    suffix = 1
+    while safety_path.exists():
+        safety_path = backup_dir / f"pre_restore_{stamp}_{os.getpid()}_{suffix}.db"
+        suffix += 1
+    source = sqlite3.connect(str(live_path), timeout=30)
+    destination = sqlite3.connect(str(safety_path), timeout=30)
+    try:
+        source.backup(destination)
+    except Exception:
+        destination.close()
+        source.close()
+        safety_path.unlink(missing_ok=True)
+        raise
+    else:
+        destination.close()
+        source.close()
+    if not _is_valid_sqlite_db_file(safety_path) or not _has_dsis_schema(safety_path):
+        safety_path.unlink(missing_ok=True)
+        raise RuntimeError("Current database could not be preserved as a valid safety backup.")
+    return safety_path
+
+
 def restore_database(backup_path: str) -> Tuple[bool, str]:
-    """Restore database from a backup file.
+    """Safely restore a validated DSIS database backup.
 
-    Args:
-        backup_path: Path to the backup file. Must be within the backups directory.
-
-    Returns:
-        Tuple of (success, message)
+    The selected backup must be inside the backups directory and contain the
+    expected DSIS tables. Before modifying the live database, create a verified
+    safety snapshot. SQLite's backup API is used instead of copying file bytes
+    so active WAL state is handled by SQLite.
     """
     try:
         backup_file = Path(backup_path).resolve()
-        backup_dir = (Path(DB_PATH).parent / 'backups').resolve()
+        backup_dir = (Path(DB_PATH).parent / "backups").resolve()
 
-        # SECURITY: Ensure the backup file is within the backups directory.
-        # This prevents path traversal attacks (../ escapes, sibling
-        # directories like "backups_evil", absolute paths elsewhere, and
-        # symlink-based escapes - see _is_path_within_directory()).
         if not _is_path_within_directory(backup_file, backup_dir):
-            log.error(f"Restore attempted from outside backups directory: {backup_path}")
-            return False, 'Invalid backup file location. Backups must be in the backups directory.'
-
+            log.error("Restore attempted from outside backups directory")
+            return False, "Invalid backup file location. Backups must be in the backups directory."
         if not backup_file.exists():
-            return False, 'Backup file not found.'
-
-        if backup_file.suffix.lower() != '.db':
-            return False, 'Invalid file type. Only .db backup files are supported.'
-
+            return False, "Backup file not found."
+        if backup_file.suffix.lower() != ".db":
+            return False, "Invalid file type. Only .db backup files are supported."
         if not _is_valid_sqlite_db_file(backup_file):
-            return False, 'Invalid backup file. The selected .db file is not a valid SQLite database.'
+            return False, "Invalid backup file. The selected .db file is not a valid SQLite database."
+        if not _has_dsis_schema(backup_file):
+            return False, "Invalid backup file. It does not contain the required DSIS database schema."
 
-        shutil.copy2(backup_file, DB_PATH)
+        live_path = Path(DB_PATH)
+        live_path.parent.mkdir(parents=True, exist_ok=True)
+        safety_backup = _create_restore_safety_backup() if live_path.exists() else None
+
+        source = sqlite3.connect(f"{backup_file.as_uri()}?mode=ro", uri=True, timeout=30)
+        destination = sqlite3.connect(str(live_path), timeout=30)
+        try:
+            source.backup(destination)
+            destination.commit()
+        finally:
+            destination.close()
+            source.close()
+
+        if not _is_valid_sqlite_db_file(live_path) or not _has_dsis_schema(live_path):
+            if safety_backup is not None:
+                recovery_source = sqlite3.connect(
+                    f"{safety_backup.as_uri()}?mode=ro", uri=True, timeout=30
+                )
+                recovery_destination = sqlite3.connect(str(live_path), timeout=30)
+                try:
+                    recovery_source.backup(recovery_destination)
+                    recovery_destination.commit()
+                finally:
+                    recovery_destination.close()
+                    recovery_source.close()
+            return False, "Restore validation failed. The previous database was recovered from its safety backup."
+
         log.success(f"Database restored from {backup_file.name}")
-        return True, 'Database restored successfully'
+        return True, "Database restored successfully"
     except Exception as exc:
         log.error(f"Database restore failed: {exc}")
-        return False, 'Restore failed. Please try again.'
-
+        return False, "Restore failed. Check logs and the pre-restore safety backup before retrying."
 
 def list_backups() -> List[RowDict]:
     try:
