@@ -168,7 +168,7 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `complete_setup_device_step(connected=False)` | `{ok}` | Requires current role exactly admin; marks device step complete even on explicit skip. |
 | `complete_setup_schedule_step(time_in,time_out,early_threshold_minutes=15,late_threshold_minutes=15,absent_threshold_minutes=0,school_weekdays_off=None)` | `{ok}` or error | Requires admin; routes through settings validation then marks completion. |
 | `complete_setup_branding_step(school_name="",theme="dark")` | `{ok}` or error | Requires admin; saves school name/theme and marks completion. |
-| `authenticate_role(role,password)` | session state or `{ok:false,message}` | Admin password verification; 5 failed admin attempts trigger a 30-second lockout. Non-admin branch only allows role transitions at or below current role. |
+| `authenticate_role(role,password)` | session state or `{ok:false,message}` | Admin password verification; 5 failed attempts trigger a persisted 30-second lockout across app restarts. Password length is bounded at 1,024 characters and PBKDF2 record parameters are validated. Non-admin branch only allows role transitions at or below current role. |
 | `get_session_state()` | `{ok,role,permissions,idle_timeout_seconds}` | No role gate; reports in-memory role and configured permissions. |
 | `touch_session()` | session state | No role gate; refreshes authenticated idle timer. |
 | `lock_session()` | session state | No role gate; resets role to guest. |
