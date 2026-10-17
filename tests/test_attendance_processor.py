@@ -573,6 +573,38 @@ class AttendanceProcessorTests(unittest.TestCase):
                 self.assertEqual(rfid_card.decrypt_student_card_payload(ciphertext, "AA:BB:CC:DD"), (21, "STUDENT-21"))
                 self.assertNotEqual(original.hex(), wrong_key.hex())
 
+    def test_rfid_registration_surfaces_key_configuration_error_without_crashing(self):
+        from core.rfid_card import RFIDKeyConfigurationError
+
+        api = Api.__new__(Api)
+        api._rfid_session_fingerprint_id = 7
+        api._rfid_pending_uid = None
+        api._rfid_pending_fingerprint_id = None
+        api._rfid_pending_payload_hex = None
+        api._rfid_pending_card_type = None
+        api._push = MagicMock()
+
+        student = {
+            "fingerprint_id": 7,
+            "student_no": "LRN-007",
+            "student_name": "Student Seven",
+        }
+        with patch("gui_web.api.db.normalize_card_uid", return_value="AA:BB:CC:DD"), \
+             patch("gui_web.api.db.get_student", return_value=student), \
+             patch("gui_web.api.db.get_student_by_card_uid", return_value=None), \
+             patch("gui_web.api.encrypt_student_card_payload", side_effect=RFIDKeyConfigurationError("Restore the original key.")):
+            api._handle_rfid_registration_tap({
+                "event": "card",
+                "uid": "AA:BB:CC:DD",
+                "card_type": "MIFARE_1K",
+            })
+
+        payload = api._push.call_args.args[1]
+        self.assertEqual(payload["event"], "error")
+        self.assertIn("original key", payload["reason"])
+        self.assertIsNone(api._rfid_pending_uid)
+
+
     def test_missing_rfid_key_is_not_replaced_when_linked_cards_exist(self):
         from settings_store import default_settings, save_settings
 
