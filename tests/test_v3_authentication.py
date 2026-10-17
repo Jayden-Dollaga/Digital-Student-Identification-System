@@ -337,6 +337,7 @@ def test_guest_can_elevate_to_admin_with_correct_password(monkeypatch):
 def test_wrong_password_does_not_elevate(monkeypatch):
     settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+    monkeypatch.setattr(api_module, "save_settings", lambda value: settings.update(value))
 
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
@@ -347,9 +348,10 @@ def test_wrong_password_does_not_elevate(monkeypatch):
     assert instance.get_current_role() == "guest"
 
 
-def test_admin_password_lockout_after_repeated_failures(monkeypatch):
+def test_admin_password_lockout_persists_across_api_restarts(monkeypatch):
     settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+    monkeypatch.setattr(api_module, "save_settings", lambda value: settings.update(value))
 
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
@@ -359,7 +361,10 @@ def test_admin_password_lockout_after_repeated_failures(monkeypatch):
         result = instance.authenticate_role("admin", "incorrect")
         assert result["ok"] is False
 
-    locked = instance.authenticate_role("admin", "admin")
+    assert settings["auth"]["lockout_until_epoch"] > time.time()
+    restarted_instance = api_module.Api.__new__(api_module.Api)
+    restarted_instance._session_timeout_seconds = 600.0
+    locked = restarted_instance.authenticate_role("admin", "admin")
     assert locked["ok"] is False
     assert "locked" in locked["message"].lower()
 
