@@ -90,6 +90,42 @@ def test_statistics_report_requires_record_read_permission(monkeypatch):
     assert "record-reading" in result["message"].lower()
 
 
+def test_password_record_presence_is_separate_from_verifier_validity():
+    valid_settings = {"auth": auth.hash_password("correct horse battery")}
+    assert auth.has_password_material(valid_settings)
+    assert auth.has_password_set(valid_settings)
+
+    invalid_settings = {"auth": {
+        "password_salt": "AA==",
+        "password_hash": "not-a-valid-digest",
+    }}
+    assert auth.has_password_material(invalid_settings)
+    assert not auth.has_password_set(invalid_settings)
+    assert not auth.has_password_material({"auth": {"failed_attempts": 2}})
+
+
+def test_dashboard_stats_are_restricted_without_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: False)
+    monkeypatch.setattr(
+        api_module.db,
+        "get_today_attendance_info",
+        lambda: pytest.fail("Guest dashboard must not query identifiable attendance"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_student_count",
+        lambda: pytest.fail("Guest dashboard must not expose school roster size"),
+    )
+
+    result = instance.get_dashboard_stats()
+
+    assert result["restricted"] is True
+    assert result["total_students"] == 0
+    assert result["present_count"] == 0
+    assert result["attendance_rate"] is None
+
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")
