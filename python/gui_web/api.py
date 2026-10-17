@@ -85,6 +85,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
 CONFIG = get_config()
 ADMIN_LOGIN_MAX_FAILURES = 5
 ADMIN_LOGIN_LOCKOUT_SECONDS = 30.0
+ADMIN_LOGIN_LOCK = threading.Lock()
 
 # Regexes copied verbatim from archive/legacy-ui/v2/python/gui_qt/workers/serial_worker.py
 # so enroll/wipe/delete parsing matches the real firmware output exactly.
@@ -2232,7 +2233,9 @@ class Api:
             locked_until = max(0.0, float(record.get("lockout_until_epoch", 0.0) or 0.0))
         except (TypeError, ValueError, OverflowError):
             locked_until = 0.0
-        return max(0.0, locked_until - time.time())
+        # Treat malformed local lockout timestamps as at most one ordinary
+        # lockout interval, so a bad clock/value cannot lock out an admin forever.
+        return min(ADMIN_LOGIN_LOCKOUT_SECONDS, max(0.0, locked_until - time.time()))
 
     def _record_admin_auth_failure(self, settings: Dict[str, Any]) -> float:
         """Persist login failures and lockout deadline so restarting DSIS cannot reset it."""
@@ -2292,18 +2295,19 @@ class Api:
             permissions.set_session_role(normalized, self._session_timeout_seconds)
             return self.get_session_state()
 
-        settings = load_settings()
-        remaining = self._admin_lockout_remaining(settings)
-        if remaining > 0:
-            self._admin_locked_until = time.monotonic() + remaining
-            message_seconds = max(1, int(remaining + 0.999))
-            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
-        if not auth.verify_password(password, settings.get("auth", {})):
-            self._record_admin_auth_failure(settings)
-            return {"ok": False, "message": "Incorrect password."}
-        settings = self._clear_admin_auth_failures(settings)
-        permissions.set_session_role("admin", self._session_timeout_seconds)
-        return self.get_session_state()
+        with ADMIN_LOGIN_LOCK:
+            settings = load_settings()
+            remaining = self._admin_lockout_remaining(settings)
+            if remaining > 0:
+                self._admin_locked_until = time.monotonic() + remaining
+                message_seconds = max(1, int(remaining + 0.999))
+                return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
+            if not auth.verify_password(password, settings.get("auth", {})):
+                self._record_admin_auth_failure(settings)
+                return {"ok": False, "message": "Incorrect password."}
+            settings = self._clear_admin_auth_failures(settings)
+            permissions.set_session_role("admin", self._session_timeout_seconds)
+            return self.get_session_state()
 
     def get_session_state(self) -> Dict[str, Any]:
         role = permissions.get_current_role()
