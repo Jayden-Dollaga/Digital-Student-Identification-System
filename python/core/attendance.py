@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 from config import get_config
 from core.database import get_all_students, get_student, get_student_by_card_uid, log_attendance, normalize_card_uid, StudentRow
 from core.logger import log
-from core.rfid_card import decrypt_student_card_payload
+from core.rfid_card import RFIDKeyConfigurationError, decrypt_student_card_payload
 from core.utils import parse_json_line
 
 CONFIG = get_config()
@@ -262,7 +262,21 @@ class AttendanceProcessor:
             return self._handle_unknown_card_scan(uid, "Card UID is invalid.", card_type)
         if not data:
             return self._handle_unknown_card_scan(uid, "Card does not contain an encrypted DSIS payload.", card_type)
-        decoded = decrypt_student_card_payload(str(data), normalized_uid)
+        try:
+            decoded = decrypt_student_card_payload(str(data), normalized_uid)
+        except RFIDKeyConfigurationError as exc:
+            log.error(f"RFID attendance is blocked by invalid application key: {exc}")
+            return ScanOutcome(
+                fingerprint_id=0,
+                confidence=0,
+                status="RFID KEY ERROR",
+                timestamp=now,
+                logged=False,
+                reason=str(exc),
+                method="card",
+                uid=uid,
+                card_type=card_type,
+            ).to_dict()
         if decoded is None:
             return self._handle_unknown_card_scan(
                 uid,
