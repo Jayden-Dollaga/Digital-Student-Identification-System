@@ -2273,9 +2273,21 @@ class Api:
             locked_until = max(0.0, float(record.get("lockout_until_epoch", 0.0) or 0.0))
         except (TypeError, ValueError, OverflowError):
             locked_until = 0.0
-        # Treat malformed local lockout timestamps as at most one ordinary
-        # lockout interval, so a bad clock/value cannot lock out an admin forever.
-        return min(ADMIN_LOGIN_LOCKOUT_SECONDS, max(0.0, locked_until - time.time()))
+        # Bound persisted deadlines as well as the returned delay. Merely
+        # clamping the return value would leave a far-future timestamp on disk,
+        # causing a fresh 30-second lockout on every subsequent attempt forever.
+        now = time.time()
+        maximum_deadline = now + ADMIN_LOGIN_LOCKOUT_SECONDS
+        if locked_until > maximum_deadline:
+            record = dict(record)
+            record["lockout_until_epoch"] = maximum_deadline
+            settings["auth"] = record
+            try:
+                save_settings(settings)
+            except Exception as exc:
+                log.error(f"Could not normalize persisted administrator lockout deadline: {exc}")
+            locked_until = maximum_deadline
+        return max(0.0, locked_until - now)
 
     def _record_admin_auth_failure(self, settings: Dict[str, Any]) -> float:
         """Persist login failures and lockout deadline so restarting DSIS cannot reset it."""
