@@ -921,8 +921,8 @@ function handleScanResult(payload) {
   const confWrap = document.getElementById('conf-wrap');
   if (payload.confidence != null) {
     confWrap.style.display = 'flex';
-    document.getElementById('conf-fill').style.width = payload.confidence + '%';
-    document.getElementById('conf-label').textContent = payload.confidence + '% confidence';
+    document.getElementById('conf-fill').style.width = (Math.max(0, Math.min(255, Number(payload.confidence) || 0)) / 255 * 100) + '%';
+    document.getElementById('conf-label').textContent = payload.confidence + '/255 confidence';
   } else {
     confWrap.style.display = 'none';
   }
@@ -934,7 +934,7 @@ function handleScanResult(payload) {
       `<td>${escapeHtml(student.student_no || '\u2014')}</td>` +
       `<td>${isMatch ? escapeHtml(student.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
       `<td>${student.grade ? `Grade ${escapeHtml(student.grade)} \u2014 ${escapeHtml(student.section)}` : '\u2014'}</td>` +
-      `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '%' : '\u2014')}</td>` +
+      `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '/255' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(payload.status)}">${escapeHtml(isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN')}</span></td>` +
       `<td><span class="badge ${attendanceBadgeClass(payload.attendance_status)}">${escapeHtml(payload.attendance_status || '\u2014')}</span></td>`;
     tbody.insertBefore(tr, tbody.firstChild);
@@ -1252,7 +1252,7 @@ function renderAttendanceRows(rows) {
     return `<tr><td>${escapeHtml(r.date || '\u2014')}</td><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
       `<td>${known ? escapeHtml(r.student_name) : 'Unknown data'}</td>` +
       `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
-      `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
+      `<td>${escapeHtml(r.confidence != null ? r.confidence + '/255' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
       `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
   }).join('');
@@ -1285,7 +1285,7 @@ function attendanceOnScanEvent(row) {
     `<tr><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.time || '')}</td><td>${escapeHtml(isKnownRow(row) ? row.student_no : '\u2014')}</td>` +
     `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : escapeHtml(row.method === 'card' ? `Unknown RFID card${row.uid ? ` (${row.uid})` : ''}` : 'Unknown data')}</td>` +
     `<td>${isKnownRow(row) ? `Grade ${escapeHtml(row.grade)} \u2014 ${escapeHtml(row.section)}` : '\u2014'}</td>` +
-    `<td>${escapeHtml(row.confidence != null ? row.confidence + '%' : '\u2014')}</td>` +
+    `<td>${escapeHtml(row.confidence != null ? row.confidence + '/255' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(row.match_status || row.status)}">${escapeHtml((row.match_status || row.status || 'UNKNOWN').toUpperCase())}</span></td>` +
     `<td><span class="badge ${attendanceBadgeClass(row.attendance_status)}">${escapeHtml(row.attendance_status || '\u2014')}</span></td></tr>`);
   const countEl = document.getElementById('att-count');
