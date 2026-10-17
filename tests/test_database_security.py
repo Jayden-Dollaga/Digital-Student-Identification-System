@@ -28,6 +28,22 @@ def create_valid_sqlite_db(path):
     finally:
         connection.close()
 
+def test_daily_attendance_summary_prefers_good_match_over_older_weak_match():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0))
+
+            rows = database.get_daily_attendance_summary("2026-10-15", "2026-10-15")
+
+        assert len(rows) == 1
+        assert rows[0]["status"] == "GOOD MATCH"
+        assert rows[0]["match_status"] == "GOOD MATCH"
+
+
 def test_daily_attendance_summary_keeps_same_named_students_separate():
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "attendance.db"
