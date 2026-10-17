@@ -2025,6 +2025,11 @@ class Api:
         current = load_settings()
         defaults = default_settings()
         defaults["auth"] = current.get("auth", {})
+        # Reset preferences without invalidating already-enrolled encrypted RFID cards.
+        # This key is not a user preference; changing it makes existing payloads unreadable.
+        rfid_key = current.get("rfid_aes_gcm_key")
+        if isinstance(rfid_key, str) and rfid_key:
+            defaults["rfid_aes_gcm_key"] = rfid_key
         defaults["current_role"] = permissions.get_current_role()
         for key in (
             "setup_device_step_done",
@@ -2249,6 +2254,8 @@ class Api:
         return CONFIG.user_roles.get(role, {}).get("permissions", [])
 
     def open_log_folder(self) -> Dict[str, Any]:
+        if not permissions.require_role("admin"):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
         folder = str(CONFIG.log_folder)
         try:
             if sys.platform.startswith("win"):
@@ -2263,6 +2270,13 @@ class Api:
 
     # -- application log ------------------------------------------------------------
     def get_app_log(self, max_lines: int = 500) -> List[str]:
+        if not permissions.require_role("admin"):
+            return []
+        # Clamp untrusted bridge arguments to avoid excessive log reads.
+        try:
+            max_lines = max(1, min(int(max_lines), 1000))
+        except (TypeError, ValueError):
+            max_lines = 500
         with self._app_log_lock:
             if self._app_log_lines:
                 return list(self._app_log_lines[-max_lines:])
