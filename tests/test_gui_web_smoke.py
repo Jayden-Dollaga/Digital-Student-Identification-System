@@ -620,7 +620,11 @@ def test_v3_today_export_uses_visible_fallback_rows(monkeypatch):
     monkeypatch.setattr("gui_web.api.db.get_attendance_today", lambda: visible_rows)
     monkeypatch.setattr(
         "gui_web.api.db.export_attendance_rows_with_time_in_out",
-        lambda rows: [{"student_name": rows[0]["student_name"], "time_in": rows[0]["time"]}],
+        lambda rows: [{
+            "student_name": rows[0]["student_name"],
+            "time_in": rows[0]["time"],
+            "status": rows[0]["status"],
+        }],
     )
 
     result = api.export_attendance_csv("today")
