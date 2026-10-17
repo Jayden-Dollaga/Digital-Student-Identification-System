@@ -16,13 +16,19 @@ from typing import Any, Dict
 
 
 PBKDF2_ITERATIONS = 310_000
+MIN_PBKDF2_ITERATIONS = 100_000
+MAX_PBKDF2_ITERATIONS = 1_000_000
+PASSWORD_SALT_BYTES = 16
+PASSWORD_DIGEST_BYTES = 32
 PASSWORD_HASH_KEY = "password_hash"
 PASSWORD_SALT_KEY = "password_salt"
 MIN_PASSWORD_LENGTH = 8
 
 
 def hash_password(password: str) -> Dict[str, Any]:
-    salt = secrets.token_bytes(16)
+    if not isinstance(password, str):
+        raise ValueError("Password must be text.")
+    salt = secrets.token_bytes(PASSWORD_SALT_BYTES)
     digest = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS
     )
@@ -34,13 +40,18 @@ def hash_password(password: str) -> Dict[str, Any]:
 
 
 def verify_password(password: str, record: Dict[str, Any]) -> bool:
+    """Verify an untrusted persisted hash record without unbounded CPU work."""
+    if not isinstance(password, str) or not isinstance(record, dict):
+        return False
     try:
         salt = base64.b64decode(record[PASSWORD_SALT_KEY], validate=True)
         expected = base64.b64decode(record[PASSWORD_HASH_KEY], validate=True)
         iterations = int(record.get("iterations", PBKDF2_ITERATIONS))
-        if iterations < 100_000:
+        if not MIN_PBKDF2_ITERATIONS <= iterations <= MAX_PBKDF2_ITERATIONS:
             return False
-    except (KeyError, TypeError, ValueError):
+        if len(salt) != PASSWORD_SALT_BYTES or len(expected) != PASSWORD_DIGEST_BYTES:
+            return False
+    except (KeyError, TypeError, ValueError, OverflowError):
         return False
     actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(actual, expected)
@@ -56,6 +67,8 @@ def has_password_set(settings: Dict[str, Any]) -> bool:
 
 def validate_new_password(password: str, confirm_password: str) -> str | None:
     """Return an error message if the candidate password is unusable, else None."""
+    if not isinstance(password, str) or not isinstance(confirm_password, str):
+        return "Password fields must be text."
     if password != confirm_password:
         return "Passwords do not match."
     if len(password) < MIN_PASSWORD_LENGTH:
