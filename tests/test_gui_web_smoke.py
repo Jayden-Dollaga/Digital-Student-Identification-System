@@ -842,6 +842,39 @@ def test_current_attendance_period_does_not_count_future_school_days(monkeypatch
     assert result["rows"][0]["attendance_rate"] == 0.0
 
 
+def test_attendance_evaluation_excludes_historical_weak_matches(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: {
+        "school_calendar": {},
+        "school_weekdays_off": [],
+    })
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [{
+        "student_no": "LRN-001",
+        "date": "2026-09-22",
+        "status": "WEAK MATCH",
+        "match_status": "WEAK MATCH",
+    }])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_no": "LRN-001",
+        "student_name": "Student One",
+        "grade": "12",
+        "section": "CSS",
+        "enrollment_date": "2026-09-01T00:00:00",
+    }])
+
+    result = api_module.Api.__new__(api_module.Api).get_attendance_evaluation(
+        "week", "2026-09-23"
+    )
+
+    assert result["ok"] is True
+    assert result["rows"][0]["days_present"] == 0
+    assert result["rows"][0]["days_absent"] == 5
+    assert result["rows"][0]["attendance_rate"] == 0.0
+
+
 def test_v3_recent_export_uses_visible_page(monkeypatch):
     from gui_web.api import Api
 
