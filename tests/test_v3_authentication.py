@@ -75,6 +75,34 @@ def test_application_logs_and_log_folder_are_admin_only(monkeypatch):
     assert instance.open_log_folder()["status"] == 403
 
 
+def test_identifiable_exports_require_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+
+    def allow_export_only(action):
+        return action == "export"
+
+    monkeypatch.setattr(api_module.permissions, "require_permission", allow_export_only)
+    monkeypatch.setattr(
+        api_module.db,
+        "export_attendance_range_with_time_in_out",
+        lambda *args, **kwargs: pytest.fail("Attendance export queried data without read permission"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_all_students",
+        lambda: pytest.fail("Student export queried roster without read permission"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "generate_statistics_report",
+        lambda: pytest.fail("Statistics export generated report without read permission"),
+    )
+
+    assert instance.export_attendance_csv()["status"] == 403
+    assert instance.export_students_csv()["status"] == 403
+    assert instance.export_statistics_report()["status"] == 403
+
+
 def test_statistics_report_requires_record_read_permission(monkeypatch):
     instance = api_module.Api.__new__(api_module.Api)
     monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: action == "export")
