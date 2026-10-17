@@ -2223,6 +2223,62 @@ class Api:
         save_settings(settings)
         return {"ok": True}
 
+    def _admin_lockout_remaining(self, settings: Dict[str, Any]) -> float:
+        """Return remaining persistent lockout time from the private auth record."""
+        record = settings.get("auth", {})
+        if not isinstance(record, dict):
+            return 0.0
+        try:
+            locked_until = max(0.0, float(record.get("lockout_until_epoch", 0.0) or 0.0))
+        except (TypeError, ValueError, OverflowError):
+            locked_until = 0.0
+        return max(0.0, locked_until - time.time())
+
+    def _record_admin_auth_failure(self, settings: Dict[str, Any]) -> float:
+        """Persist login failures and lockout deadline so restarting DSIS cannot reset it."""
+        raw_record = settings.get("auth", {})
+        record = dict(raw_record) if isinstance(raw_record, dict) else {}
+        try:
+            failures = max(0, min(int(record.get("failed_attempts", 0) or 0), ADMIN_LOGIN_MAX_FAILURES))
+        except (TypeError, ValueError, OverflowError):
+            failures = 0
+        failures += 1
+        remaining = 0.0
+        if failures >= ADMIN_LOGIN_MAX_FAILURES:
+            failures = 0
+            locked_until = time.time() + ADMIN_LOGIN_LOCKOUT_SECONDS
+            record["lockout_until_epoch"] = locked_until
+            remaining = ADMIN_LOGIN_LOCKOUT_SECONDS
+        else:
+            record.pop("lockout_until_epoch", None)
+        record["failed_attempts"] = failures
+        settings["auth"] = record
+        self._failed_admin_attempts = failures
+        self._admin_locked_until = time.monotonic() + remaining if remaining else 0.0
+        try:
+            save_settings(settings)
+        except Exception as exc:
+            # Keep the in-process lockout even if storage is temporarily
+            # unavailable, and record that persistence could not be guaranteed.
+            log.error(f"Could not persist administrator login throttle state: {exc}")
+        return remaining
+
+    def _clear_admin_auth_failures(self, settings: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
+        raw_record = settings.get("auth", {})
+        record = dict(raw_record) if isinstance(raw_record, dict) else {}
+        changed = "failed_attempts" in record or "lockout_until_epoch" in record
+        record.pop("failed_attempts", None)
+        record.pop("lockout_until_epoch", None)
+        settings["auth"] = record
+        self._failed_admin_attempts = 0
+        self._admin_locked_until = 0.0
+        if persist and changed:
+            try:
+                save_settings(settings)
+            except Exception as exc:
+                log.error(f"Could not clear persisted administrator login throttle state: {exc}")
+        return settings
+
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
         """Authenticate a role that requires credentials."""
         normalized = permissions.normalize_role_key(role)
@@ -2236,21 +2292,16 @@ class Api:
             permissions.set_session_role(normalized, self._session_timeout_seconds)
             return self.get_session_state()
 
-        locked_until = getattr(self, "_admin_locked_until", 0.0)
-        now = time.monotonic()
-        if now < locked_until:
-            remaining = max(1, int(locked_until - now + 0.999))
-            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
         settings = load_settings()
+        remaining = self._admin_lockout_remaining(settings)
+        if remaining > 0:
+            self._admin_locked_until = time.monotonic() + remaining
+            message_seconds = max(1, int(remaining + 0.999))
+            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
         if not auth.verify_password(password, settings.get("auth", {})):
-            failures = getattr(self, "_failed_admin_attempts", 0) + 1
-            self._failed_admin_attempts = failures
-            if failures >= ADMIN_LOGIN_MAX_FAILURES:
-                self._failed_admin_attempts = 0
-                self._admin_locked_until = now + ADMIN_LOGIN_LOCKOUT_SECONDS
+            self._record_admin_auth_failure(settings)
             return {"ok": False, "message": "Incorrect password."}
-        self._failed_admin_attempts = 0
-        self._admin_locked_until = 0.0
+        settings = self._clear_admin_auth_failures(settings)
         permissions.set_session_role("admin", self._session_timeout_seconds)
         return self.get_session_state()
 
