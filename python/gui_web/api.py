@@ -1475,7 +1475,9 @@ class Api:
         self, mode: str = "today", offset: int = 0, week_start: str = ""
     ) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for attendance exports."}
         
         # Calculate date range based on mode. Today can display the database's
         # recent-record fallback, so use that exact visible set when today has
@@ -1615,7 +1617,9 @@ class Api:
 
     def export_students_csv(self) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for student exports."}
         students = self.get_students()
         if not students:
             return {"ok": False, "message": "No students to export."}
@@ -2024,7 +2028,9 @@ class Api:
     def export_statistics_report(self) -> Dict[str, Any]:
         """Export the complete V2-compatible formatted statistics report."""
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for statistics exports."}
         path = self._choose_csv_path("attendance_report.txt")
         if path is None:
             return {"ok": False, "message": "Export cancelled."}
