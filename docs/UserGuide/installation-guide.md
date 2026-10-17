@@ -151,7 +151,7 @@ Category bands:
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-Evaluation data requires both `attendance_evaluation` and `read_records`. The current API's evaluation CSV method delegates to the same check and does not separately require `export`. Guest is configured with `attendance_evaluation` but lacks `read_records`; it cannot obtain identifiable evaluation output. See [Roles and Permissions](roles-and-permissions.md) for the current Guest-to-Teacher limitation.
+Evaluation data requires both `attendance_evaluation` and `read_records`; evaluation CSV export additionally requires `export`. Guest has scan permission only and cannot switch to Teacher without authentication. See [Roles and Permissions](roles-and-permissions.md) for effective method-level access and physical/local file-security limitations.
 
 ## 12. Backups
 
@@ -202,7 +202,7 @@ Verify that the maintained all-in-one firmware is installed and that `ID?` retur
 
 ### Unexpected weak attendance result
 
-Review the configurable application `min_confidence`. A WEAK MATCH is still recorded by the current attendance processor.
+Review the configurable application `min_confidence` (raw AS608 confidence score, range 1–255; default 100). Weak matches are diagnostic-only and are not added to attendance.
 
 ## Related documentation
 
