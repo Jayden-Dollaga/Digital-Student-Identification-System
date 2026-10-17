@@ -346,6 +346,7 @@ Administrators should still apply appropriate safeguards when deploying DSIS in 
 - Restricting access to application backups and database files
 - Following applicable school data-protection and privacy requirements
 - Avoiding the distribution of real student data in public development builds
+- Reviewing the [security model](docs/Security/security-model.md) and [remediation status/remaining risks](docs/Security/REMEDIATION_STATUS.md) before deployment
 
 ---
 
