@@ -1,5 +1,7 @@
 import json
+import os
 import time
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -106,12 +108,32 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
 
 
 def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> Path:
+    """Persist settings using a same-directory temporary file and atomic replace.
+
+    A crash during serialization should not truncate the last known-good file.
+    """
     settings_path = Path(path or SETTINGS_FILE)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     payload = default_settings()
     payload.update(settings)
-    with settings_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
+
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{settings_path.name}.", suffix=".tmp", dir=str(settings_path.parent)
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\\n") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
+            handle.write("\\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, settings_path)
+    except Exception:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     return settings_path
 
 
