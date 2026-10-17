@@ -256,16 +256,25 @@ class Api:
         has_password = auth.has_password_set(settings)
         has_password_material = auth.has_password_material(settings)
         quarantined_settings = has_quarantined_settings()
+        persisted_records = db.has_persisted_records()
         marker_exists = admin_initialization_marker_exists()
-        # Any existing verifier material or quarantined settings indicates
-        # this may be an existing installation, not a fresh install. Fail
-        # closed when the initialization marker is absent instead of allowing
-        # corrupted settings to downgrade into password creation.
-        if (has_password or has_password_material or quarantined_settings) and not marker_exists:
+        # A valid/partial verifier, quarantined settings, or an already-used
+        # roster/database means this is not a clean first launch. Old installs
+        # may predate the initialization marker, so the persisted database is
+        # also checked before allowing first-run password creation.
+        if (
+            has_password
+            or has_password_material
+            or quarantined_settings
+            or persisted_records
+        ) and not marker_exists:
             write_admin_initialization_marker()
             marker_exists = True
         self._first_run_setup_required = (
-            not has_password_material and not quarantined_settings and not marker_exists
+            not has_password_material
+            and not quarantined_settings
+            and not persisted_records
+            and not marker_exists
         )
         self._first_run_recovery_required = marker_exists and not has_password
         self._failed_admin_attempts = 0
