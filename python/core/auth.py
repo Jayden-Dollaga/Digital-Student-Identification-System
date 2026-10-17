@@ -23,11 +23,14 @@ PASSWORD_DIGEST_BYTES = 32
 PASSWORD_HASH_KEY = "password_hash"
 PASSWORD_SALT_KEY = "password_salt"
 MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 1024
 
 
 def hash_password(password: str) -> Dict[str, Any]:
     if not isinstance(password, str):
         raise ValueError("Password must be text.")
+    if len(password) > MAX_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be no longer than {MAX_PASSWORD_LENGTH} characters.")
     salt = secrets.token_bytes(PASSWORD_SALT_BYTES)
     digest = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt, PBKDF2_ITERATIONS
@@ -41,7 +44,11 @@ def hash_password(password: str) -> Dict[str, Any]:
 
 def verify_password(password: str, record: Dict[str, Any]) -> bool:
     """Verify an untrusted persisted hash record without unbounded CPU work."""
-    if not isinstance(password, str) or not isinstance(record, dict):
+    if (
+        not isinstance(password, str)
+        or len(password) > MAX_PASSWORD_LENGTH
+        or not isinstance(record, dict)
+    ):
         return False
     try:
         salt = base64.b64decode(record[PASSWORD_SALT_KEY], validate=True)
@@ -71,6 +78,8 @@ def validate_new_password(password: str, confirm_password: str) -> str | None:
         return "Password fields must be text."
     if password != confirm_password:
         return "Passwords do not match."
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return f"Password must be no longer than {MAX_PASSWORD_LENGTH} characters."
     if len(password) < MIN_PASSWORD_LENGTH:
         return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
     return None
