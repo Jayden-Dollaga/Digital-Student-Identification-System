@@ -334,6 +334,7 @@ def test_v3_validation_api_returns_field_feedback(monkeypatch):
             self.state = type("State", (), {"value": state})()
             self.message = message
 
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: action == "enroll")
     monkeypatch.setattr("gui_web.api.db.get_student_field_feedback", lambda *args: {
         "student_no": Result(False, "missing", "Required field"),
         "student_name": Result(True, "valid", "Valid"),
