@@ -1,4 +1,4 @@
-name: Windows package smoke test
+name: Windows package build check
 
 on:
   push:
