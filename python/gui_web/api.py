@@ -2325,23 +2325,23 @@ class Api:
     def change_admin_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
         if not permissions.require_role("admin"):
             return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
-        now = time.monotonic()
-        locked_until = getattr(self, "_admin_locked_until", 0.0)
-        if now < locked_until:
-            remaining = max(1, int(locked_until - now + 0.999))
-            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
-        if len(new_password) < 8:
-            return {"ok": False, "message": "The new password must be at least 8 characters."}
+        password_error = auth.validate_new_password(new_password, new_password)
+        if password_error:
+            return {"ok": False, "message": password_error}
+
         settings = load_settings()
+        remaining = self._admin_lockout_remaining(settings)
+        if remaining > 0:
+            self._admin_locked_until = time.monotonic() + remaining
+            message_seconds = max(1, int(remaining + 0.999))
+            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
         if not auth.verify_password(current_password, settings.get("auth", {})):
-            failures = getattr(self, "_failed_admin_attempts", 0) + 1
-            self._failed_admin_attempts = failures
-            if failures >= ADMIN_LOGIN_MAX_FAILURES:
-                self._failed_admin_attempts = 0
-                self._admin_locked_until = time.monotonic() + ADMIN_LOGIN_LOCKOUT_SECONDS
+            self._record_admin_auth_failure(settings)
             return {"ok": False, "message": "Current password is incorrect."}
-        self._failed_admin_attempts = 0
-        self._admin_locked_until = 0.0
+
+        # A successful password change resets throttle state and replaces the
+        # hash record in one atomic settings save.
+        self._clear_admin_auth_failures(settings, persist=False)
         settings["auth"] = auth.hash_password(new_password)
         save_settings(settings)
         return {"ok": True, "message": "Administrator password changed."}
