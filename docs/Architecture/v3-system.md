@@ -138,7 +138,7 @@ Non-guest sessions expire after 600 seconds of inactivity by default. The persis
 
 There is no built-in default administrator password. First-run passwords require at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations.
 
-Current authorization limitation: `set_current_role("teacher")` accepts Guest-to-Teacher without password verification; Teacher permissions include record reads, exports, and backups. The current authentication test asserts this behavior. Do not treat Guest mode as a confidentiality boundary for someone who can interact with the app. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
+Guest-to-Teacher role changes are denied unless the current session has already authenticated as an administrator. The Python bridge enforces record, export, enrollment, log, and device-operation permissions; a few non-identifying aggregate/diagnostic helpers remain available without `read_records`. Direct USB serial access is still a physical trust boundary, not cryptographic authentication. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
 
 ## Failure handling
 
