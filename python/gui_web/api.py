@@ -1622,7 +1622,9 @@ class Api:
                 "time_out": attendance.get("time_out", ""),
                 "match_status": attendance.get("match_status", ""),
                 "attendance_status": (
-                    calculate_attendance_status(
+                    "Not Counted"
+                    if str(attendance.get("status") or attendance.get("match_status") or "").strip().lower() == "weak match"
+                    else calculate_attendance_status(
                         time_in,
                         "time_in",
                         settings,
