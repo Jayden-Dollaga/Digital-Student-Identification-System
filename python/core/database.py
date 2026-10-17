@@ -1234,10 +1234,18 @@ def export_attendance_range_with_time_in_out(start_date: str, end_date: str) -> 
 
 
 def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Group already-loaded attendance rows for the UI's CSV export."""
+    """Group attendance export rows without turning weak matches into presence.
+
+    Weak scans remain visible in the exported audit trail but do not populate
+    Time In/Out. If a qualifying match exists on the same student/day, it takes
+    precedence over an older weak scan.
+    """
     grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row_dict in rows:
         key = (row_dict["student_no"], row_dict["date"])
+        status = str(row_dict.get("status") or "").strip()
+        qualifies = status.lower() in qualifying_statuses
         if key not in grouped:
             grouped[key] = {
                 "student_no": row_dict["student_no"],
@@ -1245,26 +1253,45 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
                 "grade": row_dict["grade"],
                 "section": row_dict["section"],
                 "date": row_dict["date"],
-                "time_in": row_dict["time"],
+                "time_in": "",
                 "time_out": "",
-                "confidence": row_dict["confidence"],
-                "status": row_dict["status"],
+                "confidence": row_dict.get("confidence"),
+                "status": status,
+                "_has_qualifying_match": False,
+                "_legacy_scan_count": 0,
             }
+        entry = grouped[key]
+
+        if not qualifies:
+            # Retain a diagnostic status only while no qualifying event exists.
+            if not entry["_has_qualifying_match"] and status:
+                entry["status"] = status
+                entry["confidence"] = row_dict.get("confidence")
+            continue
+
+        entry["_has_qualifying_match"] = True
+        entry["status"] = status
+        entry["confidence"] = row_dict.get("confidence")
         event_type = row_dict.get("event_type")
         if event_type == "time_in":
-            grouped[key]["time_in"] = row_dict["time"]
+            entry["time_in"] = row_dict["time"]
         elif event_type == "time_out":
-            grouped[key]["time_out"] = row_dict["time"]
+            entry["time_out"] = row_dict["time"]
         else:
-            if not grouped[key]["time_in"]:
-                grouped[key]["time_in"] = row_dict["time"]
-            elif not grouped[key]["time_out"]:
-                grouped[key]["time_out"] = row_dict["time"]
+            # Backward compatibility for rows without event_type. Only
+            # qualifying scans participate in the first-in/second-out fallback.
+            entry["_legacy_scan_count"] += 1
+            if not entry["time_in"]:
+                entry["time_in"] = row_dict["time"]
+            elif not entry["time_out"]:
+                entry["time_out"] = row_dict["time"]
 
     result = list(grouped.values())
+    for row in result:
+        row.pop("_has_qualifying_match", None)
+        row.pop("_legacy_scan_count", None)
     result.sort(key=lambda row: (export_name_sort_key(row.get("student_name")), row.get("date", "")))
     return result
-
 
 def generate_statistics_report() -> str:
     conn = get_connection()
