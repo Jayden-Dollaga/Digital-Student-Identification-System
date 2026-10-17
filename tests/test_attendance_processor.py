@@ -564,6 +564,22 @@ class AttendanceProcessorTests(unittest.TestCase):
                     "malformed-key",
                 )
 
+    def test_missing_rfid_key_after_settings_quarantine_requires_recovery(self):
+        from settings_store import load_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                settings_path.write_text('{"rfid_aes_gcm_key": ', encoding="utf-8")
+                load_settings()  # quarantine malformed settings
+
+                clean_settings = load_settings()
+                clean_settings["rfid_aes_gcm_key"] = ""
+                save_settings(clean_settings)
+
+                with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                    rfid_card.get_or_create_rfid_app_key()
+
     def test_new_rfid_key_is_separate_from_legacy_xor_keys(self):
         from settings_store import load_settings, save_settings
 
