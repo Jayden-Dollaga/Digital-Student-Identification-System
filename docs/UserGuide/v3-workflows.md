@@ -122,17 +122,17 @@ The local student profile is saved only after the device confirms successful fin
 
 ### Confidence behavior
 
-The firmware emits a hardware match when AS608 confidence is at least **50**.
+The firmware emits a regular hardware match when AS608 confidence is at least **50**; lower-confidence events are diagnostic events and do not create attendance rows.
 
-The Python attendance processor applies a separate configurable `min_confidence`, default **100**, to label the scan:
+The Python attendance processor applies a configurable `min_confidence` from **1 to 255**, default **100**, before recording attendance:
 
 | Confidence | Application status | Recorded? |
 | ---: | --- | --- |
-| >= 100 | `GOOD MATCH` | Yes |
-| 50-99 | `WEAK MATCH` | Yes |
-| < 50 | No hardware match event | No |
+| At or above the configured threshold | `GOOD MATCH` | Yes |
+| A regular firmware match below the configured threshold | `WEAK MATCH` | No |
+| Below the firmware floor | low-confidence diagnostic | No |
 
-A `WEAK MATCH` is still recorded by the current processor. The application threshold classifies the match; it does not reject it.
+Weak matches remain visible to diagnostics but are not attendance records. This setting uses the raw AS608 confidence scale (0–255), not a percentage.
 
 ### Duplicate protection
 
@@ -239,7 +239,7 @@ The effective role is held in an in-memory session. The persisted `current_role`
 
 Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
 
-Important: the current API allows Guest to select Teacher without password verification; Teacher includes record reads, exports, and backups. Do not rely on Guest mode to protect identifiable data from someone who can interact with the app. The evaluation API also requires `read_records`, so Guest does not receive per-student evaluation rows even though its configured permission list includes `attendance_evaluation`. See [Roles and Permissions](roles-and-permissions.md).
+Guest cannot switch to Teacher or Administrator without authentication. The evaluation API requires both `attendance_evaluation` and `read_records`, and evaluation CSV export additionally requires `export`. See [Roles and Permissions](roles-and-permissions.md) for exact method-level behavior and the remaining local/physical-access limitations.
 
 ## 12. Settings
 
