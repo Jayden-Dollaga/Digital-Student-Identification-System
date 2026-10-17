@@ -12,6 +12,37 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+def test_attendance_evaluation_export_requires_export_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: False)
+    monkeypatch.setattr(
+        instance,
+        "get_attendance_evaluation",
+        lambda *args, **kwargs: pytest.fail("Report must not be generated without export permission"),
+    )
+
+    result = instance.export_attendance_evaluation_csv()
+
+    assert result["ok"] is False
+    assert "export permission" in result["message"].lower()
+
+
+def test_student_field_validation_requires_enrollment_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: False)
+    monkeypatch.setattr(
+        api_module.db,
+        "get_student_field_feedback",
+        lambda *args, **kwargs: pytest.fail("Validation must not query roster without enroll permission"),
+    )
+
+    result = instance.validate_student_fields("LRN001", "A Student", "12", "CSS")
+
+    assert result["ok"] is False
+    assert result["status"] == 403
+    assert result["fields"] == {}
+
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")
