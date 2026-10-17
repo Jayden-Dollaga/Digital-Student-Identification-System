@@ -1042,7 +1042,6 @@ def get_daily_attendance_summary(
             {
                 "student_name": row_dict["student_name"],
                 "student_no": row_dict["student_no"],
-                "fingerprint_id": row_dict["fingerprint_id"],
                 "grade": row_dict["grade"],
                 "section": row_dict["section"],
                 "date": row_dict["date"],
