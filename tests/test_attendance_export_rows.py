@@ -76,7 +76,7 @@ def test_export_good_match_overrides_earlier_weak_match():
     }
     rows = export_attendance_rows_with_time_in_out([
         {**base, "time": "07:59:00", "confidence": 80, "status": "WEAK MATCH", "event_type": "time_in"},
-        {**base, "time": "08:04:00", "confidence": 210, "status": "GOOD MATCH", "event_type": "time_in"},
+        {**base, "time": "08:04:00", "confidence": 210, "status": "GOOD MATCH", "event_type": "time_out"},
     ])
 
     assert len(rows) == 1
