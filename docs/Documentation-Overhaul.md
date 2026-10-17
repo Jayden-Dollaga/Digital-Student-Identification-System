@@ -60,8 +60,9 @@ Current firmware metadata:
 The accuracy pass corrected stale statements found in older documentation:
 
 - there is no built-in admin administrator password; first-run setup creates the password;
-- attendance_evaluation is available to Administrator, Teacher, and Guest by default;
+- Guest is scan-only by default; attendance evaluation requires the `attendance_evaluation` permission plus `read_records`, and CSV export also requires `export`;
 - the application confidence threshold is a rejection gate: below-threshold regular matches are labelled WEAK MATCH for diagnostics and are not stored as attendance;
+- administrator login failures are rate-limited with a persisted 30-second lockout after five failed attempts; password verification rejects malformed hash records and bounds password/iteration input sizes;
 - device wipe is coordinated with local student/attendance cleanup after confirmed hardware success;
 - v3 student deletion waits for device-confirmed fingerprint deletion before removing the local profile;
 - the current v3 launcher is HTML/pywebview, not the archived Qt/CustomTkinter interfaces;
