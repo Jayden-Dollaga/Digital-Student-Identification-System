@@ -112,6 +112,12 @@ def test_password_verification_rejects_malformed_or_expensive_records():
     assert not auth.verify_password("x", None)
 
 
+def test_password_validation_and_verification_reject_excessive_length():
+    huge_password = "x" * (auth.MAX_PASSWORD_LENGTH + 1)
+    assert auth.validate_new_password(huge_password, huge_password).startswith("Password must be no longer")
+    assert not auth.verify_password(huge_password, auth.hash_password("normal pass"))
+
+
 def test_password_validation_rejects_non_text_inputs():
     assert auth.validate_new_password(123, 123) == "Password fields must be text."
 
