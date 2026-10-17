@@ -52,6 +52,26 @@ def get_or_create_rfid_app_key() -> bytes:
             "re-enroll the affected cards before generating a new key."
         )
 
+    # Also detect an emptied/deleted key field when the database survives.
+    # Otherwise a perfectly valid settings JSON file could trigger a fresh key
+    # and make all previously enrolled, linked cards unreadable.
+    try:
+        from core.database import has_linked_rfid_cards
+        if has_linked_rfid_cards():
+            raise RFIDKeyConfigurationError(
+                "The DSIS RFID application key is missing while linked RFID cards "
+                "exist in the roster. Restore the original key from a trusted "
+                "settings backup; do not generate a replacement automatically."
+            )
+    except RFIDKeyConfigurationError:
+        raise
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not verify whether RFID cards are already linked, so it "
+            "did not generate a replacement encryption key. Check the database "
+            "and restore the original settings key if possible."
+        ) from exc
+
     key = secrets.token_bytes(32)
     settings["rfid_aes_gcm_key"] = key.hex().upper()
     save_settings(settings)
