@@ -959,7 +959,6 @@ def mark_attendance_time_out(
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")
     timestamp = now.isoformat()
-    qualifying_statuses = ("good match", "present", "logged", "ok")
     with get_connection() as conn:
         student = conn.execute(
             "SELECT 1 FROM students WHERE fingerprint_id = ? LIMIT 1", (student_id,)
