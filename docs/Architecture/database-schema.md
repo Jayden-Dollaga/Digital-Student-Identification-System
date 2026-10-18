@@ -115,9 +115,8 @@ During initialization, DSIS:
 
 1. checks the existing attendance schema;
 2. adds `event_type` when necessary;
-3. backfills missing values using fingerprint ID and date ordering;
-4. backfills legacy event tags using deterministic ordering;
-5. treats those legacy `time_out` tags as historical scan metadata unless the row has the explicit `TIME OUT` status marker. New repeated scans use `scan`; only an explicit teacher/admin departure action creates a real `time_out`.
+3. backfills missing legacy event tags using deterministic fingerprint/date/time ordering;
+4. treats legacy `time_out` tags as historical scan metadata unless the row has the explicit `TIME OUT` status marker. New repeated scans use `scan`; only an explicit teacher/admin departure action creates a real `time_out`.
 
 The migration is intentionally conservative. It does not attempt to reconstruct arbitrary missing historical schema changes.
 
