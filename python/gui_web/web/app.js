@@ -1110,12 +1110,18 @@ function renderAttendanceEvaluation() {
   const absentColLabel = evalData.period === 'day' ? 'Absent' : 'Days Absent';
 
   const tableRows = rows.map(r => {
-    const meta = CATEGORY_META[r.category] || CATEGORY_META.low;
-    const hasRate = r.attendance_rate !== null && r.attendance_rate !== undefined;
+    // The backend normally emits fixed categories and numeric statistics, but
+    // treat bridge data as untrusted before placing it into HTML/CSS contexts.
+    const category = Object.prototype.hasOwnProperty.call(CATEGORY_META, r.category)
+      ? r.category : 'low';
+    const meta = CATEGORY_META[category];
+    const parsedRate = Number(r.attendance_rate);
+    const hasRate = r.attendance_rate !== null && r.attendance_rate !== undefined && Number.isFinite(parsedRate);
+    const safeRate = hasRate ? Math.max(0, Math.min(100, parsedRate)) : null;
     const rateCell = hasRate
       ? `<div class="me-rate-cell">
-          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${r.attendance_rate}%;background:${meta.dot}"></div></div>
-          <span>${r.attendance_rate}%</span>
+          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${safeRate}%;background:${meta.dot}"></div></div>
+          <span>${safeRate}%</span>
         </div>`
       : `<div class="me-rate-cell">
           <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:0%;background:${meta.dot}"></div></div>
@@ -1123,10 +1129,10 @@ function renderAttendanceEvaluation() {
         </div>`;
     return `<tr>
       <td>${escapeHtml(r.student_name)}<div style="font-size:10.5px;color:var(--muted);">${escapeHtml(r.student_no)} \u00b7 Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}</div></td>
-      <td>${hasRate ? r.days_present : '\u2014'}</td>
-      <td>${hasRate ? r.days_absent : '\u2014'}</td>
+      <td>${hasRate ? escapeHtml(String(r.days_present)) : '\u2014'}</td>
+      <td>${hasRate ? escapeHtml(String(r.days_absent)) : '\u2014'}</td>
       <td>${rateCell}</td>
-      <td><span class="me-cat-badge me-cat-${r.category}">${meta.label}</span></td>
+      <td><span class="me-cat-badge me-cat-${category}">${meta.label}</span></td>
     </tr>`;
   }).join('');
 
