@@ -612,3 +612,28 @@ class TestDeleteStudentAuthorizationBoundary:
                     database.delete_student(1)
 
                 assert database.get_all_students() == []
+
+def test_restore_failure_without_existing_database_does_not_claim_safety_backup_exists():
+    """Failure guidance must not tell operators to check a snapshot that was never made."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        db_path = tmpdir / "attendance.db"
+        backups_dir = tmpdir / "backups"
+        backups_dir.mkdir()
+        backup_file = backups_dir / "attendance_restore_test.db"
+        create_valid_sqlite_db(backup_file)
+
+        original_backup = database._sqlite_backup_file
+
+        def fail_after_write(source_path, destination_path):
+            original_backup(source_path, destination_path)
+            raise OSError("simulated post-write failure")
+
+        with patch.object(database, "DB_PATH", str(db_path)):
+            with patch.object(database, "_sqlite_backup_file", side_effect=fail_after_write):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+        assert not result_ok
+        assert "no pre-restore safety backup was available" in result_msg.lower()
+        assert "check logs and the pre-restore safety backup" not in result_msg.lower()
+
