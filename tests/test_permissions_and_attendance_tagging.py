@@ -373,6 +373,9 @@ class TestAttendanceEventTypeTagging:
         summary = db_module.get_daily_attendance_summary("2026-08-14", "2026-08-14")
         assert summary[0]["time_in"] == "07:30:00"
         assert summary[0]["time_out"] == ""
+        exported = db_module.export_attendance_range_with_time_in_out("2026-08-14", "2026-08-14")
+        assert exported[0]["time_in"] == "07:30:00"
+        assert exported[0]["time_out"] == ""
 
     def test_explicit_time_out_records_once_after_time_in(self, temp_db):
         import datetime
@@ -392,6 +395,9 @@ class TestAttendanceEventTypeTagging:
         summary = db_module.get_daily_attendance_summary("2026-08-14", "2026-08-14")
         assert summary[0]["time_in"] == "07:30:00"
         assert summary[0]["time_out"] == "16:00:00"
+        exported = db_module.export_attendance_range_with_time_in_out("2026-08-14", "2026-08-14")
+        assert exported[0]["time_in"] == "07:30:00"
+        assert exported[0]["time_out"] == "16:00:00"
 
     def test_time_out_requires_existing_qualifying_time_in(self, temp_db):
         import datetime
