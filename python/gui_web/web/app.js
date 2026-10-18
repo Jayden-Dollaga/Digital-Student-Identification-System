@@ -1137,7 +1137,8 @@ function renderAttendanceEvaluation() {
   }).join('');
 
   body.innerHTML = `
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} school day${evalData.total_days === 1 ? '' : 's'} observed</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} scheduled school day${evalData.total_days === 1 ? '' : 's'}</div>
+    <div style="font-size:11px;color:var(--muted);margin:4px 0 10px;">Days without a qualifying scan count as absent in this calculation. DSIS cannot automatically distinguish a student's absence from a device outage; review connection logs and school records before using this report for disciplinary decisions.</div>
     <div class="me-leaderboard">${leaderboard}</div>
     <div class="me-legend">${legend}</div>
     <div class="data-table-wrap" style="max-height:280px;">
