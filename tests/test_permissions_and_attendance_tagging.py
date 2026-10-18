@@ -368,7 +368,7 @@ class TestAttendanceEventTypeTagging:
         db_module.log_attendance(fingerprint_id=1, confidence=99, status="Present", now=second)
 
         rows = db_module.get_attendance_by_student(1)
-        event_types = [row["event_type"] for row in rows]
+        event_types = [row["event_type"] for row in reversed(rows)]
         assert event_types == ["time_in", "scan"]
         summary = db_module.get_daily_attendance_summary("2026-08-14", "2026-08-14")
         assert summary[0]["time_in"] == "07:30:00"
