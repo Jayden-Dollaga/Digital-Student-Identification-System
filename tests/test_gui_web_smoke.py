@@ -1101,3 +1101,10 @@ def test_explicit_time_out_action_is_available_in_student_details():
     assert "A repeated scan alone does not mark departure." in script
     assert "selectedStudent.attendance_status === 'Out'" in script
 
+def test_attendance_evaluation_discloses_absence_vs_device_outage_limit():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "scheduled school day" in script
+    assert "DSIS cannot automatically distinguish a student's absence from a device outage" in script
+    assert "review connection logs and school records" in script
+
