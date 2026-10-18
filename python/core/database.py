@@ -1718,6 +1718,7 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
     live_path = Path(DB_PATH)
     safety_backup: Optional[Path] = None
     restore_started = False
+    live_database_existed = live_path.exists()
     try:
         backup_file = Path(backup_path).resolve()
         backup_dir = (live_path.parent / "backups").resolve()
@@ -1757,6 +1758,19 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
                 log.error(f"Pre-restore database recovery failed: {recovery_exc}")
                 return False, "Restore and automatic recovery failed. Preserve the pre-restore safety backup and contact support."
         if safety_backup is None:
+            if restore_started and not live_database_existed:
+                # A failed first-time restore has no prior database to recover.
+                # Remove the newly created target and SQLite sidecars so a partial
+                # database cannot be mistaken for a successful restore.
+                for candidate in (
+                    live_path,
+                    Path(f"{live_path}-wal"),
+                    Path(f"{live_path}-shm"),
+                ):
+                    try:
+                        candidate.unlink(missing_ok=True)
+                    except OSError as cleanup_exc:
+                        log.error(f"Could not remove incomplete restore artifact {candidate}: {cleanup_exc}")
             return False, (
                 "Restore failed. No pre-restore safety backup was available because "
                 "there was no existing database to preserve. Check logs before retrying."
