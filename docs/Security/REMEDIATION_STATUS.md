@@ -14,6 +14,7 @@ This document tracks the first remediation pass for the v3 DSIS desktop applicat
 - **API authorization:** Log retrieval and opening the log folder are administrator-only. Dashboard aggregates require record-read permission, student-field validation and report export are permission-checked, and internal pywebview lifecycle hooks are not exposed as public bridge methods.
 - **Startup/device failure handling:** Database initialization failure aborts startup visibly. A failed AS608 initialization no longer prevents RC522 RFID operation; fingerprint-only commands are rejected when that sensor is unavailable. Match events are range-checked before recording.
 - **Build/release automation:** The release workflow runs on version tags instead of every push to main. CI includes Python tests, firmware compilation, and a Windows package smoke/build check.
+- **Frontend rendering safety:** Attendance-evaluation rendering now allowlists category CSS classes, bounds numeric rates before inserting them into style attributes, and HTML-escapes dynamic count values. A regression check guards these contexts; a complete browser-driven XSS test across all imported/device/database fields remains a separate validation task.
 - **Documentation/tests:** Role, key-recovery, confidence-scale, attendance, and API-inventory documentation and regression tests have been updated.
 
 ## Remaining risks and deployment checks
