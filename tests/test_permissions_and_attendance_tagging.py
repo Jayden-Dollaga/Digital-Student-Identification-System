@@ -360,6 +360,7 @@ class TestAttendanceEventTypeTagging:
         assert rows[0]["event_type"] == "time_in"
 
     def test_second_scan_same_day_does_not_mark_time_out(self, temp_db):
+        import datetime
         db_module.add_student(1, "S-1", "Student One", "10", "A")
         first = datetime.datetime(2026, 8, 14, 7, 30, 0)
         second = datetime.datetime(2026, 8, 14, 12, 30, 0)
