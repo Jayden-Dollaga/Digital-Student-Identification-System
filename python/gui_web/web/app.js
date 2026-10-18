@@ -1445,8 +1445,29 @@ async function selectStudent(row, fingerprintId) {
 
 function updateStudentDetailButtons() {
   const manageBtn = document.getElementById('manage-rfid-btn');
-  if (!manageBtn) return;
-  manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
+  if (manageBtn) manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
+  const timeOutBtn = document.getElementById('mark-time-out-btn');
+  if (timeOutBtn) {
+    timeOutBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id
+      || selectedStudent.attendance_status === 'Out';
+  }
+}
+
+async function markSelectedStudentTimeOut() {
+  if (!selectedStudent || !selectedStudent.fingerprint_id || !api()) return;
+  if (!guardPermission('read_records', 'Recording student departure')) return;
+  const name = selectedStudent.student_name || 'this student';
+  if (!confirm('Record an explicit Time Out for ' + name + '? A repeated scan alone does not mark departure.')) return;
+  const result = await api().mark_student_time_out(Number(selectedStudent.fingerprint_id));
+  if (!result || !result.ok) {
+    alert((result && result.message) || 'Could not record Time Out.');
+    return;
+  }
+  alert(result.message || 'Time Out recorded.');
+  const selectedRow = document.querySelector('#stu-tbody tr.selected-row');
+  await selectStudent(selectedRow, Number(selectedStudent.fingerprint_id));
+  await loadAttendancePage();
+  await loadDashboard();
 }
 
 let manageRfidModal = null;
