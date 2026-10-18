@@ -960,6 +960,9 @@ def mark_attendance_time_out(
     time_str = now.strftime("%H:%M:%S")
     timestamp = now.isoformat()
     with get_connection() as conn:
+        # Serialize concurrent departure requests so two bridge calls cannot
+        # both pass the duplicate check before either inserts the event.
+        conn.execute("BEGIN IMMEDIATE")
         student = conn.execute(
             "SELECT 1 FROM students WHERE fingerprint_id = ? LIMIT 1", (student_id,)
         ).fetchone()
