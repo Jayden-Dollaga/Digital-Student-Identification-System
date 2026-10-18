@@ -87,6 +87,7 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `export_attendance_csv` | `mode, offset, week_start` | `export` | Writes UTF-8 CSV using selected range |
 | `get_students` | none | `read_records` | Returns enrolled students |
 | `get_student` | `fingerprint_id` | `read_records` | Returns one student plus today's status |
+| `mark_student_time_out` | `fingerprint_id` | Teacher or Administrator | Records an explicit departure after a qualifying Time In; rejects duplicate Time Out |
 | `save_student` | student fields, optional previous ID | `enroll` | Creates/updates student or migrates fingerprint ID |
 | `delete_student` | `fingerprint_id` | `delete` | Deletes local student record; historical attendance becomes ID 0 |
 | `export_students_csv` | none | `export` | Writes student CSV |
@@ -97,7 +98,7 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `remove_calendar_entry` | `date` | `manage_calendar` | Removes a stored calendar entry |
 | `get_statistics_report` | none | `read_records` plus `export` or `backup` | Returns identifiable attendance/student summary data |
 | `export_statistics_report` | none | `export` | Writes statistics report |
-| `list_backups` | none | `backup` | Lists `attendance_*.db` snapshots |
+| `list_backups` | none | `backup` | Lists database backups and verified pre-restore safety snapshots |
 | `create_backup` | none | `backup` | Creates timestamped database copy |
 | `restore_backup` | `backup_path` | `restore` | Validates location/type/header and replaces live DB |
 | `get_settings` | none | Guest | Returns sanitized settings/runtime metadata |
@@ -119,6 +120,8 @@ Every public method on `Api`, excluding private helpers and `__init__`, is recor
 | `get_role_permissions` | `role` | Guest | Returns configured permission strings |
 | `open_log_folder` | none | Administrator | Opens local log folder |
 | `get_app_log` | `max_lines=500` | Administrator | Returns up to 1,000 recent application log lines |
+
+- Repeated qualifying scans are audit events only; they do not mark departure. `mark_student_time_out` is the explicit, role-gated departure action. The configured schedule classifies arrival status but does not prove an individual student's departure.
 
 ## Important access details
 
