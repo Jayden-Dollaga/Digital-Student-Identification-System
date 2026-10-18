@@ -140,15 +140,52 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     return merged
 
 
-def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> Path:
-    """Persist settings using a same-directory temporary file and atomic replace.
+def _preserve_previous_settings(settings_path: Path) -> None:
+    """Atomically preserve the last readable settings object before replacing it."""
+    if not settings_path.exists():
+        return
+    try:
+        previous_bytes = settings_path.read_bytes()
+        previous_value = json.loads(previous_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Existing settings could not be validated before saving: {settings_path}"
+        ) from exc
+    if not isinstance(previous_value, dict):
+        raise RuntimeError(
+            f"Existing settings are not a JSON object and must be recovered before saving: {settings_path}"
+        )
 
-    A crash during serialization should not truncate the last known-good file.
+    backup_path = settings_path.with_name(f"{settings_path.name}.previous")
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{backup_path.name}.", suffix=".tmp", dir=str(settings_path.parent)
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(previous_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, backup_path)
+    except Exception:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> Path:
+    """Persist settings atomically and keep one recoverable previous version.
+
+    The previous JSON object is validated and preserved before replacing the
+    live file. A malformed existing file is never silently overwritten here.
     """
     settings_path = Path(path or SETTINGS_FILE)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     payload = default_settings()
     payload.update(settings)
+    _preserve_previous_settings(settings_path)
 
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{settings_path.name}.", suffix=".tmp", dir=str(settings_path.parent)
