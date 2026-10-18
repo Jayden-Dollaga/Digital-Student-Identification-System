@@ -1756,6 +1756,11 @@ def restore_database(backup_path: str) -> Tuple[bool, str]:
             except Exception as recovery_exc:
                 log.error(f"Pre-restore database recovery failed: {recovery_exc}")
                 return False, "Restore and automatic recovery failed. Preserve the pre-restore safety backup and contact support."
+        if safety_backup is None:
+            return False, (
+                "Restore failed. No pre-restore safety backup was available because "
+                "there was no existing database to preserve. Check logs before retrying."
+            )
         return False, "Restore failed. Check logs and the pre-restore safety backup before retrying."
 
 def list_backups() -> List[RowDict]:
