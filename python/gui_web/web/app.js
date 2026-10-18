@@ -1223,6 +1223,7 @@ function attendanceBadgeClass(status) {
   if (value === 'late') return 'late';
   if (value === 'absent') return 'absent';
   if (value === 'out') return 'out';
+  if (value === 'scan only') return 'unknown';
   return 'present';
 }
 
