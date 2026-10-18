@@ -314,6 +314,7 @@
               <div class="detail-field-value"><span class="badge" id="student-status-today">Absent</span></div>
             </div>
             <div class="detail-actions">
+              <button id="mark-time-out-btn" class="detail-btn" data-permission="read_records" onclick="markSelectedStudentTimeOut()" disabled>Record Time Out</button>
               <button id="manage-rfid-btn" class="detail-btn" data-permission="enroll" onclick="openManageRfidDialog()" disabled>Manage RFID</button>
               <button class="detail-btn" data-permission="enroll" onclick="editSelectedStudentDetails()">Edit Details</button>
               <button class="detail-btn" data-permission="enroll" onclick="reenrollSelectedStudent()">Re-enroll Student</button>
