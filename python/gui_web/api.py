@@ -1422,13 +1422,21 @@ class Api:
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            if str(row.get("status") or "").strip().lower() == "weak match":
+            status_value = str(row.get("status") or "").strip().lower()
+            event_type = str(row.get("event_type") or "").strip().lower()
+            if status_value == "weak match":
                 row["attendance_status"] = "Not Counted"
+            elif event_type == "time_out" and str(row.get("status") or "").strip().upper() == "TIME OUT":
+                row["attendance_status"] = "Out"
+            elif event_type == "scan" or event_type == "time_out":
+                # Repeated scans (including legacy auto-tagged time_out rows)
+                # are not evidence that a student departed.
+                row["attendance_status"] = "Scan Only"
             else:
                 row["attendance_status"] = (
                     calculate_attendance_status(
                         row.get("time", "00:00:00"),
-                        row.get("event_type"),
+                        "time_in",
                         settings,
                         row.get("date"),
                     )
@@ -1456,13 +1464,21 @@ class Api:
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            if str(row.get("status") or "").strip().lower() == "weak match":
+            status_value = str(row.get("status") or "").strip().lower()
+            event_type = str(row.get("event_type") or "").strip().lower()
+            if status_value == "weak match":
                 row["attendance_status"] = "Not Counted"
+            elif event_type == "time_out" and str(row.get("status") or "").strip().upper() == "TIME OUT":
+                row["attendance_status"] = "Out"
+            elif event_type == "scan" or event_type == "time_out":
+                # Repeated scans (including legacy auto-tagged time_out rows)
+                # are not evidence that a student departed.
+                row["attendance_status"] = "Scan Only"
             else:
                 row["attendance_status"] = (
                     calculate_attendance_status(
                         row.get("time", "00:00:00"),
-                        row.get("event_type"),
+                        "time_in",
                         settings,
                         row.get("date"),
                     )
