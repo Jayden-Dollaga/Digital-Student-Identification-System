@@ -640,3 +640,40 @@ def test_restore_failure_without_existing_database_does_not_claim_safety_backup_
         assert not Path(f"{db_path}-wal").exists()
         assert not Path(f"{db_path}-shm").exists()
 
+def test_restore_aborts_if_pre_restore_safety_snapshot_cannot_be_created():
+    """Never start replacing a live database unless its safety snapshot succeeded."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        db_path = tmpdir / "attendance.db"
+        backups_dir = tmpdir / "backups"
+        backups_dir.mkdir()
+        backup_file = backups_dir / "attendance_restore_test.db"
+        create_valid_sqlite_db(db_path)
+        create_valid_sqlite_db(backup_file)
+
+        connection = sqlite3.connect(db_path)
+        try:
+            connection.execute(
+                "INSERT INTO students "
+                "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                "VALUES (1, 'KEEP-1', 'Keep This Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        with patch.object(database, "DB_PATH", str(db_path)):
+            with patch.object(database, "_create_restore_safety_backup", side_effect=OSError("disk full")):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+        assert not result_ok
+        assert "safety snapshot could not be created" in result_msg.lower()
+        connection = sqlite3.connect(db_path)
+        try:
+            row = connection.execute(
+                "SELECT student_name FROM students WHERE student_no = 'KEEP-1'"
+            ).fetchone()
+        finally:
+            connection.close()
+        assert row == ("Keep This Student",)
+
