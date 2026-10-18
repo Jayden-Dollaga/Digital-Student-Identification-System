@@ -311,3 +311,16 @@ def test_save_ui_settings_cannot_overwrite_rfid_key_material(monkeypatch):
     assert saved["rfid_app_key_hex"] == persisted["rfid_app_key_hex"]
     assert saved["rfid_payload_key"] == persisted["rfid_payload_key"]
 
+def test_settings_save_preserves_previous_valid_snapshot():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = json.dumps({"theme": "dark", "school_name": "Test School"}, indent=2) + "\n"
+        settings_file.write_text(original, encoding="utf-8")
+
+        save_settings({"theme": "light"}, settings_file)
+
+        previous_file = settings_file.with_name("settings.json.previous")
+        assert previous_file.read_text(encoding="utf-8") == original
+        assert load_settings(settings_file)["theme"] == "light"
+        assert list(Path(tmpdir).glob(".settings.json.previous.*.tmp")) == []
+
