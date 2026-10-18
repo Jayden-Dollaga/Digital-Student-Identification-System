@@ -918,10 +918,9 @@ def log_attendance(
     time_str = now.strftime("%H:%M:%S")
 
     with get_connection() as conn:
-        # Tag Time-In/Time-Out at the moment of the scan, considering only
-        # qualifying attendance statuses. Older releases stored WEAK MATCH rows;
-        # those diagnostic rows must not force the first valid match to become
-        # Time-Out after upgrading.
+        # A qualifying scan records arrival only. Repeated scans remain in the
+        # audit trail but never imply departure; Time-Out is a separate,
+        # explicitly authorized event recorded by mark_attendance_time_out().
         already_present_today = conn.execute(
             """
             SELECT 1 FROM attendance
@@ -931,7 +930,7 @@ def log_attendance(
             """,
             (fingerprint_id, date_str),
         ).fetchone()
-        event_type = "time_out" if already_present_today else "time_in"
+        event_type = "scan" if already_present_today else "time_in"
 
         conn.execute(
             """
@@ -942,6 +941,55 @@ def log_attendance(
         )
         conn.commit()
 
+
+
+def mark_attendance_time_out(
+    fingerprint_id: int,
+    now: Optional[datetime] = None,
+) -> Tuple[bool, str]:
+    """Record an explicit departure; repeated biometric/RFID scans never call this."""
+    try:
+        student_id = int(fingerprint_id)
+    except (TypeError, ValueError):
+        return False, "A valid student ID is required."
+    if student_id < 1:
+        return False, "A registered student must be selected."
+
+    now = now or datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+    timestamp = now.isoformat()
+    qualifying_statuses = ("good match", "present", "logged", "ok")
+    with get_connection() as conn:
+        student = conn.execute(
+            "SELECT 1 FROM students WHERE fingerprint_id = ? LIMIT 1", (student_id,)
+        ).fetchone()
+        if not student:
+            return False, "Student was not found."
+        time_in = conn.execute(
+            """SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ?
+               AND LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')
+               LIMIT 1""",
+            (student_id, date_str),
+        ).fetchone()
+        if not time_in:
+            return False, "Time In must be recorded before Time Out."
+        already_out = conn.execute(
+            """SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ?
+               AND event_type = 'time_out' AND UPPER(TRIM(status)) = 'TIME OUT'
+               LIMIT 1""",
+            (student_id, date_str),
+        ).fetchone()
+        if already_out:
+            return False, "Time Out has already been recorded for today."
+        conn.execute(
+            """INSERT INTO attendance
+               (fingerprint_id, date, time, confidence, status, timestamp, event_type)
+               VALUES (?, ?, ?, 0, 'TIME OUT', ?, 'time_out')""",
+            (student_id, date_str, time_str, timestamp),
+        )
+        conn.commit()
+    return True, f"Time Out recorded at {time_str}."
 
 def get_attendance_today() -> List[AttendanceRow]:
     """Return today's attendance rows (kept for backward compatibility).
@@ -1059,17 +1107,16 @@ def get_daily_attendance_summary(
         )
 
         status = str(row_dict.get("status") or "").strip()
+        if row_dict.get("event_type") == "time_out" and status.upper() == "TIME OUT":
+            entry["time_out"] = row_dict["time"]
+            continue
         if status.lower() in qualifying_statuses:
-            # Historical versions tagged event_type based on every raw scan,
-            # including WEAK MATCH rows. Re-derive time-in/out from qualifying
-            # events so an old weak scan cannot become time-in for a later valid
-            # match. The first qualifying scan is time-in; later ones are time-out.
+            # Only the first qualifying scan sets Time In. Later scans are
+            # audit events, not proof of departure; only an explicit TIME OUT
+            # event may populate the Time Out field.
             entry["_qualifying_scan_count"] += 1
             if entry["_qualifying_scan_count"] == 1:
                 entry["time_in"] = row_dict["time"]
-                entry["time_out"] = ""
-            else:
-                entry["time_out"] = row_dict["time"]
             entry["status"] = status
             entry["match_status"] = status
 
@@ -1290,6 +1337,9 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
             }
         entry = grouped[key]
 
+        if row_dict.get("event_type") == "time_out" and status.upper() == "TIME OUT":
+            entry["time_out"] = row_dict["time"]
+            continue
         if not qualifies:
             # Retain a diagnostic status only while no qualifying event exists.
             if not entry["_has_qualifying_match"] and status:
@@ -1307,9 +1357,6 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
         entry["_qualifying_scan_count"] += 1
         if entry["_qualifying_scan_count"] == 1:
             entry["time_in"] = row_dict["time"]
-            entry["time_out"] = ""
-        else:
-            entry["time_out"] = row_dict["time"]
 
     result = list(grouped.values())
     for row in result:
