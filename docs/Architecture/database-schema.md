@@ -82,7 +82,7 @@ CREATE TABLE attendance (
 | `confidence` | AS608 match confidence supplied by the firmware |
 | `status` | Application attendance/match classification |
 | `timestamp` | Full timestamp used for event ordering |
-| `event_type` | Explicit `time_in` / `time_out` tagging where assigned |
+| `event_type` | `time_in`, repeated-scan `scan`, or explicit departure `time_out` |
 
 Indexes:
 
