@@ -324,3 +324,14 @@ def test_settings_save_preserves_previous_valid_snapshot():
         assert load_settings(settings_file)["theme"] == "light"
         assert list(Path(tmpdir).glob(".settings.json.previous.*.tmp")) == []
 
+def test_settings_save_does_not_replace_non_object_json():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = "[]"
+        settings_file.write_text(original, encoding="utf-8")
+
+        with pytest.raises(RuntimeError):
+            save_settings({"theme": "light"}, settings_file)
+
+        assert settings_file.read_text(encoding="utf-8") == original
+
