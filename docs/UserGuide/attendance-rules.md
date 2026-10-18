@@ -14,12 +14,15 @@ The actual values are loaded from configuration and can be overridden through se
 
 ## Event types
 
-Attendance rows may carry `event_type` values such as:
+Attendance rows may carry these `event_type` values:
 
-- `time_in`
-- `time_out`
+- `time_in` — the first qualifying scan of the day records arrival.
+- `scan` — a later qualifying scan. It remains in the audit trail but does not imply departure.
+- `time_out` — an explicit departure action recorded by a teacher or administrator.
 
-These are derived during database migration and are used when evaluating attendance status and transitions.
+The Student Details panel provides **Record Time Out**. A qualifying Time In must already exist, and a second Time Out for the same student/date is rejected. Old rows that were automatically tagged `time_out` by earlier versions are treated as historical scan events unless their status is the explicit `TIME OUT` marker.
+
+The configured Time Out schedule is used for schedule policy and reporting, but passing that time does not prove that a particular student left. A school should define who is authorized to record departures and whether manual correction/audit procedures are required.
 
 ## Schedule logic
 
