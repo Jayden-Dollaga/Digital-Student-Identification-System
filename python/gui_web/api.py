@@ -1561,7 +1561,14 @@ class Api:
             (row for row in qualifying_rows if row.get("event_type") == "time_in"),
             qualifying_rows[0] if qualifying_rows else None,
         )
-        if time_in_row:
+        explicit_time_out = any(
+            row.get("event_type") == "time_out"
+            and str(row.get("status") or "").strip().upper() == "TIME OUT"
+            for row in today_rows
+        )
+        if time_in_row and explicit_time_out:
+            student["attendance_status"] = "Out"
+        elif time_in_row:
             student["attendance_status"] = calculate_attendance_status(
                 time_in_row.get("time", "00:00:00"),
                 "time_in",
@@ -1573,6 +1580,21 @@ class Api:
         else:
             student["attendance_status"] = "Absent"
         return student
+
+
+    def mark_student_time_out(self, fingerprint_id: int) -> Dict[str, Any]:
+        """Record departure only after an explicit teacher/admin action."""
+        if not permissions.require_role("teacher"):
+            return {"ok": False, "status": 403, "message": "Teacher or administrator permission is required to record Time Out."}
+        try:
+            student_id = int(fingerprint_id)
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "A valid student ID is required."}
+        ok, message = db.mark_attendance_time_out(student_id)
+        if not ok:
+            return {"ok": False, "message": message}
+        log.info("Explicit student Time Out recorded", fingerprint_id=student_id)
+        return {"ok": True, "message": message, "fingerprint_id": student_id}
 
     def save_student(
         self,
