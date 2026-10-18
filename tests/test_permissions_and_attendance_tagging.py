@@ -514,3 +514,41 @@ class TestTodayAttendanceFallbackFlag:
 
         assert isinstance(rows, list)
         assert len(rows) == 1
+
+class TestExplicitTimeOutApi:
+    def test_guest_cannot_record_time_out(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("guest", 600.0)
+        db_mock = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.mark_attendance_time_out", db_mock)
+
+        result = api.mark_student_time_out(1)
+
+        assert result["ok"] is False
+        assert result["status"] == 403
+        db_mock.assert_not_called()
+
+    def test_teacher_can_record_explicit_time_out(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("teacher", 600.0)
+        monkeypatch.setattr(
+            "gui_web.api.db.mark_attendance_time_out",
+            lambda fingerprint_id: (True, "Time Out recorded at 16:00:00."),
+        )
+
+        result = api.mark_student_time_out(1)
+
+        assert result["ok"] is True
+        assert result["fingerprint_id"] == 1
+
+    def test_explicit_time_out_rejects_invalid_student_id(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("teacher", 600.0)
+        db_mock = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.mark_attendance_time_out", db_mock)
+
+        result = api.mark_student_time_out("not-a-number")
+
+        assert result["ok"] is False
+        db_mock.assert_not_called()
+
