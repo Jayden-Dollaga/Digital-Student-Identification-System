@@ -636,4 +636,7 @@ def test_restore_failure_without_existing_database_does_not_claim_safety_backup_
         assert not result_ok
         assert "no pre-restore safety backup was available" in result_msg.lower()
         assert "check logs and the pre-restore safety backup" not in result_msg.lower()
+        assert not db_path.exists(), "A failed first-time restore must not leave a partial database behind"
+        assert not Path(f"{db_path}-wal").exists()
+        assert not Path(f"{db_path}-shm").exists()
 
