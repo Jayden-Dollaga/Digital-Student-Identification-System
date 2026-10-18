@@ -1077,3 +1077,16 @@ def test_theme_selector_previews_theme_immediately():
 
     assert 'onchange="applyTheme(this.value)"' in html
     assert "document.body.classList.toggle('light-theme', t === 'light')" in script
+
+def test_attendance_evaluation_sanitizes_untrusted_bridge_values():
+    """Dynamic values used in evaluation HTML/CSS are escaped or constrained."""
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "Object.prototype.hasOwnProperty.call(CATEGORY_META, r.category)" in script
+    assert "Number.isFinite(parsedRate)" in script
+    assert "Math.max(0, Math.min(100, parsedRate))" in script
+    assert "escapeHtml(String(r.days_present))" in script
+    assert "escapeHtml(String(r.days_absent))" in script
+    assert 'me-cat-${category}' in script
+    assert 'me-cat-${r.category}' not in script
+
