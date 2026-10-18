@@ -37,7 +37,7 @@ Indexes: `idx_student_no` and `idx_grade_section`.
 | confidence | INTEGER | AS608 confidence supplied by firmware |
 | status | TEXT | Application status/classification |
 | timestamp | TEXT | Full event timestamp |
-| event_type | TEXT | Optional explicit time_in/time_out tag |
+| event_type | TEXT | `time_in`, repeated-scan `scan`, or explicit departure `time_out` tag |
 
 Indexes: `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`.
 
