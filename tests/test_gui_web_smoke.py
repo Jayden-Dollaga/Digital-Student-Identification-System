@@ -784,7 +784,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
 
     result = api.get_attendance(mode="last30")
 
-    assert result["rows"][0]["attendance_status"] == "Out"
+    assert result["rows"][0]["attendance_status"] == "Scan Only"
 
 
 def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
@@ -1089,4 +1089,15 @@ def test_attendance_evaluation_sanitizes_untrusted_bridge_values():
     assert "escapeHtml(String(r.days_absent))" in script
     assert 'me-cat-${category}' in script
     assert 'me-cat-${r.category}' not in script
+
+def test_explicit_time_out_action_is_available_in_student_details():
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="mark-time-out-btn"' in html
+    assert 'data-permission="read_records"' in html
+    assert 'onclick="markSelectedStudentTimeOut()"' in html
+    assert "api().mark_student_time_out(Number(selectedStudent.fingerprint_id))" in script
+    assert "A repeated scan alone does not mark departure." in script
+    assert "selectedStudent.attendance_status === 'Out'" in script
 
