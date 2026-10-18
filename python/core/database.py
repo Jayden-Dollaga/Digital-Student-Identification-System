@@ -342,15 +342,13 @@ def init_database() -> None:
 
 
 def _migrate_attendance_event_type(cursor: sqlite3.Cursor) -> None:
-    """Add and backfill the `event_type` column for databases created before it existed.
+    """Backfill historical event tags for databases created before the column.
 
-    Older rows have no event_type, so Time-In/Time-Out was only ever inferred
-    later (in get_daily_attendance_summary) from scan order within a day.
-    That's fragile - it breaks if scans are ever reordered or two students
-    scan in the same second. This tags each row explicitly, once, so future
-    reads don't have to guess:
-      - the first scan of a (fingerprint_id, date) is 'time_in'
-      - every later scan that same day is 'time_out'
+    This deterministic migration preserves legacy scan ordering for audit
+    purposes only. Historical `time_out` tags on ordinary scan rows are not
+    proof of departure; current summaries/exports only recognize an explicit
+    row with event_type='time_out' and status='TIME OUT' as a real departure.
+    New repeated scans are tagged `scan`.
     """
     cursor.execute("PRAGMA table_info(attendance)")
     columns = {row[1] for row in cursor.fetchall()}
