@@ -525,6 +525,14 @@ function toggleCompact() {
   applyCompact(!compact);
 }
 
+function applyTableZoom(value) {
+  const percent = Math.max(75, Math.min(125, Number.parseInt(value, 10) || 100));
+  const app = document.getElementById('app');
+  if (app) app.dataset.tableZoom = String(percent);
+  const control = document.getElementById('set-table-zoom');
+  if (control && control.value !== String(percent)) control.value = String(percent);
+}
+
 // ── Connection ──
 function setStatus(state) {
   const pill = document.getElementById('status-pill');
@@ -3047,6 +3055,9 @@ async function loadSettingsPage() {
   document.getElementById('set-startup-connect-delay').value = s.startup_connect_delay_ms ?? 1000;
   applyTheme(s.theme);
   applyCompact(!!s.compact_sidebar);
+  const tableZoom = document.getElementById('set-table-zoom');
+  if (tableZoom) tableZoom.value = String(s.table_zoom_percent ?? 100);
+  applyTableZoom(s.table_zoom_percent ?? 100);
   document.getElementById('set-school-name').value = s.school_name || '';
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
@@ -3075,7 +3086,7 @@ let settingsSaveTimer = null;
 const AUTO_SAVE_SETTING_IDS = new Set([
   'set-port-override', 'set-baud-rate-select', 'set-auto-reconnect', 'set-auto-detect',
   'set-auto-connect', 'set-startup-connect-delay',
-  'set-theme', 'settings-compact-toggle', 'set-cooldown', 'set-confidence',
+  'set-theme', 'settings-compact-toggle', 'set-table-zoom', 'set-cooldown', 'set-confidence',
   'set-log-to-file', 'set-debug-logging', 'set-time-in', 'set-time-out',
   'set-early-threshold', 'set-late-threshold', 'set-absent-threshold', 'set-backup-interval',
 ]);
@@ -3165,6 +3176,7 @@ async function saveSettings(silent = false) {
     auto_connect_on_startup: document.getElementById('set-auto-connect').classList.contains('on'),
     startup_connect_delay_ms: Math.max(0, Math.min(30000, parseInt(document.getElementById('set-startup-connect-delay').value, 10) || 0)),
     compact_sidebar: document.getElementById('settings-compact-toggle').classList.contains('on'),
+    table_zoom_percent: Math.max(75, Math.min(125, parseInt(document.getElementById('set-table-zoom').value, 10) || 100)),
     cooldown: parseInt(document.getElementById('set-cooldown').value, 10),
     min_confidence: parseInt(document.getElementById('set-confidence').value, 10),
     log_to_file: document.getElementById('set-log-to-file').classList.contains('on'),
@@ -3186,6 +3198,7 @@ async function saveSettings(silent = false) {
     return;
   }
   applyCompact(payload.compact_sidebar);
+  applyTableZoom(payload.table_zoom_percent);
   applyTheme(payload.theme);
   applySchoolName(payload.school_name);
   if (status) status.textContent = 'All changes saved';
