@@ -2143,6 +2143,9 @@ class Api:
                 0,
                 min(30000, int(settings.get("startup_connect_delay_ms", merged.get("startup_connect_delay_ms", 1000)))),
             )
+            table_zoom_percent = max(
+                75, min(125, int(settings.get("table_zoom_percent", merged.get("table_zoom_percent", 100))))
+            )
         except (TypeError, ValueError):
             return {"ok": False, "message": "Settings must be valid numbers."}
         
@@ -2175,6 +2178,7 @@ class Api:
             "late_threshold_minutes": late_threshold,
             "absent_threshold_minutes": absent_threshold,
             "startup_connect_delay_ms": startup_connect_delay_ms,
+            "table_zoom_percent": table_zoom_percent,
             "time_in": time_in,
             "time_out": time_out,
         })
