@@ -34,6 +34,8 @@ The app understands:
 - holiday and suspension days,
 - school-day exclusions.
 
+A dated **half-day class** is an explicit schedule override and counts as a school day even if it falls on a normally excluded weekend or recurring day off. Holiday and suspension entries still suppress attendance for that date.
+
 The logic is centered around `core.attendance_status.py` and `core.attendance_calendar.py`.
 
 ## Status categories
