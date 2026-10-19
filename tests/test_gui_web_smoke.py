@@ -1108,3 +1108,20 @@ def test_attendance_evaluation_discloses_absence_vs_device_outage_limit():
     assert "DSIS cannot automatically distinguish a student's absence from a device outage" in script
     assert "review connection logs and school records" in script
 
+
+
+def test_responsive_navigation_and_persistent_table_zoom_controls_exist():
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="set-table-zoom"' in html
+    assert 'table_zoom_percent:' in script
+    assert "function applyTableZoom(value)" in script
+    assert "table_zoom_percent" in script
+    assert "overflow-y: auto" in styles
+    assert 'data-table-zoom="75"' in styles
+    assert 'data-table-zoom="125"' in styles
+    assert "@media (max-width: 560px)" in styles
+    assert ".data-table-wrap { overflow-x: auto; overflow-y: auto; }" in styles
+
