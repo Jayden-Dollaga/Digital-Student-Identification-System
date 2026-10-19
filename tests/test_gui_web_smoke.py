@@ -1130,3 +1130,51 @@ def test_responsive_navigation_and_persistent_table_zoom_controls_exist():
     assert "@media (max-width: 560px)" in styles
     assert ".data-table-wrap { overflow-x: auto; overflow-y: auto; }" in styles
 
+
+
+def test_custom_attendance_export_validates_and_uses_selected_date_range(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/custom.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    captured = {}
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+
+    def export_range(start, end):
+        captured["range"] = (start, end)
+        return [{"student_name": "Alice", "time_in": "08:00:00", "status": "GOOD MATCH", "date": start}]
+
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range_with_time_in_out", export_range)
+    result = api.export_attendance_csv(
+        "custom", start_date="2026-09-01", end_date="2026-09-10"
+    )
+
+    assert result == {"ok": True}
+    assert captured["range"] == ("2026-09-01", "2026-09-10")
+    suggested_name = api._choose_csv_path.call_args.args[0]
+    assert "2026-09-01_to_2026-09-10" in suggested_name
+
+
+def test_custom_attendance_export_rejects_invalid_or_oversized_ranges(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    monkeypatch.setattr(
+        "gui_web.api.db.export_attendance_range_with_time_in_out",
+        lambda start, end: pytest.fail("Invalid custom range must not query attendance"),
+    )
+
+    reversed_range = api.export_attendance_csv(
+        "custom", start_date="2026-09-10", end_date="2026-09-01"
+    )
+    oversized_range = api.export_attendance_csv(
+        "custom", start_date="2025-01-01", end_date="2026-01-03"
+    )
+
+    assert reversed_range["ok"] is False
+    assert "on or after" in reversed_range["message"]
+    assert oversized_range["ok"] is False
+    assert "limited to 367 calendar days" in oversized_range["message"]
+
