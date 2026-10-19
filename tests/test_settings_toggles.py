@@ -336,3 +336,32 @@ def test_settings_save_does_not_replace_non_object_json():
 
         assert settings_file.read_text(encoding="utf-8") == original
 
+
+
+def test_table_zoom_setting_is_clamped_and_persisted(monkeypatch):
+    """Table zoom is a bounded UI preference, not a free-form CSS value."""
+    from gui_web.api import Api
+
+    persisted = default_settings()
+    saved = {}
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: persisted.copy())
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: saved.update(settings))
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+
+    api = Api.__new__(Api)
+    api.serial = MagicMock()
+    api.processor = MagicMock()
+    api.profiler = MagicMock()
+    api._backup_interval_minutes = 25
+    api._session_timeout_seconds = 600
+
+    result = api.save_ui_settings({"table_zoom_percent": 150})
+    assert result["ok"] is True
+    assert saved["table_zoom_percent"] == 125
+
+    persisted.update(saved)
+    saved.clear()
+    result = api.save_ui_settings({"table_zoom_percent": 60})
+    assert result["ok"] is True
+    assert saved["table_zoom_percent"] == 75
