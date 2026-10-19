@@ -309,6 +309,18 @@ def init_database() -> None:
         )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_timestamp ON attendance(timestamp)")
+        # Match common ordered reads so pagination and date-range summaries
+        # have suitable composite indexes rather than relying on single-column
+        # indexes plus a separate sort.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_timestamp_id ON attendance(timestamp DESC, id DESC)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_date_time_timestamp ON attendance(date, time, timestamp)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_student_date_time ON attendance(fingerprint_id, date, time, timestamp)"
+        )
 
         _migrate_attendance_event_type(cursor)
 
