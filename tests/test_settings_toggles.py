@@ -33,6 +33,7 @@ def test_default_settings():
     assert defaults["auto_connect_on_startup"] is False
     assert defaults["startup_connect_delay_ms"] == 1000
     assert "compact_sidebar" in defaults
+    assert defaults["table_zoom_percent"] == 100
     assert "enable_profiler" in defaults
     print("✓ Default settings include all toggle flags")
 
