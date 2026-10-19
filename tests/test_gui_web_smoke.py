@@ -1181,3 +1181,35 @@ def test_custom_attendance_export_rejects_invalid_or_oversized_ranges(monkeypatc
     assert oversized_range["ok"] is False
     assert "limited to 367 calendar days" in oversized_range["message"]
 
+
+
+def test_attendance_evaluation_honors_explicit_weekend_half_day(monkeypatch):
+    from gui_web import api as api_module
+    from settings_store import default_settings
+
+    settings = default_settings()
+    settings["school_calendar"] = {}
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings)
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [])
+
+    api = api_module.Api()
+    normal_week = api.get_attendance_evaluation("week", "2026-10-12")
+    assert normal_week["ok"] is True
+    assert normal_week["total_days"] == 5
+    assert "2026-10-17" not in normal_week["school_days"]
+
+    settings["school_calendar"] = {
+        "2026-10-17": {
+            "type": "half_day",
+            "label": "Saturday class",
+            "time_in": "08:00",
+            "time_out": "12:00",
+        }
+    }
+    special_week = api.get_attendance_evaluation("week", "2026-10-12")
+    assert special_week["ok"] is True
+    assert special_week["total_days"] == 6
+    assert "2026-10-17" in special_week["school_days"]
+
