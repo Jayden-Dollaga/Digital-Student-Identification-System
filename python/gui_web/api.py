@@ -1988,14 +1988,23 @@ class Api:
             permissions.has_permission("export") or permissions.has_permission("backup")
         ):
             return {"ok": False, "message": "Record-reading and report permission are required."}
-        # Keep older WEAK MATCH diagnostic rows visible in the activity log,
-        # but do not count them as attendance in aggregate statistics.
+        # Reports count attendance days, not raw scan events. A repeated scan
+        # is useful audit activity but must not inflate a student's totals.
+        # Initialization migrates legacy event tags, so only explicit/first
+        # qualifying Time In rows are authoritative for this summary.
         qualifying_statuses = {"good match", "present", "logged", "ok"}
-        attendance_rows = [
-            row for row in db.get_attendance_all()
-            if str(row.get("status") or row.get("match_status") or "").strip().lower()
-            in qualifying_statuses
-        ]
+        attendance_rows = []
+        seen_student_days = set()
+        for row in db.get_attendance_all():
+            status = str(row.get("status") or row.get("match_status") or "").strip().lower()
+            if status not in qualifying_statuses or row.get("event_type") != "time_in":
+                continue
+            student_key = row.get("fingerprint_id") or row.get("student_no") or row.get("student_name")
+            day_key = (student_key, row.get("date"))
+            if day_key in seen_student_days:
+                continue
+            seen_student_days.add(day_key)
+            attendance_rows.append(row)
         attendance_totals: Dict[str, Dict[str, Any]] = {}
         attendance_by_date: Dict[str, int] = {}
         attendance_by_grade: Dict[str, int] = {}
