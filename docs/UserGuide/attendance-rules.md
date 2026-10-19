@@ -39,3 +39,11 @@ The logic is centered around `core.attendance_status.py` and `core.attendance_ca
 ## Status categories
 
 Attendance status is evaluated using local script logic for whether the student arrived on time, arrived late, or missed the expected window. The categories are derived by the evaluation engine rather than from the serial device itself.
+
+## Reports and exports
+
+Attendance summaries count qualifying student-days, not the number of times a sensor was scanned. Repeated scans remain in the audit trail; they must not inflate daily presence totals or student rankings. Explicit Time Out events are shown separately and are not an additional attendance day.
+
+The Reports page supports today's attendance, a selected calendar week, the last 30 days, and a custom date range. Custom exports require both dates, reject an end date before the start date, and are limited to 367 inclusive calendar days per file. Evaluation reports use the selected Day, Week, or Month period and the configured school calendar.
+
+A missing qualifying scan is not proof of absence by itself. If the device or connection was unavailable, review connection logs and school records before using an evaluation for disciplinary decisions.
