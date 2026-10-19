@@ -1353,7 +1353,19 @@ async function exportAttendanceCsv(mode, weekValue = '') {
     alert('Choose a calendar week first.');
     return;
   }
-  const res = await api().export_attendance_csv(modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart);
+  const startDate = modeKey === 'custom' ? document.getElementById('export-start-date').value : '';
+  const endDate = modeKey === 'custom' ? document.getElementById('export-end-date').value : '';
+  if (modeKey === 'custom' && (!startDate || !endDate)) {
+    alert('Choose both a start date and an end date.');
+    return;
+  }
+  if (modeKey === 'custom' && endDate < startDate) {
+    alert('End date must be on or after the start date.');
+    return;
+  }
+  const res = await api().export_attendance_csv(
+    modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart, startDate, endDate
+  );
   alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
 
