@@ -1153,7 +1153,7 @@ def test_custom_attendance_export_validates_and_uses_selected_date_range(monkeyp
     assert result == {"ok": True}
     assert captured["range"] == ("2026-09-01", "2026-09-10")
     suggested_name = api._choose_csv_path.call_args.args[0]
-    assert "2026-09-01_to_2026-09-10" in suggested_name
+    assert "2026-09-01_2026-09-10" in suggested_name
 
 
 def test_custom_attendance_export_rejects_invalid_or_oversized_ranges(monkeypatch):
