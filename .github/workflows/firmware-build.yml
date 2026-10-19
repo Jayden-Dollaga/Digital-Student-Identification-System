@@ -32,6 +32,7 @@ jobs:
           # The Arduino package/library indexes occasionally download but fail
           # to initialize on the first attempt. Retry transient index/install
           # failures before failing the firmware check.
+          arduino-cli config init --overwrite
           retry() {
             attempt=1
             until "$@"; do
