@@ -39,7 +39,7 @@ Indexes: `idx_student_no` and `idx_grade_section`.
 | timestamp | TEXT | Full event timestamp |
 | event_type | TEXT | `time_in`, repeated-scan `scan`, or explicit departure `time_out` tag |
 
-Indexes: `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`.
+Indexes: `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`, plus composite indexes `idx_attendance_timestamp_id` for stable newest-first pagination, `idx_attendance_date_time_timestamp` for date-range ordering, and `idx_attendance_student_date_time` for student/day history.
 
 ## Reserved fingerprint ID 0
 
