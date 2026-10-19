@@ -1853,10 +1853,17 @@ class Api:
             # recurring days off using the DSIS numbering.
             dsis_weekday = (current_day.weekday() + 1) % 7
             is_weekend = current_day.weekday() >= 5
+            calendar_entry = attendance_calendar.get_entry(settings, date_text)
+            is_half_day = bool(calendar_entry and calendar_entry.get("type") == "half_day")
+            # A dated half-day is an explicit class override, including on a
+            # normally non-school weekend or recurring day off. Holidays and
+            # suspensions still suppress attendance for the date.
             if (
-                not is_weekend
-                and dsis_weekday not in weekdays_off
-                and not attendance_calendar.is_non_school_day(settings, date_text)
+                not attendance_calendar.is_non_school_day(settings, date_text)
+                and (
+                    is_half_day
+                    or (not is_weekend and dsis_weekday not in weekdays_off)
+                )
             ):
                 school_days.append(date_text)
             current_day += timedelta(days=1)
