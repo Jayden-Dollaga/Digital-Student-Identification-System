@@ -1487,7 +1487,7 @@ def generate_statistics_report() -> str:
 
         if attendance_by_date:
             for row in attendance_by_date:
-                report_lines.append(f"{row['date']}  {row['count']:4d} scans")
+                report_lines.append(f"{row['date']}  {row['count']:4d} students present")
         else:
             report_lines.append("No attendance records yet.")
 
