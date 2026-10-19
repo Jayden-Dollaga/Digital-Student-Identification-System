@@ -1410,3 +1410,53 @@
 .light-theme .selected-row td { color: #1D4ED8; }
 .light-theme .rpt-rank.silver { background: #EEF0F3; color: #586273; }
 .light-theme ::-webkit-scrollbar-thumb:hover { background: #AAB2BF; }
+
+
+/* Responsive layout hardening and user-adjustable table density. */
+#sidebar {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+#right, #page-content, .page, .split-main, .data-table-wrap { min-width: 0; min-height: 0; }
+.data-table-wrap { overflow-x: auto; overflow-y: auto; }
+#app[data-table-zoom="75"] .data-table, #app[data-table-zoom="75"] .rpt-table { zoom: .75; }
+#app[data-table-zoom="85"] .data-table, #app[data-table-zoom="85"] .rpt-table { zoom: .85; }
+#app[data-table-zoom="90"] .data-table, #app[data-table-zoom="90"] .rpt-table { zoom: .9; }
+#app[data-table-zoom="110"] .data-table, #app[data-table-zoom="110"] .rpt-table { zoom: 1.1; }
+#app[data-table-zoom="125"] .data-table, #app[data-table-zoom="125"] .rpt-table { zoom: 1.25; }
+@media (max-height: 650px) {
+  #sidebar { overflow-y: auto; }
+  .nav-section-label { padding-top: 6px; }
+  .nav-item { min-height: 28px; }
+  #page-header { flex-shrink: 0; }
+  .settings-inner { padding-top: 8px; padding-bottom: 8px; }
+}
+@media (max-width: 900px) {
+  #page-header { min-width: 0; gap: 6px; padding-inline: 8px; }
+  #page-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-spacer { min-width: 4px; }
+  .toolbar { min-width: 0; }
+  .settings-row { gap: 10px; }
+  .settings-row-label { min-width: 0; }
+  .settings-text-input { max-width: min(52vw, 240px); }
+  .rpt-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chart-pie-layout { flex-wrap: wrap; gap: 18px; }
+  .chart-legend { min-width: min(220px, 100%); }
+}
+@media (max-width: 560px) {
+  #titlebar { padding-inline: 6px; gap: 5px; }
+  #titlebar .logo-text { font-size: 11px; }
+  #page-header { padding-inline: 6px; }
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rpt-metrics { grid-template-columns: minmax(0, 1fr); }
+  .chart-bar-row { grid-template-columns: minmax(64px, 100px) minmax(0, 1fr) 34px; gap: 6px; }
+  .cal-page-inner { padding: 10px 8px; }
+  .cal-grid, .cal-grid-header { gap: 3px; }
+  .cal-day { padding: 4px 3px; border-radius: 5px; }
+  .cal-day-badge { font-size: 8px; padding: 1px 2px; }
+  .settings-row { align-items: flex-start; flex-wrap: wrap; }
+  .settings-row-label { flex: 1 1 100%; }
+  .settings-row .settings-text-input { max-width: 100% !important; }
+}
