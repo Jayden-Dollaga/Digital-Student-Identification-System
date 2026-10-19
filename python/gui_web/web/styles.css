@@ -1460,3 +1460,24 @@
   .settings-row-label { flex: 1 1 100%; }
   .settings-row .settings-text-input { max-width: 100% !important; }
 }
+
+/* Custom report filters stay usable without forcing the report page wider. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.report-custom-range { height: auto; min-height: 38px; flex-wrap: wrap; padding-block: 6px; }
+.report-custom-range .report-name { flex: 1 1 180px; }
+.report-custom-range input[type="date"] { flex: 0 1 145px; min-width: 125px; margin: 0; }
+@media (max-width: 720px) {
+  .report-custom-range { align-items: stretch; }
+  .report-custom-range .report-name { flex: 1 1 100%; }
+  .report-custom-range input[type="date"] { flex: 1 1 125px; max-width: 100%; }
+}
