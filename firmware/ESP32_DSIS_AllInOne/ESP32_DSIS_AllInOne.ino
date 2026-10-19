@@ -491,6 +491,11 @@ void updateLed() {
 bool scanMode = false;  // false = command mode, true = scan mode
 bool fingerprintSensorReady = false;  // RFID should remain usable when AS608 is offline
 String pendingCommand = "";
+// Non-blocking, bounded host command line reader. Serial.readStringUntil() can
+// stall the scan loop for its stream timeout when a partial line arrives.
+String serialCommandBuffer = "";
+bool serialCommandOverflow = false;
+const size_t SERIAL_COMMAND_MAX_LENGTH = 512;
 
 // NOTE: The firmware is intentionally kept in a single sketch for now.
 // If it grows further, the LED logic, command handling, and fingerprint flow
@@ -505,6 +510,7 @@ void setup() {
   beginLedManager();
 
   Serial.begin(115200);
+  serialCommandBuffer.reserve(SERIAL_COMMAND_MAX_LENGTH);
   unsigned long bootStart = millis();
   while (millis() - bootStart < 1000) {
     updateLed();
@@ -579,11 +585,30 @@ void loop() {
     return;
   }
 
-  // Check for Serial commands from PC
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    handleCommand(input);
+  // Consume host serial input without blocking sensor polling while waiting
+  // for a newline. Discard overlong lines until their delimiter to avoid
+  // interpreting a truncated command as a valid command.
+  while (Serial.available() > 0) {
+    const char incoming = static_cast<char>(Serial.read());
+    if (incoming == '\r') continue;
+    if (incoming == '\n') {
+      if (serialCommandOverflow) {
+        Serial.println("ERROR: serial command exceeds maximum length");
+      } else if (serialCommandBuffer.length() > 0) {
+        serialCommandBuffer.trim();
+        handleCommand(serialCommandBuffer);
+      }
+      serialCommandBuffer = "";
+      serialCommandOverflow = false;
+      continue;
+    }
+    if (serialCommandOverflow) continue;
+    if (serialCommandBuffer.length() >= SERIAL_COMMAND_MAX_LENGTH) {
+      serialCommandBuffer = "";
+      serialCommandOverflow = true;
+      continue;
+    }
+    serialCommandBuffer += incoming;
   }
 
   // If in scan mode, keep scanning for fingers AND cards
