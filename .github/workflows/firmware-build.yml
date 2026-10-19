@@ -29,11 +29,26 @@ jobs:
 
       - name: Install ESP32 platform and sketch libraries
         run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
-          arduino-cli lib update-index
-          arduino-cli lib install "Adafruit Fingerprint Sensor Library"
-          arduino-cli lib install "MFRC522"
+          # The Arduino package/library indexes occasionally download but fail
+          # to initialize on the first attempt. Retry transient index/install
+          # failures before failing the firmware check.
+          retry() {
+            attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "Command failed after 3 attempts: $*"
+                return 1
+              fi
+              echo "Attempt $attempt failed; retrying in $((attempt * 3)) seconds: $*"
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+          retry arduino-cli core update-index
+          retry arduino-cli core install esp32:esp32
+          retry arduino-cli lib update-index
+          retry arduino-cli lib install "Adafruit Fingerprint Sensor Library"
+          retry arduino-cli lib install "MFRC522"
 
       - name: Compile maintained DSIS ESP32 firmware
         run: |
