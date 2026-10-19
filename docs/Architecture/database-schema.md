@@ -89,6 +89,9 @@ Indexes:
 - `idx_attendance_fingerprint_id`
 - `idx_attendance_date`
 - `idx_attendance_timestamp`
+- `idx_attendance_timestamp_id` (timestamp + ID, newest-first pagination)
+- `idx_attendance_date_time_timestamp` (date-range summary ordering)
+- `idx_attendance_student_date_time` (student/date history ordering)
 
 ## Reserved fingerprint ID 0
 
