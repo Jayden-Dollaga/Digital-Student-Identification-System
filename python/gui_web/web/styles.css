@@ -1481,3 +1481,7 @@
   .report-custom-range .report-name { flex: 1 1 100%; }
   .report-custom-range input[type="date"] { flex: 1 1 125px; max-width: 100%; }
 }
+
+/* Calendar date cells are native buttons for keyboard and assistive-technology access. */
+.cal-day { font-family: inherit; text-align: left; }
+.cal-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 2; }
