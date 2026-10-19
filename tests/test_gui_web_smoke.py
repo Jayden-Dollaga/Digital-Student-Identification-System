@@ -357,7 +357,7 @@ def test_v3_statistics_report_includes_students_without_attendance(monkeypatch):
     ])
     monkeypatch.setattr("gui_web.api.db.get_attendance_all", lambda: [{
         "student_name": "Alice", "student_no": "S-001", "grade": "10",
-        "section": "A", "date": "2026-09-10", "status": "Present",
+        "section": "A", "date": "2026-09-10", "status": "Present", "event_type": "time_in",
     }])
     monkeypatch.setattr(api.serial, "is_connected", lambda: False)
 
@@ -397,7 +397,12 @@ def test_statistics_report_does_not_count_historical_weak_matches(monkeypatch):
         {
             "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
             "grade": "12", "section": "CSS", "date": "2026-09-11",
-            "status": "GOOD MATCH",
+            "status": "GOOD MATCH", "event_type": "time_in",
+        },
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-11",
+            "status": "GOOD MATCH", "event_type": "scan",
         },
         {
             "fingerprint_id": 0, "student_name": "Unregistered", "student_no": "N/A",
