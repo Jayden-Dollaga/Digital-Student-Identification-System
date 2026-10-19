@@ -1488,7 +1488,12 @@ class Api:
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
     def export_attendance_csv(
-        self, mode: str = "today", offset: int = 0, week_start: str = ""
+        self,
+        mode: str = "today",
+        offset: int = 0,
+        week_start: str = "",
+        start_date: str = "",
+        end_date: str = "",
     ) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
             return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
@@ -1523,6 +1528,21 @@ class Api:
             start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
             rows = db.export_attendance_range_with_time_in_out(start, end)
+        elif mode == "custom":
+            try:
+                parsed_start = datetime.strptime(str(start_date), "%Y-%m-%d")
+                parsed_end = datetime.strptime(str(end_date), "%Y-%m-%d")
+            except (TypeError, ValueError):
+                return {"ok": False, "message": "Choose valid start and end dates for the custom export."}
+            if parsed_start.strftime("%Y-%m-%d") != start_date or parsed_end.strftime("%Y-%m-%d") != end_date:
+                return {"ok": False, "message": "Custom export dates must use YYYY-MM-DD format."}
+            if parsed_end < parsed_start:
+                return {"ok": False, "message": "End date must be on or after the start date."}
+            if (parsed_end - parsed_start).days > 366:
+                return {"ok": False, "message": "Custom exports are limited to 367 calendar days per file. Choose a shorter range."}
+            start = parsed_start.strftime("%Y-%m-%d")
+            end = parsed_end.strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
         else:
             start = end = now.strftime("%Y-%m-%d")
             rows = db.export_attendance_range_with_time_in_out(start, end)
@@ -1547,7 +1567,8 @@ class Api:
         
         # Prepare file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"attendance_{mode}_{timestamp}.csv"
+        range_suffix = f"_{start}_{end}" if mode == "custom" else ""
+        filename = f"attendance_{mode}{range_suffix}_{timestamp}.csv"
         return self._export_csv_rows(rows, filename)
 
     # -- students ---------------------------------------------------------------
