@@ -65,7 +65,7 @@ def test_legacy_statistics_report_counts_only_qualifying_matches_and_enrolled_st
             report = database.generate_statistics_report()
 
         assert "Total Students Enrolled: 1" in report
-        assert "Total Attendance Records: 1" in report
+        assert "Total Attendance Days: 1" in report
         assert "Alex Reyes" in report
         assert "Unregistered" not in report
 
