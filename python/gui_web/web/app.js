@@ -2964,7 +2964,7 @@ async function renderCalendarMonth() {
     const entry = calendarEntries[dateStr];
     const dateObj = new Date(calendarViewYear, calendarViewMonth - 1, day);
     const isToday = dateStr === todayStr;
-    const isNoClassRecurringDay = !entry && noClassWeekdays.has(dateObj.getDay());
+    const isNoClassRecurringDay = !entry && (noClassWeekdays.has(dateObj.getDay()) || dateObj.getDay() === 0 || dateObj.getDay() === 6);
     const typeLabel = entry ? (entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday') : '';
     let badge = '';
     if (entry) {
