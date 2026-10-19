@@ -600,7 +600,8 @@ void loop() {
       }
       serialCommandBuffer = "";
       serialCommandOverflow = false;
-      continue;
+      // Yield back to sensor polling after one complete command.
+      break;
     }
     if (serialCommandOverflow) continue;
     if (serialCommandBuffer.length() >= SERIAL_COMMAND_MAX_LENGTH) {
