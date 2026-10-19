@@ -2965,16 +2965,18 @@ async function renderCalendarMonth() {
     const dateObj = new Date(calendarViewYear, calendarViewMonth - 1, day);
     const isToday = dateStr === todayStr;
     const isNoClassRecurringDay = !entry && noClassWeekdays.has(dateObj.getDay());
+    const typeLabel = entry ? (entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday') : '';
     let badge = '';
     if (entry) {
-      const typeLabel = entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday';
       const shown = entry.label ? escapeHtml(entry.label) : typeLabel;
       badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${escapeHtml(shown)}">${shown}</span>`;
     } else if (isNoClassRecurringDay) {
       badge = '<span class="cal-day-badge cal-badge-no-class" title="No class">No class</span>';
     }
-    html += `<div class="cal-day${isToday ? ' cal-day-today' : ''}${isNoClassRecurringDay ? ' cal-day-no-class' : ''}" onclick="openCalendarEntryModal('${dateStr}')">` +
-            `<span>${day}</span>${badge}</div>`;
+    const spokenDate = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const dayDescription = entry ? `, ${typeLabel}${entry.label ? ': ' + entry.label : ''}` : isNoClassRecurringDay ? ', no class' : ', scheduled day';
+    html += `<button type="button" class="cal-day${isToday ? ' cal-day-today' : ''}${isNoClassRecurringDay ? ' cal-day-no-class' : ''}" aria-label="${escapeHtml(spokenDate + dayDescription)}" onclick="openCalendarEntryModal('${dateStr}')">` +
+            `<span>${day}</span>${badge}</button>`;
   }
   const totalCells = startWeekday + daysInMonth;
   const trailing = (7 - (totalCells % 7)) % 7;
