@@ -1433,7 +1433,7 @@ def generate_statistics_report() -> str:
             "KEY METRICS",
             "─" * 70,
             f"Total Students Enrolled: {total_students}",
-            f"Total Attendance Records: {total_attendance}",
+            f"Total Attendance Days: {total_attendance}",
             f"Average Attendance Days per Student: {total_attendance / max(total_students, 1):.1f} days",
             "",
             "─" * 70,
