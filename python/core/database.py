@@ -1381,25 +1381,32 @@ def generate_statistics_report() -> str:
     conn = get_connection()
     try:
         qualifying_sql = "LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')"
+        # Count student-days rather than raw scans: repeated scans and explicit
+        # Time Out events are audit events and must not inflate attendance.
+        attendance_day_sql = (
+            "SELECT DISTINCT fingerprint_id, date FROM attendance "
+            f"WHERE {qualifying_sql} AND event_type = 'time_in' AND fingerprint_id > 0"
+        )
         total_students = conn.execute(
             "SELECT COUNT(*) as count FROM students WHERE fingerprint_id > 0"
         ).fetchone()["count"]
         total_attendance = conn.execute(
-            f"SELECT COUNT(*) as count FROM attendance WHERE {qualifying_sql}"
+            f"SELECT COUNT(*) as count FROM ({attendance_day_sql}) AS attendance_days"
         ).fetchone()["count"]
 
         attendance_by_date = conn.execute(
-            f"SELECT date, COUNT(*) as count FROM attendance WHERE {qualifying_sql} "
+            f"SELECT date, COUNT(DISTINCT fingerprint_id) as count FROM attendance "
+            f"WHERE {qualifying_sql} AND event_type = 'time_in' AND fingerprint_id > 0 "
             "GROUP BY date ORDER BY date DESC LIMIT 30"
         ).fetchall()
 
         top_students = conn.execute(
             f"""
             SELECT COALESCE(s.student_name, 'Unknown') as name,
-                   COUNT(a.id) as count
+                   COUNT(DISTINCT a.date) as count
             FROM attendance a
             LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
-            WHERE {qualifying_sql} AND a.fingerprint_id > 0
+            WHERE {qualifying_sql} AND a.event_type = 'time_in' AND a.fingerprint_id > 0
             GROUP BY a.fingerprint_id
             ORDER BY count DESC
             LIMIT 10
@@ -1427,7 +1434,7 @@ def generate_statistics_report() -> str:
             "─" * 70,
             f"Total Students Enrolled: {total_students}",
             f"Total Attendance Records: {total_attendance}",
-            f"Average per Student: {total_attendance / max(total_students, 1):.1f} records",
+            f"Average Attendance Days per Student: {total_attendance / max(total_students, 1):.1f} days",
             "",
             "─" * 70,
             "TOP 10 STUDENTS (By Attendance Count)",
@@ -1436,7 +1443,7 @@ def generate_statistics_report() -> str:
 
         if top_students:
             for i, row in enumerate(top_students, 1):
-                report_lines.append(f"{i:2d}. {row['name']:<30s} {row['count']:4d} scans")
+                report_lines.append(f"{i:2d}. {row['name']:<30s} {row['count']:4d} days")
         else:
             report_lines.append("No attendance records yet.")
 
