@@ -28,6 +28,8 @@ def default_settings() -> Dict[str, Any]:
         "startup_connect_delay_ms": 1000,
         # compact sidebar (icons-only) to save vertical space
         "compact_sidebar": False,
+        # Percentage scale for dense data tables and report tables (75-125).
+        "table_zoom_percent": 100,
         # enable lightweight UI profiler (records timing of key UI events)
         "enable_profiler": False,
         # minimum AS608 confidence score (0-255) required to count a scan as a match
