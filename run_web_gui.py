@@ -19,18 +19,19 @@ def _show_startup_error(message: str) -> None:
     if not getattr(sys, "frozen", False) or not message:
         return
     try:
-        import tkinter as tk
-        from tkinter import messagebox
+        # Use the native Windows dialog API instead of Tk so the active v3
+        # runtime stays independent from the archived Tkinter interface.
+        import ctypes
 
-        root = tk.Tk()
-        root.withdraw()
-        try:
-            messagebox.showerror("DSIS could not start", message, parent=root)
-        finally:
-            root.destroy()
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            str(message),
+            "DSIS could not start",
+            0x10,  # MB_ICONERROR
+        )
     except Exception:
-        # The console/log remains the fallback if Tk or the desktop session
-        # is unavailable (for example, when running headless).
+        # The console/log remains the fallback if the desktop session or
+        # native dialog API is unavailable (for example, when running headless).
         pass
 
 
