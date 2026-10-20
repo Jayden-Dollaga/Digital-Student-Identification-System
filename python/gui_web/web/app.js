@@ -526,7 +526,15 @@ function toggleCompact() {
 }
 
 function applyTableZoom(value) {
-  const percent = Math.max(75, Math.min(125, Number.parseInt(value, 10) || 100));
+  // CSS provides six supported zoom levels. Normalize hand-edited settings
+  // (for example 80 or 95) to the nearest level so every accepted value has
+  // a visible effect rather than silently falling back to 100%.
+  const supported = [75, 85, 90, 100, 110, 125];
+  const parsed = Number(value);
+  const requested = Number.isFinite(parsed) ? parsed : 100;
+  const bounded = Math.max(75, Math.min(125, requested));
+  const percent = supported.reduce((best, candidate) =>
+    Math.abs(candidate - bounded) < Math.abs(best - bounded) ? candidate : best, supported[0]);
   const app = document.getElementById('app');
   if (app) app.dataset.tableZoom = String(percent);
   const control = document.getElementById('set-table-zoom');
@@ -2968,8 +2976,9 @@ async function renderCalendarMonth() {
     const typeLabel = entry ? (entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday') : '';
     let badge = '';
     if (entry) {
-      const shown = entry.label ? escapeHtml(entry.label) : typeLabel;
-      badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${escapeHtml(shown)}">${shown}</span>`;
+      const label = entry.label || typeLabel;
+      const safeLabel = escapeHtml(label);
+      badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${safeLabel}">${safeLabel}</span>`;
     } else if (isNoClassRecurringDay) {
       badge = '<span class="cal-day-badge cal-badge-no-class" title="No class">No class</span>';
     }
