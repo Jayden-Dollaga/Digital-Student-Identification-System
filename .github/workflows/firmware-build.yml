@@ -29,10 +29,31 @@ jobs:
 
       - name: Install ESP32 platform and sketch libraries
         run: |
-          # The Arduino package/library indexes occasionally download but fail
-          # to initialize on the first attempt. Retry transient index/install
-          # failures before failing the firmware check.
+          # Use an isolated CLI data directory and recover from partial index
+          # downloads. A failed archive extraction can leave the CLI without
+          # package_index.json even though the .tar.bz2 download succeeded.
           arduino-cli config init --overwrite
+          CLI_DATA_DIR="$RUNNER_TEMP/arduino-data"
+          CLI_USER_DIR="$RUNNER_TEMP/arduino-user"
+          mkdir -p "$CLI_DATA_DIR" "$CLI_USER_DIR"
+          arduino-cli config set directories.data "$CLI_DATA_DIR"
+          arduino-cli config set directories.user "$CLI_USER_DIR"
+          arduino-cli config dump
+
+          retry_index() {
+            attempt=1
+            until arduino-cli core update-index; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "Arduino package index update failed after 3 attempts."
+                find "$CLI_DATA_DIR" -maxdepth 2 -type f -print || true
+                return 1
+              fi
+              echo "Arduino package index update failed on attempt $attempt; clearing partial package-index downloads."
+              find "$CLI_DATA_DIR" -maxdepth 1 -type f \\( -name 'package_index*' -o -name 'library_index*' \\) -delete
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
           retry() {
             attempt=1
             until "$@"; do
@@ -45,7 +66,7 @@ jobs:
               attempt=$((attempt + 1))
             done
           }
-          retry arduino-cli core update-index
+          retry_index
           retry arduino-cli core install esp32:esp32
           retry arduino-cli lib update-index
           retry arduino-cli lib install "Adafruit Fingerprint Sensor Library"
