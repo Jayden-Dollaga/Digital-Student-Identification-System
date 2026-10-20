@@ -48,13 +48,7 @@ def main(preflight_runner=run_environment_preflight, app_launcher=None):
         if app_launcher is None:
             from gui_web.main_web import main as app_launcher
 
-        try:
-            app_launcher()
-        except Exception as exc:
-            message = f"DSIS failed to start: {exc}\n\nSee the DSIS log for details."
-            print(message, file=sys.stderr)
-            _show_startup_error(message)
-            raise
+        app_launcher()
     except SystemExit:
         raise
     except Exception as exc:
