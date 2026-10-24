@@ -1057,11 +1057,30 @@ def get_attendance_all() -> List[AttendanceRow]:
         conn.close()
 
 
-def get_attendance_paginated(limit: int = 100, offset: int = 0) -> List[AttendanceRow]:
-    query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
+def get_attendance_paginated(
+    limit: int = 100,
+    offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> List[AttendanceRow]:
+    """Return a bounded newest-first page, optionally constrained to a date range."""
+    filters: List[str] = []
+    params: List[Any] = []
+    if start_date:
+        filters.append("a.date >= ?")
+        params.append(start_date)
+    if end_date:
+        filters.append("a.date <= ?")
+        params.append(end_date)
+    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+    query = (
+        f"{ATTENDANCE_JOIN_QUERY}{where_clause} "
+        "ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
+    )
+    params.extend((max(1, min(int(limit), 1001)), max(0, int(offset))))
     conn = get_connection()
     try:
-        rows = conn.execute(query, (limit, offset)).fetchall()
+        rows = conn.execute(query, tuple(params)).fetchall()
         return _row_dicts(rows)
     finally:
         conn.close()
