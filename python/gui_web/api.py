@@ -1447,7 +1447,11 @@ class Api:
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
         if not permissions.has_permission("read_records"):
-            return {"rows": [], "offset": offset, "has_more": False, "restricted": True}
+            return {"rows": [], "offset": 0, "has_more": False, "restricted": True}
+        try:
+            offset = max(0, int(offset))
+        except (TypeError, ValueError, OverflowError):
+            offset = 0
         mode = (mode or "today").lower()
         page_size = 100
         if mode == "today":
@@ -1458,9 +1462,10 @@ class Api:
             end = datetime.now().strftime("%Y-%m-%d")
             rows = list(reversed(db.export_attendance_range(start, end)))
             has_more = False
-        else:  # recent - paginated, matching v2's AttendancePage Prev/Next
-            rows = db.get_attendance_paginated(limit=page_size, offset=offset)
-            has_more = len(rows) == page_size
+        else:  # recent - fetch one lookahead row to avoid an empty extra page
+            fetched_rows = db.get_attendance_paginated(limit=page_size + 1, offset=offset)
+            has_more = len(fetched_rows) > page_size
+            rows = fetched_rows[:page_size]
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
