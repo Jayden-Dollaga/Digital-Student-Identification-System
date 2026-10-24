@@ -75,3 +75,25 @@ def test_recent_attendance_pagination_normalizes_untrusted_offset(monkeypatch, b
 
     assert result["offset"] == 0
     assert calls == [(101, 0)]
+
+
+def test_last30_attendance_is_paginated_and_date_limited(monkeypatch):
+    api = api_module.Api.__new__(api_module.Api)
+    source_rows = _rows(205)
+    calls = []
+
+    def get_page(limit, offset, start_date=None, end_date=None):
+        calls.append((limit, offset, start_date, end_date))
+        return source_rows[offset : offset + limit]
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_attendance_paginated", get_page)
+    monkeypatch.setattr(api_module, "load_settings", default_settings)
+
+    result = api.get_attendance("last30", 100)
+
+    assert len(result["rows"]) == 100
+    assert result["has_more"] is True
+    assert result["offset"] == 100
+    assert calls[0][0:2] == (101, 100)
+    assert calls[0][2] <= calls[0][3]
