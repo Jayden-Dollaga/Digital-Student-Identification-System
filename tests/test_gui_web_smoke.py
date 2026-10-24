@@ -771,7 +771,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
     api = Api()
     permissions.set_session_role("teacher", 600.0)
     monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
-    monkeypatch.setattr("gui_web.api.db.export_attendance_range", lambda start, end: [{
+    monkeypatch.setattr("gui_web.api.db.get_attendance_paginated", lambda limit, offset, start_date=None, end_date=None: [{
         "fingerprint_id": 1,
         "date": "2026-09-20",
         "time": "12:00:00",
