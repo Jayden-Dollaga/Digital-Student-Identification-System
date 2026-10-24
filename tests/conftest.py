@@ -1,6 +1,10 @@
 """Stable import paths for active and archived test fixtures."""
 
+import atexit
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +19,18 @@ for path in reversed(PATHS):
     path_text = str(path)
     if path_text not in sys.path:
         sys.path.insert(0, path_text)
+
+# Keep the suite away from a developer's real data/attendance.db, exports and
+# logs: several tests initialize the database, and some call destructive helpers
+# such as clear_all_students(). This must run before anything imports
+# core.config, which reads these variables at import time. Variables the
+# developer already set are respected.
+if "FINGERPRINT_DB_PATH" not in os.environ:
+    _TEST_DATA_DIR = Path(tempfile.mkdtemp(prefix="dsis-tests-"))
+    atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
+    os.environ["FINGERPRINT_DB_PATH"] = str(_TEST_DATA_DIR / "attendance.db")
+    os.environ.setdefault("FINGERPRINT_EXPORT_FOLDER", str(_TEST_DATA_DIR / "exports"))
+    os.environ.setdefault("FINGERPRINT_LOG_FOLDER", str(_TEST_DATA_DIR / "logs"))
 
 from core import permissions
 
