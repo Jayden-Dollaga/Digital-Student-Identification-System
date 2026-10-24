@@ -20,17 +20,19 @@ for path in reversed(PATHS):
     if path_text not in sys.path:
         sys.path.insert(0, path_text)
 
-# Keep the suite away from a developer's real data/attendance.db, exports and
-# logs: several tests initialize the database, and some call destructive helpers
-# such as clear_all_students(). This must run before anything imports
-# core.config, which reads these variables at import time. Variables the
-# developer already set are respected.
-if "FINGERPRINT_DB_PATH" not in os.environ:
+# Never point the test suite at the normal data directory or a caller-provided
+# production database by accident. Opting out is deliberately explicit:
+# DSIS_TEST_USE_CONFIGURED_DATA=1. Redirect the data directory as well as the
+# individual DB/export/log paths because settings_store persists settings below
+# CONFIG.data_dir and otherwise could still read or mutate the developer's
+# real settings.json.
+if os.getenv("DSIS_TEST_USE_CONFIGURED_DATA", "").strip() != "1":
     _TEST_DATA_DIR = Path(tempfile.mkdtemp(prefix="dsis-tests-"))
     atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
+    os.environ["FINGERPRINT_DATA_DIR"] = str(_TEST_DATA_DIR)
     os.environ["FINGERPRINT_DB_PATH"] = str(_TEST_DATA_DIR / "attendance.db")
-    os.environ.setdefault("FINGERPRINT_EXPORT_FOLDER", str(_TEST_DATA_DIR / "exports"))
-    os.environ.setdefault("FINGERPRINT_LOG_FOLDER", str(_TEST_DATA_DIR / "logs"))
+    os.environ["FINGERPRINT_EXPORT_FOLDER"] = str(_TEST_DATA_DIR / "exports")
+    os.environ["FINGERPRINT_LOG_FOLDER"] = str(_TEST_DATA_DIR / "logs")
 
 from core import permissions
 
