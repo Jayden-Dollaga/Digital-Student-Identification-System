@@ -928,6 +928,10 @@ def log_attendance(
     time_str = now.strftime("%H:%M:%S")
 
     with get_connection() as conn:
+        # Take the write lock before the "already present?" check so two scans
+        # of the same student (for example fingerprint + RFID at once) cannot
+        # both be classified as the day's Time In.
+        conn.execute("BEGIN IMMEDIATE")
         # A qualifying scan records arrival only. Repeated scans remain in the
         # audit trail but never imply departure; Time-Out is a separate,
         # explicitly authorized event recorded by mark_attendance_time_out().
@@ -1098,29 +1102,29 @@ def get_daily_attendance_summary(
     grouped: Dict[Tuple[int, str], RowDict] = {}
     qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row in rows:
-        row_dict = dict(row)
         # Display names are not unique. Group by stable ID so two students
         # with the same name cannot have their attendance merged.
-        key = (row_dict["fingerprint_id"], row_dict["date"])
-        entry = grouped.setdefault(
-            key,
-            {
-                "student_name": row_dict["student_name"],
-                "student_no": row_dict["student_no"],
-                "grade": row_dict["grade"],
-                "section": row_dict["section"],
-                "date": row_dict["date"],
+        key = (row["fingerprint_id"], row["date"])
+        entry = grouped.get(key)
+        if entry is None:
+            # Build the entry only for the first row of a student-day; a
+            # setdefault() default would allocate a throwaway dict per row.
+            entry = grouped[key] = {
+                "student_name": row["student_name"],
+                "student_no": row["student_no"],
+                "grade": row["grade"],
+                "section": row["section"],
+                "date": row["date"],
                 "time_in": "",
                 "time_out": "",
-                "match_status": row_dict["status"],
-                "status": row_dict["status"],
+                "match_status": row["status"],
+                "status": row["status"],
                 "_qualifying_scan_count": 0,
-            },
-        )
+            }
 
-        status = str(row_dict.get("status") or "").strip()
-        if row_dict.get("event_type") == "time_out" and status.upper() == "TIME OUT":
-            entry["time_out"] = row_dict["time"]
+        status = str(row["status"] or "").strip()
+        if row["event_type"] == "time_out" and status.upper() == "TIME OUT":
+            entry["time_out"] = row["time"]
             continue
         if status.lower() in qualifying_statuses:
             # Only the first qualifying scan sets Time In. Later scans are
@@ -1128,7 +1132,7 @@ def get_daily_attendance_summary(
             # event may populate the Time Out field.
             entry["_qualifying_scan_count"] += 1
             if entry["_qualifying_scan_count"] == 1:
-                entry["time_in"] = row_dict["time"]
+                entry["time_in"] = row["time"]
             entry["status"] = status
             entry["match_status"] = status
 
