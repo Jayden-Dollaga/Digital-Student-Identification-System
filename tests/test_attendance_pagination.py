@@ -8,6 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
+from core import database
 from gui_web import api as api_module
 from settings_store import default_settings
 
@@ -97,3 +98,22 @@ def test_last30_attendance_is_paginated_and_date_limited(monkeypatch):
     assert result["offset"] == 100
     assert calls[0][0:2] == (101, 100)
     assert calls[0][2] <= calls[0][3]
+
+
+def test_database_pagination_applies_inclusive_date_filters(tmp_path, monkeypatch):
+    from datetime import datetime
+
+    monkeypatch.setattr(database, "DB_PATH", str(tmp_path / "attendance.db"))
+    database.init_database()
+    ok, message = database.add_student(1, "S-001", "Student One", "12", "A")
+    assert ok, message
+
+    database.log_attendance(1, 200, "PRESENT", datetime(2026, 10, 5, 8, 0))
+    database.log_attendance(1, 200, "PRESENT", datetime(2026, 10, 19, 8, 0))
+    database.log_attendance(1, 200, "PRESENT", datetime(2026, 10, 24, 8, 0))
+
+    rows = database.get_attendance_paginated(
+        limit=10, offset=0, start_date="2026-10-10", end_date="2026-10-20"
+    )
+
+    assert [row["date"] for row in rows] == ["2026-10-19"]
