@@ -1449,6 +1449,10 @@ class Api:
         if not permissions.has_permission("read_records"):
             return {"rows": [], "offset": 0, "has_more": False, "restricted": True}
         try:
+            if isinstance(offset, bool) or (
+                isinstance(offset, float) and not offset.is_integer()
+            ):
+                raise ValueError("offset must be an integer")
             offset = max(0, int(offset))
         except (TypeError, ValueError, OverflowError):
             offset = 0
