@@ -605,8 +605,12 @@ def test_v3_csv_preserves_long_student_numbers_and_attendance_status(tmp_path):
 
 def test_v3_today_export_uses_visible_fallback_rows(monkeypatch):
     from gui_web.api import Api
+    from settings_store import default_settings
 
     api = Api()
+    # Classification depends on the school schedule, so do not read the
+    # developer's real data/settings.json (a 07:15 start made this test fail).
+    monkeypatch.setattr("gui_web.api.load_settings", default_settings)
     api._rows_to_csv = MagicMock(return_value={"ok": True})
     api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/attendance.csv"))
     visible_rows = [{
