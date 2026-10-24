@@ -1261,11 +1261,11 @@ async function loadAttendancePage() {
   renderAttendanceRows(res.rows);
   document.getElementById('att-count').textContent = `${res.rows.length} records`;
 
-  const isRecent = modeKey === 'recent';
-  document.getElementById('att-page-sep').style.display = isRecent ? 'block' : 'none';
-  document.getElementById('att-prev-btn').style.display = isRecent ? 'inline-flex' : 'none';
-  document.getElementById('att-next-btn').style.display = isRecent ? 'inline-flex' : 'none';
-  if (isRecent) {
+  const isPaginated = modeKey === 'recent' || modeKey === 'last30';
+  document.getElementById('att-page-sep').style.display = isPaginated ? 'block' : 'none';
+  document.getElementById('att-prev-btn').style.display = isPaginated ? 'inline-flex' : 'none';
+  document.getElementById('att-next-btn').style.display = isPaginated ? 'inline-flex' : 'none';
+  if (isPaginated) {
     document.getElementById('att-prev-btn').disabled = attendanceOffset === 0;
     document.getElementById('att-next-btn').disabled = !res.has_more;
   }
