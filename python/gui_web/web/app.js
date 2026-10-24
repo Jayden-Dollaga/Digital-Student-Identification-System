@@ -530,7 +530,9 @@ function applyTableZoom(value) {
   // (for example 80 or 95) to the nearest level so every accepted value has
   // a visible effect rather than silently falling back to 100%.
   const supported = [75, 85, 90, 100, 110, 125];
-  const parsed = Number(value);
+  // Number('') and Number(null) are 0, which would clamp to 75%; treat an
+  // empty value as "not set" so it falls back to the 100% default instead.
+  const parsed = value === null || value === '' ? NaN : Number(value);
   const requested = Number.isFinite(parsed) ? parsed : 100;
   const bounded = Math.max(75, Math.min(125, requested));
   const percent = supported.reduce((best, candidate) =>
