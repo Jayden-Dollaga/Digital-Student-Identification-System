@@ -1464,8 +1464,11 @@ class Api:
         elif mode == "last30" or mode == "last 30 days":
             start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
             end = datetime.now().strftime("%Y-%m-%d")
-            rows = list(reversed(db.export_attendance_range(start, end)))
-            has_more = False
+            fetched_rows = db.get_attendance_paginated(
+                limit=page_size + 1, offset=offset, start_date=start, end_date=end
+            )
+            has_more = len(fetched_rows) > page_size
+            rows = fetched_rows[:page_size]
         else:  # recent - fetch one lookahead row to avoid an empty extra page
             fetched_rows = db.get_attendance_paginated(limit=page_size + 1, offset=offset)
             has_more = len(fetched_rows) > page_size
