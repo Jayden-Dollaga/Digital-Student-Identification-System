@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,290 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+def test_attendance_evaluation_export_requires_export_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: False)
+    monkeypatch.setattr(
+        instance,
+        "get_attendance_evaluation",
+        lambda *args, **kwargs: pytest.fail("Report must not be generated without export permission"),
+    )
+
+    result = instance.export_attendance_evaluation_csv()
+
+    assert result["ok"] is False
+    assert "export permission" in result["message"].lower()
+
+
+def test_student_field_validation_requires_enrollment_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "require_permission", lambda action: False)
+    monkeypatch.setattr(
+        api_module.db,
+        "get_student_field_feedback",
+        lambda *args, **kwargs: pytest.fail("Validation must not query roster without enroll permission"),
+    )
+
+    result = instance.validate_student_fields("LRN001", "A Student", "12", "CSS")
+
+    assert result["ok"] is False
+    assert result["status"] == 403
+    assert result["fields"] == {}
+
+
+def test_api_fails_startup_when_database_initialization_fails(monkeypatch):
+    monkeypatch.setattr(
+        api_module.db,
+        "init_database",
+        lambda: (_ for _ in ()).throw(OSError("database unavailable")),
+    )
+
+    with pytest.raises(RuntimeError, match="could not initialize its local database"):
+        api_module.Api()
+
+
+def test_application_logs_and_log_folder_are_admin_only(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    permissions.set_session_role("guest", 600.0)
+    monkeypatch.setattr(
+        api_module.os,
+        "startfile",
+        lambda path: pytest.fail("Guest must not open the application log folder"),
+        raising=False,
+    )
+
+    assert instance.get_app_log() == []
+    denied = instance.open_log_folder()
+    assert denied["ok"] is False
+    assert denied["status"] == 403
+
+    permissions.set_session_role("teacher", 600.0)
+    assert instance.get_app_log() == []
+    assert instance.open_log_folder()["status"] == 403
+
+
+def test_identifiable_exports_require_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+
+    def allow_export_only(action):
+        return action == "export"
+
+    monkeypatch.setattr(api_module.permissions, "require_permission", allow_export_only)
+    monkeypatch.setattr(
+        api_module.db,
+        "export_attendance_range_with_time_in_out",
+        lambda *args, **kwargs: pytest.fail("Attendance export queried data without read permission"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_all_students",
+        lambda: pytest.fail("Student export queried roster without read permission"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "generate_statistics_report",
+        lambda: pytest.fail("Statistics export generated report without read permission"),
+    )
+
+    assert instance.export_attendance_csv()["status"] == 403
+    assert instance.export_students_csv()["status"] == 403
+    assert instance.export_statistics_report()["status"] == 403
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    ["export_attendance_csv", "export_students_csv", "export_statistics_report"],
+)
+def test_csv_and_statistics_exports_require_record_read_permission(monkeypatch, method_name):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(
+        api_module.permissions,
+        "require_permission",
+        lambda action: action == "export",
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_attendance_all",
+        lambda: pytest.fail("Export must not read attendance without read_records"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_all_students",
+        lambda: pytest.fail("Export must not read roster without read_records"),
+    )
+
+    result = getattr(instance, method_name)()
+
+    assert result["ok"] is False
+    assert result["status"] == 403
+    assert "record-reading permission" in result["message"].lower()
+
+
+def test_statistics_report_requires_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: action == "export")
+    monkeypatch.setattr(
+        api_module.db,
+        "get_attendance_all",
+        lambda: pytest.fail("Identifiable attendance must not be read without read_records"),
+    )
+
+    result = instance.get_statistics_report()
+
+    assert result["ok"] is False
+    assert "record-reading" in result["message"].lower()
+
+
+def test_existing_malformed_password_verifier_requires_recovery(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    settings["auth"] = {
+        "password_salt": "AA==",
+        "password_hash": "AA==",
+        "iterations": auth.PBKDF2_ITERATIONS,
+    }
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: False)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
+def test_quarantined_settings_without_marker_cannot_open_first_run_setup(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: False)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "has_quarantined_settings", lambda: True)
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+        assert instance.complete_first_run_setup("some password", "some password")["ok"] is False
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
+def test_existing_database_without_settings_or_marker_requires_recovery(monkeypatch):
+    from settings_store import default_settings
+
+    settings = default_settings()
+    marker = {"exists": False}
+
+    monkeypatch.setattr(api_module.db, "init_database", lambda: None)
+    monkeypatch.setattr(api_module.db, "has_persisted_records", lambda: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings.copy())
+    monkeypatch.setattr(api_module, "has_quarantined_settings", lambda: False)
+    monkeypatch.setattr(api_module, "admin_initialization_marker_exists", lambda: marker["exists"])
+
+    def mark_initialized():
+        marker["exists"] = True
+        return Path(".admin_initialized")
+
+    monkeypatch.setattr(api_module, "write_admin_initialization_marker", mark_initialized)
+    instance = api_module.Api()
+    try:
+        assert instance._first_run_setup_required is False
+        assert instance._first_run_recovery_required is True
+        assert instance.is_first_run_setup_required()["recovery_required"] is True
+        result = instance.complete_first_run_setup("safe enough pass", "safe enough pass")
+        assert result["ok"] is False
+    finally:
+        api_module.LOG.removeHandler(instance._log_handler)
+
+
+def test_initial_password_cannot_overwrite_malformed_existing_verifier():
+    settings = {"auth": {
+        "password_salt": "AA==",
+        "password_hash": "invalid",
+    }}
+
+    with pytest.raises(ValueError, match="password material already exists"):
+        auth.set_initial_password(settings, "some secure password")
+
+
+def test_password_record_presence_is_separate_from_verifier_validity():
+    valid_settings = {"auth": auth.hash_password("correct horse battery")}
+    assert auth.has_password_material(valid_settings)
+    assert auth.has_password_set(valid_settings)
+
+    invalid_settings = {"auth": {
+        "password_salt": "AA==",
+        "password_hash": "not-a-valid-digest",
+    }}
+    assert auth.has_password_material(invalid_settings)
+    assert not auth.has_password_set(invalid_settings)
+    assert not auth.has_password_material({"auth": {"failed_attempts": 2}})
+
+
+def test_dashboard_stats_are_restricted_without_record_read_permission(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: False)
+    monkeypatch.setattr(
+        api_module.db,
+        "get_today_attendance_info",
+        lambda: pytest.fail("Guest dashboard must not query identifiable attendance"),
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_student_count",
+        lambda: pytest.fail("Guest dashboard must not expose school roster size"),
+    )
+
+    result = instance.get_dashboard_stats()
+
+    assert result["restricted"] is True
+    assert result["total_students"] == 0
+    assert result["present_count"] == 0
+    assert result["attendance_rate"] is None
+
+
+def test_malformed_far_future_lockout_deadline_is_clamped_and_persisted(monkeypatch):
+    instance = api_module.Api.__new__(api_module.Api)
+    settings = {
+        "auth": {
+            "password_hash": "retained",
+            "lockout_until_epoch": time.time() + 10**8,
+            "failed_attempts": 0,
+        }
+    }
+    saved = {}
+    monkeypatch.setattr(api_module, "save_settings", lambda value: saved.update(value))
+
+    remaining = instance._admin_lockout_remaining(settings)
+
+    assert 0 <= remaining <= api_module.ADMIN_LOGIN_LOCKOUT_SECONDS
+    assert saved["auth"]["lockout_until_epoch"] <= time.time() + api_module.ADMIN_LOGIN_LOCKOUT_SECONDS + 1
+    assert saved["auth"]["password_hash"] == "retained"
+
+
 def test_password_hash_is_salted_and_verifies():
     first = auth.hash_password("correct horse battery")
     second = auth.hash_password("correct horse battery")
@@ -20,6 +305,31 @@ def test_password_hash_is_salted_and_verifies():
     assert auth.verify_password("correct horse battery", first)
     assert not auth.verify_password("wrong password", first)
     assert "correct horse battery" not in str(first)
+
+
+def test_password_verification_rejects_malformed_or_expensive_records():
+    record = auth.hash_password("correct horse battery")
+    excessive = dict(record, iterations=10**12)
+    bad_salt = dict(record, password_salt="AA==")
+    bad_hash = dict(record, password_hash="not-a-real-hash")
+    oversized_hash = dict(record, password_hash="A" * 100_000)
+
+    assert not auth.verify_password("correct horse battery", excessive)
+    assert not auth.verify_password("correct horse battery", bad_salt)
+    assert not auth.verify_password("correct horse battery", bad_hash)
+    assert not auth.verify_password("correct horse battery", oversized_hash)
+    assert not auth.verify_password(None, record)
+    assert not auth.verify_password("x", None)
+
+
+def test_password_validation_and_verification_reject_excessive_length():
+    huge_password = "x" * (auth.MAX_PASSWORD_LENGTH + 1)
+    assert auth.validate_new_password(huge_password, huge_password).startswith("Password must be no longer")
+    assert not auth.verify_password(huge_password, auth.hash_password("normal pass"))
+
+
+def test_password_validation_rejects_non_text_inputs():
+    assert auth.validate_new_password(123, 123) == "Password fields must be text."
 
 
 def test_role_hierarchy_is_ordered():
@@ -237,6 +547,7 @@ def test_guest_can_elevate_to_admin_with_correct_password(monkeypatch):
 def test_wrong_password_does_not_elevate(monkeypatch):
     settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+    monkeypatch.setattr(api_module, "save_settings", lambda value: settings.update(value))
 
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
@@ -247,9 +558,10 @@ def test_wrong_password_does_not_elevate(monkeypatch):
     assert instance.get_current_role() == "guest"
 
 
-def test_admin_password_lockout_after_repeated_failures(monkeypatch):
+def test_admin_password_lockout_persists_across_api_restarts(monkeypatch):
     settings = {"auth": auth.hash_password("admin")}
     monkeypatch.setattr(api_module, "load_settings", lambda: dict(settings))
+    monkeypatch.setattr(api_module, "save_settings", lambda value: settings.update(value))
 
     instance = api_module.Api.__new__(api_module.Api)
     instance._session_timeout_seconds = 600.0
@@ -259,7 +571,10 @@ def test_admin_password_lockout_after_repeated_failures(monkeypatch):
         result = instance.authenticate_role("admin", "incorrect")
         assert result["ok"] is False
 
-    locked = instance.authenticate_role("admin", "admin")
+    assert settings["auth"]["lockout_until_epoch"] > time.time()
+    restarted_instance = api_module.Api.__new__(api_module.Api)
+    restarted_instance._session_timeout_seconds = 600.0
+    locked = restarted_instance.authenticate_role("admin", "admin")
     assert locked["ok"] is False
     assert "locked" in locked["message"].lower()
 

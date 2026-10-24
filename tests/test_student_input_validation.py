@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from core import database as database_module
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
@@ -18,10 +20,12 @@ class TestStudentInputValidation:
     """Test student input validation."""
     
     @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup test database."""
+    def setup(self, tmp_path, monkeypatch):
+        """Use an isolated temporary database; never mutate the developer's roster."""
+        test_db = tmp_path / "attendance_test.db"
+        monkeypatch.setattr(database_module, "DB_PATH", str(test_db))
         init_database()
-        clear_all_students()  # Clear students before each test
+        clear_all_students()
         yield
     
     def test_validate_fingerprint_id_too_low(self):

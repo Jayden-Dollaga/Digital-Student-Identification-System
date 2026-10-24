@@ -101,13 +101,17 @@ def main() -> None:
         height=height,
         min_size=(min(560, width), min(400, height)),
     )
-    api.set_window(window)
+    api._set_window(window)
 
     def _on_closed() -> None:
         try:
             api._disconnect_impl()
         except Exception:
             pass
+        try:
+            api._stop_background_tasks()
+        except Exception as exc:
+            log.warning(f"Could not stop DSIS background tasks cleanly: {exc}")
         log.info("DSIS v3 (web) window closed")
 
     window.events.closed += _on_closed

@@ -145,7 +145,7 @@ The frontend receives push events without polling the serial port itself.
 4. Python parses the event.
 5. Python applies the desktop confidence threshold and per-ID cooldown.
 6. Successful events are written to SQLite.
-7. `event_type` is assigned as `time_in` for the first scan of that fingerprint on that date and `time_out` for later scans.
+7. The first qualifying scan is tagged `time_in`; later qualifying scans are tagged `scan` and remain audit-only. A separate teacher/admin action records an explicit `time_out` event.
 8. The API pushes `scan_result` and data refresh events to the UI.
 
 Firmware and desktop filtering are separate. Firmware accepts matches at its floor of 50 confidence; the default Python classification threshold is 100. Therefore a firmware-accepted match with confidence 50–99 is stored as `WEAK MATCH` by the desktop processor.

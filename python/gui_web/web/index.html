@@ -314,6 +314,7 @@
               <div class="detail-field-value"><span class="badge" id="student-status-today">Absent</span></div>
             </div>
             <div class="detail-actions">
+              <button id="mark-time-out-btn" class="detail-btn" data-permission="read_records" onclick="markSelectedStudentTimeOut()" disabled>Record Time Out</button>
               <button id="manage-rfid-btn" class="detail-btn" data-permission="enroll" onclick="openManageRfidDialog()" disabled>Manage RFID</button>
               <button class="detail-btn" data-permission="enroll" onclick="editSelectedStudentDetails()">Edit Details</button>
               <button class="detail-btn" data-permission="enroll" onclick="reenrollSelectedStudent()">Re-enroll Student</button>
@@ -337,6 +338,7 @@
           <div class="report-item" onclick="exportAttendanceCsv('today')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Today's Attendance (CSV)</span><span class="report-meta" id="rpt-today-count">—</span></div>
           <div class="report-item" style="cursor:default"><span class="report-icon">📄</span><span class="report-name">Export Weekly Attendance (CSV)</span><input type="week" id="export-week" class="settings-text-input" onchange="updateExportWeekLabel()"><span class="report-meta" id="export-week-label">Choose a week</span><button class="hdr-btn" onclick="exportAttendanceCsv('weekly', document.getElementById('export-week').value)">Export</button></div>
           <div class="report-item" onclick="exportAttendanceCsv('last30')" style="cursor:pointer"><span class="report-icon">📄</span><span class="report-name">Export Last 30 Days (CSV)</span><span class="report-meta" id="rpt-last30-label">—</span></div>
+          <div class="report-item report-custom-range"><span class="report-icon">🗓️</span><span class="report-name">Custom date range (CSV)</span><label class="sr-only" for="export-start-date">Start date</label><input type="date" id="export-start-date" class="settings-text-input" aria-label="Export start date"><label class="sr-only" for="export-end-date">End date</label><input type="date" id="export-end-date" class="settings-text-input" aria-label="Export end date"><button class="hdr-btn" onclick="exportAttendanceCsv('custom')">Export</button></div>
           <div class="report-item" onclick="exportStudentsCsv()" style="cursor:pointer"><span class="report-icon">📊</span><span class="report-name">Export All Students (CSV)</span><span class="report-meta" id="rpt-students-count">—</span></div>
           <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Backups</div>
           <div id="backups-list"></div>
@@ -474,6 +476,18 @@
               <span class="settings-row-label">Compact view</span>
               <div class="toggle-switch" id="settings-compact-toggle" onclick="toggleCompact()"></div>
             </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Table zoom</span>
+              <select class="settings-text-input" id="set-table-zoom" style="max-width:140px;" onchange="applyTableZoom(this.value)">
+                <option value="75">75% — compact</option>
+                <option value="85">85%</option>
+                <option value="90">90%</option>
+                <option value="100">100% — default</option>
+                <option value="110">110%</option>
+                <option value="125">125% — larger</option>
+              </select>
+            </div>
+            <div class="settings-row-desc">Applies immediately and is saved with administrator settings. It changes table/report density without scaling the whole app; wide tables can still scroll horizontally.</div>
           </div>
 
           <div class="settings-group" data-required-role="admin">
@@ -486,7 +500,7 @@
             </div>
             <div class="settings-row">
               <span class="settings-row-label">Minimum match confidence</span>
-              <input type="number" min="1" max="100" value="96" class="settings-spinner" id="set-confidence">
+              <input type="number" min="1" max="255" value="100" class="settings-spinner" id="set-confidence">
             </div>
             <div style="padding:6px 14px 10px;font-size:11px;color:var(--accent);opacity:.8;">
               Lower confidence accepts weaker fingerprint matches; cooldown blocks repeat scans of the same student.

@@ -1,0 +1,91 @@
+name: Firmware build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware-build.yml"
+  workflow_dispatch: {}
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  compile-esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 platform and sketch libraries
+        run: |
+          # Use an isolated CLI data directory and recover from partial index
+          # downloads. A failed archive extraction can leave the CLI without
+          # package_index.json even though the .tar.bz2 download succeeded.
+          arduino-cli config init --overwrite
+          CLI_DATA_DIR="$RUNNER_TEMP/arduino-data"
+          CLI_USER_DIR="$RUNNER_TEMP/arduino-user"
+          mkdir -p "$CLI_DATA_DIR" "$CLI_USER_DIR"
+          arduino-cli config set directories.data "$CLI_DATA_DIR"
+          arduino-cli config set directories.user "$CLI_USER_DIR"
+          arduino-cli config dump
+
+          retry_index() {
+            attempt=1
+            until arduino-cli core update-index; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "Arduino package index update failed after 3 attempts."
+                find "$CLI_DATA_DIR" -maxdepth 2 -type f -print || true
+                return 1
+              fi
+              echo "Arduino package index update failed on attempt $attempt; clearing partial package-index downloads."
+              rm -f "$CLI_DATA_DIR"/package_index* "$CLI_DATA_DIR"/library_index*
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+          retry() {
+            attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "Command failed after 3 attempts: $*"
+                return 1
+              fi
+              echo "Attempt $attempt failed; retrying in $((attempt * 3)) seconds: $*"
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+          retry_index
+          retry arduino-cli core install esp32:esp32
+          retry arduino-cli lib update-index
+          retry arduino-cli lib install "Adafruit Fingerprint Sensor Library"
+          retry arduino-cli lib install "MFRC522"
+
+      - name: Compile maintained DSIS ESP32 firmware
+        run: |
+          mkdir -p build/firmware
+          arduino-cli compile --warnings all --fqbn esp32:esp32:esp32 --output-dir build/firmware firmware/ESP32_DSIS_AllInOne
+
+      - name: Verify compiled firmware images
+        run: |
+          find build/firmware -maxdepth 1 -type f -name '*.bin' -print
+          test -n "$(find build/firmware -maxdepth 1 -type f -name '*.bin' -print -quit)"
+
+      - name: Upload compiled firmware images
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSIS-firmware-${{ github.sha }}
+          path: build/firmware/*.bin
+          if-no-files-found: error
+          retention-days: 7

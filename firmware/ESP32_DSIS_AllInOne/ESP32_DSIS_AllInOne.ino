@@ -489,7 +489,13 @@ void updateLed() {
 
 // ── Mode ──────────────────────────────────────────────────────────────────────
 bool scanMode = false;  // false = command mode, true = scan mode
+bool fingerprintSensorReady = false;  // RFID should remain usable when AS608 is offline
 String pendingCommand = "";
+// Non-blocking, bounded host command line reader. Serial.readStringUntil() can
+// stall the scan loop for its stream timeout when a partial line arrives.
+String serialCommandBuffer = "";
+bool serialCommandOverflow = false;
+const size_t SERIAL_COMMAND_MAX_LENGTH = 512;
 
 // NOTE: The firmware is intentionally kept in a single sketch for now.
 // If it grows further, the LED logic, command handling, and fingerprint flow
@@ -504,6 +510,7 @@ void setup() {
   beginLedManager();
 
   Serial.begin(115200);
+  serialCommandBuffer.reserve(SERIAL_COMMAND_MAX_LENGTH);
   unsigned long bootStart = millis();
   while (millis() - bootStart < 1000) {
     updateLed();
@@ -531,20 +538,20 @@ void setup() {
   finger.begin(57600);
 
   if (finger.verifyPassword()) {
+    fingerprintSensorReady = true;
     Serial.println("Sensor found!");
     ledReady();
+    finger.getTemplateCount();
+    Serial.print("Stored fingerprints: ");
+    Serial.println(finger.templateCount);
   } else {
-    Serial.println("ERROR: Sensor not found. Check wiring.");
+    // Keep servicing Serial and the RC522 even when the AS608 is unplugged
+    // or fails authentication. Fingerprint-only commands are rejected below.
+    fingerprintSensorReady = false;
+    Serial.println("WARNING: Fingerprint sensor not found. Check wiring; RFID remains available.");
+    Serial.println("Stored fingerprints: unavailable (sensor offline)");
     ledError();
-    while (1) {
-      updateLed();
-      delay(1);
-    }
   }
-
-  finger.getTemplateCount();
-  Serial.print("Stored fingerprints: ");
-  Serial.println(finger.templateCount);
 
   SPI.begin();
   rfid.PCD_Init();
@@ -578,11 +585,31 @@ void loop() {
     return;
   }
 
-  // Check for Serial commands from PC
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    handleCommand(input);
+  // Consume host serial input without blocking sensor polling while waiting
+  // for a newline. Discard overlong lines until their delimiter to avoid
+  // interpreting a truncated command as a valid command.
+  while (Serial.available() > 0) {
+    const char incoming = static_cast<char>(Serial.read());
+    if (incoming == '\r') continue;
+    if (incoming == '\n') {
+      if (serialCommandOverflow) {
+        Serial.println("ERROR: serial command exceeds maximum length");
+      } else if (serialCommandBuffer.length() > 0) {
+        serialCommandBuffer.trim();
+        handleCommand(serialCommandBuffer);
+      }
+      serialCommandBuffer = "";
+      serialCommandOverflow = false;
+      // Yield back to sensor polling after one complete command.
+      break;
+    }
+    if (serialCommandOverflow) continue;
+    if (serialCommandBuffer.length() >= SERIAL_COMMAND_MAX_LENGTH) {
+      serialCommandBuffer = "";
+      serialCommandOverflow = true;
+      continue;
+    }
+    serialCommandBuffer += incoming;
   }
 
   // If in scan mode, keep scanning for fingers AND cards
@@ -613,6 +640,16 @@ void handleCommand(String input) {
   String normalized = command;
   if (payload.length() > 0) {
     normalized += ":" + payload;
+  }
+
+  // Reject fingerprint-only operations if the AS608 failed initialization,
+  // but allow SCAN mode so an available RC522 can still read RFID attendance.
+  if (!fingerprintSensorReady &&
+      (normalized == "WIPE" || normalized == "ENROLL" ||
+       normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
+       normalized == "LIST")) {
+    Serial.println("ERROR: Fingerprint sensor unavailable. Check AS608 wiring.");
+    return;
   }
 
   // ID? discovery is public; destructive commands require the host-connected
@@ -983,6 +1020,7 @@ void enrollFinger(int id) {
 // ==============================================================================
 
 void scanFinger() {
+  if (!fingerprintSensorReady) return;
   uint8_t p = finger.getImage();
   if (p == FINGERPRINT_NOFINGER) return;
   if (p != FINGERPRINT_OK)       return;

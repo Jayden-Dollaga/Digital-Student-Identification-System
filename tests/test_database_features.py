@@ -1,27 +1,30 @@
 import sys
-import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
-from core import database
 import pytest
+
+from core import database
 
 pytestmark = pytest.mark.unit
 
 
-class DatabaseFeaturesTest(unittest.TestCase):
-    def test_clear_all_students_removes_all_profiles(self):
-        database.init_database()
-        database.register_student(999999, "TEST-001", "Test User", "12", "A")
+def test_clear_all_students_removes_all_profiles(tmp_path, monkeypatch):
+    # Never let a destructive reset test touch the user's real attendance DB.
+    test_db = tmp_path / "attendance.db"
+    monkeypatch.setattr(database, "DB_PATH", str(test_db))
+    database.init_database()
 
-        cleared = database.clear_all_students()
+    # Fingerprint IDs must match the AS608's supported 1-127 range. Assert
+    # registration succeeds so the test cannot pass because of leftover rows.
+    success, message = database.add_student(5, "TEST-001", "Test User", "12", "A")
+    assert success, message
+    assert database.get_student(5) is not None
 
-        self.assertGreaterEqual(cleared, 1)
-        self.assertEqual(database.get_student_count(), 0)
-        self.assertIsNone(database.get_student(999999))
+    cleared = database.clear_all_students()
 
-
-if __name__ == "__main__":
-    unittest.main()
+    assert cleared >= 1
+    assert database.get_student_count() == 0
+    assert database.get_student(5) is None

@@ -127,14 +127,15 @@ The local student record is saved only after the device reports successful templ
 
 The firmware captures a finger, converts the image, searches the sensor database, and emits a match, unknown, or low-confidence event.
 
-The firmware-level match floor is **50** confidence. The Python application has a separate configurable `min_confidence`, default **100**:
+The firmware-level match floor is **50** confidence. The Python application applies a separate configurable `min_confidence` from **1 to 255**, default **100**:
 
-| Confidence | Application status |
-| ---: | --- |
-| >= 100 | `GOOD MATCH` |
-| < 100 | `WEAK MATCH` |
+| Confidence | Application status | Recorded? |
+| ---: | --- | --- |
+| At or above the configured threshold | `GOOD MATCH` | Yes |
+| A regular firmware match below the configured threshold | `WEAK MATCH` | No |
+| Below the firmware floor | low-confidence diagnostic | No |
 
-A `WEAK MATCH` is currently still recorded by the attendance processor. The application threshold is therefore a classification rule, not a second rejection gate.
+A `WEAK MATCH` is retained as diagnostic feedback only; it is not inserted into attendance. The threshold uses the raw AS608 confidence scale (0–255), not a percentage.
 
 Duplicate protection is layered: the firmware has an approximately 2-second post-scan delay, while the Python processor uses a per-fingerprint cooldown whose default is 10 seconds.
 
@@ -158,7 +159,7 @@ Supported calendar exception types are `holiday`, `suspension`, and `half_day`. 
 
 Evaluation supports **Day**, **Monday-Sunday Week**, and **Calendar Month**.
 
-For each student, DSIS counts distinct attendance dates in the selected period. The evaluation's observed-day denominator is based on dates with attendance activity in the selected range; completely empty calendar dates are not automatically treated as school days by this evaluation.
+For each student, DSIS counts distinct qualifying attendance dates in the selected period. The denominator enumerates elapsed configured school weekdays and excludes recurring days off, weekends, holidays, and suspensions whether or not a scan occurred; device outages and empty scan days no longer inflate attendance rates by disappearing from the denominator. Future dates are excluded from the active period, and a student's eligible denominator starts on or after their enrollment date.
 
 | Rate | Category |
 | ---: | --- |

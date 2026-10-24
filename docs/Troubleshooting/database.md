@@ -31,7 +31,7 @@ Deleting a student changes historical attendance references to ID 0 instead of d
 
 ## Wrong Time In / Time Out
 
-Check `attendance.event_type`. New writes tag the first scan for a fingerprint/date as `time_in` and later scans as `time_out`. Older missing tags are backfilled during database initialization.
+Check `attendance.event_type` and `status`. The first qualifying scan is `time_in`; repeated scans are `scan` and do not mark departure. A real Time Out is a separate row with `event_type='time_out'` and `status='TIME OUT'`, created through the teacher/admin Record Time Out action. Legacy rows may still have automatic `time_out` tags from older releases; those tags alone are not proof that a student departed. Missing tags are backfilled during database initialization.
 
 ## Reports changed after restore
 

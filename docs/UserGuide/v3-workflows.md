@@ -122,22 +122,26 @@ The local student profile is saved only after the device confirms successful fin
 
 ### Confidence behavior
 
-The firmware emits a hardware match when AS608 confidence is at least **50**.
+The firmware emits a regular hardware match when AS608 confidence is at least **50**; lower-confidence events are diagnostic events and do not create attendance rows.
 
-The Python attendance processor applies a separate configurable `min_confidence`, default **100**, to label the scan:
+The Python attendance processor applies a configurable `min_confidence` from **1 to 255**, default **100**, before recording attendance:
 
 | Confidence | Application status | Recorded? |
 | ---: | --- | --- |
-| >= 100 | `GOOD MATCH` | Yes |
-| 50-99 | `WEAK MATCH` | Yes |
-| < 50 | No hardware match event | No |
+| At or above the configured threshold | `GOOD MATCH` | Yes |
+| A regular firmware match below the configured threshold | `WEAK MATCH` | No |
+| Below the firmware floor | low-confidence diagnostic | No |
 
-A `WEAK MATCH` is still recorded by the current processor. The application threshold classifies the match; it does not reject it.
+Weak matches remain visible to diagnostics but are not attendance records. This setting uses the raw AS608 confidence scale (0–255), not a percentage.
 
 ### Duplicate protection
 
 - firmware post-scan delay: approximately 2 seconds;
 - application per-fingerprint cooldown: 10 seconds by default.
+
+### Time-in/time-out policy
+
+The first accepted attendance scan for a student on a date is tagged `time_in`. Every later accepted scan that same day is tagged `time_out`; summary views use the first time-in and the last time-out. This is a first-in/last-out policy, not an alternating check-in/check-out toggle. Duplicate scans are limited by the firmware delay and application cooldown.
 
 ### Unknown fingerprint
 
@@ -179,7 +183,7 @@ Current category bands:
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-The observed-day denominator is based on dates with attendance activity in the selected range. Completely empty calendar dates are not automatically counted as school days by this evaluation.
+The denominator enumerates elapsed scheduled weekdays, excluding recurring days off, weekends, holidays, and suspensions whether or not anyone scanned. Empty scan days and device outages still count as school days; future dates are excluded from the active period. Each student's denominator starts no earlier than their enrollment date.
 
 Results can be sorted by presence, attendance rate, or name. Authorized roles can export the selected evaluation as CSV.
 
@@ -239,7 +243,7 @@ The effective role is held in an in-memory session. The persisted `current_role`
 
 Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
 
-Important: the current API allows Guest to select Teacher without password verification; Teacher includes record reads, exports, and backups. Do not rely on Guest mode to protect identifiable data from someone who can interact with the app. The evaluation API also requires `read_records`, so Guest does not receive per-student evaluation rows even though its configured permission list includes `attendance_evaluation`. See [Roles and Permissions](roles-and-permissions.md).
+Guest cannot switch to Teacher or Administrator without authentication. The evaluation API requires both `attendance_evaluation` and `read_records`, and evaluation CSV export additionally requires `export`. See [Roles and Permissions](roles-and-permissions.md) for exact method-level behavior and the remaining local/physical-access limitations.
 
 ## 12. Settings
 

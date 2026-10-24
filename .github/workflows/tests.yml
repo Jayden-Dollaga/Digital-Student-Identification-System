@@ -20,6 +20,9 @@ on:
       - "requirements.txt"
       - "pytest.ini"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/create-release.yml"
+      - ".github/workflows/firmware-build.yml"
+      - ".github/workflows/windows-package.yml"
   pull_request:
     branches: [main]
     paths:
@@ -29,7 +32,11 @@ on:
       - "requirements.txt"
       - "pytest.ini"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/create-release.yml"
+      - ".github/workflows/firmware-build.yml"
+      - ".github/workflows/windows-package.yml"
   workflow_dispatch: {}
+  workflow_call: {}
 
 jobs:
   test:

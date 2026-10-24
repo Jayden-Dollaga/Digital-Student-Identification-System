@@ -1,5 +1,7 @@
 import json
+import os
 import time
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -26,6 +28,8 @@ def default_settings() -> Dict[str, Any]:
         "startup_connect_delay_ms": 1000,
         # compact sidebar (icons-only) to save vertical space
         "compact_sidebar": False,
+        # Percentage scale for dense data tables and report tables (75-125).
+        "table_zoom_percent": 100,
         # enable lightweight UI profiler (records timing of key UI events)
         "enable_profiler": False,
         # minimum AS608 confidence score (0-255) required to count a scan as a match
@@ -86,6 +90,33 @@ def default_settings() -> Dict[str, Any]:
     }
 
 
+def _quarantine_invalid_settings(settings_path: Path) -> Dict[str, Any]:
+    """Move malformed settings aside before starting from defaults.
+
+    Keeping the original file is important: it may contain the only copy of
+    the administrator verifier or RFID encryption key. The admin-init marker
+    continues to force the existing recovery path if the verifier is lost.
+    """
+    quarantined = settings_path.with_name(
+        f"{settings_path.name}.corrupt-{time.time_ns()}"
+    )
+    try:
+        os.replace(settings_path, quarantined)
+    except OSError as exc:
+        # Do not continue with defaults if the invalid source cannot be
+        # preserved; a later save could otherwise overwrite the only copy.
+        raise RuntimeError(
+            f"Settings are invalid and could not be preserved for recovery: {settings_path}"
+        ) from exc
+    return default_settings()
+
+
+def has_quarantined_settings(path: str | Path | None = None) -> bool:
+    """Return whether a prior malformed settings file is preserved nearby."""
+    settings_path = Path(path or SETTINGS_FILE)
+    return any(settings_path.parent.glob(f"{settings_path.name}.corrupt-*"))
+
+
 def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     settings_path = Path(path or SETTINGS_FILE)
     if not settings_path.exists():
@@ -94,24 +125,87 @@ def load_settings(path: str | Path | None = None) -> Dict[str, Any]:
     try:
         with settings_path.open("r", encoding="utf-8") as handle:
             loaded = json.load(handle)
-    except (json.JSONDecodeError, OSError):
-        return default_settings()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return _quarantine_invalid_settings(settings_path)
+    except OSError as exc:
+        # An unreadable file is not the same as a fresh installation. Fail
+        # visibly rather than treating it as defaults and later overwriting it.
+        raise RuntimeError(f"Could not read DSIS settings: {settings_path}") from exc
+
+    if not isinstance(loaded, dict):
+        return _quarantine_invalid_settings(settings_path)
 
     merged = default_settings()
-    if isinstance(loaded, dict):
-        merged.update({key: value for key, value in loaded.items() if key in merged})
+    merged.update({key: value for key, value in loaded.items() if key in merged})
     if not isinstance(merged.get("auth"), dict):
         merged["auth"] = {}
     return merged
 
 
+def _preserve_previous_settings(settings_path: Path) -> None:
+    """Atomically preserve the last readable settings object before replacing it."""
+    if not settings_path.exists():
+        return
+    try:
+        previous_bytes = settings_path.read_bytes()
+        previous_value = json.loads(previous_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Existing settings could not be validated before saving: {settings_path}"
+        ) from exc
+    if not isinstance(previous_value, dict):
+        raise RuntimeError(
+            f"Existing settings are not a JSON object and must be recovered before saving: {settings_path}"
+        )
+
+    backup_path = settings_path.with_name(f"{settings_path.name}.previous")
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{backup_path.name}.", suffix=".tmp", dir=str(settings_path.parent)
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(previous_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, backup_path)
+    except Exception:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
 def save_settings(settings: Dict[str, Any], path: str | Path | None = None) -> Path:
+    """Persist settings atomically and keep one recoverable previous version.
+
+    The previous JSON object is validated and preserved before replacing the
+    live file. A malformed existing file is never silently overwritten here.
+    """
     settings_path = Path(path or SETTINGS_FILE)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     payload = default_settings()
     payload.update(settings)
-    with settings_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
+    _preserve_previous_settings(settings_path)
+
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{settings_path.name}.", suffix=".tmp", dir=str(settings_path.parent)
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, settings_path)
+    except Exception:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     return settings_path
 
 

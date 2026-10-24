@@ -3,6 +3,7 @@
 import sys
 import sqlite3
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -20,12 +21,156 @@ pytestmark = pytest.mark.integration
 
 
 def create_valid_sqlite_db(path):
+    """Create a minimal structurally valid DSIS database for restore tests."""
     connection = sqlite3.connect(path)
     try:
-        connection.execute("CREATE TABLE validation_probe (value TEXT)")
+        connection.execute(
+            """CREATE TABLE students (
+                fingerprint_id INTEGER PRIMARY KEY,
+                student_no TEXT NOT NULL UNIQUE,
+                student_name TEXT NOT NULL,
+                grade TEXT NOT NULL,
+                section TEXT NOT NULL,
+                card_uid TEXT UNIQUE,
+                enrollment_date TEXT NOT NULL,
+                updated_date TEXT NOT NULL
+            )"""
+        )
+        connection.execute(
+            """CREATE TABLE attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fingerprint_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                confidence INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                event_type TEXT
+            )"""
+        )
         connection.commit()
     finally:
         connection.close()
+
+def test_legacy_statistics_report_counts_only_qualifying_matches_and_enrolled_students():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0))
+            database.log_attendance(0, 0, "UNKNOWN", datetime(2026, 10, 15, 8, 7, 0))
+
+            report = database.generate_statistics_report()
+
+        assert "Total Students Enrolled: 1" in report
+        assert "Total Attendance Days: 1" in report
+        assert "Alex Reyes" in report
+        assert "Unregistered" not in report
+
+
+def test_first_valid_match_after_historical_weak_scan_is_time_in():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            success, message = database.register_student(
+                1, "LRN-001", "Alex Reyes", "12", "CSS"
+            )
+            assert success, message
+            database.log_attendance(
+                1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0)
+            )
+            database.log_attendance(
+                1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0)
+            )
+
+            rows = database.get_attendance_by_student(1)
+
+        assert [row["event_type"] for row in rows] == ["time_in", "time_in"]
+
+
+def test_has_persisted_records_detects_existing_student_or_attendance_data():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            # The seeded fingerprint-0 "Unregistered" placeholder is not
+            # evidence of actual student/attendance data.
+            assert database.has_persisted_records() is False
+
+            success, message = database.register_student(
+                1, "LRN-001", "Alex Reyes", "12", "CSS"
+            )
+            assert success, message
+            assert database.has_persisted_records() is True
+
+            # Remove the test row directly; the helper is about persisted
+            # state detection, not this test's authorization path.
+            with database.get_connection() as conn:
+                conn.execute("DELETE FROM students WHERE fingerprint_id = 1")
+            assert database.has_persisted_records() is False
+
+            database.log_attendance(
+                0, 0, "UNKNOWN", datetime(2026, 10, 18, 8, 0, 0)
+            )
+            assert database.has_persisted_records() is True
+
+
+def test_has_linked_rfid_cards_tracks_nonempty_card_links():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.has_linked_rfid_cards() is False
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            assert database.has_linked_rfid_cards() is False
+
+            ok, message = database.bind_student_card(1, "AA:BB:CC:DD")
+            assert ok, message
+            assert database.has_linked_rfid_cards() is True
+
+            database.clear_student_card(1)
+            assert database.has_linked_rfid_cards() is False
+
+
+def test_daily_attendance_summary_prefers_good_match_over_older_weak_match():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 80, "WEAK MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(1, 210, "GOOD MATCH", datetime(2026, 10, 15, 8, 5, 0))
+
+            rows = database.get_daily_attendance_summary("2026-10-15", "2026-10-15")
+
+        assert len(rows) == 1
+        assert rows[0]["status"] == "GOOD MATCH"
+        assert rows[0]["match_status"] == "GOOD MATCH"
+        # The older weak scan must not become time-in just because its old
+        # event_type migration marked it as the first raw scan of the day.
+        assert rows[0]["time_in"] == "08:05:00"
+        assert rows[0]["time_out"] == ""
+
+
+def test_daily_attendance_summary_keeps_same_named_students_separate():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "attendance.db"
+        with patch.object(database, "DB_PATH", str(db_path)):
+            database.init_database()
+            assert database.register_student(1, "LRN-001", "Alex Reyes", "12", "CSS")[0]
+            assert database.register_student(2, "LRN-002", "Alex Reyes", "12", "CSS")[0]
+            database.log_attendance(1, 180, "GOOD MATCH", datetime(2026, 10, 15, 8, 0, 0))
+            database.log_attendance(2, 190, "GOOD MATCH", datetime(2026, 10, 15, 8, 1, 0))
+
+            rows = database.get_daily_attendance_summary("2026-10-15", "2026-10-15")
+
+        assert len(rows) == 2
+        assert {row["student_no"] for row in rows} == {"LRN-001", "LRN-002"}
+        assert {row["student_name"] for row in rows} == {"Alex Reyes"}
+
 
 class TestRestoreDatabasePathTraversal:
     """Test that restore_database prevents path traversal attacks."""
@@ -123,6 +268,128 @@ class TestRestoreDatabasePathTraversal:
                 # Should fail because it's not a .db file
                 assert not result_ok
                 assert 'file type' in result_msg.lower() or '.db' in result_msg
+
+    def test_restore_database_rolls_back_if_restore_copy_fails(self):
+        """A failed restore attempt must preserve the original live records."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            backup_file = backups_dir / "attendance_restore_test.db"
+            create_valid_sqlite_db(db_path)
+            create_valid_sqlite_db(backup_file)
+
+            current = sqlite3.connect(db_path)
+            try:
+                current.execute(
+                    "INSERT INTO students "
+                    "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                    "VALUES (1, 'KEEP-1', 'Keep This Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+                )
+                current.commit()
+            finally:
+                current.close()
+
+            original_backup = database._sqlite_backup_file
+            calls = {"count": 0}
+
+            def fail_after_first_restore_write(source_path, destination_path):
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    # Simulate a late failure after the selected backup has
+                    # replaced the live DB, forcing the safety snapshot path.
+                    original_backup(source_path, destination_path)
+                    raise OSError("simulated post-write restore failure")
+                return original_backup(source_path, destination_path)
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                with patch.object(database, "_sqlite_backup_file", side_effect=fail_after_first_restore_write):
+                    result_ok, result_msg = restore_database(str(backup_file))
+
+            assert not result_ok
+            assert "recovered" in result_msg.lower()
+            connection = sqlite3.connect(db_path)
+            try:
+                row = connection.execute(
+                    "SELECT student_name FROM students WHERE student_no = 'KEEP-1'"
+                ).fetchone()
+            finally:
+                connection.close()
+            assert row == ("Keep This Student",)
+            assert calls["count"] == 2
+
+    def test_restore_database_rejects_valid_sqlite_with_unrelated_schema(self):
+        """A readable SQLite file must not replace the DSIS database unless its schema matches."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            unrelated_backup = backups_dir / "unrelated.db"
+            connection = sqlite3.connect(unrelated_backup)
+            try:
+                connection.execute("CREATE TABLE validation_probe (value TEXT)")
+                connection.commit()
+            finally:
+                connection.close()
+            create_valid_sqlite_db(db_path)
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                result_ok, result_msg = restore_database(str(unrelated_backup))
+
+            assert not result_ok
+            assert "DSIS database schema" in result_msg
+            connection = sqlite3.connect(db_path)
+            try:
+                tables = {
+                    row[0] for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            finally:
+                connection.close()
+            assert {"students", "attendance"}.issubset(tables)
+
+    def test_restore_database_creates_verified_pre_restore_safety_backup(self):
+        """The live database is preserved before a valid backup is restored."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            db_path = tmpdir / "attendance.db"
+            backups_dir = tmpdir / "backups"
+            backups_dir.mkdir()
+            backup_file = backups_dir / "attendance_restore_test.db"
+            create_valid_sqlite_db(db_path)
+            create_valid_sqlite_db(backup_file)
+
+            current = sqlite3.connect(db_path)
+            try:
+                current.execute(
+                    "INSERT INTO students "
+                    "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                    "VALUES (1, 'CURRENT-1', 'Current Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+                )
+                current.commit()
+            finally:
+                current.close()
+
+            with patch("core.database.DB_PATH", str(db_path)):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+            assert result_ok, result_msg
+            safety_backups = list(backups_dir.glob("pre_restore_*.db"))
+            assert len(safety_backups) == 1
+            with patch("core.database.DB_PATH", str(db_path)):
+                listed_names = {item["name"] for item in database.list_backups()}
+            assert safety_backups[0].name in listed_names
+            safety = sqlite3.connect(safety_backups[0])
+            try:
+                row = safety.execute(
+                    "SELECT student_name FROM students WHERE student_no = 'CURRENT-1'"
+                ).fetchone()
+            finally:
+                safety.close()
+            assert row == ("Current Student",)
 
     def test_restore_database_rejects_tampered_db_file_with_invalid_sqlite_header(self):
         """A .db file that is not actually a SQLite database must be rejected."""
@@ -345,3 +612,68 @@ class TestDeleteStudentAuthorizationBoundary:
                     database.delete_student(1)
 
                 assert database.get_all_students() == []
+
+def test_restore_failure_without_existing_database_does_not_claim_safety_backup_exists():
+    """Failure guidance must not tell operators to check a snapshot that was never made."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        db_path = tmpdir / "attendance.db"
+        backups_dir = tmpdir / "backups"
+        backups_dir.mkdir()
+        backup_file = backups_dir / "attendance_restore_test.db"
+        create_valid_sqlite_db(backup_file)
+
+        original_backup = database._sqlite_backup_file
+
+        def fail_after_write(source_path, destination_path):
+            original_backup(source_path, destination_path)
+            raise OSError("simulated post-write failure")
+
+        with patch.object(database, "DB_PATH", str(db_path)):
+            with patch.object(database, "_sqlite_backup_file", side_effect=fail_after_write):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+        assert not result_ok
+        assert "no pre-restore safety backup was available" in result_msg.lower()
+        assert "check logs and the pre-restore safety backup" not in result_msg.lower()
+        assert not db_path.exists(), "A failed first-time restore must not leave a partial database behind"
+        assert not Path(f"{db_path}-wal").exists()
+        assert not Path(f"{db_path}-shm").exists()
+
+def test_restore_aborts_if_pre_restore_safety_snapshot_cannot_be_created():
+    """Never start replacing a live database unless its safety snapshot succeeded."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        db_path = tmpdir / "attendance.db"
+        backups_dir = tmpdir / "backups"
+        backups_dir.mkdir()
+        backup_file = backups_dir / "attendance_restore_test.db"
+        create_valid_sqlite_db(db_path)
+        create_valid_sqlite_db(backup_file)
+
+        connection = sqlite3.connect(db_path)
+        try:
+            connection.execute(
+                "INSERT INTO students "
+                "(fingerprint_id, student_no, student_name, grade, section, enrollment_date, updated_date) "
+                "VALUES (1, 'KEEP-1', 'Keep This Student', '12', 'CSS', '2026-01-01', '2026-01-01')"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        with patch.object(database, "DB_PATH", str(db_path)):
+            with patch.object(database, "_create_restore_safety_backup", side_effect=OSError("disk full")):
+                result_ok, result_msg = restore_database(str(backup_file))
+
+        assert not result_ok
+        assert "safety snapshot could not be created" in result_msg.lower()
+        connection = sqlite3.connect(db_path)
+        try:
+            row = connection.execute(
+                "SELECT student_name FROM students WHERE student_no = 'KEEP-1'"
+            ).fetchone()
+        finally:
+            connection.close()
+        assert row == ("Keep This Student",)
+

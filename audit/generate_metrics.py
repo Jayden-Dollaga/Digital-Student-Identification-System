@@ -10,7 +10,9 @@ import sys
 import tokenize
 from pathlib import Path
 
-root = Path(r'c:/Users/EnforcerX/Downloads/Arduino-IDE - Project/AI-Assisted Fingerprint Attendance System').resolve()
+# Resolve from this script's location so the metrics generator works in
+# developer checkouts and CI runners regardless of OS or checkout directory.
+root = Path(__file__).resolve().parents[1]
 exclude_dirs = {'.git', '.svn', '.hg', '.venv', '.venv-1', '__pycache__', '.pytest_cache', '.mypy_cache', '.vscode', 'build', 'dist', 'node_modules', 'site-packages', 'venv', 'env'}
 source_exts = {'.py', '.pyw', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.hh', '.ino', '.pde', '.js', '.ts', '.jsx', '.tsx', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.m', '.swift', '.java', '.kt', '.rb', '.go', '.rs', '.php', '.lua', '.sql', '.pl', '.r', '.sas', '.cs', '.vb', '.f90', '.f95', '.f03', '.for', '.f', '.asm', '.s', '.S'}
 
