@@ -334,6 +334,7 @@ def test_v3_validation_api_returns_field_feedback(monkeypatch):
             self.state = type("State", (), {"value": state})()
             self.message = message
 
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: action == "enroll")
     monkeypatch.setattr("gui_web.api.db.get_student_field_feedback", lambda *args: {
         "student_no": Result(False, "missing", "Required field"),
         "student_name": Result(True, "valid", "Valid"),
@@ -356,7 +357,7 @@ def test_v3_statistics_report_includes_students_without_attendance(monkeypatch):
     ])
     monkeypatch.setattr("gui_web.api.db.get_attendance_all", lambda: [{
         "student_name": "Alice", "student_no": "S-001", "grade": "10",
-        "section": "A", "date": "2026-09-10", "status": "Present",
+        "section": "A", "date": "2026-09-10", "status": "Present", "event_type": "time_in",
     }])
     monkeypatch.setattr(api.serial, "is_connected", lambda: False)
 
@@ -373,6 +374,49 @@ def test_v3_statistics_report_includes_students_without_attendance(monkeypatch):
     assert result["students_by_section"] == [{"section": "A", "count": 2}]
     assert result["attendance_timeline"] == [{"date": "2026-09-10", "count": 1}]
     assert result["connected"] is False
+
+
+def test_statistics_report_does_not_count_historical_weak_matches(monkeypatch):
+    from gui_web import api as api_module
+
+    api = api_module.Api()
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_name": "Alice",
+        "student_no": "S-001",
+        "grade": "12",
+        "section": "CSS",
+    }])
+    monkeypatch.setattr(api_module.db, "get_attendance_all", lambda: [
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-10",
+            "status": "WEAK MATCH",
+        },
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-11",
+            "status": "GOOD MATCH", "event_type": "time_in",
+        },
+        {
+            "fingerprint_id": 1, "student_name": "Alice", "student_no": "S-001",
+            "grade": "12", "section": "CSS", "date": "2026-09-11",
+            "status": "GOOD MATCH", "event_type": "scan",
+        },
+        {
+            "fingerprint_id": 0, "student_name": "Unregistered", "student_no": "N/A",
+            "grade": "N/A", "section": "N/A", "date": "2026-09-12",
+            "status": "UNKNOWN",
+        },
+    ])
+    monkeypatch.setattr(api.serial, "is_connected", lambda: False)
+
+    result = api.get_statistics_report()
+
+    assert result["total_records"] == 1
+    assert result["all_students"][0]["count"] == 1
+    assert result["recent_attendance"] == [{"date": "2026-09-11", "count": 1}]
 
 
 def test_v3_serial_troubleshooting_message_uses_detected_ports(monkeypatch):
@@ -443,6 +487,7 @@ def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
         "fingerprint_id": 7,
         "event_type": "time_in",
         "time": "08:20:00",
+        "status": "GOOD MATCH",
     }])
     monkeypatch.setattr("gui_web.api.load_settings", lambda: {
         "time_in": "08:00", "time_out": "17:00",
@@ -453,6 +498,25 @@ def test_v3_student_detail_returns_today_attendance_status(monkeypatch):
     student = api.get_student(7)
 
     assert student["attendance_status"] == "Late"
+
+
+def test_v3_student_detail_does_not_count_historical_weak_match(monkeypatch):
+    from gui_web import api as api_module
+
+    api = api_module.Api()
+    permissions.set_session_role("teacher", 600.0)
+    monkeypatch.setattr("gui_web.api.db.get_student", lambda fingerprint_id: {
+        "fingerprint_id": fingerprint_id,
+        "student_name": "Alice",
+    })
+    monkeypatch.setattr("gui_web.api.db.get_attendance_by_date", lambda date: [{
+        "fingerprint_id": 7,
+        "event_type": "time_in",
+        "time": "08:00:00",
+        "status": "WEAK MATCH",
+    }])
+
+    assert api.get_student(7)["attendance_status"] == "Not Counted"
 
 
 def test_v3_student_detail_without_scan_is_absent(monkeypatch):
@@ -472,6 +536,7 @@ def test_v3_student_detail_without_scan_is_absent(monkeypatch):
 def test_dashboard_does_not_count_fallback_history_as_today(monkeypatch):
     from gui_web.api import Api
 
+    monkeypatch.setattr("gui_web.api.permissions.has_permission", lambda action: True)
     api = Api.__new__(Api)
     monkeypatch.setattr("gui_web.api.db.get_today_attendance_info", lambda: {
         "is_fallback": True,
@@ -491,7 +556,7 @@ def test_v3_push_json_round_trips_unicode_names():
     from gui_web.api import Api
 
     api = Api()
-    api.set_window(MagicMock())
+    api._set_window(MagicMock())
     payload = {"student": {"student_name": "José, María Ñ"}}
     api._push("scan_result", payload)
 
@@ -540,8 +605,12 @@ def test_v3_csv_preserves_long_student_numbers_and_attendance_status(tmp_path):
 
 def test_v3_today_export_uses_visible_fallback_rows(monkeypatch):
     from gui_web.api import Api
+    from settings_store import default_settings
 
     api = Api()
+    # Classification depends on the school schedule, so do not read the
+    # developer's real data/settings.json (a 07:15 start made this test fail).
+    monkeypatch.setattr("gui_web.api.load_settings", default_settings)
     api._rows_to_csv = MagicMock(return_value={"ok": True})
     api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/attendance.csv"))
     visible_rows = [{
@@ -560,14 +629,23 @@ def test_v3_today_export_uses_visible_fallback_rows(monkeypatch):
     monkeypatch.setattr("gui_web.api.db.get_attendance_today", lambda: visible_rows)
     monkeypatch.setattr(
         "gui_web.api.db.export_attendance_rows_with_time_in_out",
-        lambda rows: [{"student_name": rows[0]["student_name"], "time_in": rows[0]["time"]}],
+        lambda rows: [{
+            "student_name": rows[0]["student_name"],
+            "time_in": rows[0]["time"],
+            "status": rows[0]["status"],
+        }],
     )
 
     result = api.export_attendance_csv("today")
 
     assert result == {"ok": True}
     exported_rows = api._rows_to_csv.call_args.args[0]
-    assert exported_rows == [{"student_name": "Garcia, José R.", "time_in": "08:00:00", "attendance_status": "Present"}]
+    assert exported_rows == [{
+        "student_name": "Garcia, José R.",
+        "time_in": "08:00:00",
+        "status": "GOOD MATCH",
+        "attendance_status": "Present",
+    }]
     assert api._rows_to_csv.call_args.args[1] == Path("C:/chosen/attendance.csv")
 
 
@@ -593,7 +671,7 @@ def test_v3_csv_save_dialog_uses_pywebview_save_contract():
     window = MagicMock()
     window.create_file_dialog.return_value = ("C:/chosen/attendance.csv",)
     api = Api()
-    api.set_window(window)
+    api._set_window(window)
 
     selected = api._choose_csv_path("attendance_today.csv")
 
@@ -693,7 +771,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
     api = Api()
     permissions.set_session_role("teacher", 600.0)
     monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
-    monkeypatch.setattr("gui_web.api.db.export_attendance_range", lambda start, end: [{
+    monkeypatch.setattr("gui_web.api.db.get_attendance_paginated", lambda limit, offset, start_date=None, end_date=None: [{
         "fingerprint_id": 1,
         "date": "2026-09-20",
         "time": "12:00:00",
@@ -715,7 +793,7 @@ def test_v3_attendance_page_uses_date_specific_schedule(monkeypatch):
 
     result = api.get_attendance(mode="last30")
 
-    assert result["rows"][0]["attendance_status"] == "Out"
+    assert result["rows"][0]["attendance_status"] == "Scan Only"
 
 
 def test_v3_global_schedule_rejects_time_out_before_time_in(monkeypatch):
@@ -795,9 +873,123 @@ def test_v3_attendance_evaluation_ignores_weekend_activity(monkeypatch):
 
     result = api.get_attendance_evaluation("week", "2026-09-20")
 
-    assert result["school_days"] == []
-    assert result["total_days"] == 0
-    assert result["rows"][0]["attendance_rate"] is None
+    # Weekends with activity must be ignored, while scheduled weekdays
+    # still count in the denominator even if nobody scanned that day.
+    assert result["school_days"] == [
+        "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18",
+    ]
+    assert result["total_days"] == 5
+    assert result["rows"][0]["days_present"] == 0
+    assert result["rows"][0]["days_absent"] == 5
+    assert result["rows"][0]["attendance_rate"] == 0.0
+
+
+def test_current_attendance_period_does_not_count_future_school_days(monkeypatch):
+    from datetime import datetime as RealDateTime
+    from gui_web import api as api_module
+
+    class FrozenDateTime(RealDateTime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 14, 12, 0, 0)
+
+    monkeypatch.setattr(api_module, "datetime", FrozenDateTime)
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: {
+        "school_calendar": {},
+        "school_weekdays_off": [],
+    })
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_no": "LRN-001",
+        "student_name": "Student One",
+        "grade": "12",
+        "section": "CSS",
+        "enrollment_date": "2026-09-01T00:00:00",
+    }])
+
+    result = api_module.Api.__new__(api_module.Api).get_attendance_evaluation(
+        "week", "2026-10-14"
+    )
+
+    assert result["school_days"] == ["2026-10-12", "2026-10-13", "2026-10-14"]
+    assert result["total_days"] == 3
+    assert result["rows"][0]["days_absent"] == 3
+    assert result["rows"][0]["attendance_rate"] == 0.0
+
+
+def test_attendance_evaluation_excludes_historical_weak_matches(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: {
+        "school_calendar": {},
+        "school_weekdays_off": [],
+    })
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [{
+        "student_no": "LRN-001",
+        "date": "2026-09-22",
+        "status": "WEAK MATCH",
+        "match_status": "WEAK MATCH",
+    }])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [{
+        "fingerprint_id": 1,
+        "student_no": "LRN-001",
+        "student_name": "Student One",
+        "grade": "12",
+        "section": "CSS",
+        "enrollment_date": "2026-09-01T00:00:00",
+    }])
+
+    result = api_module.Api.__new__(api_module.Api).get_attendance_evaluation(
+        "week", "2026-09-23"
+    )
+
+    assert result["ok"] is True
+    assert result["rows"][0]["days_present"] == 0
+    assert result["rows"][0]["days_absent"] == 5
+    assert result["rows"][0]["attendance_rate"] == 0.0
+
+
+def test_dashboard_presence_counts_only_qualifying_attendance_statuses(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_today_attendance_info", lambda: {
+        "is_fallback": False,
+        "rows": [
+            {"student_no": "LRN-001", "status": "WEAK MATCH", "time": "08:00:00"},
+            {"student_no": "LRN-002", "status": "GOOD MATCH", "time": "08:05:00"},
+        ],
+    })
+    monkeypatch.setattr(api_module.db, "get_student_count", lambda: 2)
+
+    result = api_module.Api.__new__(api_module.Api).get_dashboard_stats()
+
+    assert result["scans_today"] == 2
+    assert result["present_count"] == 1
+    assert result["attendance_rate"] == 50
+
+
+def test_weak_match_attendance_row_is_not_labelled_present(monkeypatch):
+    from gui_web import api as api_module
+
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module.db, "get_attendance_today", lambda: [{
+        "student_no": "LRN-001",
+        "student_name": "Student One",
+        "fingerprint_id": 1,
+        "date": "2026-09-22",
+        "time": "08:00:00",
+        "confidence": 80,
+        "status": "WEAK MATCH",
+    }])
+    monkeypatch.setattr(api_module, "load_settings", lambda: {})
+
+    result = api_module.Api.__new__(api_module.Api).get_attendance("today")
+
+    assert result["rows"][0]["attendance_status"] == "Not Counted"
 
 
 def test_v3_recent_export_uses_visible_page(monkeypatch):
@@ -894,3 +1086,134 @@ def test_theme_selector_previews_theme_immediately():
 
     assert 'onchange="applyTheme(this.value)"' in html
     assert "document.body.classList.toggle('light-theme', t === 'light')" in script
+
+def test_attendance_evaluation_sanitizes_untrusted_bridge_values():
+    """Dynamic values used in evaluation HTML/CSS are escaped or constrained."""
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "Object.prototype.hasOwnProperty.call(CATEGORY_META, r.category)" in script
+    assert "Number.isFinite(parsedRate)" in script
+    assert "Math.max(0, Math.min(100, parsedRate))" in script
+    assert "escapeHtml(String(r.days_present))" in script
+    assert "escapeHtml(String(r.days_absent))" in script
+    assert 'me-cat-${category}' in script
+    assert 'me-cat-${r.category}' not in script
+
+def test_explicit_time_out_action_is_available_in_student_details():
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="mark-time-out-btn"' in html
+    assert 'data-permission="read_records"' in html
+    assert 'onclick="markSelectedStudentTimeOut()"' in html
+    assert "api().mark_student_time_out(Number(selectedStudent.fingerprint_id))" in script
+    assert "A repeated scan alone does not mark departure." in script
+    assert "selectedStudent.attendance_status === 'Out'" in script
+
+def test_attendance_evaluation_discloses_absence_vs_device_outage_limit():
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+
+    assert "scheduled school day" in script
+    assert "DSIS cannot automatically distinguish a student's absence from a device outage" in script
+    assert "review connection logs and school records" in script
+
+
+
+def test_responsive_navigation_and_persistent_table_zoom_controls_exist():
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.js").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="set-table-zoom"' in html
+    assert 'table_zoom_percent:' in script
+    assert "function applyTableZoom(value)" in script
+    assert "table_zoom_percent" in script
+    assert '<button type="button" class="cal-day' in script
+    assert 'aria-label="${escapeHtml(spokenDate + dayDescription)}"' in script
+    assert ".cal-day:focus-visible" in styles
+    assert "overflow-y: auto" in styles
+    assert 'data-table-zoom="75"' in styles
+    assert 'data-table-zoom="125"' in styles
+    assert "@media (max-width: 560px)" in styles
+    assert ".data-table-wrap { overflow-x: auto; overflow-y: auto; }" in styles
+
+
+
+def test_custom_attendance_export_validates_and_uses_selected_date_range(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    api._choose_csv_path = MagicMock(return_value=Path("C:/chosen/custom.csv"))
+    api._rows_to_csv = MagicMock(return_value={"ok": True})
+    captured = {}
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+
+    def export_range(start, end):
+        captured["range"] = (start, end)
+        return [{"student_name": "Alice", "time_in": "08:00:00", "status": "GOOD MATCH", "date": start}]
+
+    monkeypatch.setattr("gui_web.api.db.export_attendance_range_with_time_in_out", export_range)
+    result = api.export_attendance_csv(
+        "custom", start_date="2026-09-01", end_date="2026-09-10"
+    )
+
+    assert result == {"ok": True}
+    assert captured["range"] == ("2026-09-01", "2026-09-10")
+    suggested_name = api._choose_csv_path.call_args.args[0]
+    assert "2026-09-01_2026-09-10" in suggested_name
+
+
+def test_custom_attendance_export_rejects_invalid_or_oversized_ranges(monkeypatch):
+    from gui_web.api import Api
+
+    api = Api()
+    monkeypatch.setattr("gui_web.api.permissions.require_permission", lambda action: True)
+    monkeypatch.setattr(
+        "gui_web.api.db.export_attendance_range_with_time_in_out",
+        lambda start, end: pytest.fail("Invalid custom range must not query attendance"),
+    )
+
+    reversed_range = api.export_attendance_csv(
+        "custom", start_date="2026-09-10", end_date="2026-09-01"
+    )
+    oversized_range = api.export_attendance_csv(
+        "custom", start_date="2025-01-01", end_date="2026-01-03"
+    )
+
+    assert reversed_range["ok"] is False
+    assert "on or after" in reversed_range["message"]
+    assert oversized_range["ok"] is False
+    assert "limited to 367 calendar days" in oversized_range["message"]
+
+
+
+def test_attendance_evaluation_honors_explicit_weekend_half_day(monkeypatch):
+    from gui_web import api as api_module
+    from settings_store import default_settings
+
+    settings = default_settings()
+    settings["school_calendar"] = {}
+    monkeypatch.setattr(api_module.permissions, "has_permission", lambda action: True)
+    monkeypatch.setattr(api_module, "load_settings", lambda: settings)
+    monkeypatch.setattr(api_module.db, "get_daily_attendance_summary", lambda **kwargs: [])
+    monkeypatch.setattr(api_module.db, "get_all_students", lambda: [])
+
+    api = api_module.Api()
+    normal_week = api.get_attendance_evaluation("week", "2026-10-12")
+    assert normal_week["ok"] is True
+    assert normal_week["total_days"] == 5
+    assert "2026-10-17" not in normal_week["school_days"]
+
+    settings["school_calendar"] = {
+        "2026-10-17": {
+            "type": "half_day",
+            "label": "Saturday class",
+            "time_in": "08:00",
+            "time_out": "12:00",
+        }
+    }
+    special_week = api.get_attendance_evaluation("week", "2026-10-12")
+    assert special_week["ok"] is True
+    assert special_week["total_days"] == 6
+    assert "2026-10-17" in special_week["school_days"]
+

@@ -120,12 +120,12 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `get_connection_status()` | `{connected,port,baud,device_metadata,scanning,device_mode}` | No role gate; reports device state. |
 | `start_scan()` / `stop_scan()` | `bool` | Require `scan`; send SCAN/STOP and update mode/event state. |
 | `start_rfid_register_session(fingerprint_id, mode="register")` | `{ok,message}` | Requires connection and `enroll`, selected student must exist and scan must be stopped; starts card listening. |
-| `stop_rfid_register_session()` | `{ok,message}` | No direct role gate; clears pending registration and stops listening when appropriate. |
+| `stop_rfid_register_session()` | `{ok,message}` | Requires `enroll`; clears pending registration and stops listening when appropriate. |
 | `start_batch_rfid_erase(unlink_registered=False)` | `{ok,message}` | Requires admin role and `enroll`, plus connection; arms card erase and optionally clears verified linked card. |
-| `stop_batch_rfid_erase()` | `{ok,message}` | No direct role gate; stops erase mode and restores prior scan state when possible. |
+| `stop_batch_rfid_erase()` | `{ok,message}` | Requires Administrator role plus `enroll`; stops erase mode and restores prior scan state when possible. |
 | `start_enroll()` | `{ok,message}` | Requires connection and `enroll`; sends STOP then ENROLL and waits for progress events. |
-| `validate_student_fields(student_no, student_name, grade, section)` | `{all_valid,fields}` | No role gate or persistence; returns per-field validation feedback. |
-| `cancel_enroll()` | `{ok,message}` | No direct role gate; sends STOP for pending enrollment or clears local pending state on disconnect. |
+| `validate_student_fields(student_no, student_name, grade, section)` | `{all_valid,fields}` or denial | Requires `enroll`; guards the student-number existence check. |
+| `cancel_enroll()` | `{ok,message}` or denial | Requires `enroll`; sends STOP for pending enrollment or clears local pending state on disconnect. |
 | `discard_enrollment(fingerprint_id)` | `{ok,message}` | Requires `delete` and connection; deletes unsaved device template, no student DB write. |
 | `delete_on_device(fingerprint_id)` | `{ok,message}` | Requires `delete` and connection; sends device command only; local row must wait for confirmed event. |
 | `wipe_all_on_device()` | `{ok,message}` | Requires `wipe` and connection; sends device WIPE; API event handler clears local DB only after firmware success. |
@@ -136,7 +136,7 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `open_driver_help()` | `{ok,url,message?}` | No role gate; opens Silicon Labs driver page. |
 | `send_serial_command(cmd)` | `bool` | Requires admin role; connected device and allow-list `LIST`, `HELP`, `COMMANDS`, `STOP`, `SCAN`, `ID?`. |
 | `reset_device()` | `bool` | Requires admin role and connection; requests DTR reset. |
-| `get_dashboard_stats()` | summary dictionary | No role gate; returns aggregate student/attendance counts and recent scan time. |
+| `get_dashboard_stats()` | summary dictionary or restricted placeholders | Requires `read_records`; Guest receives no school-wide attendance counts. |
 | `get_recent_activity(limit=25)` | `list[attendance row]` | Requires `read_records`; otherwise empty list. |
 | `get_attendance(mode="today", offset=0)` | `{rows,offset,has_more}` | Requires `read_records`; otherwise empty restricted result. Modes include today, last30, and paginated recent fallback. |
 | `export_attendance_csv(mode="today", offset=0, week_start="")` | `{ok,message,path?}` | Requires `export`; writes selected records via Save As (or export dir without UI), UTF-8 BOM, formula-neutralized cells. |
@@ -148,37 +148,37 @@ Every public `Api` instance method below is exposed to JavaScript. Return values
 | `delete_student(fingerprint_id)` | `{ok,message}` | Requires `delete` and a prior confirmed device-delete event; DB keeps attendance by remapping rows to ID 0. |
 | `export_students_csv()` | `{ok,message,path?}` | Requires `export`; exports roster plus today's time/status fields. |
 | `get_attendance_evaluation(period="month", ref_date="")` | `{ok,period,start_date,end_date,total_days,school_days,rows}` or error | Requires both `attendance_evaluation` and `read_records`; reports per-student distinct days. |
-| `export_attendance_evaluation_csv(period="month", ref_date="")` | `{ok,message,path?}` | Calls evaluation (thus needs both permissions); there is no separate `export` check in this method. |
+| `export_attendance_evaluation_csv(period="month", ref_date="")` | `{ok,message,path?}` | Requires `export`, plus the delegated evaluation and record-read permissions; writes a CSV only after all checks pass. |
 | `get_calendar_month(year, month)` | `{ok,year,month,entries}` or error | No role gate; reads settings calendar. |
 | `set_calendar_entry(date, entry_type, label="", time_in="", time_out="")` | `{ok,date,entry}` or error | Requires `manage_calendar`; saves validated holiday/suspension/half-day settings. |
 | `remove_calendar_entry(date)` | `{ok,date}` | Requires `manage_calendar`; removes entry from settings. |
-| `get_statistics_report()` | report dictionary or error | Requires `export` or `backup`; reads all attendance and student summary data. |
+| `get_statistics_report()` | report dictionary or error | Requires `read_records` plus `export` or `backup`; reads identifiable attendance and student summary data. |
 | `export_statistics_report()` | `{ok,message,path?}` | Requires `export`; writes text report through Save As. |
 | `list_backups()` | `list[backup metadata]` | Requires `backup`; otherwise empty list. |
 | `create_backup()` | `{ok,message,path?}` | Requires `backup`; creates a database snapshot. |
 | `restore_backup(backup_path)` | `{ok,message}` | Requires `restore`; replaces DB when validation passes and pushes `data_changed`. |
-| `get_settings()` | settings dictionary | No direct role gate; strips `auth`, overlays in-memory role and ports; includes log folder/last backup for backup-capable or admin sessions. It does not strip `rfid_aes_gcm_key`, so the local card-encryption key is returned to the frontend bridge caller. |
+| `get_settings()` | settings dictionary | No direct role gate; removes `auth` and RFID key material, overlays in-memory role and ports, and includes backup metadata only for backup-capable/admin sessions. |
 | `save_ui_settings(settings)` | `{ok}` or error | Requires admin; validates/clamps numeric schedule settings, removes caller-supplied `auth`, persists only known keys and applies selected live settings. |
-| `restore_default_settings()` | `{ok,message}` | Requires admin; preserves auth and completed wizard flags, resets other defaults and live settings. |
+| `restore_default_settings()` | `{ok,message}` | Requires admin; preserves auth, RFID AES-GCM key, and completed wizard flags; resets other preferences and live settings. |
 | `get_current_role()` | role string | No role gate; returns in-memory effective role. |
-| `set_current_role(role)` | session state or denial | No password check for Guest/Teacher selection or demotion; admin elevation from lower role returns `requires_password`. **See authorization limitation below.** |
+| `set_current_role(role)` | session state or denial | Guest cannot switch directly to Teacher/Admin; authentication is required for elevation. Admin can demote to Teacher/Guest. |
 | `is_first_run_setup_required()` | `{required,recovery_required}` | No role gate; reads API initialization state. |
 | `complete_first_run_setup(password, confirm_password)` | `{ok,...session}` or error | Only while initial setup is required and not in recovery; validates password, saves hash/marker, elevates creator to admin. |
 | `get_setup_wizard_step()` | `{step}` or recovery object | No role gate; reports next incomplete step. |
 | `complete_setup_device_step(connected=False)` | `{ok}` | Requires current role exactly admin; marks device step complete even on explicit skip. |
 | `complete_setup_schedule_step(time_in,time_out,early_threshold_minutes=15,late_threshold_minutes=15,absent_threshold_minutes=0,school_weekdays_off=None)` | `{ok}` or error | Requires admin; routes through settings validation then marks completion. |
 | `complete_setup_branding_step(school_name="",theme="dark")` | `{ok}` or error | Requires admin; saves school name/theme and marks completion. |
-| `authenticate_role(role,password)` | session state or `{ok:false,message}` | Admin password verification; 5 failed admin attempts trigger a 30-second lockout. Non-admin branch only allows role transitions at or below current role. |
+| `authenticate_role(role,password)` | session state or `{ok:false,message}` | Admin password verification; 5 failed attempts trigger a persisted 30-second lockout across app restarts. Password length is bounded at 1,024 characters and PBKDF2 record parameters are validated. Non-admin branch only allows role transitions at or below current role. |
 | `get_session_state()` | `{ok,role,permissions,idle_timeout_seconds}` | No role gate; reports in-memory role and configured permissions. |
 | `touch_session()` | session state | No role gate; refreshes authenticated idle timer. |
 | `lock_session()` | session state | No role gate; resets role to guest. |
 | `change_admin_password(current_password,new_password)` | `{ok,message}` | Requires admin role and current password; new password minimum 8; same failed-attempt lockout state. |
 | `get_role_permissions(role)` | `list[str]` | No role gate; returns configured permission strings. |
-| `open_log_folder()` | `{ok}` or error | No role gate; launches configured local log directory. |
-| `get_app_log(max_lines=500)` | `list[str]` | No role gate; reads this-run in-memory lines or current log file. |
-| `start_background_tasks()` | `None` | No role gate; starts the API's recurring automatic-backup worker if it is not already running. |
-| `stop_background_tasks()` | `None` | No role gate; signals the backup worker to stop and joins briefly. |
-| `set_window(window)` | `None` | No role gate; stores the native pywebview window and starts background tasks; called by `main_web.py` during startup. |
+| `open_log_folder()` | `{ok}` or denial | Administrator-only; launches configured local log directory. |
+| `get_app_log(max_lines=500)` | `list[str]` or empty list | Administrator-only; clamps reads to at most 1,000 recent lines. |
+| `_start_background_tasks()` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
+| `_stop_background_tasks()` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
+| `_set_window(window)` | `None` | Private Python lifecycle helper; not exposed as a public JavaScript bridge method. |
 
 ### Authorization findings that affect documentation
 
@@ -186,11 +186,11 @@ Default permission identifiers in `python/config.py` are `scan`, `read_records`,
 
 | Role | Configured permissions |
 | --- | --- |
-| `guest` | `scan`, `attendance_evaluation` |
+| `guest` | `scan` |
 | `teacher` | `scan`, `read_records`, `export`, `backup`, `attendance_evaluation` |
 | `admin` | `scan`, `read_records`, `enroll`, `delete`, `wipe`, `export`, `backup`, `restore`, `attendance_evaluation`, `manage_calendar` |
 
-These lists are not a complete description of effective access. `set_current_role("teacher")` accepts a Guest session without password verification; tests explicitly assert that transition. Teacher grants record reads, CSV exports, and backup creation/listing. Treat this as an implementation security limitation, not as an intended authentication guarantee. Admin elevation still requires authentication. Also, the evaluation API requires `read_records` in addition to `attendance_evaluation`, so Guest cannot get its student-level report rows despite its configured evaluation permission. `get_dashboard_stats`, `get_calendar_month`, settings/log access and several serial status helpers have no direct role gate. UI visibility is not an authorization boundary.
+These lists are not a complete description of effective access. Guest-to-Teacher and Guest-to-Administrator transitions require authentication; Teacher includes record-read, export, and backup privileges. The evaluation API requires `read_records` in addition to `attendance_evaluation`, and CSV export additionally requires `export`. `get_app_log` and `open_log_folder` are Administrator-only. The dashboard aggregate helper `get_dashboard_stats` requires `read_records`; calendar, sanitized settings and port listing remain available without that permission and must not return identifiable student data. UI visibility is not an authorization boundary.
 
 Non-guest sessions default to a 600-second idle timeout. The timeout is refreshed through explicit `touch_session()` calls; lock or expiry returns to Guest. `settings.json`'s `current_role` is not used by `core.permissions` to authorize calls.
 
@@ -214,13 +214,13 @@ Indexes created by `init_database()`:
 
 There are no other application tables, database-backed settings, schema-version table, or migration history table in the active initialization code. The card UID column is added to older `students` tables when absent. The nullable `event_type` column is added to older `attendance` tables and missing values are backfilled in `fingerprint_id,date,time,id` order (first missing row per pair receives `time_in`, later missing rows `time_out`). Initialization removes negative-ID rows, but retains/creates reserved `students.fingerprint_id=0` with `N/A` values for unknown attendance. Normal student validation accepts fingerprint IDs 1-127. Student deletion remaps historical attendance to 0 before deleting the profile. Local data wipe deletes attendance and positive student IDs, leaving the placeholder.
 
-`school_calendar` is **not** a SQL table. It is a settings JSON object keyed by `YYYY-MM-DD`; supported values are `holiday`, `suspension`, and `half_day` (the latter carries `time_in` and `time_out`). The attendance evaluation denominator only counts dates with observed attendance activity on weekdays, excluding configured holidays/suspensions; each student's denominator also starts no earlier than its enrollment date. Empty periods yield `attendance_rate: null` / `no_data`.
+`school_calendar` is **not** a SQL table. It is a settings JSON object keyed by `YYYY-MM-DD`; supported values are `holiday`, `suspension`, and `half_day` (the latter carries `time_in` and `time_out`). The attendance evaluation denominator enumerates elapsed scheduled weekdays, excluding configured no-class weekdays, weekends, holidays, and suspensions, regardless of whether any scan occurred; future dates are not counted in the active period. Each student's eligible denominator starts no earlier than their enrollment date. Empty eligible periods yield `attendance_rate: null` / `no_data`.
 
 ### Settings keys and runtime-created files
 
-`python/settings_store.py` supplies defaults, merges only known keys from loaded JSON, and stores the settings document as UTF-8 JSON. Defaults include: `com_port`, `baud_rate`, `cooldown`, `theme`, `auto_reconnect`, `auto_detect_serial`, `auto_connect_on_startup`, `startup_connect_delay_ms`, `compact_sidebar`, `enable_profiler`, `min_confidence`, `log_to_file`, `enable_debug_logging`, `current_role`, `rfid_payload_key`, `rfid_app_key_hex`, `rfid_aes_gcm_key`, `auto_backup_interval_minutes`, `time_in`, `time_out`, `early_threshold_minutes`, `late_threshold_minutes`, `absent_threshold_minutes`, `idle_timeout_minutes`, `auth`, `school_calendar`, `school_name`, `school_weekdays_off`, and the three `setup_*_step_done` flags. The Python API strips `auth` from the settings object it returns to JavaScript. `current_role` is UI continuity only.
+`python/settings_store.py` supplies defaults, merges known keys, saves atomically using a same-directory temporary file and atomic replace, and quarantines malformed JSON settings in a timestamped `settings.json.corrupt-*` file rather than discarding the only copy. If settings are quarantined and the RFID key is unavailable, key generation is blocked until recovery or deliberate re-enrollment. Defaults include: `com_port`, `baud_rate`, `cooldown`, `theme`, `auto_reconnect`, `auto_detect_serial`, `auto_connect_on_startup`, `startup_connect_delay_ms`, `compact_sidebar`, `enable_profiler`, `min_confidence`, `log_to_file`, `enable_debug_logging`, `current_role`, `rfid_payload_key`, `rfid_app_key_hex`, `rfid_aes_gcm_key`, `auto_backup_interval_minutes`, `time_in`, `time_out`, `early_threshold_minutes`, `late_threshold_minutes`, `absent_threshold_minutes`, `idle_timeout_minutes`, `auth`, `school_calendar`, `school_name`, `school_weekdays_off`, and the three `setup_*_step_done` flags. The Python API strips `auth` and all RFID key material from the settings object it returns to JavaScript. `current_role` is UI continuity only.
 
-The legacy settings keys `rfid_payload_key` and `rfid_app_key_hex` remain in the defaults; current AES-GCM card payload logic uses `rfid_aes_gcm_key`. `get_settings()` removes `auth` but currently returns `rfid_aes_gcm_key` to JavaScript without a role check. Do not claim this key is confidential from a caller able to interact with the running webview bridge.
+The legacy settings keys `rfid_payload_key` and `rfid_app_key_hex` remain in the defaults; current AES-GCM card payload logic uses `rfid_aes_gcm_key`. `get_settings()` removes `auth` and RFID key material before returning settings to JavaScript.
 
 | Path | Content/owner |
 | --- | --- |
@@ -232,11 +232,11 @@ The legacy settings keys `rfid_payload_key` and `rfid_app_key_hex` remain in the
 | `data/exports/` | Default output directory when no native save dialog is available; exports can also be saved to a user-selected path. |
 | `data/charts/` | Database reporting/chart helpers may create chart artifacts. |
 
-Never include actual settings, hashes, keys, student rows, logs, or production backups in documentation or source control. The `auth` record uses PBKDF2-HMAC-SHA256, random 16-byte salt, and 310,000 iterations. RFID application key material is locally persisted; AES-GCM card payload encryption does not encrypt the local settings/database/backups.
+Never include actual settings, hashes, keys, student rows, logs, or production backups in documentation or source control. The `auth` record uses PBKDF2-HMAC-SHA256, random 16-byte salt, and 310,000 iterations. Verification checks decoded salt/digest lengths and rejects stored iteration counts outside 100,000–1,000,000 to prevent unbounded work from a malformed local verifier. Invalid settings files are quarantined instead of being silently overwritten; if an RFID key may have been lost with a quarantined settings file, new-key creation is blocked until explicit recovery or card re-enrollment. RFID application key material is locally persisted; AES-GCM card payload encryption does not encrypt the local settings/database/backups.
 
 ## Firmware and device protocol
 
-Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with RFID adapter code under `src/rfid/`. Identity constants are device `Digital Student Identification System`, board `ESP32`, firmware `1.6.2`, sensor `AS608`, protocol `1`. The sketch starts host `Serial` at 115200 and AS608 UART on `HardwareSerial(2)` at 57600, RX GPIO14/TX GPIO27. RC522 uses SPI with SDA/SS GPIO5, RST GPIO4, MISO GPIO19, MOSI GPIO23, SCK GPIO18; IRQ is not connected. Sensor initialization failure enters a non-returning error loop; missing RC522 warns while fingerprint operation remains available.
+Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with RFID adapter code under `src/rfid/`. Identity constants are device `Digital Student Identification System`, board `ESP32`, firmware `1.6.2`, sensor `AS608`, protocol `1`. The sketch starts host `Serial` at 115200 and AS608 UART on `HardwareSerial(2)` at 57600, RX GPIO14/TX GPIO27. RC522 uses SPI with SDA/SS GPIO5, RST GPIO4, MISO GPIO19, MOSI GPIO23, SCK GPIO18; IRQ is not connected. AS608 initialization failure is reported but no longer blocks the main loop, so RC522 RFID scanning can continue; fingerprint-only commands are rejected while the sensor is offline.
 
 | Host command | Behavior / gate |
 | --- | --- |
@@ -251,7 +251,7 @@ Maintained sketch: `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`, with 
 
 Identity JSON includes `device`, `board`, `firmware`, `sensor`, `protocol`, and ESP32 eFuse serial number. Discovery sends `ID?` and accepts matching identifier with integer protocol >=1; probe timeout is 3 seconds. It also checks unprompted boot identity before waiting for the reply, to handle sensor-failure boot output. Successful connection tells firmware `HOST_CONNECTED`; disconnect sends `HOST_DISCONNECTED` and STOP.
 
-Firmware fingerprint match floor is confidence 50; its post-match delay is 2,000 ms, and unknown scan delay is 1,000 ms. The Python processor has separate default minimum confidence 100 (50-99 is still stored as `WEAK MATCH`) and per-fingerprint cooldown default 10 seconds. Both settings are configurable through application settings; firmware floor/cooldown are constants.
+Firmware fingerprint match floor is confidence 50; its post-match delay is 2,000 ms, and unknown scan delay is 1,000 ms. The Python processor has separate default minimum confidence 100 (weak matches are diagnostics only and are not stored as attendance) and per-fingerprint cooldown default 10 seconds. Both settings are configurable through application settings; firmware floor/cooldown are constants.
 
 Firmware emits status text/JSON; attendance JSON events include fingerprint `match`, `unknown`, `low_confidence`, card `card`, `card_unreadable`; card write events identify operation, UID, card type, data hex, success, verification, and result event. It also emits textual enrollment/delete/wipe/count progress consumed by the host parser. RFID supports Classic Mini/1K/4K and Type 2 variants that the detector can safely identify (Ultralight 48-byte, NTAG215, NTAG216); ambiguous 144-byte Type 2 variants are unsupported. Classic authentication/write/read behavior varies by card family and adapter; it must not be generalized to arbitrary RFID cards.
 

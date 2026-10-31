@@ -309,6 +309,18 @@ def init_database() -> None:
         )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_attendance_timestamp ON attendance(timestamp)")
+        # Match common ordered reads so pagination and date-range summaries
+        # have suitable composite indexes rather than relying on single-column
+        # indexes plus a separate sort.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_timestamp_id ON attendance(timestamp DESC, id DESC)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_date_time_timestamp ON attendance(date, time, timestamp)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_attendance_student_date_time ON attendance(fingerprint_id, date, time, timestamp)"
+        )
 
         _migrate_attendance_event_type(cursor)
 
@@ -342,15 +354,13 @@ def init_database() -> None:
 
 
 def _migrate_attendance_event_type(cursor: sqlite3.Cursor) -> None:
-    """Add and backfill the `event_type` column for databases created before it existed.
+    """Backfill historical event tags for databases created before the column.
 
-    Older rows have no event_type, so Time-In/Time-Out was only ever inferred
-    later (in get_daily_attendance_summary) from scan order within a day.
-    That's fragile - it breaks if scans are ever reordered or two students
-    scan in the same second. This tags each row explicitly, once, so future
-    reads don't have to guess:
-      - the first scan of a (fingerprint_id, date) is 'time_in'
-      - every later scan that same day is 'time_out'
+    This deterministic migration preserves legacy scan ordering for audit
+    purposes only. Historical `time_out` tags on ordinary scan rows are not
+    proof of departure; current summaries/exports only recognize an explicit
+    row with event_type='time_out' and status='TIME OUT' as a real departure.
+    New repeated scans are tagged `scan`.
     """
     cursor.execute("PRAGMA table_info(attendance)")
     columns = {row[1] for row in cursor.fetchall()}
@@ -718,6 +728,52 @@ def get_student(fingerprint_id: int) -> Optional[StudentRow]:
         conn.close()
 
 
+def has_persisted_records() -> bool:
+    """Return whether the database already contains student or attendance rows.
+
+    This is used only to prevent a missing settings file on a data-bearing
+    installation from being mistaken for a clean first launch when an older
+    install has no initialization marker yet.
+    """
+    with get_connection() as conn:
+        # ID 0 is a permanent "Unregistered/Unknown" placeholder inserted
+        # by init_database() on every clean install. It is schema infrastructure,
+        # not evidence that a school has enrolled students or recorded attendance.
+        row = conn.execute(
+            "SELECT 1 FROM students WHERE fingerprint_id > 0 LIMIT 1"
+        ).fetchone()
+        if row is not None:
+            return True
+        row = conn.execute("SELECT 1 FROM attendance LIMIT 1").fetchone()
+        return row is not None
+    return False
+
+
+def has_linked_rfid_cards() -> bool:
+    """Return whether the roster has any non-empty RFID card links.
+
+    A missing AES-GCM key must not be silently regenerated if persisted
+    student records already reference cards that may have been encrypted by
+    the old key. A genuinely empty/new database has no links and is safe.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'students'")
+        if cursor.fetchone() is None or not _student_card_uid_column_exists(cursor):
+            return False
+        row = conn.execute(
+            "SELECT 1 FROM students WHERE card_uid IS NOT NULL AND TRIM(card_uid) <> '' LIMIT 1"
+        ).fetchone()
+        return row is not None
+    except sqlite3.OperationalError as exc:
+        if "no such table: students" in str(exc).lower():
+            return False
+        raise
+    finally:
+        conn.close()
+
+
 def get_student_by_card_uid(uid: Any) -> Optional[StudentRow]:
     normalized = normalize_card_uid(uid)
     if not normalized:
@@ -872,15 +928,23 @@ def log_attendance(
     time_str = now.strftime("%H:%M:%S")
 
     with get_connection() as conn:
-        # Tag Time-In/Time-Out at the moment of the scan instead of leaving
-        # it to be inferred later from row order: the first scan for this
-        # fingerprint today is 'time_in', any later scan that day is
-        # 'time_out'.
-        already_scanned_today = conn.execute(
-            "SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ? LIMIT 1",
+        # Take the write lock before the "already present?" check so two scans
+        # of the same student (for example fingerprint + RFID at once) cannot
+        # both be classified as the day's Time In.
+        conn.execute("BEGIN IMMEDIATE")
+        # A qualifying scan records arrival only. Repeated scans remain in the
+        # audit trail but never imply departure; Time-Out is a separate,
+        # explicitly authorized event recorded by mark_attendance_time_out().
+        already_present_today = conn.execute(
+            """
+            SELECT 1 FROM attendance
+            WHERE fingerprint_id = ? AND date = ?
+              AND LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')
+            LIMIT 1
+            """,
             (fingerprint_id, date_str),
         ).fetchone()
-        event_type = "time_out" if already_scanned_today else "time_in"
+        event_type = "scan" if already_present_today else "time_in"
 
         conn.execute(
             """
@@ -891,6 +955,57 @@ def log_attendance(
         )
         conn.commit()
 
+
+
+def mark_attendance_time_out(
+    fingerprint_id: int,
+    now: Optional[datetime] = None,
+) -> Tuple[bool, str]:
+    """Record an explicit departure; repeated biometric/RFID scans never call this."""
+    try:
+        student_id = int(fingerprint_id)
+    except (TypeError, ValueError):
+        return False, "A valid student ID is required."
+    if student_id < 1:
+        return False, "A registered student must be selected."
+
+    now = now or datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+    timestamp = now.isoformat()
+    with get_connection() as conn:
+        # Serialize concurrent departure requests so two bridge calls cannot
+        # both pass the duplicate check before either inserts the event.
+        conn.execute("BEGIN IMMEDIATE")
+        student = conn.execute(
+            "SELECT 1 FROM students WHERE fingerprint_id = ? LIMIT 1", (student_id,)
+        ).fetchone()
+        if not student:
+            return False, "Student was not found."
+        time_in = conn.execute(
+            """SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ?
+               AND LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')
+               LIMIT 1""",
+            (student_id, date_str),
+        ).fetchone()
+        if not time_in:
+            return False, "Time In must be recorded before Time Out."
+        already_out = conn.execute(
+            """SELECT 1 FROM attendance WHERE fingerprint_id = ? AND date = ?
+               AND event_type = 'time_out' AND UPPER(TRIM(status)) = 'TIME OUT'
+               LIMIT 1""",
+            (student_id, date_str),
+        ).fetchone()
+        if already_out:
+            return False, "Time Out has already been recorded for today."
+        conn.execute(
+            """INSERT INTO attendance
+               (fingerprint_id, date, time, confidence, status, timestamp, event_type)
+               VALUES (?, ?, ?, 0, 'TIME OUT', ?, 'time_out')""",
+            (student_id, date_str, time_str, timestamp),
+        )
+        conn.commit()
+    return True, f"Time Out recorded at {time_str}."
 
 def get_attendance_today() -> List[AttendanceRow]:
     """Return today's attendance rows (kept for backward compatibility).
@@ -942,11 +1057,30 @@ def get_attendance_all() -> List[AttendanceRow]:
         conn.close()
 
 
-def get_attendance_paginated(limit: int = 100, offset: int = 0) -> List[AttendanceRow]:
-    query = f"{ATTENDANCE_JOIN_QUERY} ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
+def get_attendance_paginated(
+    limit: int = 100,
+    offset: int = 0,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> List[AttendanceRow]:
+    """Return a bounded newest-first page, optionally constrained to a date range."""
+    filters: List[str] = []
+    params: List[Any] = []
+    if start_date:
+        filters.append("a.date >= ?")
+        params.append(start_date)
+    if end_date:
+        filters.append("a.date <= ?")
+        params.append(end_date)
+    where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+    query = (
+        f"{ATTENDANCE_JOIN_QUERY}{where_clause} "
+        "ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?"
+    )
+    params.extend((max(1, min(int(limit), 1001)), max(0, int(offset))))
     conn = get_connection()
     try:
-        rows = conn.execute(query, (limit, offset)).fetchall()
+        rows = conn.execute(query, tuple(params)).fetchall()
         return _row_dicts(rows)
     finally:
         conn.close()
@@ -984,40 +1118,47 @@ def get_daily_attendance_summary(
     with get_connection() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
 
-    grouped: Dict[Tuple[str, str], RowDict] = {}
+    grouped: Dict[Tuple[int, str], RowDict] = {}
+    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row in rows:
-        row_dict = dict(row)
-        key = (row_dict["student_name"], row_dict["date"])
-        entry = grouped.setdefault(
-            key,
-            {
-                "student_name": row_dict["student_name"],
-                "student_no": row_dict["student_no"],
-                "grade": row_dict["grade"],
-                "section": row_dict["section"],
-                "date": row_dict["date"],
-                "time_in": row_dict["time"],
-                "time_out": row_dict["time"],
-                "match_status": row_dict["status"],
-            },
-        )
+        # Display names are not unique. Group by stable ID so two students
+        # with the same name cannot have their attendance merged.
+        key = (row["fingerprint_id"], row["date"])
+        entry = grouped.get(key)
+        if entry is None:
+            # Build the entry only for the first row of a student-day; a
+            # setdefault() default would allocate a throwaway dict per row.
+            entry = grouped[key] = {
+                "student_name": row["student_name"],
+                "student_no": row["student_no"],
+                "grade": row["grade"],
+                "section": row["section"],
+                "date": row["date"],
+                "time_in": "",
+                "time_out": "",
+                "match_status": row["status"],
+                "status": row["status"],
+                "_qualifying_scan_count": 0,
+            }
 
-        # Prefer the event_type tagged at scan time. Rows written before the
-        # event_type migration (or ones that somehow slipped through without
-        # one) fall back to the old "last scan seen = time_out" behavior so
-        # nothing breaks for older data.
-        event_type = row_dict.get("event_type")
-        if event_type == "time_in":
-            entry["time_in"] = row_dict["time"]
-        elif event_type == "time_out":
-            entry["time_out"] = row_dict["time"]
-        else:
-            entry["time_out"] = row_dict["time"]
+        status = str(row["status"] or "").strip()
+        if row["event_type"] == "time_out" and status.upper() == "TIME OUT":
+            entry["time_out"] = row["time"]
+            continue
+        if status.lower() in qualifying_statuses:
+            # Only the first qualifying scan sets Time In. Later scans are
+            # audit events, not proof of departure; only an explicit TIME OUT
+            # event may populate the Time Out field.
+            entry["_qualifying_scan_count"] += 1
+            if entry["_qualifying_scan_count"] == 1:
+                entry["time_in"] = row["time"]
+            entry["status"] = status
+            entry["match_status"] = status
 
-        if str(row_dict["status"]).lower() in {"present", "logged", "ok"}:
-            entry["status"] = row_dict["status"]
-
-    return list(grouped.values())
+    result = list(grouped.values())
+    for entry in result:
+        entry.pop("_qualifying_scan_count", None)
+    return result
 
 
 def get_attendance_by_date(date_str: str) -> List[AttendanceRow]:
@@ -1203,10 +1344,18 @@ def export_attendance_range_with_time_in_out(start_date: str, end_date: str) -> 
 
 
 def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Group already-loaded attendance rows for the UI's CSV export."""
+    """Group attendance export rows without turning weak matches into presence.
+
+    Weak scans remain visible in the exported audit trail but do not populate
+    Time In/Out. If a qualifying match exists on the same student/day, it takes
+    precedence over an older weak scan.
+    """
     grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row_dict in rows:
         key = (row_dict["student_no"], row_dict["date"])
+        status = str(row_dict.get("status") or "").strip()
+        qualifies = status.lower() in qualifying_statuses
         if key not in grouped:
             grouped[key] = {
                 "student_no": row_dict["student_no"],
@@ -1214,43 +1363,73 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
                 "grade": row_dict["grade"],
                 "section": row_dict["section"],
                 "date": row_dict["date"],
-                "time_in": row_dict["time"],
+                "time_in": "",
                 "time_out": "",
-                "confidence": row_dict["confidence"],
-                "status": row_dict["status"],
+                "confidence": row_dict.get("confidence"),
+                "status": status,
+                "_has_qualifying_match": False,
+                "_qualifying_scan_count": 0,
             }
-        event_type = row_dict.get("event_type")
-        if event_type == "time_in":
-            grouped[key]["time_in"] = row_dict["time"]
-        elif event_type == "time_out":
-            grouped[key]["time_out"] = row_dict["time"]
-        else:
-            if not grouped[key]["time_in"]:
-                grouped[key]["time_in"] = row_dict["time"]
-            elif not grouped[key]["time_out"]:
-                grouped[key]["time_out"] = row_dict["time"]
+        entry = grouped[key]
+
+        if row_dict.get("event_type") == "time_out" and status.upper() == "TIME OUT":
+            entry["time_out"] = row_dict["time"]
+            continue
+        if not qualifies:
+            # Retain a diagnostic status only while no qualifying event exists.
+            if not entry["_has_qualifying_match"] and status:
+                entry["status"] = status
+                entry["confidence"] = row_dict.get("confidence")
+            continue
+
+        entry["_has_qualifying_match"] = True
+        entry["status"] = status
+        entry["confidence"] = row_dict.get("confidence")
+        # Older event_type values were assigned from every raw scan, including
+        # weak scans. Recompute time fields using qualifying scans only, so the
+        # first valid scan becomes time-in even if its stored event_type says
+        # time_out because an earlier weak scan existed.
+        entry["_qualifying_scan_count"] += 1
+        if entry["_qualifying_scan_count"] == 1:
+            entry["time_in"] = row_dict["time"]
 
     result = list(grouped.values())
+    for row in result:
+        row.pop("_has_qualifying_match", None)
+        row.pop("_qualifying_scan_count", None)
     result.sort(key=lambda row: (export_name_sort_key(row.get("student_name")), row.get("date", "")))
     return result
-
 
 def generate_statistics_report() -> str:
     conn = get_connection()
     try:
-        total_students = conn.execute("SELECT COUNT(*) as count FROM students").fetchone()["count"]
-        total_attendance = conn.execute("SELECT COUNT(*) as count FROM attendance").fetchone()["count"]
+        qualifying_sql = "LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')"
+        # Count student-days rather than raw scans: repeated scans and explicit
+        # Time Out events are audit events and must not inflate attendance.
+        attendance_day_sql = (
+            "SELECT DISTINCT fingerprint_id, date FROM attendance "
+            f"WHERE {qualifying_sql} AND event_type = 'time_in' AND fingerprint_id > 0"
+        )
+        total_students = conn.execute(
+            "SELECT COUNT(*) as count FROM students WHERE fingerprint_id > 0"
+        ).fetchone()["count"]
+        total_attendance = conn.execute(
+            f"SELECT COUNT(*) as count FROM ({attendance_day_sql}) AS attendance_days"
+        ).fetchone()["count"]
 
         attendance_by_date = conn.execute(
-            "SELECT date, COUNT(*) as count FROM attendance GROUP BY date ORDER BY date DESC LIMIT 30"
+            f"SELECT date, COUNT(DISTINCT fingerprint_id) as count FROM attendance "
+            f"WHERE {qualifying_sql} AND event_type = 'time_in' AND fingerprint_id > 0 "
+            "GROUP BY date ORDER BY date DESC LIMIT 30"
         ).fetchall()
 
         top_students = conn.execute(
-            """
+            f"""
             SELECT COALESCE(s.student_name, 'Unknown') as name,
-                   COUNT(a.id) as count
+                   COUNT(DISTINCT a.date) as count
             FROM attendance a
             LEFT JOIN students s ON a.fingerprint_id = s.fingerprint_id
+            WHERE {qualifying_sql} AND a.event_type = 'time_in' AND a.fingerprint_id > 0
             GROUP BY a.fingerprint_id
             ORDER BY count DESC
             LIMIT 10
@@ -1258,11 +1437,12 @@ def generate_statistics_report() -> str:
         ).fetchall()
 
         grade_stats = conn.execute(
-            "SELECT grade, COUNT(*) as count FROM students GROUP BY grade"
+            "SELECT grade, COUNT(*) as count FROM students WHERE fingerprint_id > 0 GROUP BY grade"
         ).fetchall()
 
         enrolled_students = conn.execute(
-            "SELECT student_name, student_no, grade, section FROM students ORDER BY student_name COLLATE NOCASE, fingerprint_id ASC"
+            "SELECT student_name, student_no, grade, section FROM students "
+            "WHERE fingerprint_id > 0 ORDER BY student_name COLLATE NOCASE, fingerprint_id ASC"
         ).fetchall()
 
         report_lines = [
@@ -1276,8 +1456,8 @@ def generate_statistics_report() -> str:
             "KEY METRICS",
             "─" * 70,
             f"Total Students Enrolled: {total_students}",
-            f"Total Attendance Records: {total_attendance}",
-            f"Average per Student: {total_attendance / max(total_students, 1):.1f} records",
+            f"Total Attendance Days: {total_attendance}",
+            f"Average Attendance Days per Student: {total_attendance / max(total_students, 1):.1f} days",
             "",
             "─" * 70,
             "TOP 10 STUDENTS (By Attendance Count)",
@@ -1286,7 +1466,7 @@ def generate_statistics_report() -> str:
 
         if top_students:
             for i, row in enumerate(top_students, 1):
-                report_lines.append(f"{i:2d}. {row['name']:<30s} {row['count']:4d} scans")
+                report_lines.append(f"{i:2d}. {row['name']:<30s} {row['count']:4d} days")
         else:
             report_lines.append("No attendance records yet.")
 
@@ -1330,7 +1510,7 @@ def generate_statistics_report() -> str:
 
         if attendance_by_date:
             for row in attendance_by_date:
-                report_lines.append(f"{row['date']}  {row['count']:4d} scans")
+                report_lines.append(f"{row['date']}  {row['count']:4d} students present")
         else:
             report_lines.append("No attendance records yet.")
 
@@ -1521,18 +1701,13 @@ def _is_path_within_directory(path: Path, directory: Path) -> bool:
 
 
 def _is_valid_sqlite_db_file(path: Path) -> bool:
-    """Return True if the path looks like a real SQLite database file.
-
-    We validate the magic header instead of opening the file with sqlite3 so we
-    don't hold a file handle open on Windows while the backup file is still in
-    the temp-backups directory and being cleaned up.
-    """
+    """Return True only when a file is a readable, structurally valid SQLite DB."""
     try:
         if not path.exists() or not path.is_file() or path.stat().st_size < 16:
             return False
-        with path.open('rb') as handle:
+        with path.open("rb") as handle:
             header = handle.read(16)
-        if header != b'SQLite format 3\x00':
+        if header != b"SQLite format 3\x00":
             return False
         connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
         try:
@@ -1544,43 +1719,152 @@ def _is_valid_sqlite_db_file(path: Path) -> bool:
         return False
 
 
+def _has_dsis_schema(path: Path) -> bool:
+    """Reject arbitrary SQLite files that are not usable DSIS database backups."""
+    required_columns = {
+        "students": {
+            "fingerprint_id", "student_no", "student_name", "grade", "section",
+            "enrollment_date", "updated_date",
+        },
+        "attendance": {
+            "id", "fingerprint_id", "date", "time", "confidence", "status", "timestamp",
+        },
+    }
+    try:
+        connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            tables = {
+                row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if not set(required_columns).issubset(tables):
+                return False
+            for table, expected in required_columns.items():
+                actual = {
+                    row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')
+                }
+                if not expected.issubset(actual):
+                    return False
+            return True
+        finally:
+            connection.close()
+    except (OSError, ValueError, sqlite3.DatabaseError):
+        return False
+
+
+def _create_restore_safety_backup() -> Optional[Path]:
+    """Create a unique, transactionally consistent safety copy of the live DB."""
+    live_path = Path(DB_PATH)
+    if not live_path.is_file():
+        return None
+    backup_dir = live_path.parent / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safety_path = backup_dir / f"pre_restore_{stamp}_{os.getpid()}.db"
+    suffix = 1
+    while safety_path.exists():
+        safety_path = backup_dir / f"pre_restore_{stamp}_{os.getpid()}_{suffix}.db"
+        suffix += 1
+    source = sqlite3.connect(str(live_path), timeout=30)
+    destination = sqlite3.connect(str(safety_path), timeout=30)
+    try:
+        source.backup(destination)
+    except Exception:
+        destination.close()
+        source.close()
+        safety_path.unlink(missing_ok=True)
+        raise
+    else:
+        destination.close()
+        source.close()
+    if not _is_valid_sqlite_db_file(safety_path) or not _has_dsis_schema(safety_path):
+        safety_path.unlink(missing_ok=True)
+        raise RuntimeError("Current database could not be preserved as a valid safety backup.")
+    return safety_path
+
+
+def _sqlite_backup_file(source_path: Path, destination_path: Path) -> None:
+    """Copy a consistent SQLite snapshot through SQLite, including WAL content."""
+    source = sqlite3.connect(f"{source_path.resolve().as_uri()}?mode=ro", uri=True, timeout=30)
+    destination = sqlite3.connect(str(destination_path), timeout=30)
+    try:
+        source.backup(destination)
+        destination.commit()
+    finally:
+        destination.close()
+        source.close()
+
+
 def restore_database(backup_path: str) -> Tuple[bool, str]:
-    """Restore database from a backup file.
+    """Safely restore a validated DSIS database backup.
 
-    Args:
-        backup_path: Path to the backup file. Must be within the backups directory.
-
-    Returns:
-        Tuple of (success, message)
+    The selected backup must be inside the backups directory and contain the
+    expected DSIS tables. Before modifying the live database, create a verified
+    safety snapshot. If restore fails after it starts, attempt to roll back to
+    that snapshot before returning an error.
     """
+    live_path = Path(DB_PATH)
+    safety_backup: Optional[Path] = None
+    restore_started = False
+    live_database_existed = live_path.exists()
     try:
         backup_file = Path(backup_path).resolve()
-        backup_dir = (Path(DB_PATH).parent / 'backups').resolve()
+        backup_dir = (live_path.parent / "backups").resolve()
 
-        # SECURITY: Ensure the backup file is within the backups directory.
-        # This prevents path traversal attacks (../ escapes, sibling
-        # directories like "backups_evil", absolute paths elsewhere, and
-        # symlink-based escapes - see _is_path_within_directory()).
         if not _is_path_within_directory(backup_file, backup_dir):
-            log.error(f"Restore attempted from outside backups directory: {backup_path}")
-            return False, 'Invalid backup file location. Backups must be in the backups directory.'
-
+            log.error("Restore attempted from outside backups directory")
+            return False, "Invalid backup file location. Backups must be in the backups directory."
         if not backup_file.exists():
-            return False, 'Backup file not found.'
-
-        if backup_file.suffix.lower() != '.db':
-            return False, 'Invalid file type. Only .db backup files are supported.'
-
+            return False, "Backup file not found."
+        if backup_file.suffix.lower() != ".db":
+            return False, "Invalid file type. Only .db backup files are supported."
         if not _is_valid_sqlite_db_file(backup_file):
-            return False, 'Invalid backup file. The selected .db file is not a valid SQLite database.'
+            return False, "Invalid backup file. The selected .db file is not a valid SQLite database."
+        if not _has_dsis_schema(backup_file):
+            return False, "Invalid backup file. It does not contain the required DSIS database schema."
 
-        shutil.copy2(backup_file, DB_PATH)
+        live_path.parent.mkdir(parents=True, exist_ok=True)
+        safety_backup = _create_restore_safety_backup() if live_path.exists() else None
+
+        restore_started = True
+        _sqlite_backup_file(backup_file, live_path)
+
+        if not _is_valid_sqlite_db_file(live_path) or not _has_dsis_schema(live_path):
+            raise RuntimeError("Restored database failed integrity or schema validation")
+
         log.success(f"Database restored from {backup_file.name}")
-        return True, 'Database restored successfully'
+        return True, "Database restored successfully"
     except Exception as exc:
         log.error(f"Database restore failed: {exc}")
-        return False, 'Restore failed. Please try again.'
-
+        if restore_started and safety_backup is not None:
+            try:
+                _sqlite_backup_file(safety_backup, live_path)
+                if not _is_valid_sqlite_db_file(live_path) or not _has_dsis_schema(live_path):
+                    raise RuntimeError("Recovered database did not pass validation")
+                return False, "Restore failed. The original database was recovered from its pre-restore safety backup."
+            except Exception as recovery_exc:
+                log.error(f"Pre-restore database recovery failed: {recovery_exc}")
+                return False, "Restore and automatic recovery failed. Preserve the pre-restore safety backup and contact support."
+        if safety_backup is None:
+            if live_database_existed:
+                return False, (
+                    "Restore stopped because a verified safety snapshot could not "
+                    "be created. The existing database was not restored over; "
+                    "check logs before retrying."
+                )
+            if restore_started:
+                # Remove incomplete files from a failed first-time restore.
+                for candidate in (live_path, Path(f"{live_path}-wal"), Path(f"{live_path}-shm")):
+                    try:
+                        candidate.unlink(missing_ok=True)
+                    except OSError as cleanup_exc:
+                        log.error(f"Could not remove incomplete restore artifact {candidate}: {cleanup_exc}")
+            return False, (
+                "Restore failed. No pre-restore safety backup was available because "
+                "no existing database was present. Check logs before retrying."
+            )
+        return False, "Restore failed. Check logs and the pre-restore safety backup before retrying."
 
 def list_backups() -> List[RowDict]:
     try:
@@ -1589,7 +1873,11 @@ def list_backups() -> List[RowDict]:
             return []
 
         backups: List[RowDict] = []
-        for backup_file in sorted(backup_dir.glob('attendance_*.db'), reverse=True):
+        # Include automatic pre-restore safety snapshots so an operator can
+        # manually recover one if the restore rollback itself ever fails.
+        backup_files = list(backup_dir.glob('attendance_*.db'))
+        backup_files.extend(backup_dir.glob('pre_restore_*.db'))
+        for backup_file in sorted(backup_files, key=lambda item: item.stat().st_mtime, reverse=True):
             stat = backup_file.stat()
             backups.append(
                 {

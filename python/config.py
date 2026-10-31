@@ -25,7 +25,9 @@ def _resolve_project_root() -> Path:
 
 
 PROJECT_ROOT = _resolve_project_root()
-DATA_DIR = PROJECT_ROOT / "data"
+# Optional override used by tests and managed deployments; the default remains
+# the established project-local data directory.
+DATA_DIR = Path(os.getenv("FINGERPRINT_DATA_DIR", str(PROJECT_ROOT / "data"))).expanduser()
 
 DEFAULT_COM_PORT = "COM5"
 DEFAULT_BAUD_RATE = 115200

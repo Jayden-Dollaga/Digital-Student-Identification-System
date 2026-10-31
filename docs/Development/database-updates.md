@@ -37,9 +37,9 @@ Indexes: `idx_student_no` and `idx_grade_section`.
 | confidence | INTEGER | AS608 confidence supplied by firmware |
 | status | TEXT | Application status/classification |
 | timestamp | TEXT | Full event timestamp |
-| event_type | TEXT | Optional explicit time_in/time_out tag |
+| event_type | TEXT | `time_in`, repeated-scan `scan`, or explicit departure `time_out` tag |
 
-Indexes: `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`.
+Indexes: `idx_attendance_fingerprint_id`, `idx_attendance_date`, and `idx_attendance_timestamp`, plus composite indexes `idx_attendance_timestamp_id` for stable newest-first pagination, `idx_attendance_date_time_timestamp` for date-range ordering, and `idx_attendance_student_date_time` for student/day history.
 
 ## Reserved fingerprint ID 0
 
@@ -51,7 +51,7 @@ Normal student validation does not allow ID 0 as a real student.
 
 `init_database()` creates missing tables and indexes, enables the attendance `event_type` migration, removes invalid non-positive legacy rows, and seeds the reserved ID 0 row when needed.
 
-If an existing attendance table lacks `event_type`, DSIS adds the column and backfills older rows. The migration treats the first scan for a fingerprint on a date as `time_in` and later scans on that same date as `time_out` using deterministic ordering.
+If an existing attendance table lacks `event_type`, DSIS adds the column and backfills historical rows using deterministic ordering. This is legacy metadata only: a historical `time_out` tag on a normal scan is not treated as proof of departure in summaries or exports. New qualifying scans use `time_in` for first arrival and `scan` for later scans; an explicit teacher/admin departure writes status `TIME OUT` and event type `time_out`.
 
 The migration is not a general-purpose schema repair system. Back up old databases before upgrading and verify a copy first.
 

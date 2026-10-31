@@ -107,7 +107,7 @@ Attendance rows record:
 - full timestamp;
 - event type when assigned.
 
-Older databases can be migrated to add the `event_type` field. The migration backfills legacy rows so the first scan for a fingerprint/date is `time_in` and later scans are `time_out`.
+Older databases can be migrated to add the `event_type` field. The migration backfills historical rows deterministically, but those legacy `time_out` tags are not proof of departure. New qualifying scans use `time_in` for the first arrival and `scan` for later scans; only the explicit teacher/admin departure action writes status `TIME OUT` with event type `time_out`.
 
 ## Scan confidence and duplicate handling
 

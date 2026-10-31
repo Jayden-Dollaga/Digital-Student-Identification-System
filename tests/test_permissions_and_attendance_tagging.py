@@ -1,9 +1,9 @@
-"""Tests for backend permission enforcement and Time-In/Time-Out tagging.
+"""Tests for backend permission enforcement and explicit Time-In/Time-Out events.
 
 Covers three fixes:
   1. core.commands now enforces role permissions (not just the Qt UI).
-  2. attendance rows are tagged with event_type ('time_in'/'time_out') at
-     insert time instead of it being inferred later from row order.
+  2. repeated scans never imply Time-Out; only an explicit departure action
+     may create a time_out event.
   3. get_today_attendance_info() reports whether it fell back to recent
      records because there were none for today.
 """
@@ -359,15 +359,54 @@ class TestAttendanceEventTypeTagging:
         rows = db_module.get_attendance_by_student(1)
         assert rows[0]["event_type"] == "time_in"
 
-    def test_second_scan_same_day_is_tagged_time_out(self, temp_db):
+    def test_second_scan_same_day_does_not_mark_time_out(self, temp_db):
+        import datetime
         db_module.add_student(1, "S-1", "Student One", "10", "A")
-        db_module.log_attendance(fingerprint_id=1, confidence=100, status="Present")
-        db_module.log_attendance(fingerprint_id=1, confidence=99, status="Present")
+        first = datetime.datetime(2026, 8, 14, 7, 30, 0)
+        second = datetime.datetime(2026, 8, 14, 12, 30, 0)
+        db_module.log_attendance(fingerprint_id=1, confidence=100, status="Present", now=first)
+        db_module.log_attendance(fingerprint_id=1, confidence=99, status="Present", now=second)
 
         rows = db_module.get_attendance_by_student(1)
-        event_types = {row["event_type"] for row in rows}
-        assert "time_in" in event_types
-        assert "time_out" in event_types
+        event_types = [row["event_type"] for row in reversed(rows)]
+        assert event_types == ["time_in", "scan"]
+        summary = db_module.get_daily_attendance_summary("2026-08-14", "2026-08-14")
+        assert summary[0]["time_in"] == "07:30:00"
+        assert summary[0]["time_out"] == ""
+        exported = db_module.export_attendance_range_with_time_in_out("2026-08-14", "2026-08-14")
+        assert exported[0]["time_in"] == "07:30:00"
+        assert exported[0]["time_out"] == ""
+
+    def test_explicit_time_out_records_once_after_time_in(self, temp_db):
+        import datetime
+        db_module.add_student(1, "S-1", "Student One", "10", "A")
+        morning = datetime.datetime(2026, 8, 14, 7, 30, 0)
+        afternoon = datetime.datetime(2026, 8, 14, 16, 0, 0)
+        db_module.log_attendance(1, 100, "Present", now=morning)
+
+        ok, message = db_module.mark_attendance_time_out(1, now=afternoon)
+        assert ok is True, message
+        ok_again, message_again = db_module.mark_attendance_time_out(
+            1, now=datetime.datetime(2026, 8, 14, 16, 5, 0)
+        )
+        assert ok_again is False
+        assert "already been recorded" in message_again
+
+        summary = db_module.get_daily_attendance_summary("2026-08-14", "2026-08-14")
+        assert summary[0]["time_in"] == "07:30:00"
+        assert summary[0]["time_out"] == "16:00:00"
+        exported = db_module.export_attendance_range_with_time_in_out("2026-08-14", "2026-08-14")
+        assert exported[0]["time_in"] == "07:30:00"
+        assert exported[0]["time_out"] == "16:00:00"
+
+    def test_time_out_requires_existing_qualifying_time_in(self, temp_db):
+        import datetime
+        db_module.add_student(1, "S-1", "Student One", "10", "A")
+        ok, message = db_module.mark_attendance_time_out(
+            1, now=datetime.datetime(2026, 8, 14, 16, 0, 0)
+        )
+        assert ok is False
+        assert "Time In must be recorded" in message
 
         def test_reenrollment_migrates_existing_student_without_duplicate_number(self, temp_db):
             db_module.add_student(1, "S-1", "Student One", "10", "A")
@@ -406,7 +445,7 @@ class TestAttendanceEventTypeTagging:
         summary = db_module.get_daily_attendance_summary(start_date="2026-08-14", end_date="2026-08-14")
         assert len(summary) == 1
         assert summary[0]["time_in"] == "07:30:00"
-        assert summary[0]["time_out"] == "16:00:00"
+        assert summary[0]["time_out"] == ""
 
     def test_migration_backfills_legacy_rows_without_event_type(self, temp_db):
         """Rows inserted before the event_type column existed should get
@@ -443,11 +482,11 @@ class TestTodayAttendanceFallbackFlag:
         api = api_module.Api()
         assert api._backup_thread is None
 
-        api.set_window(object())
+        api._set_window(object())
         assert api._backup_thread is not None
         assert api._backup_thread.is_alive()
 
-        api.stop_background_tasks()
+        api._stop_background_tasks()
         assert api._backup_thread is not None
         assert not api._backup_thread.is_alive()
 
@@ -481,3 +520,41 @@ class TestTodayAttendanceFallbackFlag:
 
         assert isinstance(rows, list)
         assert len(rows) == 1
+
+class TestExplicitTimeOutApi:
+    def test_guest_cannot_record_time_out(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("guest", 600.0)
+        db_mock = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.mark_attendance_time_out", db_mock)
+
+        result = api.mark_student_time_out(1)
+
+        assert result["ok"] is False
+        assert result["status"] == 403
+        db_mock.assert_not_called()
+
+    def test_teacher_can_record_explicit_time_out(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("teacher", 600.0)
+        monkeypatch.setattr(
+            "gui_web.api.db.mark_attendance_time_out",
+            lambda fingerprint_id: (True, "Time Out recorded at 16:00:00."),
+        )
+
+        result = api.mark_student_time_out(1)
+
+        assert result["ok"] is True
+        assert result["fingerprint_id"] == 1
+
+    def test_explicit_time_out_rejects_invalid_student_id(self, monkeypatch):
+        api = api_module.Api()
+        permissions_module.set_session_role("teacher", 600.0)
+        db_mock = MagicMock()
+        monkeypatch.setattr("gui_web.api.db.mark_attendance_time_out", db_mock)
+
+        result = api.mark_student_time_out("not-a-number")
+
+        assert result["ok"] is False
+        db_mock.assert_not_called()
+

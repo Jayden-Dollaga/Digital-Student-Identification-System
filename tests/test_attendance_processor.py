@@ -108,6 +108,67 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertFalse(cooldown_result["logged"])
         self.assertEqual(len(logged), 1)
 
+    def test_weak_fingerprint_match_is_not_recorded_as_attendance(self):
+        logged = []
+        processor = AttendanceProcessor(
+            cooldown_seconds=1,
+            min_confidence=200,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        processor.process_line("ID:3")
+        result = processor.process_line("CONFIDENCE:199")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "WEAK MATCH")
+        self.assertFalse(result["logged"])
+        self.assertIn("below the configured", result["reason"])
+        self.assertEqual(logged, [])
+
+    def test_weak_json_match_is_not_recorded_as_attendance(self):
+        logged = []
+        processor = AttendanceProcessor(
+            cooldown_seconds=1,
+            min_confidence=200,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        result = processor.process_line(
+            '{"type":"attendance","event":"match","id":4,"confidence":199}'
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "WEAK MATCH")
+        self.assertFalse(result["logged"])
+        self.assertEqual(logged, [])
+
+    def test_out_of_range_fingerprint_match_events_are_not_recorded(self):
+        logged = []
+        processor = AttendanceProcessor(
+            min_confidence=1,
+            log_attendance_fn=lambda *args: logged.append(args),
+        )
+
+        legacy = processor.process_line("ID:128")
+        self.assertIsNone(legacy)
+        legacy = processor.process_line("CONFIDENCE:200")
+        self.assertIsNotNone(legacy)
+        self.assertEqual(legacy["status"], "INVALID MATCH")
+        self.assertFalse(legacy["logged"])
+
+        json_result = processor.process_line(
+            '{"type":"attendance","event":"match","id":1,"confidence":256}'
+        )
+        self.assertIsNotNone(json_result)
+        self.assertEqual(json_result["status"], "INVALID MATCH")
+        self.assertFalse(json_result["logged"])
+
+        # JSON booleans are not integer fields and must be rejected pre-handler.
+        self.assertIsNone(processor.process_line(
+            '{"type":"attendance","event":"match","id":true,"confidence":255}'
+        ))
+        self.assertEqual(logged, [])
+
     def test_process_json_attendance_match(self):
         logged = []
 
@@ -204,6 +265,25 @@ class AttendanceProcessorTests(unittest.TestCase):
         self.assertEqual(result["status"], "UNKNOWN")
         self.assertTrue(result["logged"])
         self.assertEqual(len(logged), 1)
+
+    def test_invalid_rfid_application_key_is_reported_without_unknown_record(self):
+        logged = []
+        processor = AttendanceProcessor(log_attendance_fn=lambda *args: logged.append(args))
+        message = (
+            '{"type":"attendance","event":"card","uid":"AA:BB:CC:DD",'
+            '"data_hex":"' + "00" * 48 + '"}'
+        )
+
+        with patch(
+            "core.attendance.decrypt_student_card_payload",
+            side_effect=rfid_card.RFIDKeyConfigurationError("stored key invalid"),
+        ):
+            result = processor.process_line(message)
+
+        self.assertEqual(result["status"], "RFID KEY ERROR")
+        self.assertFalse(result["logged"])
+        self.assertIn("stored key invalid", result["reason"])
+        self.assertEqual(logged, [])
 
     def test_card_event_accepts_data_hex_payload(self):
         student_record = {
@@ -492,6 +572,103 @@ class AttendanceProcessorTests(unittest.TestCase):
 
                 self.assertEqual(rfid_card.decrypt_student_card_payload(ciphertext, "AA:BB:CC:DD"), (21, "STUDENT-21"))
                 self.assertNotEqual(original.hex(), wrong_key.hex())
+
+    def test_rfid_registration_surfaces_key_configuration_error_without_crashing(self):
+        from core.rfid_card import RFIDKeyConfigurationError
+
+        api = Api.__new__(Api)
+        api._rfid_session_fingerprint_id = 7
+        api._rfid_pending_uid = None
+        api._rfid_pending_fingerprint_id = None
+        api._rfid_pending_payload_hex = None
+        api._rfid_pending_card_type = None
+        api._push = MagicMock()
+
+        student = {
+            "fingerprint_id": 7,
+            "student_no": "LRN-007",
+            "student_name": "Student Seven",
+        }
+        with patch("gui_web.api.db.normalize_card_uid", return_value="AA:BB:CC:DD"), \
+             patch("gui_web.api.db.get_student", return_value=student), \
+             patch("gui_web.api.db.get_student_by_card_uid", return_value=None), \
+             patch("gui_web.api.encrypt_student_card_payload", side_effect=RFIDKeyConfigurationError("Restore the original key.")):
+            api._handle_rfid_registration_tap({
+                "event": "card",
+                "uid": "AA:BB:CC:DD",
+                "card_type": "MIFARE_1K",
+            })
+
+        payload = api._push.call_args.args[1]
+        self.assertEqual(payload["event"], "error")
+        self.assertIn("original key", payload["reason"])
+        self.assertIsNone(api._rfid_pending_uid)
+
+
+    def test_missing_rfid_key_is_not_replaced_when_linked_cards_exist(self):
+        from settings_store import default_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                save_settings(default_settings(), settings_path)
+                with patch("core.database.has_linked_rfid_cards", return_value=True):
+                    with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                        rfid_card.get_or_create_rfid_app_key()
+
+                self.assertEqual(
+                    rfid_card.load_settings()["rfid_aes_gcm_key"],
+                    "",
+                )
+
+    def test_rfid_key_persistence_failure_is_reported_as_configuration_error(self):
+        from settings_store import default_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                save_settings(default_settings(), settings_path)
+                with patch("core.database.has_linked_rfid_cards", return_value=False), \
+                     patch("core.rfid_card.save_settings", side_effect=OSError("read-only settings")):
+                    with self.assertRaisesRegex(
+                        rfid_card.RFIDKeyConfigurationError,
+                        "could not safely persist",
+                    ):
+                        rfid_card.get_or_create_rfid_app_key()
+
+    def test_malformed_saved_rfid_key_is_not_silently_replaced(self):
+        from settings_store import load_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                settings = load_settings()
+                settings["rfid_aes_gcm_key"] = "malformed-key"
+                save_settings(settings)
+
+                with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                    rfid_card.get_or_create_rfid_app_key()
+
+                self.assertEqual(
+                    load_settings()["rfid_aes_gcm_key"],
+                    "malformed-key",
+                )
+
+    def test_missing_rfid_key_after_settings_quarantine_requires_recovery(self):
+        from settings_store import load_settings, save_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.json"
+            with patch("settings_store.SETTINGS_FILE", settings_path):
+                settings_path.write_text('{"rfid_aes_gcm_key": ', encoding="utf-8")
+                load_settings()  # quarantine malformed settings
+
+                clean_settings = load_settings()
+                clean_settings["rfid_aes_gcm_key"] = ""
+                save_settings(clean_settings)
+
+                with self.assertRaises(rfid_card.RFIDKeyConfigurationError):
+                    rfid_card.get_or_create_rfid_app_key()
 
     def test_new_rfid_key_is_separate_from_legacy_xor_keys(self):
         from settings_store import load_settings, save_settings

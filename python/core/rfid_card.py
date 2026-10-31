@@ -5,12 +5,16 @@ from typing import Optional, Tuple
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from settings_store import load_settings, save_settings
+from settings_store import has_quarantined_settings, load_settings, save_settings
 
 _CARD_BYTES = 48
 _NONCE_BYTES = 12
 _STUDENT_NO_BYTES = 17
 _PAYLOAD_VERSION = 1
+
+
+class RFIDKeyConfigurationError(RuntimeError):
+    """The persisted RFID application key is unavailable or malformed."""
 
 
 def _decode_rfid_key(encoded: str) -> Optional[bytes]:
@@ -25,12 +29,64 @@ def _decode_rfid_key(encoded: str) -> Optional[bytes]:
 
 
 def get_or_create_rfid_app_key() -> bytes:
-    settings = load_settings()
-    key = _decode_rfid_key(settings.get("rfid_aes_gcm_key"))
-    if key is None:
-        key = secrets.token_bytes(32)
-        settings["rfid_aes_gcm_key"] = key.hex().upper()
+    try:
+        settings = load_settings()
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not read its current settings, so the RFID operation was stopped "
+            "without creating or replacing an encryption key."
+        ) from exc
+    stored_value = settings.get("rfid_aes_gcm_key")
+    key = _decode_rfid_key(stored_value)
+    if key is not None:
+        return key
+
+    # First-run setup may create a key. A present-but-invalid value is different:
+    # silently replacing it would make cards encrypted with the old key unreadable.
+    if stored_value not in (None, ""):
+        raise RFIDKeyConfigurationError(
+            "The stored DSIS RFID encryption key is invalid. Restore a trusted "
+            "settings backup; the key was not replaced and existing cards may not decrypt."
+        )
+    if has_quarantined_settings():
+        # A malformed settings file may have contained the only copy of this
+        # key. Never create a replacement automatically after quarantine,
+        # because that would make existing cards appear invalid.
+        raise RFIDKeyConfigurationError(
+            "DSIS has a quarantined settings file and no current RFID key. "
+            "Recover the original key from a trusted backup or deliberately "
+            "re-enroll the affected cards before generating a new key."
+        )
+
+    # Also detect an emptied/deleted key field when the database survives.
+    # Otherwise a perfectly valid settings JSON file could trigger a fresh key
+    # and make all previously enrolled, linked cards unreadable.
+    try:
+        from core.database import has_linked_rfid_cards
+        if has_linked_rfid_cards():
+            raise RFIDKeyConfigurationError(
+                "The DSIS RFID application key is missing while linked RFID cards "
+                "exist in the roster. Restore the original key from a trusted "
+                "settings backup; do not generate a replacement automatically."
+            )
+    except RFIDKeyConfigurationError:
+        raise
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not verify whether RFID cards are already linked, so it "
+            "did not generate a replacement encryption key. Check the database "
+            "and restore the original settings key if possible."
+        ) from exc
+
+    key = secrets.token_bytes(32)
+    settings["rfid_aes_gcm_key"] = key.hex().upper()
+    try:
         save_settings(settings)
+    except Exception as exc:
+        raise RFIDKeyConfigurationError(
+            "DSIS could not safely persist its new RFID key, so the operation was stopped. "
+            "No card should be written until settings storage is repaired."
+        ) from exc
     return key
 
 
@@ -76,9 +132,13 @@ def decrypt_student_card_payload(data_hex: str, card_uid: str) -> Optional[Tuple
         return None
     if len(raw) != _CARD_BYTES or raw[0] != _PAYLOAD_VERSION:
         return None
+    # Load the application key outside the payload-invalidity handler. A
+    # malformed persisted key is an installation/recovery problem, not proof
+    # that the card itself is invalid.
+    key = get_or_create_rfid_app_key()
     try:
         aad = _payload_aad(card_uid)
-        plaintext = AESGCM(get_or_create_rfid_app_key()).decrypt(
+        plaintext = AESGCM(key).decrypt(
             raw[1:1 + _NONCE_BYTES], raw[1 + _NONCE_BYTES:], aad
         )
     except (InvalidTag, ValueError):

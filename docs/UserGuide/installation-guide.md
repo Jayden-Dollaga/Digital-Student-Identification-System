@@ -130,17 +130,17 @@ Press **STOP** before enrollment, deletion, or wipe operations.
 
 | Role | Default permissions |
 | --- | --- |
-| Administrator | scan, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
-| Teacher | scan, export, backup, attendance evaluation |
-| Guest | scan, attendance evaluation |
+| Administrator | scan, read records, enroll, delete, wipe, export, backup, restore, attendance evaluation, calendar management |
+| Teacher | scan, read records, export, backup, attendance evaluation |
+| Guest | scan only |
 
-Authenticated non-guest sessions expire after 600 seconds of inactivity by default.
+Authenticated non-guest sessions expire after 600 seconds of inactivity by default. Guest-to-Teacher/Admin changes require authentication. Identifiable evaluation requires both `attendance_evaluation` and `read_records`; exporting that evaluation also requires `export`.
 
 ## 11. Attendance evaluation
 
 The Dashboard supports Day, Monday-Sunday Week, and Calendar Month evaluation.
 
-Evaluation counts distinct attendance dates per student. The observed-day denominator is based on attendance activity in the selected range rather than every empty calendar date.
+Evaluation counts distinct qualifying attendance dates per student. The denominator enumerates elapsed scheduled weekdays and excludes recurring days off, weekends, holidays, and suspensions whether or not a scan occurred. Empty scan days/device outages still count, future dates in the active period are excluded, and each student's eligible denominator starts no earlier than enrollment.
 
 Category bands:
 
@@ -151,7 +151,7 @@ Category bands:
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-Evaluation data requires both `attendance_evaluation` and `read_records`. The current API's evaluation CSV method delegates to the same check and does not separately require `export`. Guest is configured with `attendance_evaluation` but lacks `read_records`; it cannot obtain identifiable evaluation output. See [Roles and Permissions](roles-and-permissions.md) for the current Guest-to-Teacher limitation.
+Evaluation data requires both `attendance_evaluation` and `read_records`; evaluation CSV export additionally requires `export`. Guest has scan permission only and cannot switch to Teacher without authentication. See [Roles and Permissions](roles-and-permissions.md) for effective method-level access and physical/local file-security limitations.
 
 ## 12. Backups
 
@@ -202,7 +202,7 @@ Verify that the maintained all-in-one firmware is installed and that `ID?` retur
 
 ### Unexpected weak attendance result
 
-Review the configurable application `min_confidence`. A WEAK MATCH is still recorded by the current attendance processor.
+Review the configurable application `min_confidence` (raw AS608 confidence score, range 1–255; default 100). Weak matches are diagnostic-only and are not added to attendance.
 
 ## Related documentation
 

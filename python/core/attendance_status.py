@@ -1,12 +1,17 @@
 """Attendance status calculation shared by live scans and historical rows."""
 
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Mapping, Optional
 
 from core import attendance_calendar
 
 
+@lru_cache(maxsize=4096)
 def _minutes(value: str) -> int:
+    # Cached: a school day only has 1,440 distinct HH:MM values, but reports and
+    # CSV exports classify one row per student-day (tens of thousands of calls).
+    # Errors are not cached, so invalid values still raise ValueError each time.
     parsed = datetime.strptime(value, "%H:%M")
     return parsed.hour * 60 + parsed.minute
 

@@ -33,6 +33,7 @@ def test_default_settings():
     assert defaults["auto_connect_on_startup"] is False
     assert defaults["startup_connect_delay_ms"] == 1000
     assert "compact_sidebar" in defaults
+    assert defaults["table_zoom_percent"] == 100
     assert "enable_profiler" in defaults
     print("✓ Default settings include all toggle flags")
 
@@ -169,6 +170,7 @@ def test_restore_default_settings_resets_values_but_preserves_auth_and_setup(mon
     persisted = default_settings()
     persisted.update({
         "auth": {"password_hash": "keep-this-hash"},
+        "rfid_aes_gcm_key": "AB" * 32,
         "current_role": "teacher",
         "setup_device_step_done": True,
         "setup_schedule_step_done": True,
@@ -200,6 +202,7 @@ def test_restore_default_settings_resets_values_but_preserves_auth_and_setup(mon
 
     expected = default_settings()
     expected["auth"] = persisted["auth"]
+    expected["rfid_aes_gcm_key"] = persisted["rfid_aes_gcm_key"]
     expected["current_role"] = "admin"
     for key in ("setup_device_step_done", "setup_schedule_step_done", "setup_branding_step_done"):
         expected[key] = True
@@ -231,3 +234,134 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
+
+def test_malformed_settings_are_preserved_instead_of_deleted():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = '{"rfid_aes_gcm_key": "broken",'
+        settings_file.write_text(original, encoding="utf-8")
+
+        loaded = load_settings(settings_file)
+
+        assert loaded["auth"] == {}
+        assert not settings_file.exists()
+        preserved = list(Path(tmpdir).glob("settings.json.corrupt-*"))
+        assert len(preserved) == 1
+        assert preserved[0].read_text(encoding="utf-8") == original
+
+
+def test_non_object_settings_json_is_quarantined():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        settings_file.write_text("[]", encoding="utf-8")
+
+        loaded = load_settings(settings_file)
+
+        assert loaded == default_settings()
+        assert not settings_file.exists()
+        assert len(list(Path(tmpdir).glob("settings.json.corrupt-*"))) == 1
+
+
+def test_atomic_settings_save_round_trip_and_no_temp_file_left():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        save_settings({"com_port": "COM17"}, settings_file)
+        loaded = load_settings(settings_file)
+        assert loaded["com_port"] == "COM17"
+        assert json.loads(settings_file.read_text(encoding="utf-8"))["com_port"] == "COM17"
+        assert list(Path(tmpdir).glob(".settings.json.*.tmp")) == []
+
+def test_save_ui_settings_cannot_overwrite_rfid_key_material(monkeypatch):
+    """UI preferences must never replace the key that decrypts enrolled cards."""
+    from gui_web.api import Api
+
+    persisted = default_settings()
+    persisted.update({
+        "auth": {"password_hash": "preserve-auth"},
+        "rfid_aes_gcm_key": "AB" * 32,
+        "rfid_app_key_hex": "CD" * 32,
+        "rfid_payload_key": "legacy-secret",
+    })
+    saved = {}
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: persisted.copy())
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: saved.update(settings))
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+
+    api = Api.__new__(Api)
+    api.serial = MagicMock()
+    api.processor = MagicMock()
+    api.profiler = MagicMock()
+    api._backup_interval_minutes = 25
+    api._session_timeout_seconds = 600
+
+    result = api.save_ui_settings({
+        "theme": "light",
+        "auth": {"password_hash": "attacker-controlled"},
+        "rfid_aes_gcm_key": "00" * 32,
+        "rfid_app_key_hex": "11" * 32,
+        "rfid_payload_key": "attacker-controlled",
+    })
+
+    assert result["ok"] is True
+    assert saved["theme"] == "light"
+    assert saved["auth"] == persisted["auth"]
+    assert saved["rfid_aes_gcm_key"] == persisted["rfid_aes_gcm_key"]
+    assert saved["rfid_app_key_hex"] == persisted["rfid_app_key_hex"]
+    assert saved["rfid_payload_key"] == persisted["rfid_payload_key"]
+
+def test_settings_save_preserves_previous_valid_snapshot():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = json.dumps({"theme": "dark", "school_name": "Test School"}, indent=2) + "\n"
+        settings_file.write_text(original, encoding="utf-8")
+
+        save_settings({"theme": "light"}, settings_file)
+
+        previous_file = settings_file.with_name("settings.json.previous")
+        assert previous_file.read_text(encoding="utf-8") == original
+        assert load_settings(settings_file)["theme"] == "light"
+        assert list(Path(tmpdir).glob(".settings.json.previous.*.tmp")) == []
+
+def test_settings_save_does_not_replace_non_object_json():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings_file = Path(tmpdir) / "settings.json"
+        original = "[]"
+        settings_file.write_text(original, encoding="utf-8")
+
+        with pytest.raises(RuntimeError):
+            save_settings({"theme": "light"}, settings_file)
+
+        assert settings_file.read_text(encoding="utf-8") == original
+
+
+
+def test_table_zoom_setting_is_clamped_and_persisted(monkeypatch):
+    """Table zoom is a bounded UI preference, not a free-form CSS value."""
+    from gui_web.api import Api
+
+    persisted = default_settings()
+    saved = {}
+    monkeypatch.setattr("gui_web.api.load_settings", lambda: persisted.copy())
+    monkeypatch.setattr("gui_web.api.save_settings", lambda settings: saved.update(settings))
+    monkeypatch.setattr("gui_web.api.permissions.require_role", lambda role: True)
+    monkeypatch.setattr("gui_web.api.permissions.get_current_role", lambda: "admin")
+
+    api = Api.__new__(Api)
+    api.serial = MagicMock()
+    api.processor = MagicMock()
+    api.profiler = MagicMock()
+    api._backup_interval_minutes = 25
+    api._session_timeout_seconds = 600
+
+    result = api.save_ui_settings({"table_zoom_percent": 150})
+    assert result["ok"] is True
+    assert saved["table_zoom_percent"] == 125
+
+    persisted.update(saved)
+    saved.clear()
+    result = api.save_ui_settings({"table_zoom_percent": 60})
+    assert result["ok"] is True
+    assert saved["table_zoom_percent"] == 75

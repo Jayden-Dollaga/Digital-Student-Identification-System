@@ -48,11 +48,12 @@ try:
     from ..core.attendance import AttendanceProcessor
     from ..core.attendance_status import calculate_attendance_status
     from ..core.logger import LOG, LOG_FILE, AppFormatter, log
-    from ..core.rfid_card import encrypt_student_card_payload
+    from ..core.rfid_card import RFIDKeyConfigurationError, encrypt_student_card_payload
     from ..core.serial_handler import SerialHandler, list_serial_ports
     from ..core.utils import parse_json_line
     from ..settings_store import (
         admin_initialization_marker_exists,
+        has_quarantined_settings,
         default_settings,
         load_settings,
         save_settings,
@@ -70,12 +71,13 @@ except ImportError:  # pragma: no cover - direct script execution fallback
     from core.attendance import AttendanceProcessor
     from core.attendance_status import calculate_attendance_status
     from core.logger import LOG, LOG_FILE, AppFormatter, log
-    from core.rfid_card import encrypt_student_card_payload
+    from core.rfid_card import RFIDKeyConfigurationError, encrypt_student_card_payload
     from core.serial_handler import SerialHandler, list_serial_ports
     from core.utils import parse_json_line
     from gui_web.perf_profiler import PerfProfiler
     from settings_store import (
         admin_initialization_marker_exists,
+        has_quarantined_settings,
         default_settings,
         load_settings,
         save_settings,
@@ -85,6 +87,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
 CONFIG = get_config()
 ADMIN_LOGIN_MAX_FAILURES = 5
 ADMIN_LOGIN_LOCKOUT_SECONDS = 30.0
+ADMIN_LOGIN_LOCK = threading.Lock()
 
 # Regexes copied verbatim from archive/legacy-ui/v2/python/gui_qt/workers/serial_worker.py
 # so enroll/wipe/delete parsing matches the real firmware output exactly.
@@ -234,8 +237,16 @@ class Api:
 
         try:
             db.init_database()
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error(f"Database initialization failed: {exc}")
+        except Exception as exc:
+            # A partially initialized app can display misleading empty reports
+            # and fail unpredictably on the first write. Stop startup clearly
+            # instead of exposing a broken UI as if the database were ready.
+            LOG.removeHandler(self._log_handler)
+            log.critical(f"Database initialization failed; DSIS startup aborted: {exc}")
+            raise RuntimeError(
+                "DSIS could not initialize its local database. Check the application log "
+                "and database path, then restart after resolving the error."
+            ) from exc
 
         # Apply persisted connection preferences to the handler itself -
         # v3 previously loaded auto_reconnect/auto_detect_serial into the
@@ -243,11 +254,28 @@ class Api:
         # so the toggles were cosmetic. Mirrors MainWindow.__init__ in v2.
         settings = load_settings()
         has_password = auth.has_password_set(settings)
+        has_password_material = auth.has_password_material(settings)
+        quarantined_settings = has_quarantined_settings()
+        persisted_records = db.has_persisted_records()
         marker_exists = admin_initialization_marker_exists()
-        if has_password and not marker_exists:
+        # A valid/partial verifier, quarantined settings, or an already-used
+        # roster/database means this is not a clean first launch. Old installs
+        # may predate the initialization marker, so the persisted database is
+        # also checked before allowing first-run password creation.
+        if (
+            has_password
+            or has_password_material
+            or quarantined_settings
+            or persisted_records
+        ) and not marker_exists:
             write_admin_initialization_marker()
             marker_exists = True
-        self._first_run_setup_required = not has_password and not marker_exists
+        self._first_run_setup_required = (
+            not has_password_material
+            and not quarantined_settings
+            and not persisted_records
+            and not marker_exists
+        )
         self._first_run_recovery_required = marker_exists and not has_password
         self._failed_admin_attempts = 0
         self._admin_locked_until = 0.0
@@ -259,7 +287,7 @@ class Api:
         self.serial.auto_reconnect_enabled = bool(settings.get("auto_reconnect", True))
         try:
             self.processor.cooldown_seconds = max(1, int(settings.get("cooldown", self.processor.cooldown_seconds)))
-            self.processor.min_confidence = max(1, min(100, int(settings.get("min_confidence", self.processor.min_confidence))))
+            self.processor.min_confidence = max(1, min(255, int(settings.get("min_confidence", self.processor.min_confidence))))
         except (TypeError, ValueError):
             log.warning("Invalid persisted attendance settings; using processor defaults")
 
@@ -288,7 +316,7 @@ class Api:
                 log.error(f"Auto-backup check failed: {exc}")
             if self._backup_stop.wait(max(5.0, (self._backup_interval_minutes * 60) / 5)):
                 break
-    def start_background_tasks(self) -> None:
+    def _start_background_tasks(self) -> None:
         """Start background work only after the real web window is attached."""
         if self._backup_thread is not None and self._backup_thread.is_alive():
             return
@@ -296,14 +324,14 @@ class Api:
         self._backup_thread = threading.Thread(target=self._auto_backup_loop, daemon=True)
         self._backup_thread.start()
 
-    def stop_background_tasks(self) -> None:
+    def _stop_background_tasks(self) -> None:
         self._backup_stop.set()
         if self._backup_thread is not None and self._backup_thread.is_alive():
             self._backup_thread.join(timeout=3.0)
 
-    def set_window(self, window) -> None:
+    def _set_window(self, window) -> None:
         self._window = window
-        self.start_background_tasks()
+        self._start_background_tasks()
 
     def _choose_csv_path(self, filename: str) -> Optional[Path]:
         """Open a native Save As dialog and return the user's selected path.
@@ -546,6 +574,8 @@ class Api:
             return {"ok": True, "message": "Present and hold the card on the reader until it is verified."}
 
     def stop_rfid_register_session(self) -> Dict[str, Any]:
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator enrollment permission is required."}
         if not self._rfid_session_active:
             self._clear_pending_rfid_registration()
             return {"ok": True, "message": "No RFID session is active."}
@@ -596,6 +626,8 @@ class Api:
         return {"ok": True, "message": "RFID erase listening started."}
 
     def stop_batch_rfid_erase(self) -> Dict[str, Any]:
+        if not permissions.require_role("admin") or not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator permission is required."}
         if not self._batch_rfid_erase_active:
             return {"ok": True, "message": "No RFID erase session is active."}
         was_scanning = self._batch_rfid_erase_was_scanning
@@ -837,7 +869,10 @@ class Api:
             return
         try:
             payload_hex = encrypt_student_card_payload(int(fingerprint_id), student_no, uid)
-        except (TypeError, ValueError) as exc:
+        except (RFIDKeyConfigurationError, TypeError, ValueError) as exc:
+            # Missing/malformed key is an explicit recovery state; surface it
+            # in the registration workflow rather than letting the serial-read
+            # loop unwind on this expected configuration failure.
             self._push_rfid_registration_result("error", uid, str(exc), card_type=card_type)
             return
         if not self.serial.is_connected() or not cmds.cmd_card_write_hex(self.serial, payload_hex):
@@ -919,6 +954,14 @@ class Api:
         section: str,
     ) -> Dict[str, Any]:
         """Return live enrollment feedback without touching persisted data."""
+        if not permissions.require_permission("enroll"):
+            return {
+                "all_valid": False,
+                "fields": {},
+                "ok": False,
+                "status": 403,
+                "message": "Administrator enrollment permission is required.",
+            }
         feedback = db.get_student_field_feedback(
             1, student_no, student_name, grade, section
         )
@@ -937,6 +980,8 @@ class Api:
 
     def cancel_enroll(self) -> Dict[str, Any]:
         """Cancel an active enrollment before the modal is closed."""
+        if not permissions.require_permission("enroll"):
+            return {"ok": False, "status": 403, "message": "Administrator enrollment permission is required."}
         if not self._pending_enroll:
             return {"ok": True, "message": "No enrollment is active."}
         if not self.serial.is_connected():
@@ -1327,14 +1372,32 @@ class Api:
 
     # -- dashboard / attendance -------------------------------------------------
     def get_dashboard_stats(self) -> Dict[str, Any]:
+        # Aggregate school-wide attendance is still private educational data;
+        # guest's default scan-only role must not expose it through the bridge.
+        if not permissions.has_permission("read_records"):
+            return {
+                "scans_today": 0,
+                "total_students": 0,
+                "attendance_rate": None,
+                "present_count": 0,
+                "unknown_scans": 0,
+                "is_fallback": False,
+                "last_scan_time": None,
+                "restricted": True,
+            }
         info = db.get_today_attendance_info()
         rows = [] if info.get("is_fallback") else info["rows"]
         scans_today = len(rows)
         total_students = db.get_student_count()
         unknown_scans = sum(1 for r in rows if not r.get("student_no") or r.get("student_no") == "N/A")
-        present_students = len(
-            {r.get("student_no") for r in rows if r.get("student_no") and r.get("student_no") != "N/A"}
-        )
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
+        present_students = len({
+            r.get("student_no")
+            for r in rows
+            if r.get("student_no")
+            and r.get("student_no") != "N/A"
+            and str(r.get("status") or r.get("match_status") or "").strip().lower() in qualifying_statuses
+        })
         rate = round((present_students / total_students) * 100) if total_students else 0
         last_scan = rows[0] if rows else None
         return {
@@ -1345,30 +1408,54 @@ class Api:
             "unknown_scans": unknown_scans,
             "is_fallback": info.get("is_fallback", False),
             "last_scan_time": last_scan.get("time") if last_scan else None,
+            "restricted": False,
         }
 
     def get_recent_activity(self, limit: int = 25) -> List[Dict[str, Any]]:
         if not permissions.has_permission("read_records"):
             return []
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (TypeError, ValueError, OverflowError):
+            limit = 25
         rows = db.get_attendance_paginated(limit=limit, offset=0)
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            row["attendance_status"] = (
-                calculate_attendance_status(
-                    row.get("time", "00:00:00"),
-                    row.get("event_type"),
-                    settings,
-                    row.get("date"),
+            status_value = str(row.get("status") or "").strip().lower()
+            event_type = str(row.get("event_type") or "").strip().lower()
+            if status_value == "weak match":
+                row["attendance_status"] = "Not Counted"
+            elif event_type == "time_out" and str(row.get("status") or "").strip().upper() == "TIME OUT":
+                row["attendance_status"] = "Out"
+            elif event_type == "scan" or event_type == "time_out":
+                # Repeated scans (including legacy auto-tagged time_out rows)
+                # are not evidence that a student departed.
+                row["attendance_status"] = "Scan Only"
+            else:
+                row["attendance_status"] = (
+                    calculate_attendance_status(
+                        row.get("time", "00:00:00"),
+                        "time_in",
+                        settings,
+                        row.get("date"),
+                    )
+                    if row.get("fingerprint_id")
+                    else "Unknown"
                 )
-                if row.get("fingerprint_id")
-                else "Unknown"
-            )
         return rows
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
         if not permissions.has_permission("read_records"):
-            return {"rows": [], "offset": offset, "has_more": False, "restricted": True}
+            return {"rows": [], "offset": 0, "has_more": False, "restricted": True}
+        try:
+            if isinstance(offset, bool) or (
+                isinstance(offset, float) and not offset.is_integer()
+            ):
+                raise ValueError("offset must be an integer")
+            offset = max(0, int(offset))
+        except (TypeError, ValueError, OverflowError):
+            offset = 0
         mode = (mode or "today").lower()
         page_size = 100
         if mode == "today":
@@ -1377,31 +1464,53 @@ class Api:
         elif mode == "last30" or mode == "last 30 days":
             start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
             end = datetime.now().strftime("%Y-%m-%d")
-            rows = list(reversed(db.export_attendance_range(start, end)))
-            has_more = False
-        else:  # recent - paginated, matching v2's AttendancePage Prev/Next
-            rows = db.get_attendance_paginated(limit=page_size, offset=offset)
-            has_more = len(rows) == page_size
+            fetched_rows = db.get_attendance_paginated(
+                limit=page_size + 1, offset=offset, start_date=start, end_date=end
+            )
+            has_more = len(fetched_rows) > page_size
+            rows = fetched_rows[:page_size]
+        else:  # recent - fetch one lookahead row to avoid an empty extra page
+            fetched_rows = db.get_attendance_paginated(limit=page_size + 1, offset=offset)
+            has_more = len(fetched_rows) > page_size
+            rows = fetched_rows[:page_size]
         settings = load_settings()
         for row in rows:
             row["match_status"] = row.get("status")
-            row["attendance_status"] = (
-                calculate_attendance_status(
-                    row.get("time", "00:00:00"),
-                    row.get("event_type"),
-                    settings,
-                    row.get("date"),
+            status_value = str(row.get("status") or "").strip().lower()
+            event_type = str(row.get("event_type") or "").strip().lower()
+            if status_value == "weak match":
+                row["attendance_status"] = "Not Counted"
+            elif event_type == "time_out" and str(row.get("status") or "").strip().upper() == "TIME OUT":
+                row["attendance_status"] = "Out"
+            elif event_type == "scan" or event_type == "time_out":
+                # Repeated scans (including legacy auto-tagged time_out rows)
+                # are not evidence that a student departed.
+                row["attendance_status"] = "Scan Only"
+            else:
+                row["attendance_status"] = (
+                    calculate_attendance_status(
+                        row.get("time", "00:00:00"),
+                        "time_in",
+                        settings,
+                        row.get("date"),
+                    )
+                    if row.get("fingerprint_id")
+                    else "Unknown"
                 )
-                if row.get("fingerprint_id")
-                else "Unknown"
-            )
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
     def export_attendance_csv(
-        self, mode: str = "today", offset: int = 0, week_start: str = ""
+        self,
+        mode: str = "today",
+        offset: int = 0,
+        week_start: str = "",
+        start_date: str = "",
+        end_date: str = "",
     ) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for attendance exports."}
         
         # Calculate date range based on mode. Today can display the database's
         # recent-record fallback, so use that exact visible set when today has
@@ -1431,6 +1540,21 @@ class Api:
             start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
             rows = db.export_attendance_range_with_time_in_out(start, end)
+        elif mode == "custom":
+            try:
+                parsed_start = datetime.strptime(str(start_date), "%Y-%m-%d")
+                parsed_end = datetime.strptime(str(end_date), "%Y-%m-%d")
+            except (TypeError, ValueError):
+                return {"ok": False, "message": "Choose valid start and end dates for the custom export."}
+            if parsed_start.strftime("%Y-%m-%d") != start_date or parsed_end.strftime("%Y-%m-%d") != end_date:
+                return {"ok": False, "message": "Custom export dates must use YYYY-MM-DD format."}
+            if parsed_end < parsed_start:
+                return {"ok": False, "message": "End date must be on or after the start date."}
+            if (parsed_end - parsed_start).days > 366:
+                return {"ok": False, "message": "Custom exports are limited to 367 calendar days per file. Choose a shorter range."}
+            start = parsed_start.strftime("%Y-%m-%d")
+            end = parsed_end.strftime("%Y-%m-%d")
+            rows = db.export_attendance_range_with_time_in_out(start, end)
         else:
             start = end = now.strftime("%Y-%m-%d")
             rows = db.export_attendance_range_with_time_in_out(start, end)
@@ -1442,16 +1566,21 @@ class Api:
             return {"ok": False, "message": "No data to export."}
         settings = load_settings()
         for row in rows:
-            row["attendance_status"] = calculate_attendance_status(
-                row.get("time_in", "00:00:00"),
-                "time_in",
-                settings,
-                row.get("date"),
-            )
+            status = str(row.get("status") or row.get("match_status") or "").strip().lower()
+            if status not in {"good match", "present", "logged", "ok"}:
+                row["attendance_status"] = "Not Counted"
+            else:
+                row["attendance_status"] = calculate_attendance_status(
+                    row.get("time_in", "00:00:00"),
+                    "time_in",
+                    settings,
+                    row.get("date"),
+                )
         
         # Prepare file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"attendance_{mode}_{timestamp}.csv"
+        range_suffix = f"_{start}_{end}" if mode == "custom" else ""
+        filename = f"attendance_{mode}{range_suffix}_{timestamp}.csv"
         return self._export_csv_rows(rows, filename)
 
     # -- students ---------------------------------------------------------------
@@ -1471,21 +1600,50 @@ class Api:
             row for row in db.get_attendance_by_date(today)
             if row.get("fingerprint_id") == int(fingerprint_id)
         ]
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
+        qualifying_rows = [
+            row for row in today_rows
+            if str(row.get("status") or row.get("match_status") or "").strip().lower()
+            in qualifying_statuses
+        ]
         time_in_row = next(
-            (row for row in today_rows if row.get("event_type") == "time_in"),
-            today_rows[0] if today_rows else None,
+            (row for row in qualifying_rows if row.get("event_type") == "time_in"),
+            qualifying_rows[0] if qualifying_rows else None,
         )
-        student["attendance_status"] = (
-            calculate_attendance_status(
+        explicit_time_out = any(
+            row.get("event_type") == "time_out"
+            and str(row.get("status") or "").strip().upper() == "TIME OUT"
+            for row in today_rows
+        )
+        if time_in_row and explicit_time_out:
+            student["attendance_status"] = "Out"
+        elif time_in_row:
+            student["attendance_status"] = calculate_attendance_status(
                 time_in_row.get("time", "00:00:00"),
                 "time_in",
                 load_settings(),
                 time_in_row.get("date") or today,
             )
-            if time_in_row
-            else "Absent"
-        )
+        elif any(str(row.get("status") or "").strip().lower() == "weak match" for row in today_rows):
+            student["attendance_status"] = "Not Counted"
+        else:
+            student["attendance_status"] = "Absent"
         return student
+
+
+    def mark_student_time_out(self, fingerprint_id: int) -> Dict[str, Any]:
+        """Record departure only after an explicit teacher/admin action."""
+        if not permissions.require_role("teacher"):
+            return {"ok": False, "status": 403, "message": "Teacher or administrator permission is required to record Time Out."}
+        try:
+            student_id = int(fingerprint_id)
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "A valid student ID is required."}
+        ok, message = db.mark_attendance_time_out(student_id)
+        if not ok:
+            return {"ok": False, "message": message}
+        log.info("Explicit student Time Out recorded", fingerprint_id=student_id)
+        return {"ok": True, "message": message, "fingerprint_id": student_id}
 
     def save_student(
         self,
@@ -1530,7 +1688,9 @@ class Api:
 
     def export_students_csv(self) -> Dict[str, Any]:
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for student exports."}
         students = self.get_students()
         if not students:
             return {"ok": False, "message": "No students to export."}
@@ -1555,7 +1715,9 @@ class Api:
                 "time_out": attendance.get("time_out", ""),
                 "match_status": attendance.get("match_status", ""),
                 "attendance_status": (
-                    calculate_attendance_status(
+                    "Not Counted"
+                    if str(attendance.get("status") or attendance.get("match_status") or "").strip().lower() == "weak match"
+                    else calculate_attendance_status(
                         time_in,
                         "time_in",
                         settings,
@@ -1630,18 +1792,16 @@ class Api:
         restored from an older backup, in which case this naturally reflects
         whatever is currently loaded, same as every other report.
 
-        "Days present" = number of distinct calendar dates within the window
-        that the student has at least one attendance row (multiple scans on
-        the same day still count once - same dedup get_daily_attendance_summary
-        already does). "Total days" (the report-wide header figure) = number
-        of distinct dates in the window that ANY student had activity AND
-        that isn't marked holiday/suspension in the school calendar (see
-        core.attendance_calendar) - so weekends/declared holidays don't
-        count against anyone, and a single stray scan on a holiday can't
-        manufacture a school day that then flags everyone else absent.
+        "Days present" = number of distinct scheduled school dates in the
+        window where the student has a qualifying attendance row. "Total days"
+        is built from the configured weekday schedule and calendar exceptions,
+        not scan activity. A device outage or a day when nobody scans therefore
+        still counts as a school day, while weekends and declared holidays or
+        suspensions are excluded. Future dates in the active period are not
+        counted until they happen.
 
-        Each student's own denominator is further narrowed to school days
-        on or after their enrollment_date, so a student enrolled mid-month
+        Each student's denominator is further narrowed to eligible school days
+        on or after their enrollment_date, so a student enrolled mid-period
         isn't counted absent for days before they existed in the system.
         If a student's eligible window has zero school days (enrolled after
         the whole period, or the period itself is empty), attendance_rate
@@ -1680,24 +1840,59 @@ class Api:
         summary_rows = db.get_daily_attendance_summary(start_date=start_date, end_date=end_date)
         settings = load_settings()
 
-        # A date only counts as an observed school day if activity happened
-        # on it AND it isn't explicitly marked holiday/suspension. Without
-        # this, a single stray scan on a declared non-school day (a teacher
-        # testing the device, a guard walking past the sensor) would count
-        # that day as "school happened" and then mark every OTHER student
-        # absent for correctly staying home.
-        school_days = sorted({
-            row["date"] for row in summary_rows
-            if datetime.strptime(row["date"], "%Y-%m-%d").weekday() < 5
-            and not attendance_calendar.is_non_school_day(settings, row["date"])
-        })
+        # Build the denominator from the configured school calendar, not
+        # observed scans. Otherwise a device outage or a day when nobody scans
+        # disappears from the denominator and inflates attendance rates.
+        weekdays_off = settings.get("school_weekdays_off", [])
+        if not isinstance(weekdays_off, (list, tuple, set)):
+            weekdays_off = []
+        weekdays_off = {
+            int(day) for day in weekdays_off
+            if isinstance(day, int) or (isinstance(day, str) and day.isdigit())
+            if 0 <= int(day) <= 6
+        }
+        school_days = []
+        current_day = start_dt.date()
+        # Do not mark a student absent for a school day that has not happened
+        # yet. Historical periods still use their full window; the active
+        # period is evaluated only through today's local date.
+        final_day = min(end_dt.date(), datetime.now().date())
+        while current_day <= final_day:
+            date_text = current_day.strftime("%Y-%m-%d")
+            # Python uses Monday=0, but DSIS stores recurring days off
+            # as Sunday=0 ... Saturday=6. Keep weekends excluded by default,
+            # matching the existing school-day policy, and honor configured
+            # recurring days off using the DSIS numbering.
+            dsis_weekday = (current_day.weekday() + 1) % 7
+            is_weekend = current_day.weekday() >= 5
+            calendar_entry = attendance_calendar.get_entry(settings, date_text)
+            is_half_day = bool(calendar_entry and calendar_entry.get("type") == "half_day")
+            # A dated half-day is an explicit class override, including on a
+            # normally non-school weekend or recurring day off. Holidays and
+            # suspensions still suppress attendance for the date.
+            if (
+                not attendance_calendar.is_non_school_day(settings, date_text)
+                and (
+                    is_half_day
+                    or (not is_weekend and dsis_weekday not in weekdays_off)
+                )
+            ):
+                school_days.append(date_text)
+            current_day += timedelta(days=1)
         total_days = len(school_days)
 
         present_dates_by_student: Dict[str, set] = {}
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
         for row in summary_rows:
             key = row["student_no"]
             if not key or key == "N/A":
                 continue  # unregistered/unknown scans don't belong to any student
+            # Historical releases stored WEAK MATCH rows. Keep those rows in
+            # history for auditability, but never count them as presence in a
+            # report generated by the corrected attendance policy.
+            match_status = str(row.get("status") or row.get("match_status") or "").strip().lower()
+            if match_status not in qualifying_statuses:
+                continue
             if row["date"] not in school_days:
                 continue  # holiday/suspension activity doesn't count as "present" either
             present_dates_by_student.setdefault(key, set()).add(row["date"])
@@ -1746,6 +1941,8 @@ class Api:
         }
 
     def export_attendance_evaluation_csv(self, period: str = "month", ref_date: str = "") -> Dict[str, Any]:
+        if not permissions.require_permission("export"):
+            return {"ok": False, "message": "Current role does not have export permission."}
         report = self.get_attendance_evaluation(period, ref_date)
         if not report.get("ok"):
             return {"ok": False, "message": report.get("message", "Could not generate report.")}
@@ -1827,9 +2024,27 @@ class Api:
         return {"ok": True, "date": date}
 
     def get_statistics_report(self) -> Dict[str, Any]:
-        if not (permissions.has_permission("export") or permissions.has_permission("backup")):
-            return {"ok": False, "message": "Current role does not have report permission."}
-        attendance_rows = db.get_attendance_all()
+        if not permissions.has_permission("read_records") or not (
+            permissions.has_permission("export") or permissions.has_permission("backup")
+        ):
+            return {"ok": False, "message": "Record-reading and report permission are required."}
+        # Reports count attendance days, not raw scan events. A repeated scan
+        # is useful audit activity but must not inflate a student's totals.
+        # Initialization migrates legacy event tags, so only explicit/first
+        # qualifying Time In rows are authoritative for this summary.
+        qualifying_statuses = {"good match", "present", "logged", "ok"}
+        attendance_rows = []
+        seen_student_days = set()
+        for row in db.get_attendance_all():
+            status = str(row.get("status") or row.get("match_status") or "").strip().lower()
+            if status not in qualifying_statuses or row.get("event_type") != "time_in":
+                continue
+            student_key = row.get("fingerprint_id") or row.get("student_no") or row.get("student_name")
+            day_key = (student_key, row.get("date"))
+            if day_key in seen_student_days:
+                continue
+            seen_student_days.add(day_key)
+            attendance_rows.append(row)
         attendance_totals: Dict[str, Dict[str, Any]] = {}
         attendance_by_date: Dict[str, int] = {}
         attendance_by_grade: Dict[str, int] = {}
@@ -1900,7 +2115,9 @@ class Api:
     def export_statistics_report(self) -> Dict[str, Any]:
         """Export the complete V2-compatible formatted statistics report."""
         if not permissions.require_permission("export"):
-            return {"ok": False, "message": "Current role does not have export permission."}
+            return {"ok": False, "status": 403, "message": "Current role does not have export permission."}
+        if not permissions.require_permission("read_records"):
+            return {"ok": False, "status": 403, "message": "Record-reading permission is required for statistics exports."}
         path = self._choose_csv_path("attendance_report.txt")
         if path is None:
             return {"ok": False, "message": "Export cancelled."}
@@ -1966,7 +2183,7 @@ class Api:
             return {"ok": False, "status": 403, "message": "Administrator authentication is required for attendance time rules."}
         try:
             cooldown = max(1, min(60, int(settings.get("cooldown", merged.get("cooldown", 10)))))
-            confidence = max(1, min(100, int(settings.get("min_confidence", merged.get("min_confidence", 96)))))
+            confidence = max(1, min(255, int(settings.get("min_confidence", merged.get("min_confidence", 100)))))
             backup_interval = max(1, min(180, int(settings.get("auto_backup_interval_minutes", merged.get("auto_backup_interval_minutes", 25)))))
             early_threshold = max(0, min(120, int(settings.get("early_threshold_minutes", merged.get("early_threshold_minutes", 15)))))
             late_threshold = max(0, min(120, int(settings.get("late_threshold_minutes", merged.get("late_threshold_minutes", 15)))))
@@ -1974,6 +2191,9 @@ class Api:
             startup_connect_delay_ms = max(
                 0,
                 min(30000, int(settings.get("startup_connect_delay_ms", merged.get("startup_connect_delay_ms", 1000)))),
+            )
+            table_zoom_percent = max(
+                75, min(125, int(settings.get("table_zoom_percent", merged.get("table_zoom_percent", 100))))
             )
         except (TypeError, ValueError):
             return {"ok": False, "message": "Settings must be valid numbers."}
@@ -1990,7 +2210,12 @@ class Api:
             return {"ok": False, "message": "Time Out must be later than Time In."}
         
         settings = dict(settings)
+        # These values are internal key material, not UI preferences. Ignore
+        # any caller-supplied copies so a settings save cannot overwrite the
+        # key used to decrypt already-enrolled RFID cards.
         settings.pop("auth", None)
+        for key in ("rfid_aes_gcm_key", "rfid_app_key_hex", "rfid_payload_key"):
+            settings.pop(key, None)
         settings["current_role"] = permissions.get_current_role()
         if "school_name" in settings:
             settings["school_name"] = str(settings.get("school_name") or "").strip()[:100]
@@ -2002,6 +2227,7 @@ class Api:
             "late_threshold_minutes": late_threshold,
             "absent_threshold_minutes": absent_threshold,
             "startup_connect_delay_ms": startup_connect_delay_ms,
+            "table_zoom_percent": table_zoom_percent,
             "time_in": time_in,
             "time_out": time_out,
         })
@@ -2025,6 +2251,11 @@ class Api:
         current = load_settings()
         defaults = default_settings()
         defaults["auth"] = current.get("auth", {})
+        # Reset preferences without invalidating already-enrolled encrypted RFID cards.
+        # This key is not a user preference; changing it makes existing payloads unreadable.
+        rfid_key = current.get("rfid_aes_gcm_key")
+        if isinstance(rfid_key, str) and rfid_key:
+            defaults["rfid_aes_gcm_key"] = rfid_key
         defaults["current_role"] = permissions.get_current_role()
         for key in (
             "setup_device_step_done",
@@ -2076,6 +2307,12 @@ class Api:
         }
 
     def complete_first_run_setup(self, password: str, confirm_password: str) -> Dict[str, Any]:
+        # Serialize first-run setup with login/password changes so two calls
+        # cannot both pass the empty-settings check and race to replace admin auth.
+        with ADMIN_LOGIN_LOCK:
+            return self._complete_first_run_setup_locked(password, confirm_password)
+
+    def _complete_first_run_setup_locked(self, password: str, confirm_password: str) -> Dict[str, Any]:
         if getattr(self, "_first_run_recovery_required", False):
             return {"ok": False, "message": "Administrator password is missing. Use the recovery process."}
         if not self._first_run_setup_required:
@@ -2173,6 +2410,76 @@ class Api:
         save_settings(settings)
         return {"ok": True}
 
+    def _admin_lockout_remaining(self, settings: Dict[str, Any]) -> float:
+        """Return remaining persistent lockout time from the private auth record."""
+        record = settings.get("auth", {})
+        if not isinstance(record, dict):
+            return 0.0
+        try:
+            locked_until = max(0.0, float(record.get("lockout_until_epoch", 0.0) or 0.0))
+        except (TypeError, ValueError, OverflowError):
+            locked_until = 0.0
+        # Bound persisted deadlines as well as the returned delay. Merely
+        # clamping the return value would leave a far-future timestamp on disk,
+        # causing a fresh 30-second lockout on every subsequent attempt forever.
+        now = time.time()
+        maximum_deadline = now + ADMIN_LOGIN_LOCKOUT_SECONDS
+        if locked_until > maximum_deadline:
+            record = dict(record)
+            record["lockout_until_epoch"] = maximum_deadline
+            settings["auth"] = record
+            try:
+                save_settings(settings)
+            except Exception as exc:
+                log.error(f"Could not normalize persisted administrator lockout deadline: {exc}")
+            locked_until = maximum_deadline
+        return max(0.0, locked_until - now)
+
+    def _record_admin_auth_failure(self, settings: Dict[str, Any]) -> float:
+        """Persist login failures and lockout deadline so restarting DSIS cannot reset it."""
+        raw_record = settings.get("auth", {})
+        record = dict(raw_record) if isinstance(raw_record, dict) else {}
+        try:
+            failures = max(0, min(int(record.get("failed_attempts", 0) or 0), ADMIN_LOGIN_MAX_FAILURES))
+        except (TypeError, ValueError, OverflowError):
+            failures = 0
+        failures += 1
+        remaining = 0.0
+        if failures >= ADMIN_LOGIN_MAX_FAILURES:
+            failures = 0
+            locked_until = time.time() + ADMIN_LOGIN_LOCKOUT_SECONDS
+            record["lockout_until_epoch"] = locked_until
+            remaining = ADMIN_LOGIN_LOCKOUT_SECONDS
+        else:
+            record.pop("lockout_until_epoch", None)
+        record["failed_attempts"] = failures
+        settings["auth"] = record
+        self._failed_admin_attempts = failures
+        self._admin_locked_until = time.monotonic() + remaining if remaining else 0.0
+        try:
+            save_settings(settings)
+        except Exception as exc:
+            # Keep the in-process lockout even if storage is temporarily
+            # unavailable, and record that persistence could not be guaranteed.
+            log.error(f"Could not persist administrator login throttle state: {exc}")
+        return remaining
+
+    def _clear_admin_auth_failures(self, settings: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
+        raw_record = settings.get("auth", {})
+        record = dict(raw_record) if isinstance(raw_record, dict) else {}
+        changed = "failed_attempts" in record or "lockout_until_epoch" in record
+        record.pop("failed_attempts", None)
+        record.pop("lockout_until_epoch", None)
+        settings["auth"] = record
+        self._failed_admin_attempts = 0
+        self._admin_locked_until = 0.0
+        if persist and changed:
+            try:
+                save_settings(settings)
+            except Exception as exc:
+                log.error(f"Could not clear persisted administrator login throttle state: {exc}")
+        return settings
+
     def authenticate_role(self, role: str, password: str) -> Dict[str, Any]:
         """Authenticate a role that requires credentials."""
         normalized = permissions.normalize_role_key(role)
@@ -2186,23 +2493,19 @@ class Api:
             permissions.set_session_role(normalized, self._session_timeout_seconds)
             return self.get_session_state()
 
-        locked_until = getattr(self, "_admin_locked_until", 0.0)
-        now = time.monotonic()
-        if now < locked_until:
-            remaining = max(1, int(locked_until - now + 0.999))
-            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
-        settings = load_settings()
-        if not auth.verify_password(password, settings.get("auth", {})):
-            failures = getattr(self, "_failed_admin_attempts", 0) + 1
-            self._failed_admin_attempts = failures
-            if failures >= ADMIN_LOGIN_MAX_FAILURES:
-                self._failed_admin_attempts = 0
-                self._admin_locked_until = now + ADMIN_LOGIN_LOCKOUT_SECONDS
-            return {"ok": False, "message": "Incorrect password."}
-        self._failed_admin_attempts = 0
-        self._admin_locked_until = 0.0
-        permissions.set_session_role("admin", self._session_timeout_seconds)
-        return self.get_session_state()
+        with ADMIN_LOGIN_LOCK:
+            settings = load_settings()
+            remaining = self._admin_lockout_remaining(settings)
+            if remaining > 0:
+                self._admin_locked_until = time.monotonic() + remaining
+                message_seconds = max(1, int(remaining + 0.999))
+                return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
+            if not auth.verify_password(password, settings.get("auth", {})):
+                self._record_admin_auth_failure(settings)
+                return {"ok": False, "message": "Incorrect password."}
+            settings = self._clear_admin_auth_failures(settings)
+            permissions.set_session_role("admin", self._session_timeout_seconds)
+            return self.get_session_state()
 
     def get_session_state(self) -> Dict[str, Any]:
         role = permissions.get_current_role()
@@ -2222,25 +2525,31 @@ class Api:
         return self.get_session_state()
 
     def change_admin_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
-        if not permissions.require_role("admin"):
-            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
-        now = time.monotonic()
-        locked_until = getattr(self, "_admin_locked_until", 0.0)
-        if now < locked_until:
-            remaining = max(1, int(locked_until - now + 0.999))
-            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {remaining} seconds."}
-        if len(new_password) < 8:
-            return {"ok": False, "message": "The new password must be at least 8 characters."}
+        # Share the same throttle lock as the login bridge path so concurrent
+        # login/password-change calls cannot race the persisted failure counter.
+        with ADMIN_LOGIN_LOCK:
+            if not permissions.require_role("admin"):
+                return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
+            return self._change_admin_password_locked(current_password, new_password)
+
+    def _change_admin_password_locked(self, current_password: str, new_password: str) -> Dict[str, Any]:
+        password_error = auth.validate_new_password(new_password, new_password)
+        if password_error:
+            return {"ok": False, "message": password_error}
+
         settings = load_settings()
+        remaining = self._admin_lockout_remaining(settings)
+        if remaining > 0:
+            self._admin_locked_until = time.monotonic() + remaining
+            message_seconds = max(1, int(remaining + 0.999))
+            return {"ok": False, "message": f"Administrator login is temporarily locked. Try again in {message_seconds} seconds."}
         if not auth.verify_password(current_password, settings.get("auth", {})):
-            failures = getattr(self, "_failed_admin_attempts", 0) + 1
-            self._failed_admin_attempts = failures
-            if failures >= ADMIN_LOGIN_MAX_FAILURES:
-                self._failed_admin_attempts = 0
-                self._admin_locked_until = time.monotonic() + ADMIN_LOGIN_LOCKOUT_SECONDS
+            self._record_admin_auth_failure(settings)
             return {"ok": False, "message": "Current password is incorrect."}
-        self._failed_admin_attempts = 0
-        self._admin_locked_until = 0.0
+
+        # A successful password change resets throttle state and replaces the
+        # hash record in one atomic settings save.
+        self._clear_admin_auth_failures(settings, persist=False)
         settings["auth"] = auth.hash_password(new_password)
         save_settings(settings)
         return {"ok": True, "message": "Administrator password changed."}
@@ -2249,6 +2558,8 @@ class Api:
         return CONFIG.user_roles.get(role, {}).get("permissions", [])
 
     def open_log_folder(self) -> Dict[str, Any]:
+        if not permissions.require_role("admin"):
+            return {"ok": False, "status": 403, "message": "Administrator authentication is required."}
         folder = str(CONFIG.log_folder)
         try:
             if sys.platform.startswith("win"):
@@ -2263,6 +2574,13 @@ class Api:
 
     # -- application log ------------------------------------------------------------
     def get_app_log(self, max_lines: int = 500) -> List[str]:
+        if not permissions.require_role("admin"):
+            return []
+        # Clamp untrusted bridge arguments to avoid excessive log reads.
+        try:
+            max_lines = max(1, min(int(max_lines), 1000))
+        except (TypeError, ValueError):
+            max_lines = 500
         with self._app_log_lock:
             if self._app_log_lines:
                 return list(self._app_log_lines[-max_lines:])

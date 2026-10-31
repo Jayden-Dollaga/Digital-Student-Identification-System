@@ -525,6 +525,24 @@ function toggleCompact() {
   applyCompact(!compact);
 }
 
+function applyTableZoom(value) {
+  // CSS provides six supported zoom levels. Normalize hand-edited settings
+  // (for example 80 or 95) to the nearest level so every accepted value has
+  // a visible effect rather than silently falling back to 100%.
+  const supported = [75, 85, 90, 100, 110, 125];
+  // Number('') and Number(null) are 0, which would clamp to 75%; treat an
+  // empty value as "not set" so it falls back to the 100% default instead.
+  const parsed = value === null || value === '' ? NaN : Number(value);
+  const requested = Number.isFinite(parsed) ? parsed : 100;
+  const bounded = Math.max(75, Math.min(125, requested));
+  const percent = supported.reduce((best, candidate) =>
+    Math.abs(candidate - bounded) < Math.abs(best - bounded) ? candidate : best, supported[0]);
+  const app = document.getElementById('app');
+  if (app) app.dataset.tableZoom = String(percent);
+  const control = document.getElementById('set-table-zoom');
+  if (control && control.value !== String(percent)) control.value = String(percent);
+}
+
 // ── Connection ──
 function setStatus(state) {
   const pill = document.getElementById('status-pill');
@@ -921,8 +939,8 @@ function handleScanResult(payload) {
   const confWrap = document.getElementById('conf-wrap');
   if (payload.confidence != null) {
     confWrap.style.display = 'flex';
-    document.getElementById('conf-fill').style.width = payload.confidence + '%';
-    document.getElementById('conf-label').textContent = payload.confidence + '% confidence';
+    document.getElementById('conf-fill').style.width = (Math.max(0, Math.min(255, Number(payload.confidence) || 0)) / 255 * 100) + '%';
+    document.getElementById('conf-label').textContent = payload.confidence + '/255 confidence';
   } else {
     confWrap.style.display = 'none';
   }
@@ -934,7 +952,7 @@ function handleScanResult(payload) {
       `<td>${escapeHtml(student.student_no || '\u2014')}</td>` +
       `<td>${isMatch ? escapeHtml(student.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
       `<td>${student.grade ? `Grade ${escapeHtml(student.grade)} \u2014 ${escapeHtml(student.section)}` : '\u2014'}</td>` +
-      `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '%' : '\u2014')}</td>` +
+      `<td>${escapeHtml(payload.confidence != null ? payload.confidence + '/255' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(payload.status)}">${escapeHtml(isMatch ? (payload.status || 'UNKNOWN') : 'UNKNOWN')}</span></td>` +
       `<td><span class="badge ${attendanceBadgeClass(payload.attendance_status)}">${escapeHtml(payload.attendance_status || '\u2014')}</span></td>`;
     tbody.insertBefore(tr, tbody.firstChild);
@@ -1110,12 +1128,18 @@ function renderAttendanceEvaluation() {
   const absentColLabel = evalData.period === 'day' ? 'Absent' : 'Days Absent';
 
   const tableRows = rows.map(r => {
-    const meta = CATEGORY_META[r.category] || CATEGORY_META.low;
-    const hasRate = r.attendance_rate !== null && r.attendance_rate !== undefined;
+    // The backend normally emits fixed categories and numeric statistics, but
+    // treat bridge data as untrusted before placing it into HTML/CSS contexts.
+    const category = Object.prototype.hasOwnProperty.call(CATEGORY_META, r.category)
+      ? r.category : 'low';
+    const meta = CATEGORY_META[category];
+    const parsedRate = Number(r.attendance_rate);
+    const hasRate = r.attendance_rate !== null && r.attendance_rate !== undefined && Number.isFinite(parsedRate);
+    const safeRate = hasRate ? Math.max(0, Math.min(100, parsedRate)) : null;
     const rateCell = hasRate
       ? `<div class="me-rate-cell">
-          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${r.attendance_rate}%;background:${meta.dot}"></div></div>
-          <span>${r.attendance_rate}%</span>
+          <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:${safeRate}%;background:${meta.dot}"></div></div>
+          <span>${safeRate}%</span>
         </div>`
       : `<div class="me-rate-cell">
           <div class="me-rate-bar-bg"><div class="me-rate-bar-fill" style="width:0%;background:${meta.dot}"></div></div>
@@ -1123,15 +1147,16 @@ function renderAttendanceEvaluation() {
         </div>`;
     return `<tr>
       <td>${escapeHtml(r.student_name)}<div style="font-size:10.5px;color:var(--muted);">${escapeHtml(r.student_no)} \u00b7 Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}</div></td>
-      <td>${hasRate ? r.days_present : '\u2014'}</td>
-      <td>${hasRate ? r.days_absent : '\u2014'}</td>
+      <td>${hasRate ? escapeHtml(String(r.days_present)) : '\u2014'}</td>
+      <td>${hasRate ? escapeHtml(String(r.days_absent)) : '\u2014'}</td>
       <td>${rateCell}</td>
-      <td><span class="me-cat-badge me-cat-${r.category}">${meta.label}</span></td>
+      <td><span class="me-cat-badge me-cat-${category}">${meta.label}</span></td>
     </tr>`;
   }).join('');
 
   body.innerHTML = `
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} school day${evalData.total_days === 1 ? '' : 's'} observed</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} scheduled school day${evalData.total_days === 1 ? '' : 's'}</div>
+    <div style="font-size:11px;color:var(--muted);margin:4px 0 10px;">Days without a qualifying scan count as absent in this calculation. DSIS cannot automatically distinguish a student's absence from a device outage; review connection logs and school records before using this report for disciplinary decisions.</div>
     <div class="me-leaderboard">${leaderboard}</div>
     <div class="me-legend">${legend}</div>
     <div class="data-table-wrap" style="max-height:280px;">
@@ -1154,15 +1179,26 @@ async function exportAttendanceEvaluationCsv() {
 async function loadDashboardStats() {
   if (!api()) return;
   const stats = await api().get_dashboard_stats();
+  if (stats.restricted) {
+    document.getElementById('stat-scans').textContent = '—';
+    document.getElementById('stat-scans-sub').textContent = 'Teacher/admin access required';
+    document.getElementById('stat-students').textContent = '—';
+    document.getElementById('stat-rate').textContent = '—';
+    document.getElementById('stat-rate-sub').textContent = 'Record access restricted';
+    document.getElementById('stat-unknown').textContent = '—';
+    document.getElementById('sb-students').textContent = 'Restricted';
+    document.getElementById('sb-scans').textContent = 'Restricted';
+    return;
+  }
   document.getElementById('stat-scans').textContent = stats.scans_today;
-  document.getElementById('stat-scans-sub').textContent = stats.last_scan_time ? `Last: ${stats.last_scan_time}` : 'No scans yet';
+  document.getElementById('stat-scans-sub').textContent = stats.last_scan_time ? 'Last: ' + stats.last_scan_time : 'No scans yet';
   document.getElementById('stat-students').textContent = stats.total_students;
   document.getElementById('stat-rate').textContent = stats.attendance_rate + '%';
   document.getElementById('stat-rate-sub').textContent =
-    (stats.is_fallback ? 'Recent activity' : 'Today') + ` \u2014 ${stats.present_count} of ${stats.total_students}`;
+    (stats.is_fallback ? 'Recent activity' : 'Today') + ' — ' + stats.present_count + ' of ' + stats.total_students;
   document.getElementById('stat-unknown').textContent = stats.unknown_scans;
-  document.getElementById('sb-students').textContent = `${stats.total_students} students`;
-  document.getElementById('sb-scans').textContent = `${stats.scans_today} scans today`;
+  document.getElementById('sb-students').textContent = stats.total_students + ' students';
+  document.getElementById('sb-scans').textContent = stats.scans_today + ' scans today';
 }
 
 async function loadRecentActivity() {
@@ -1187,7 +1223,7 @@ function rowToActivityTr(r) {
   return `<tr><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
     `<td>${known ? escapeHtml(r.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
     `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
-    `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
+    `<td>${escapeHtml(r.confidence != null ? r.confidence + '/255' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
     `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
 }
@@ -1206,6 +1242,7 @@ function attendanceBadgeClass(status) {
   if (value === 'late') return 'late';
   if (value === 'absent') return 'absent';
   if (value === 'out') return 'out';
+  if (value === 'scan only') return 'unknown';
   return 'present';
 }
 
@@ -1224,11 +1261,11 @@ async function loadAttendancePage() {
   renderAttendanceRows(res.rows);
   document.getElementById('att-count').textContent = `${res.rows.length} records`;
 
-  const isRecent = modeKey === 'recent';
-  document.getElementById('att-page-sep').style.display = isRecent ? 'block' : 'none';
-  document.getElementById('att-prev-btn').style.display = isRecent ? 'inline-flex' : 'none';
-  document.getElementById('att-next-btn').style.display = isRecent ? 'inline-flex' : 'none';
-  if (isRecent) {
+  const isPaginated = modeKey === 'recent' || modeKey === 'last30';
+  document.getElementById('att-page-sep').style.display = isPaginated ? 'block' : 'none';
+  document.getElementById('att-prev-btn').style.display = isPaginated ? 'inline-flex' : 'none';
+  document.getElementById('att-next-btn').style.display = isPaginated ? 'inline-flex' : 'none';
+  if (isPaginated) {
     document.getElementById('att-prev-btn').disabled = attendanceOffset === 0;
     document.getElementById('att-next-btn').disabled = !res.has_more;
   }
@@ -1241,7 +1278,7 @@ function renderAttendanceRows(rows) {
     return `<tr><td>${escapeHtml(r.date || '\u2014')}</td><td>${escapeHtml(r.time || '\u2014')}</td><td>${escapeHtml(known ? r.student_no : '\u2014')}</td>` +
       `<td>${known ? escapeHtml(r.student_name) : 'Unknown data'}</td>` +
       `<td>${known ? `Grade ${escapeHtml(r.grade)} \u2014 ${escapeHtml(r.section)}` : '\u2014'}</td>` +
-      `<td>${escapeHtml(r.confidence != null ? r.confidence + '%' : '\u2014')}</td>` +
+      `<td>${escapeHtml(r.confidence != null ? r.confidence + '/255' : '\u2014')}</td>` +
       `<td><span class="badge ${badgeClass(r.match_status || r.status)}">${escapeHtml((r.match_status || r.status || 'UNKNOWN').toUpperCase())}</span></td>` +
       `<td><span class="badge ${attendanceBadgeClass(r.attendance_status)}">${escapeHtml(r.attendance_status || '\u2014')}</span></td></tr>`;
   }).join('');
@@ -1274,7 +1311,7 @@ function attendanceOnScanEvent(row) {
     `<tr><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.time || '')}</td><td>${escapeHtml(isKnownRow(row) ? row.student_no : '\u2014')}</td>` +
     `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : escapeHtml(row.method === 'card' ? `Unknown RFID card${row.uid ? ` (${row.uid})` : ''}` : 'Unknown data')}</td>` +
     `<td>${isKnownRow(row) ? `Grade ${escapeHtml(row.grade)} \u2014 ${escapeHtml(row.section)}` : '\u2014'}</td>` +
-    `<td>${escapeHtml(row.confidence != null ? row.confidence + '%' : '\u2014')}</td>` +
+    `<td>${escapeHtml(row.confidence != null ? row.confidence + '/255' : '\u2014')}</td>` +
     `<td><span class="badge ${badgeClass(row.match_status || row.status)}">${escapeHtml((row.match_status || row.status || 'UNKNOWN').toUpperCase())}</span></td>` +
     `<td><span class="badge ${attendanceBadgeClass(row.attendance_status)}">${escapeHtml(row.attendance_status || '\u2014')}</span></td></tr>`);
   const countEl = document.getElementById('att-count');
@@ -1326,7 +1363,19 @@ async function exportAttendanceCsv(mode, weekValue = '') {
     alert('Choose a calendar week first.');
     return;
   }
-  const res = await api().export_attendance_csv(modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart);
+  const startDate = modeKey === 'custom' ? document.getElementById('export-start-date').value : '';
+  const endDate = modeKey === 'custom' ? document.getElementById('export-end-date').value : '';
+  if (modeKey === 'custom' && (!startDate || !endDate)) {
+    alert('Choose both a start date and an end date.');
+    return;
+  }
+  if (modeKey === 'custom' && endDate < startDate) {
+    alert('End date must be on or after the start date.');
+    return;
+  }
+  const res = await api().export_attendance_csv(
+    modeKey, modeKey === 'recent' ? attendanceOffset : 0, weekStart, startDate, endDate
+  );
   alert(res.ok ? `Exported to:\n${res.path}` : `Export failed: ${res.message}`);
 }
 
@@ -1428,8 +1477,29 @@ async function selectStudent(row, fingerprintId) {
 
 function updateStudentDetailButtons() {
   const manageBtn = document.getElementById('manage-rfid-btn');
-  if (!manageBtn) return;
-  manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
+  if (manageBtn) manageBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id;
+  const timeOutBtn = document.getElementById('mark-time-out-btn');
+  if (timeOutBtn) {
+    timeOutBtn.disabled = !selectedStudent || !selectedStudent.fingerprint_id
+      || selectedStudent.attendance_status === 'Out';
+  }
+}
+
+async function markSelectedStudentTimeOut() {
+  if (!selectedStudent || !selectedStudent.fingerprint_id || !api()) return;
+  if (!guardPermission('read_records', 'Recording student departure')) return;
+  const name = selectedStudent.student_name || 'this student';
+  if (!confirm('Record an explicit Time Out for ' + name + '? A repeated scan alone does not mark departure.')) return;
+  const result = await api().mark_student_time_out(Number(selectedStudent.fingerprint_id));
+  if (!result || !result.ok) {
+    alert((result && result.message) || 'Could not record Time Out.');
+    return;
+  }
+  alert(result.message || 'Time Out recorded.');
+  const selectedRow = document.querySelector('#stu-tbody tr.selected-row');
+  await selectStudent(selectedRow, Number(selectedStudent.fingerprint_id));
+  await loadAttendancePage();
+  await loadDashboard();
 }
 
 let manageRfidModal = null;
@@ -2904,17 +2974,20 @@ async function renderCalendarMonth() {
     const entry = calendarEntries[dateStr];
     const dateObj = new Date(calendarViewYear, calendarViewMonth - 1, day);
     const isToday = dateStr === todayStr;
-    const isNoClassRecurringDay = !entry && noClassWeekdays.has(dateObj.getDay());
+    const isNoClassRecurringDay = !entry && (noClassWeekdays.has(dateObj.getDay()) || dateObj.getDay() === 0 || dateObj.getDay() === 6);
+    const typeLabel = entry ? (entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday') : '';
     let badge = '';
     if (entry) {
-      const typeLabel = entry.type === 'half_day' ? 'Half-day' : entry.type === 'suspension' ? 'Suspended' : 'Holiday';
-      const shown = entry.label ? escapeHtml(entry.label) : typeLabel;
-      badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${escapeHtml(shown)}">${shown}</span>`;
+      const label = entry.label || typeLabel;
+      const safeLabel = escapeHtml(label);
+      badge = `<span class="cal-day-badge cal-badge-${escapeHtml(entry.type)}" title="${safeLabel}">${safeLabel}</span>`;
     } else if (isNoClassRecurringDay) {
       badge = '<span class="cal-day-badge cal-badge-no-class" title="No class">No class</span>';
     }
-    html += `<div class="cal-day${isToday ? ' cal-day-today' : ''}${isNoClassRecurringDay ? ' cal-day-no-class' : ''}" onclick="openCalendarEntryModal('${dateStr}')">` +
-            `<span>${day}</span>${badge}</div>`;
+    const spokenDate = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const dayDescription = entry ? `, ${typeLabel}${entry.label ? ': ' + entry.label : ''}` : isNoClassRecurringDay ? ', no class' : ', scheduled day';
+    html += `<button type="button" class="cal-day${isToday ? ' cal-day-today' : ''}${isNoClassRecurringDay ? ' cal-day-no-class' : ''}" aria-label="${escapeHtml(spokenDate + dayDescription)}" onclick="openCalendarEntryModal('${dateStr}')">` +
+            `<span>${day}</span>${badge}</button>`;
   }
   const totalCells = startWeekday + daysInMonth;
   const trailing = (7 - (totalCells % 7)) % 7;
@@ -3007,6 +3080,9 @@ async function loadSettingsPage() {
   document.getElementById('set-startup-connect-delay').value = s.startup_connect_delay_ms ?? 1000;
   applyTheme(s.theme);
   applyCompact(!!s.compact_sidebar);
+  const tableZoom = document.getElementById('set-table-zoom');
+  if (tableZoom) tableZoom.value = String(s.table_zoom_percent ?? 100);
+  applyTableZoom(s.table_zoom_percent ?? 100);
   document.getElementById('set-school-name').value = s.school_name || '';
   document.getElementById('set-cooldown').value = s.cooldown;
   document.getElementById('set-confidence').value = s.min_confidence;
@@ -3035,7 +3111,7 @@ let settingsSaveTimer = null;
 const AUTO_SAVE_SETTING_IDS = new Set([
   'set-port-override', 'set-baud-rate-select', 'set-auto-reconnect', 'set-auto-detect',
   'set-auto-connect', 'set-startup-connect-delay',
-  'set-theme', 'settings-compact-toggle', 'set-cooldown', 'set-confidence',
+  'set-theme', 'settings-compact-toggle', 'set-table-zoom', 'set-cooldown', 'set-confidence',
   'set-log-to-file', 'set-debug-logging', 'set-time-in', 'set-time-out',
   'set-early-threshold', 'set-late-threshold', 'set-absent-threshold', 'set-backup-interval',
 ]);
@@ -3125,6 +3201,7 @@ async function saveSettings(silent = false) {
     auto_connect_on_startup: document.getElementById('set-auto-connect').classList.contains('on'),
     startup_connect_delay_ms: Math.max(0, Math.min(30000, parseInt(document.getElementById('set-startup-connect-delay').value, 10) || 0)),
     compact_sidebar: document.getElementById('settings-compact-toggle').classList.contains('on'),
+    table_zoom_percent: Math.max(75, Math.min(125, parseInt(document.getElementById('set-table-zoom').value, 10) || 100)),
     cooldown: parseInt(document.getElementById('set-cooldown').value, 10),
     min_confidence: parseInt(document.getElementById('set-confidence').value, 10),
     log_to_file: document.getElementById('set-log-to-file').classList.contains('on'),
@@ -3146,6 +3223,7 @@ async function saveSettings(silent = false) {
     return;
   }
   applyCompact(payload.compact_sidebar);
+  applyTableZoom(payload.table_zoom_percent);
   applyTheme(payload.theme);
   applySchoolName(payload.school_name);
   if (status) status.textContent = 'All changes saved';

@@ -68,15 +68,15 @@ Disconnect or cancellation clears the pending operation and returns the device t
 
 The firmware emits structured or compatibility events after fingerprint matching. The Python processor applies an application cooldown and confidence classification before database recording.
 
-The firmware hardware match floor is 50. The Python default classification threshold is 100.
+The firmware hardware match floor is 50. The Python default attendance threshold is 100 on the raw AS608 confidence scale (0–255), and can be configured from 1 to 255.
 
 | Confidence | Application status | Stored? |
 | ---: | --- | --- |
-| >= 100 | GOOD MATCH | Yes |
-| 50-99 | WEAK MATCH | Yes |
-| < 50 | No match event | No |
+| At or above configured threshold | GOOD MATCH | Yes |
+| A regular firmware match below configured threshold | WEAK MATCH | No |
+| Below firmware floor | Low-confidence diagnostic | No |
 
-A WEAK MATCH is still stored by the current processor; 100 is not a second rejection gate.
+A WEAK MATCH is diagnostic-only and is not inserted into the attendance database. Attendance evaluation now counts elapsed scheduled weekdays and configured calendar exceptions whether or not a scan was observed, so a no-scan/device-outage day cannot disappear from the denominator.
 
 Duplicate protection is layered: firmware has an approximately 2-second post-scan delay and the application cooldown defaults to 10 seconds per fingerprint.
 
@@ -92,7 +92,7 @@ Supported calendar exception types are `holiday`, `suspension`, and `half_day`. 
 
 Evaluation supports Day, Monday-Sunday Week, and Calendar Month. Distinct attendance dates are counted per student.
 
-The denominator is based on dates with attendance activity in the selected period. Empty dates are not automatically counted as school days by this evaluation.
+The denominator enumerates elapsed scheduled weekdays, excluding configured recurring days off, weekends, holidays, and suspensions whether or not scans occurred. A no-scan/outage day still counts as a school day; future dates in the active period are excluded, and a student's denominator starts no earlier than enrollment.
 
 | Rate | Category |
 | ---: | --- |
@@ -101,7 +101,7 @@ The denominator is based on dates with attendance activity in the selected perio
 | 50-74% | Needs attention |
 | below 50% | Low attendance |
 
-The API requires both `attendance_evaluation` and `read_records` to return per-student rows. Although Guest is configured with `attendance_evaluation`, it lacks `read_records` and receives an error. The evaluation CSV method delegates to this evaluation call and does not add a separate `export` permission check.
+The API requires both `attendance_evaluation` and `read_records` to return per-student rows. Evaluation CSV export also requires `export`. Guest has scan permission only and cannot receive identifiable evaluation rows or switch to Teacher/Admin without authentication.
 
 ## Delete and wipe
 
@@ -132,13 +132,13 @@ Create a backup before destructive maintenance.
 | --- | --- |
 | Administrator | scan, read_records, enroll, delete, wipe, export, backup, restore, attendance_evaluation, manage_calendar |
 | Teacher | scan, read_records, export, backup, attendance_evaluation |
-| Guest | scan, attendance_evaluation |
+| Guest | scan |
 
 Non-guest sessions expire after 600 seconds of inactivity by default. The persisted `current_role` value is not trusted for authorization.
 
-There is no built-in default administrator password. First-run passwords require at least 8 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations.
+There is no built-in default administrator password. Passwords are 8–1,024 characters and are stored using PBKDF2-HMAC-SHA256 with a 16-byte random salt and 310,000 iterations. Verification rejects malformed records and stored iteration counts outside 100,000–1,000,000. Five failed admin attempts trigger a persisted 30-second lockout.
 
-Current authorization limitation: `set_current_role("teacher")` accepts Guest-to-Teacher without password verification; Teacher permissions include record reads, exports, and backups. The current authentication test asserts this behavior. Do not treat Guest mode as a confidentiality boundary for someone who can interact with the app. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
+Guest-to-Teacher role changes are denied unless the current session has already authenticated as an administrator. The Python bridge enforces record, export, enrollment, log, and device-operation permissions; a few non-identifying aggregate/diagnostic helpers remain available without `read_records`. Direct USB serial access is still a physical trust boundary, not cryptographic authentication. See the [roles guide](../UserGuide/roles-and-permissions.md) and [full API inventory](../generated/APP_INVENTORY.md).
 
 ## Failure handling
 
