@@ -1421,11 +1421,84 @@
 }
 #right, #page-content, .page, .split-main, .data-table-wrap { min-width: 0; min-height: 0; }
 .data-table-wrap { overflow-x: auto; overflow-y: auto; }
-#app[data-table-zoom="75"] .data-table, #app[data-table-zoom="75"] .rpt-table { zoom: .75; }
-#app[data-table-zoom="85"] .data-table, #app[data-table-zoom="85"] .rpt-table { zoom: .85; }
-#app[data-table-zoom="90"] .data-table, #app[data-table-zoom="90"] .rpt-table { zoom: .9; }
-#app[data-table-zoom="110"] .data-table, #app[data-table-zoom="110"] .rpt-table { zoom: 1.1; }
-#app[data-table-zoom="125"] .data-table, #app[data-table-zoom="125"] .rpt-table { zoom: 1.25; }
+/* Table zoom uses explicit font and spacing variables instead of CSS zoom.
+   The embedded webview and narrow windows both get predictable layout. */
+#app {
+  --table-font-size: 12.5px;
+  --table-header-font-size: 11px;
+  --table-cell-padding-y: 5px;
+  --table-cell-padding-x: 10px;
+  --report-cell-padding-y: 5px;
+  --report-cell-padding-x: 12px;
+  --table-badge-font-size: 11px;
+  --table-badge-padding-y: 1px;
+  --table-badge-padding-x: 7px;
+  --report-small-font-size: 11px;
+  --report-rank-size: 20px;
+}
+#app .data-table {
+  font-size: var(--table-font-size);
+  min-width: 100%;
+  table-layout: auto;
+}
+#app .data-table thead th {
+  height: auto;
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+  font-size: var(--table-header-font-size);
+  line-height: 1.3;
+  white-space: normal;
+  vertical-align: middle;
+}
+#app .data-table tbody td {
+  height: auto;
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+  font-size: var(--table-font-size);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-overflow: clip;
+  vertical-align: middle;
+}
+#app .data-table .badge {
+  max-width: 100%;
+  padding: var(--table-badge-padding-y) var(--table-badge-padding-x);
+  font-size: var(--table-badge-font-size);
+  line-height: 1.3;
+  white-space: normal;
+}
+#app .rpt-table {
+  font-size: var(--table-font-size);
+  min-width: 100%;
+  table-layout: auto;
+}
+#app .rpt-table thead th {
+  height: auto;
+  padding: var(--report-cell-padding-y) var(--report-cell-padding-x);
+  font-size: var(--table-header-font-size);
+  line-height: 1.3;
+  white-space: normal;
+  vertical-align: middle;
+}
+#app .rpt-table tbody td {
+  height: auto;
+  padding: var(--report-cell-padding-y) var(--report-cell-padding-x);
+  font-size: var(--table-font-size);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+#app .rpt-rank {
+  width: var(--report-rank-size);
+  height: var(--report-rank-size);
+  min-width: var(--report-rank-size);
+  font-size: var(--report-small-font-size);
+}
+#app .rpt-grade-pill,
+#app .rpt-bar-label {
+  font-size: var(--report-small-font-size);
+}
 @media (max-height: 650px) {
   #sidebar { overflow-y: auto; }
   .nav-section-label { padding-top: 6px; }
