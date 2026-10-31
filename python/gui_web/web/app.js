@@ -526,19 +526,31 @@ function toggleCompact() {
 }
 
 function applyTableZoom(value) {
-  // CSS provides six supported zoom levels. Normalize hand-edited settings
-  // (for example 80 or 95) to the nearest level so every accepted value has
-  // a visible effect rather than silently falling back to 100%.
+  // Normalize to a supported percentage, then scale table typography and
+  // spacing through CSS variables. This is more reliable in the embedded
+  // pywebview browser than relying on the non-standard CSS "zoom" property.
   const supported = [75, 85, 90, 100, 110, 125];
-  // Number('') and Number(null) are 0, which would clamp to 75%; treat an
-  // empty value as "not set" so it falls back to the 100% default instead.
   const parsed = value === null || value === '' ? NaN : Number(value);
   const requested = Number.isFinite(parsed) ? parsed : 100;
   const bounded = Math.max(75, Math.min(125, requested));
   const percent = supported.reduce((best, candidate) =>
     Math.abs(candidate - bounded) < Math.abs(best - bounded) ? candidate : best, supported[0]);
   const app = document.getElementById('app');
-  if (app) app.dataset.tableZoom = String(percent);
+  if (app) {
+    const scale = percent / 100;
+    app.dataset.tableZoom = String(percent);
+    app.style.setProperty('--table-font-size', `${12.5 * scale}px`);
+    app.style.setProperty('--table-header-font-size', `${11 * scale}px`);
+    app.style.setProperty('--table-cell-padding-y', `${5 * scale}px`);
+    app.style.setProperty('--table-cell-padding-x', `${10 * scale}px`);
+    app.style.setProperty('--report-cell-padding-y', `${5 * scale}px`);
+    app.style.setProperty('--report-cell-padding-x', `${12 * scale}px`);
+    app.style.setProperty('--table-badge-font-size', `${11 * scale}px`);
+    app.style.setProperty('--table-badge-padding-y', `${1 * scale}px`);
+    app.style.setProperty('--table-badge-padding-x', `${7 * scale}px`);
+    app.style.setProperty('--report-small-font-size', `${11 * scale}px`);
+    app.style.setProperty('--report-rank-size', `${20 * scale}px`);
+  }
   const control = document.getElementById('set-table-zoom');
   if (control && control.value !== String(percent)) control.value = String(percent);
 }
