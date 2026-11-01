@@ -1128,12 +1128,16 @@ def test_responsive_navigation_and_persistent_table_zoom_controls_exist():
     assert 'table_zoom_percent:' in script
     assert "function applyTableZoom(value)" in script
     assert "table_zoom_percent" in script
+    assert "app.style.setProperty('--table-font-size'" in script
+    assert "app.style.setProperty('--table-cell-padding-y'" in script
     assert '<button type="button" class="cal-day' in script
     assert 'aria-label="${escapeHtml(spokenDate + dayDescription)}"' in script
     assert ".cal-day:focus-visible" in styles
     assert "overflow-y: auto" in styles
-    assert 'data-table-zoom="75"' in styles
-    assert 'data-table-zoom="125"' in styles
+    assert "--table-font-size: 12.5px" in styles
+    assert "font-size: var(--table-font-size)" in styles
+    assert "overflow-wrap: anywhere" in styles
+    assert "white-space: normal" in styles
     assert "@media (max-width: 560px)" in styles
     assert ".data-table-wrap { overflow-x: auto; overflow-y: auto; }" in styles
 
