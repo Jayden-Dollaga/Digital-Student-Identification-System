@@ -40,6 +40,8 @@ python archive\legacy-ui\v1\python/gui/app.py
 python archive\legacy-ui\v2\run_qt_gui.py
 python run_web_gui.py
 
+.\install_requirements.bat  
+
 
 Remove-Item -Recurse -Force Build\build-v1, Build\DSIS_v1 -ErrorAction SilentlyContinue
 .\.venv\Scripts\python -m PyInstaller Build\DSIS_v1.spec --clean --noconfirm --workpath Build\build-v1 --distpath Build\DSIS_v1
