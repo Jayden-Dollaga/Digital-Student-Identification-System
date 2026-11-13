@@ -538,7 +538,22 @@ class SerialHandler:
         line = line.rstrip("\r")
         if not line.strip():
             return None
+        if self._is_boot_ready_status(line):
+            # The firmware only prints this status from setup(), so seeing it
+            # means the board (re)booted - e.g. after reset_device(), a brownout
+            # or a replug - and has forgotten HOST_CONNECTED.
+            with self._lock:
+                self._send_host_connected()
         return line
+
+    @staticmethod
+    def _is_boot_ready_status(line: str) -> bool:
+        compact = line.replace(" ", "")
+        return (
+            compact.startswith("{")
+            and '"type":"status"' in compact
+            and '"state":"READY"' in compact
+        )
 
     def should_ignore(self, line: str) -> bool:
         """Returns True for boot noise, single-character status lines, and ESP32 help text."""
@@ -651,6 +666,9 @@ class SerialHandler:
                                 pass
                             self.connected = True
                             self.reconnect_count = 0
+                            # A replugged board boots with hostConnected=false, so
+                            # re-announce the host or ENROLL/DELETE/WIPE are refused.
+                            self._send_host_connected()
                             success, msg = True, "OK"
                         else:
                             success = False

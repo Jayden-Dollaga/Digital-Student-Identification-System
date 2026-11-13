@@ -41,10 +41,15 @@
  *    DELETE:1      Delete finger ID 1
  *    WIPE          Delete ALL stored fingerprints
  *    LIST          Show how many fingerprints are stored
- *    SCAN          Switch to attendance scan mode (fingerprint AND card)
+ *    SCAN          Switch to attendance scan mode (fingerprint and card both
+ *                  produce events; either one can log attendance)
  *    STOP          Stop scanning, go back to command mode
- *    CARD_WRITE_HEX:<96 hex chars> Arm an encrypted card write
- *                    (or once, outside scan mode) to write "xyz" to it
+ *    ID?           Print the device identification JSON
+ *    HELP          Print the command list
+ *    CARD_WRITE_HEX:<96 hex chars> Arm an encrypted card write; present the
+ *                  card to write and verify the 48-byte payload
+ *    CARD_ERASE    Arm a card erase (writes 48 zero bytes and verifies)
+ *    CARD_KEYCHECK Test a tapped card against the known key list (read-only)
  *
  *  ── TYPICAL WORKFLOW FOR A CLASS OF 30 ──
  *
@@ -112,6 +117,7 @@ const unsigned long ENROLL_END_OFF_MS = 700;
 const unsigned long FIRMWARE_BLINK_MS = 500;
 const unsigned long COMM_ERROR_ON_MS = 700;
 const unsigned long COMM_ERROR_OFF_MS = 200;
+const unsigned long ENROLL_FINGER_TIMEOUT_MS = 30000;  // give up waiting for a finger
 
 enum LedState {
   LED_BOOTING,
@@ -158,6 +164,9 @@ unsigned long ledStateStart = 0;
 int currentPriority = 1;
 int restorePriority = 2;
 bool hostConnected = false;
+bool enrolling = false;                 // true while enrollFinger() owns the sensor
+unsigned long fingerCooldownStart = 0;  // non-blocking post-scan cooldown (millis)
+unsigned long fingerCooldownMs = 0;     // 0 = no cooldown active
 
 void ledBrightness(uint8_t value) {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ESP32)
@@ -214,6 +223,12 @@ bool requestLedState(LedState state, bool temporary = false) {
 }
 
 void restoreLedStateIfNeeded() {
+  // A temporary SUCCESS/ERROR pattern that interrupted an enrollment must not
+  // hand the LED back to the enroll pattern once enrollment has finished.
+  if (currentRestoreState == LED_ENROLL && !enrolling) {
+    currentRestoreState = LED_READY;
+    restorePriority = getPriorityForState(LED_READY);
+  }
   int nowPriority = getPriorityForState(currentRestoreState);
   currentLedState = currentRestoreState;
   currentPriority = restorePriority;
@@ -510,6 +525,7 @@ void setup() {
   beginLedManager();
 
   Serial.begin(115200);
+  Serial.setTimeout(100);  // bound any readStringUntil() stall (default is 1000 ms)
   serialCommandBuffer.reserve(SERIAL_COMMAND_MAX_LENGTH);
   unsigned long bootStart = millis();
   while (millis() - bootStart < 1000) {
@@ -616,8 +632,8 @@ void loop() {
   if (scanMode) {
     scanFinger();
     scanCard();
-  } else if (pendingCardWrite.length() > 0 || pendingCardErase) {
-    // Allow one-off writes and two-presentation erases in command mode.
+  } else if (pendingCardWrite.length() > 0 || pendingCardErase || pendingKeyCheck) {
+    // Allow one-off writes, erases and key checks in command mode.
     scanCard();
   }
 }
@@ -653,7 +669,9 @@ void handleCommand(String input) {
   }
 
   // ID? discovery is public; destructive commands require the host-connected
-  // state that serial_handler sends after a valid DSIS handshake.
+  // state that serial_handler announces after its DSIS handshake. This guards
+  // against accidental serial-monitor typing; it is not authentication, since
+  // anything on the USB port can send the same status line.
   if (!hostConnected &&
       (normalized == "WIPE" || normalized == "ENROLL" ||
       normalized.startsWith("ENROLL:") || normalized.startsWith("DELETE:") ||
@@ -695,6 +713,7 @@ void handleCommand(String input) {
   // ── STOP ──────────────────────────────────────────────────────
   if (normalized == "STOP") {
     scanMode = false;
+    pendingKeyCheck = false;
     pendingCardWrite = "";
     pendingCardWriteHex = false;
     pendingCardErase = false;
@@ -740,28 +759,25 @@ void handleCommand(String input) {
       ledReady();
       return;
     }
-    ledEnroll();
-    scanMode = false; // pause scanning during enrollment
-    enrollFinger(id);
+    runEnrollment(id);
     return;
   }
 
-  if (input.startsWith("ENROLL:")) {
-    int id = input.substring(7).toInt();
+  if (normalized.startsWith("ENROLL:")) {
+    int id = payload.toInt();
     if (id < 1 || id > 127) {
       Serial.println("ERROR: ID must be between 1 and 127. Example: ENROLL:5");
       ledReady();
       return;
     }
-    ledEnroll();
-    scanMode = false; // pause scanning during enrollment
-    enrollFinger(id);
+    runEnrollment(id);
     return;
   }
 
   // ── DELETE:ID ─────────────────────────────────────────────────
   if (normalized.startsWith("DELETE:")) {
     scanMode = false;
+    pendingKeyCheck = false;
     pendingCardWrite = "";
     pendingCardWriteHex = false;
     pendingCardErase = false;
@@ -848,6 +864,11 @@ void handleCommand(String input) {
     }
   }
 
+  if (normalized == "HELP") {
+    printHelp();
+    return;
+  }
+
   // ── UNKNOWN COMMAND ───────────────────────────────────────────
   Serial.println("Unknown command. Type HELP to see commands.");
   printHelp();
@@ -872,6 +893,25 @@ int findNextAvailableId() {
   return -1;
 }
 
+// Host status hints (LED/state) can arrive mid-enrollment. Apply them, then
+// make sure a low-priority host pattern does not replace the enroll pattern.
+void applyHostStatusDuringEnrollment(const String &state) {
+  handleHostStatus(state);
+  if (currentPriority < getPriorityForState(LED_ENROLL)) {
+    ledEnroll();
+  }
+}
+
+// Returns true (after reporting it) once the user has waited too long.
+bool enrollWaitTimedOut(unsigned long waitStart) {
+  if (millis() - waitStart < ENROLL_FINGER_TIMEOUT_MS) return false;
+  ledError();
+  Serial.println("\n>> Enrollment timed out waiting for the finger.");
+  Serial.println("ENROLLMENT cancelled.");
+  Serial.println("CMD_MODE");
+  return true;
+}
+
 bool checkEnrollmentCancel() {
   if (!Serial.available()) {
     updateLed();
@@ -880,7 +920,23 @@ bool checkEnrollmentCancel() {
 
   String input = Serial.readStringUntil('\n');
   input.trim();
-  input.toUpperCase();
+
+  if (input.startsWith("{")) {
+    if (parseJsonStringField(input, "type") == "status") {
+      String state = parseJsonStringField(input, "state");
+      if (state.length() > 0) applyHostStatusDuringEnrollment(state);
+    }
+    return false;
+  }
+  String upper = input;
+  upper.toUpperCase();
+  if (upper.startsWith("STATUS:")) {
+    String state = input.substring(7);
+    state.trim();
+    applyHostStatusDuringEnrollment(state);
+    return false;
+  }
+  input = upper;
 
   if (input == "STOP") {
     ledReady();
@@ -921,14 +977,19 @@ void enrollFinger(int id) {
 
   // ── SCAN 1 ────────────────────────────────────────────────────
   Serial.println("Step 1: Place finger on sensor...");
+  unsigned long waitStart = millis();
   while (p != FINGERPRINT_OK) {
     if (checkEnrollmentCancel()) {
+      return;
+    }
+    if (enrollWaitTimedOut(waitStart)) {
       return;
     }
     p = finger.getImage();
     if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
     if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
     Serial.println("  Imaging error, try again.");
+    delay(250);  // do not flood the host if the sensor keeps erroring
   }
 
   p = finger.image2Tz(1);
@@ -950,26 +1011,36 @@ void enrollFinger(int id) {
     delay(50);
   }
   p = 0;
+  unsigned long liftStart = millis();
   while (p != FINGERPRINT_NOFINGER) {
     updateLed();
     if (checkEnrollmentCancel()) {
       return;
     }
+    if (enrollWaitTimedOut(liftStart)) {
+      return;
+    }
     p = finger.getImage();
+    delay(20);
   }
   Serial.println("  Finger removed.");
 
   // ── SCAN 2 ────────────────────────────────────────────────────
   Serial.println("Step 3: Place the SAME finger again...");
   p = -1;
+  waitStart = millis();
   while (p != FINGERPRINT_OK) {
     if (checkEnrollmentCancel()) {
+      return;
+    }
+    if (enrollWaitTimedOut(waitStart)) {
       return;
     }
     p = finger.getImage();
     if (p == FINGERPRINT_NOFINGER) { delay(50); continue; }
     if (p == FINGERPRINT_OK)       { Serial.println("\n  Image taken!"); break; }
     Serial.println("  Imaging error, try again.");
+    delay(250);
   }
 
   p = finger.image2Tz(2);
@@ -1014,6 +1085,19 @@ void enrollFinger(int id) {
   }
 }
 
+// Owns the enroll LED/mode bookkeeping so every exit path of enrollFinger()
+// (including early error returns) leaves the LED out of the enroll pattern.
+void runEnrollment(int id) {
+  scanMode = false;  // pause scanning during enrollment
+  enrolling = true;
+  ledEnroll();
+  enrollFinger(id);
+  enrolling = false;
+  if (currentLedState == LED_ENROLL) {
+    ledReady();
+  }
+}
+
 
 // ==============================================================================
 //  SCAN (Attendance Mode)
@@ -1021,6 +1105,8 @@ void enrollFinger(int id) {
 
 void scanFinger() {
   if (!fingerprintSensorReady) return;
+  // Non-blocking cooldown: keep polling the RC522 and host serial meanwhile.
+  if (millis() - fingerCooldownStart < fingerCooldownMs) return;
   uint8_t p = finger.getImage();
   if (p == FINGERPRINT_NOFINGER) return;
   if (p != FINGERPRINT_OK)       return;
@@ -1036,10 +1122,12 @@ void scanFinger() {
     } else {
       emitJsonAttendanceLowConfidence(finger.confidence);
     }
-    delay(SCAN_COOLDOWN);
+    fingerCooldownStart = millis();
+    fingerCooldownMs = SCAN_COOLDOWN;
   } else if (p == FINGERPRINT_NOTFOUND) {
     emitJsonAttendanceUnknown();
-    delay(1000);
+    fingerCooldownStart = millis();
+    fingerCooldownMs = 1000;
   }
 }
 
@@ -1183,6 +1271,8 @@ void printHelp() {
   Serial.println("    SCAN       Start attendance scan mode (finger + card)");
   Serial.println("    STOP       Stop scanning, return to commands");
   Serial.println("    CARD_WRITE_HEX:<hex>  Arm encrypted write, present the card");
+  Serial.println("    CARD_ERASE     Arm a card erase, then present the card");
   Serial.println("    CARD_KEYCHECK  Test a tapped card against all known keys (read-only)");
+  Serial.println("    HELP           Show this list");
   Serial.println();
 }

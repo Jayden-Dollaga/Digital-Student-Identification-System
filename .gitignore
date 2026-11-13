@@ -13,6 +13,10 @@ env/
 *.log
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # PyInstaller / portable build output
 Build/build-v1/
