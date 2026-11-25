@@ -24,6 +24,7 @@ gets "guest", never an escalated role read from disk.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Optional
 
@@ -33,6 +34,7 @@ from core.logger import log
 CONFIG = get_config()
 ROLE_LEVELS = {"guest": 0, "teacher": 1, "admin": 2}
 ATTENDANCE_TIME_RULES_PERMISSION = "admin"
+_session_lock = threading.RLock()
 _session_role: Optional[str] = None
 _session_expires_at: Optional[float] = None
 _session_timeout_seconds = 600.0
@@ -49,19 +51,21 @@ def normalize_role_key(role_key: Optional[str]) -> str:
 def set_session_role(role_key: Optional[str], timeout_seconds: Optional[float] = None) -> None:
     """Set the in-memory role used by the active v3 API session."""
     global _session_role, _session_expires_at, _session_timeout_seconds
-    _session_role = normalize_role_key(role_key)
-    if timeout_seconds is not None:
-        _session_timeout_seconds = max(0.01, float(timeout_seconds))
-    _session_expires_at = time.monotonic() + _session_timeout_seconds if _session_role != "guest" else None
+    with _session_lock:
+        _session_role = normalize_role_key(role_key)
+        if timeout_seconds is not None:
+            _session_timeout_seconds = max(0.01, float(timeout_seconds))
+        _session_expires_at = time.monotonic() + _session_timeout_seconds if _session_role != "guest" else None
 
 
 def touch_session() -> str:
     """Refresh the authenticated session and return its effective role."""
-    role = get_current_role()
-    if role != "guest":
-        global _session_expires_at
-        _session_expires_at = time.monotonic() + _session_timeout_seconds
-    return role
+    with _session_lock:
+        role = get_current_role()
+        if role != "guest":
+            global _session_expires_at
+            _session_expires_at = time.monotonic() + _session_timeout_seconds
+        return role
 
 
 def get_current_role() -> str:
@@ -74,12 +78,13 @@ def get_current_role() -> str:
     full stop. There is no disk-backed escalation path.
     """
     global _session_role
-    if _session_role is None:
-        # No session established yet anywhere in this process - guest.
-        return "guest"
-    if _session_expires_at is not None and time.monotonic() >= _session_expires_at:
-        set_session_role("guest")
-    return _session_role
+    with _session_lock:
+        if _session_role is None:
+            # No session established yet anywhere in this process - guest.
+            return "guest"
+        if _session_expires_at is not None and time.monotonic() >= _session_expires_at:
+            set_session_role("guest")
+        return _session_role
 
 
 def has_permission(action: str, role_key: Optional[str] = None) -> bool:
@@ -122,7 +127,7 @@ def require_permission(action: str, role_key: Optional[str] = None) -> bool:
     Intended for use at the point where a privileged command is about to be
     sent, so denied attempts leave a trace instead of failing silently.
     """
-    allowed = has_permission(action, role_key=role_key)
+    allowed = has_permission(action) if role_key is None else has_permission(action, role_key=role_key)
     if not allowed:
         log.warning(
             "Blocked action - current role lacks permission",

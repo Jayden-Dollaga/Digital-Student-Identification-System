@@ -597,6 +597,8 @@ function setStatus(state) {
     connBtn.textContent = 'Disconnect';
     connBtn.className = 'hdr-btn danger';
     scanBtn.disabled = !canScan;
+    scanBtn.textContent = 'SCAN';
+    scanBtn.classList.remove('danger');
     sbDot.style.background = 'var(--green)';
     sbConn.textContent = 'Connected';
     sbDev.style.display = 'flex';
@@ -605,6 +607,16 @@ function setStatus(state) {
     if (scanMeta) scanMeta.textContent = canScan ? 'Ready to scan.' : 'Connected.';
   } else if (state === 'scanning') {
     text.textContent = 'Scanning\u2026';
+    connBtn.textContent = 'Disconnect';
+    connBtn.className = 'hdr-btn danger';
+    scanBtn.disabled = !canScan;
+    scanBtn.textContent = 'STOP';
+    scanBtn.classList.add('danger');
+    sbDot.style.background = 'var(--green)';
+    sbConn.textContent = 'Connected';
+    sbDev.style.display = 'flex';
+    sbDevSep.style.display = 'block';
+    devInfo.style.display = 'block';
   }
   updateSerialMeta();
 }
@@ -733,6 +745,7 @@ async function toggleScan() {
       scanning = false;
       const connection = await api().get_connection_status();
       connected = !!(connection && connection.connected);
+      setStatus(connected ? 'connected' : 'disconnected');
       if (!connected) {
         alert('ESP32 not connected. Connect first to start scanning.');
       } else {
@@ -756,12 +769,17 @@ async function toggleScan() {
 }
 
 function handleConnectionStatus(status) {
-  connected = !!status.connected;
-  scanning = !!status.scanning;
-  setStatus(connected ? (scanning ? 'scanning' : 'connected') : 'disconnected');
+  const nextConnected = !!status.connected;
+  const nextScanning = !!status.scanning;
+  const changed = nextConnected !== connected || nextScanning !== scanning;
+  connected = nextConnected;
+  scanning = nextScanning;
+  if (changed) {
+    setStatus(connected ? (scanning ? 'scanning' : 'connected') : 'disconnected');
+  }
   if (connected && status.port) {
     const meta = status.device_metadata || {};
-    document.getElementById('device-info').textContent = `${status.port} · ${status.baud || '?'} baud` + (meta.type ? ` · ${meta.type}` : '');
+    document.getElementById('device-info').textContent = `${status.port} \u00b7 ${status.baud || '?'} baud` + (meta.type ? ` \u00b7 ${meta.type}` : '');
   }
 }
 
@@ -1121,7 +1139,7 @@ function renderAttendanceEvaluation() {
         </div>
         <div>
           <div class="me-empty-title">No attendance activity recorded</div>
-          <div class="me-empty-sub">Nothing was scanned for ${rangeLabel} yet.</div>
+          <div class="me-empty-sub">Nothing was scanned for ${escapeHtml(rangeLabel)} yet.</div>
         </div>
       </div>`;
     return;
@@ -1167,7 +1185,7 @@ function renderAttendanceEvaluation() {
   }).join('');
 
   body.innerHTML = `
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${rangeLabel} \u2014 ${evalData.total_days} scheduled school day${evalData.total_days === 1 ? '' : 's'}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">${escapeHtml(rangeLabel)} \u2014 ${escapeHtml(String(evalData.total_days))} scheduled school day${evalData.total_days === 1 ? '' : 's'}</div>
     <div style="font-size:11px;color:var(--muted);margin:4px 0 10px;">Days without a qualifying scan count as absent in this calculation. DSIS cannot automatically distinguish a student's absence from a device outage; review connection logs and school records before using this report for disciplinary decisions.</div>
     <div class="me-leaderboard">${leaderboard}</div>
     <div class="me-legend">${legend}</div>
@@ -2554,13 +2572,9 @@ function renderAttendanceGradeChart(rows) {
   if (!rows.length) return chartEmpty('No attendance records are available by grade.');
   const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0) || 1;
   const colors = ['#3B78FF', '#16A34A', '#D97706', '#DC2626', '#7C3AED', '#DB2777'];
-  let offset = 0;
   const segments = rows.map((row, index) => {
     const percent = (Number(row.count) || 0) / total;
-    const segment = `${percent * 100} ${100 - percent * 100}`;
-    const result = `<div class="chart-legend-row"><span class="chart-legend-swatch" style="background:${colors[index % colors.length]}"></span><span>${escapeHtml(row.grade)}</span><strong>${escapeHtml(row.count)} (${Math.round(percent * 100)}%)</strong></div>`;
-    offset += percent * 100;
-    return result;
+    return `<div class="chart-legend-row"><span class="chart-legend-swatch" style="background:${colors[index % colors.length]}"></span><span>${escapeHtml(row.grade)}</span><strong>${escapeHtml(row.count)} (${Math.round(percent * 100)}%)</strong></div>`;
   }).join('');
   const gradient = rows.map((row, index) => {
     const percent = (Number(row.count) || 0) / total * 100;

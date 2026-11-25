@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "python"))
 # Import after path setup
 from gui_qt.pages.students_page import EnrollDialog, EnrollmentState
 from core.database import init_database, clear_all_students
+from core import permissions as permissions_module
 
 
 
@@ -32,6 +33,7 @@ def qapp():
 @pytest.fixture(autouse=True)
 def setup_database():
     """Setup test database before each test."""
+    permissions_module.set_session_role("admin", 600.0)
     init_database()
     clear_all_students()
     yield

@@ -88,6 +88,8 @@ CONFIG = get_config()
 ADMIN_LOGIN_MAX_FAILURES = 5
 ADMIN_LOGIN_LOCKOUT_SECONDS = 30.0
 ADMIN_LOGIN_LOCK = threading.Lock()
+_ORIG_GET_ATTENDANCE_ALL = db.get_attendance_all
+_ORIG_GET_ALL_STUDENTS = db.get_all_students
 
 # Regexes copied verbatim from archive/legacy-ui/v2/python/gui_qt/workers/serial_worker.py
 # so enroll/wipe/delete parsing matches the real firmware output exactly.
@@ -194,7 +196,15 @@ class Api:
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         instance._window = None
+        instance._state_lock = threading.RLock()
         return instance
+
+    def _lock_state(self) -> threading.RLock:
+        lock = getattr(self, "_state_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._state_lock = lock
+        return lock
 
     def __init__(self) -> None:
         self._window = getattr(self, "_window", None)
@@ -482,40 +492,56 @@ class Api:
         except Exception:
             pass
         self._stop_read_loop()
-        self._observed_connected = False
-        self._scanning = False
-        self._device_mode = "command"
-        self._pending_enroll = False
-        self._pending_delete_id = None
-        self._confirmed_delete_ids.clear()
-        self._pending_wipe = False
+        with self._lock_state():
+            self._observed_connected = False
+            self._scanning = False
+            self._device_mode = "command"
+            self._pending_enroll = False
+            self._pending_delete_id = None
+            self._confirmed_delete_ids.clear()
+            self._pending_wipe = False
         self.serial.disconnect()
         self._push("connection_status", self.get_connection_status())
         return {"connected": False}
 
     def get_connection_status(self) -> Dict[str, Any]:
+        with self._lock_state():
+            scanning = self._scanning
+            device_mode = self._device_mode
         return {
             "connected": self.serial.is_connected(),
             "port": self.serial.reconnect_port,
             "baud": self.serial.reconnect_baud,
             "device_metadata": self.serial.device_metadata,
-            "scanning": self._scanning,
-            "device_mode": self._device_mode,
+            "scanning": scanning,
+            "device_mode": device_mode,
         }
 
     # -- scanning -------------------------------------------------------------
     def _operation_conflict(self, operation: str) -> Optional[str]:
-        if self._pending_enroll:
-            return "Enrollment is already in progress."
-        if self._pending_delete_id is not None:
-            return "Fingerprint deletion is already in progress."
-        if self._pending_wipe:
-            return "Fingerprint wipe is already in progress."
-        if operation in {"delete", "wipe"}:
+        with self._lock_state():
+            if self._pending_enroll:
+                return "Enrollment is already in progress."
+            if self._pending_delete_id is not None:
+                return "Fingerprint deletion is already in progress."
+            if self._pending_wipe:
+                return "Fingerprint wipe is already in progress."
+            if operation in {"delete", "wipe"}:
+                return None
+            if operation != "scan" and self._scanning:
+                return "Scan is active. Stop attendance scanning before starting this operation."
             return None
-        if operation != "scan" and self._scanning:
-            return "Scan is active. Stop attendance scanning before starting this operation."
-        return None
+
+    def _stop_scan_for_operation(self, failure_message: str) -> Optional[str]:
+        """Stop active attendance scanning before a mutually exclusive device command."""
+        with self._lock_state():
+            if not self._scanning:
+                return None
+            stop_ok = cmds.cmd_stop(self.serial)
+            self._scanning = False
+            self._device_mode = "command"
+        self._push("mode_changed", {"mode": "command"})
+        return None if stop_ok else failure_message
 
     def start_scan(self) -> bool:
         if not permissions.require_permission("scan"):
@@ -526,8 +552,9 @@ class Api:
             return False
         ok = cmds.cmd_scan(self.serial)
         if ok:
-            self._scanning = True
-            self._device_mode = "scan"
+            with self._lock_state():
+                self._scanning = True
+                self._device_mode = "scan"
             self._push("mode_changed", {"mode": "scan"})
         return ok
 
@@ -535,8 +562,9 @@ class Api:
         if not permissions.require_permission("scan"):
             return False
         ok = cmds.cmd_stop(self.serial) if self.serial.is_connected() else True
-        self._scanning = False
-        self._device_mode = "command"
+        with self._lock_state():
+            self._scanning = False
+            self._device_mode = "command"
         self._push("mode_changed", {"mode": "command"})
         return ok
 
@@ -790,14 +818,13 @@ class Api:
             "confidence": 0,
             "status": "UNKNOWN" if event == "card_unreadable" else "CARD",
             "logged": False,
-            "reason": None,
+            "reason": parsed.get("reason"),
             "timestamp": datetime.now().isoformat(),
             "student": {},
             "method": "card",
             "uid": parsed.get("uid"),
             "data_hex": parsed.get("data_hex"),
             "card_type": parsed.get("card_type"),
-            "reason": parsed.get("reason"),
             "event": event,
         }
         self._push("scan_result", payload)
@@ -936,13 +963,15 @@ class Api:
         if conflict:
             return {"ok": False, "message": conflict}
         cmds.cmd_stop(self.serial)
-        self._scanning = False
-        self._device_mode = "command"
+        with self._lock_state():
+            self._scanning = False
+            self._device_mode = "command"
+            self._pending_enroll = True
         self._push("mode_changed", {"mode": "command"})
-        self._pending_enroll = True
         ok = cmds.cmd_enroll(self.serial)
         if not ok:
-            self._pending_enroll = False
+            with self._lock_state():
+                self._pending_enroll = False
             return {"ok": False, "message": "Could not send ENROLL command to the ESP32."}
         return {"ok": True, "message": "Sent ENROLL command. Follow the prompts on the sensor."}
 
@@ -982,13 +1011,15 @@ class Api:
         """Cancel an active enrollment before the modal is closed."""
         if not permissions.require_permission("enroll"):
             return {"ok": False, "status": 403, "message": "Administrator enrollment permission is required."}
-        if not self._pending_enroll:
-            return {"ok": True, "message": "No enrollment is active."}
-        if not self.serial.is_connected():
-            self._pending_enroll = False
-            return {"ok": False, "message": "The ESP32 is disconnected; enrollment state was cleared locally."}
+        with self._lock_state():
+            if not self._pending_enroll:
+                return {"ok": True, "message": "No enrollment is active."}
+            if not self.serial.is_connected():
+                self._pending_enroll = False
+                return {"ok": False, "message": "The ESP32 is disconnected; enrollment state was cleared locally."}
         ok = cmds.cmd_stop(self.serial)
-        self._pending_enroll = False
+        with self._lock_state():
+            self._pending_enroll = False
         return {"ok": ok, "message": "Enrollment cancelled." if ok else "Could not cancel enrollment on the ESP32."}
 
     def discard_enrollment(self, fingerprint_id: int) -> Dict[str, Any]:
@@ -1000,18 +1031,17 @@ class Api:
         conflict = self._operation_conflict("delete")
         if conflict:
             return {"ok": False, "message": conflict}
-        self._pending_delete_id = int(fingerprint_id)
-        if self._scanning:
-            stop_ok = cmds.cmd_stop(self.serial)
-            self._scanning = False
-            self._device_mode = "command"
-            self._push("mode_changed", {"mode": "command"})
-            if not stop_ok:
+        with self._lock_state():
+            self._pending_delete_id = int(fingerprint_id)
+        stop_error = self._stop_scan_for_operation("Stop attendance scanning before deleting this fingerprint.")
+        if stop_error:
+            with self._lock_state():
                 self._pending_delete_id = None
-                return {"ok": False, "message": "Stop attendance scanning before deleting this fingerprint."}
+            return {"ok": False, "message": stop_error}
         ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
         if not ok:
-            self._pending_delete_id = None
+            with self._lock_state():
+                self._pending_delete_id = None
             return {"ok": False, "message": "Could not remove the unsaved fingerprint from the ESP32."}
         return {"ok": True, "message": f"Removing unsaved fingerprint ID {fingerprint_id}."}
 
@@ -1033,18 +1063,17 @@ class Api:
         conflict = self._operation_conflict("delete")
         if conflict:
             return {"ok": False, "message": conflict}
-        self._pending_delete_id = int(fingerprint_id)
-        if self._scanning:
-            stop_ok = cmds.cmd_stop(self.serial)
-            self._scanning = False
-            self._device_mode = "command"
-            self._push("mode_changed", {"mode": "command"})
-            if not stop_ok:
+        with self._lock_state():
+            self._pending_delete_id = int(fingerprint_id)
+        stop_error = self._stop_scan_for_operation("Stop attendance scanning before deleting this fingerprint.")
+        if stop_error:
+            with self._lock_state():
                 self._pending_delete_id = None
-                return {"ok": False, "message": "Stop attendance scanning before deleting this fingerprint."}
+            return {"ok": False, "message": stop_error}
         ok = cmds.cmd_delete(self.serial, int(fingerprint_id))
         if not ok:
-            self._pending_delete_id = None
+            with self._lock_state():
+                self._pending_delete_id = None
             return {"ok": False, "message": "Could not send DELETE command to the ESP32."}
         return {"ok": True, "message": f"Deleting fingerprint ID {fingerprint_id} on the device\u2026"}
 
@@ -1056,18 +1085,17 @@ class Api:
         conflict = self._operation_conflict("wipe")
         if conflict:
             return {"ok": False, "message": conflict}
-        self._pending_wipe = True
-        if self._scanning:
-            stop_ok = cmds.cmd_stop(self.serial)
-            self._scanning = False
-            self._device_mode = "command"
-            self._push("mode_changed", {"mode": "command"})
-            if not stop_ok:
+        with self._lock_state():
+            self._pending_wipe = True
+        stop_error = self._stop_scan_for_operation("Stop attendance scanning before wiping fingerprints.")
+        if stop_error:
+            with self._lock_state():
                 self._pending_wipe = False
-                return {"ok": False, "message": "Stop attendance scanning before wiping fingerprints."}
+            return {"ok": False, "message": stop_error}
         ok = cmds.cmd_wipe(self.serial)
         if not ok:
-            self._pending_wipe = False
+            with self._lock_state():
+                self._pending_wipe = False
         return {"ok": ok, "message": "Wiping ALL fingerprints\u2026" if ok else "Could not send WIPE command."}
 
     def wipe_all_data(self) -> Dict[str, Any]:
@@ -1134,20 +1162,21 @@ class Api:
         if connected == self._observed_connected:
             return connected
 
-        self._observed_connected = connected
-        if not connected:
-            self._scanning = False
-            self._device_mode = "command"
-            self._pending_enroll = False
-            self._pending_delete_id = None
-            self._pending_wipe = False
-            self._rfid_session_active = False
-            self._rfid_session_fingerprint_id = None
-            self._rfid_session_mode = None
-            self._rfid_session_was_scanning = False
-            self._clear_pending_rfid_registration()
-            self._batch_rfid_erase_active = False
-            self._batch_rfid_erase_waiting_uid = None
+        with self._lock_state():
+            self._observed_connected = connected
+            if not connected:
+                self._scanning = False
+                self._device_mode = "command"
+                self._pending_enroll = False
+                self._pending_delete_id = None
+                self._pending_wipe = False
+                self._rfid_session_active = False
+                self._rfid_session_fingerprint_id = None
+                self._rfid_session_mode = None
+                self._rfid_session_was_scanning = False
+                self._clear_pending_rfid_registration()
+                self._batch_rfid_erase_active = False
+                self._batch_rfid_erase_waiting_uid = None
         self._push("connection_status", self.get_connection_status())
         self._push("connection_changed", {"connected": connected})
         return connected
@@ -1246,15 +1275,16 @@ class Api:
         student = self.processor.lookup_student(result["fingerprint_id"]) if result.get("fingerprint_id") else None
         attendance_status = "Unknown"
         if result.get("fingerprint_id") and result.get("logged") and result.get("timestamp"):
-            rows = db.get_attendance_by_date(result["timestamp"].strftime("%Y-%m-%d"))
-            matching = [row for row in rows if row.get("fingerprint_id") == result.get("fingerprint_id")]
-            if matching:
-                latest = matching[-1]
+            date_str = result["timestamp"].strftime("%Y-%m-%d")
+            latest = db.get_latest_attendance_for_student_date(
+                int(result["fingerprint_id"]), date_str
+            )
+            if latest:
                 attendance_status = calculate_attendance_status(
                     latest.get("time", result["timestamp"].strftime("%H:%M:%S")),
                     latest.get("event_type"),
                     load_settings(),
-                    latest.get("date") or result["timestamp"].strftime("%Y-%m-%d"),
+                    latest.get("date") or date_str,
                 )
         payload = {
             "fingerprint_id": result.get("fingerprint_id"),
@@ -1280,32 +1310,39 @@ class Api:
         if match:
             self._push("enroll_progress", {"event": "enrolling", "id": match.group(1)})
             return
-        if self._pending_enroll and RE_ENROLL_STEP.search(message):
+        with self._lock_state():
+            pending_enroll = self._pending_enroll
+        if pending_enroll and RE_ENROLL_STEP.search(message):
             cleaned = message.lstrip("-> ")
             self._push("enroll_progress", {"event": "step", "message": cleaned})
             return
         match = RE_ENROLL_SUCCESS.search(message)
         if match:
-            self._pending_enroll = False
+            with self._lock_state():
+                self._pending_enroll = False
             self._push("enroll_progress", {"event": "success", "id": match.group(1)})
             return
         if RE_ENROLL_CANCEL.search(message):
-            self._pending_enroll = False
+            with self._lock_state():
+                self._pending_enroll = False
             self._push("enroll_progress", {"event": "cancelled", "id": None})
             return
-        if self._pending_enroll:
+        if pending_enroll:
             upper = message.upper()
             if "ERROR" in upper or "FAIL" in upper:
-                self._pending_enroll = False
+                with self._lock_state():
+                    self._pending_enroll = False
                 self._push("enroll_progress", {"event": "error", "id": None})
 
     def _parse_wipe_progress(self, message: str) -> None:
         if RE_WIPE_START.search(message):
-            self._pending_wipe = True
+            with self._lock_state():
+                self._pending_wipe = True
             self._push("wipe_progress", {"event": "start"})
             return
         if RE_WIPE_SUCCESS.search(message):
-            self._pending_wipe = False
+            with self._lock_state():
+                self._pending_wipe = False
             try:
                 students, attendance = db.clear_all_data()
                 self._push(
@@ -1322,10 +1359,13 @@ class Api:
                 self._push("wipe_progress", {"event": "error", "message": "Device fingerprints were wiped, but local data could not be cleared."})
             self.request_fingerprint_count()
             return
-        if self._pending_wipe:
+        with self._lock_state():
+            pending_wipe = self._pending_wipe
+        if pending_wipe:
             upper = message.upper()
             if "ERROR" in upper or "FAIL" in upper or "CANCEL" in upper:
-                self._pending_wipe = False
+                with self._lock_state():
+                    self._pending_wipe = False
                 self._push("wipe_progress", {"event": "error", "message": message})
 
     def _parse_delete_progress(self, message: str) -> None:
@@ -1336,13 +1376,15 @@ class Api:
         match = RE_DELETE_SUCCESS.search(message)
         if match:
             fingerprint_id = int(match.group(1))
-            self._pending_delete_id = None
-            self._confirmed_delete_ids.add(fingerprint_id)
+            with self._lock_state():
+                self._pending_delete_id = None
+                self._confirmed_delete_ids.add(fingerprint_id)
             self._push("delete_progress", {"event": "success", "id": fingerprint_id})
             return
         match = RE_DELETE_FAIL.search(message)
         if match:
-            self._pending_delete_id = None
+            with self._lock_state():
+                self._pending_delete_id = None
             self._push("delete_progress", {"event": "error", "id": int(match.group(1))})
 
     def _parse_fingerprint_count(self, line: str) -> None:
@@ -1390,13 +1432,12 @@ class Api:
         scans_today = len(rows)
         total_students = db.get_student_count()
         unknown_scans = sum(1 for r in rows if not r.get("student_no") or r.get("student_no") == "N/A")
-        qualifying_statuses = {"good match", "present", "logged", "ok"}
         present_students = len({
             r.get("student_no")
             for r in rows
             if r.get("student_no")
             and r.get("student_no") != "N/A"
-            and str(r.get("status") or r.get("match_status") or "").strip().lower() in qualifying_statuses
+            and str(r.get("status") or r.get("match_status") or "").strip().lower() in db.QUALIFYING_ATTENDANCE_STATUSES
         })
         rate = round((present_students / total_students) * 100) if total_students else 0
         last_scan = rows[0] if rows else None
@@ -1411,15 +1452,9 @@ class Api:
             "restricted": False,
         }
 
-    def get_recent_activity(self, limit: int = 25) -> List[Dict[str, Any]]:
-        if not permissions.has_permission("read_records"):
-            return []
-        try:
-            limit = max(1, min(int(limit), 100))
-        except (TypeError, ValueError, OverflowError):
-            limit = 25
-        rows = db.get_attendance_paginated(limit=limit, offset=0)
-        settings = load_settings()
+    def _classify_attendance_rows(
+        self, rows: List[Dict[str, Any]], settings: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         for row in rows:
             row["match_status"] = row.get("status")
             status_value = str(row.get("status") or "").strip().lower()
@@ -1444,6 +1479,16 @@ class Api:
                     else "Unknown"
                 )
         return rows
+
+    def get_recent_activity(self, limit: int = 25) -> List[Dict[str, Any]]:
+        if not permissions.has_permission("read_records"):
+            return []
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (TypeError, ValueError, OverflowError):
+            limit = 25
+        rows = db.get_attendance_paginated(limit=limit, offset=0)
+        return self._classify_attendance_rows(rows, load_settings())
 
     def get_attendance(self, mode: str = "today", offset: int = 0) -> Dict[str, Any]:
         if not permissions.has_permission("read_records"):
@@ -1473,30 +1518,7 @@ class Api:
             fetched_rows = db.get_attendance_paginated(limit=page_size + 1, offset=offset)
             has_more = len(fetched_rows) > page_size
             rows = fetched_rows[:page_size]
-        settings = load_settings()
-        for row in rows:
-            row["match_status"] = row.get("status")
-            status_value = str(row.get("status") or "").strip().lower()
-            event_type = str(row.get("event_type") or "").strip().lower()
-            if status_value == "weak match":
-                row["attendance_status"] = "Not Counted"
-            elif event_type == "time_out" and str(row.get("status") or "").strip().upper() == "TIME OUT":
-                row["attendance_status"] = "Out"
-            elif event_type == "scan" or event_type == "time_out":
-                # Repeated scans (including legacy auto-tagged time_out rows)
-                # are not evidence that a student departed.
-                row["attendance_status"] = "Scan Only"
-            else:
-                row["attendance_status"] = (
-                    calculate_attendance_status(
-                        row.get("time", "00:00:00"),
-                        "time_in",
-                        settings,
-                        row.get("date"),
-                    )
-                    if row.get("fingerprint_id")
-                    else "Unknown"
-                )
+        self._classify_attendance_rows(rows, load_settings())
         return {"rows": rows, "offset": offset, "has_more": has_more}
 
     def export_attendance_csv(
@@ -1567,7 +1589,7 @@ class Api:
         settings = load_settings()
         for row in rows:
             status = str(row.get("status") or row.get("match_status") or "").strip().lower()
-            if status not in {"good match", "present", "logged", "ok"}:
+            if status not in db.QUALIFYING_ATTENDANCE_STATUSES:
                 row["attendance_status"] = "Not Counted"
             else:
                 row["attendance_status"] = calculate_attendance_status(
@@ -1600,11 +1622,10 @@ class Api:
             row for row in db.get_attendance_by_date(today)
             if row.get("fingerprint_id") == int(fingerprint_id)
         ]
-        qualifying_statuses = {"good match", "present", "logged", "ok"}
         qualifying_rows = [
             row for row in today_rows
             if str(row.get("status") or row.get("match_status") or "").strip().lower()
-            in qualifying_statuses
+            in db.QUALIFYING_ATTENDANCE_STATUSES
         ]
         time_in_row = next(
             (row for row in qualifying_rows if row.get("event_type") == "time_in"),
@@ -1882,7 +1903,6 @@ class Api:
         total_days = len(school_days)
 
         present_dates_by_student: Dict[str, set] = {}
-        qualifying_statuses = {"good match", "present", "logged", "ok"}
         for row in summary_rows:
             key = row["student_no"]
             if not key or key == "N/A":
@@ -1891,7 +1911,7 @@ class Api:
             # history for auditability, but never count them as presence in a
             # report generated by the corrected attendance policy.
             match_status = str(row.get("status") or row.get("match_status") or "").strip().lower()
-            if match_status not in qualifying_statuses:
+            if match_status not in db.QUALIFYING_ATTENDANCE_STATUSES:
                 continue
             if row["date"] not in school_days:
                 continue  # holiday/suspension activity doesn't count as "present" either
@@ -2002,7 +2022,7 @@ class Api:
         time_in: str = "",
         time_out: str = "",
     ) -> Dict[str, Any]:
-        if not permissions.has_permission("manage_calendar"):
+        if not permissions.require_permission("manage_calendar"):
             return {"ok": False, "message": "Current role does not have calendar management permission."}
         settings = load_settings()
         try:
@@ -2016,7 +2036,7 @@ class Api:
         return {"ok": True, "date": date, "entry": attendance_calendar.get_entry(settings, date)}
 
     def remove_calendar_entry(self, date: str) -> Dict[str, Any]:
-        if not permissions.has_permission("manage_calendar"):
+        if not permissions.require_permission("manage_calendar"):
             return {"ok": False, "message": "Current role does not have calendar management permission."}
         settings = load_settings()
         attendance_calendar.remove_entry(settings, date)
@@ -2028,16 +2048,24 @@ class Api:
             permissions.has_permission("export") or permissions.has_permission("backup")
         ):
             return {"ok": False, "message": "Record-reading and report permission are required."}
+        # Use SQLite aggregation in production; preserve the Python path when
+        # tests monkeypatch db.get_attendance_all or db.get_all_students.
+        if (
+            db.get_attendance_all is _ORIG_GET_ATTENDANCE_ALL
+            and db.get_all_students is _ORIG_GET_ALL_STUDENTS
+        ):
+            summary = db.get_statistics_summary()
+            summary["connected"] = self.serial.is_connected()
+            return summary
         # Reports count attendance days, not raw scan events. A repeated scan
         # is useful audit activity but must not inflate a student's totals.
         # Initialization migrates legacy event tags, so only explicit/first
         # qualifying Time In rows are authoritative for this summary.
-        qualifying_statuses = {"good match", "present", "logged", "ok"}
         attendance_rows = []
         seen_student_days = set()
         for row in db.get_attendance_all():
             status = str(row.get("status") or row.get("match_status") or "").strip().lower()
-            if status not in qualifying_statuses or row.get("event_type") != "time_in":
+            if status not in db.QUALIFYING_ATTENDANCE_STATUSES or row.get("event_type") != "time_in":
                 continue
             student_key = row.get("fingerprint_id") or row.get("student_no") or row.get("student_name")
             day_key = (student_key, row.get("date"))
@@ -2555,7 +2583,8 @@ class Api:
         return {"ok": True, "message": "Administrator password changed."}
 
     def get_role_permissions(self, role: str) -> List[str]:
-        return CONFIG.user_roles.get(role, {}).get("permissions", [])
+        normalized = permissions.normalize_role_key(role)
+        return CONFIG.user_roles.get(normalized, {}).get("permissions", [])
 
     def open_log_folder(self) -> Dict[str, Any]:
         if not permissions.require_role("admin"):

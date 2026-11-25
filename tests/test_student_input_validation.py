@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from core import database as database_module
+from core import permissions as permissions_module
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
@@ -24,6 +25,7 @@ class TestStudentInputValidation:
         """Use an isolated temporary database; never mutate the developer's roster."""
         test_db = tmp_path / "attendance_test.db"
         monkeypatch.setattr(database_module, "DB_PATH", str(test_db))
+        permissions_module.set_session_role("admin", 600.0)
         init_database()
         clear_all_students()
         yield

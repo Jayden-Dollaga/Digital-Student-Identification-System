@@ -4,6 +4,7 @@ This module centralizes SQLite access for the Digital Student Identification Sys
 keeps the rest of the application focused on workflow logic instead of raw SQL.
 """
 
+import importlib.util
 import os
 import re
 import shutil
@@ -21,14 +22,30 @@ from core.logger import log
 CONFIG = get_config()
 DB_PATH = str(CONFIG.db_path)
 
-try:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    CHARTS_AVAILABLE = True
-except ImportError:
-    plt = None  # type: ignore[assignment]
-    CHARTS_AVAILABLE = False
+CHARTS_AVAILABLE = importlib.util.find_spec("matplotlib") is not None
+plt = None  # type: ignore[assignment]
+
+QUALIFYING_ATTENDANCE_STATUSES = frozenset({"good match", "present", "logged", "ok"})
+QUALIFYING_ATTENDANCE_STATUSES_SQL = "('good match', 'present', 'logged', 'ok')"
+DEFAULT_MAX_AUTO_BACKUPS = 30
+
+
+def _get_pyplot() -> Any:
+    """Lazy-load matplotlib.pyplot only when legacy chart generation is requested."""
+    global plt, CHARTS_AVAILABLE
+    if plt is not None:
+        return plt
+    if not CHARTS_AVAILABLE:
+        return None
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as pyplot
+        plt = pyplot
+        return plt
+    except ImportError:
+        CHARTS_AVAILABLE = False
+        return None
 
 
 RowDict = Dict[str, Any]
@@ -701,6 +718,11 @@ def delete_student(fingerprint_id: int) -> None:
 
 
 def clear_all_students() -> int:
+    from core.permissions import require_permission
+
+    if not require_permission("wipe"):
+        raise PermissionError("Current role does not have permission to clear all students.")
+
     students = get_all_students()
     conn = get_connection()
     try:
@@ -1119,7 +1141,6 @@ def get_daily_attendance_summary(
         rows = conn.execute(query, tuple(params)).fetchall()
 
     grouped: Dict[Tuple[int, str], RowDict] = {}
-    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row in rows:
         # Display names are not unique. Group by stable ID so two students
         # with the same name cannot have their attendance merged.
@@ -1145,7 +1166,7 @@ def get_daily_attendance_summary(
         if row["event_type"] == "time_out" and status.upper() == "TIME OUT":
             entry["time_out"] = row["time"]
             continue
-        if status.lower() in qualifying_statuses:
+        if status.lower() in QUALIFYING_ATTENDANCE_STATUSES:
             # Only the first qualifying scan sets Time In. Later scans are
             # audit events, not proof of departure; only an explicit TIME OUT
             # event may populate the Time Out field.
@@ -1171,7 +1192,26 @@ def get_attendance_by_date(date_str: str) -> List[AttendanceRow]:
         conn.close()
 
 
+def get_latest_attendance_for_student_date(
+    fingerprint_id: int, date_str: str
+) -> Optional[AttendanceRow]:
+    """Return the most recent attendance row for one student on one date."""
+    query = (
+        f"{ATTENDANCE_JOIN_QUERY} "
+        "WHERE a.fingerprint_id = ? AND a.date = ? "
+        "ORDER BY a.time DESC, a.id DESC LIMIT 1"
+    )
+    with get_connection() as conn:
+        row = conn.execute(query, (int(fingerprint_id), date_str)).fetchone()
+        return dict(row) if row else None
+
+
 def clear_all_attendance() -> int:
+    from core.permissions import require_permission
+
+    if not require_permission("wipe"):
+        raise PermissionError("Current role does not have permission to clear all attendance.")
+
     conn = get_connection()
     try:
         count = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
@@ -1351,11 +1391,10 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
     precedence over an older weak scan.
     """
     grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    qualifying_statuses = {"good match", "present", "logged", "ok"}
     for row_dict in rows:
         key = (row_dict["student_no"], row_dict["date"])
         status = str(row_dict.get("status") or "").strip()
-        qualifies = status.lower() in qualifying_statuses
+        qualifies = status.lower() in QUALIFYING_ATTENDANCE_STATUSES
         if key not in grouped:
             grouped[key] = {
                 "student_no": row_dict["student_no"],
@@ -1400,10 +1439,103 @@ def export_attendance_rows_with_time_in_out(rows: List[Dict[str, Any]]) -> List[
     result.sort(key=lambda row: (export_name_sort_key(row.get("student_name")), row.get("date", "")))
     return result
 
+def get_statistics_summary() -> Dict[str, Any]:
+    """Compute v3 statistics report metrics in SQLite without loading all scan rows."""
+    qualifying_filter = (
+        f"LOWER(TRIM(a.status)) IN {QUALIFYING_ATTENDANCE_STATUSES_SQL} "
+        "AND a.event_type = 'time_in'"
+    )
+    distinct_days_cte = (
+        "WITH qualified_days AS ("
+        "    SELECT DISTINCT a.fingerprint_id, a.date "
+        "    FROM attendance a "
+        f"    WHERE {qualifying_filter}"
+        ") "
+    )
+    with get_connection() as conn:
+        total_records = conn.execute(
+            f"{distinct_days_cte}SELECT COUNT(*) FROM qualified_days"
+        ).fetchone()[0]
+
+        date_rows = conn.execute(
+            f"{distinct_days_cte}"
+            "SELECT date, COUNT(*) AS count "
+            "FROM qualified_days "
+            "WHERE date IS NOT NULL AND date != '' "
+            "GROUP BY date ORDER BY date DESC LIMIT 30"
+        ).fetchall()
+        recent_attendance = [{"date": row["date"], "count": row["count"]} for row in date_rows]
+
+        grade_rows = conn.execute(
+            f"{distinct_days_cte}"
+            "SELECT COALESCE(NULLIF(s.grade, ''), 'Unspecified') AS grade, COUNT(*) AS count "
+            "FROM qualified_days q "
+            "LEFT JOIN students s ON q.fingerprint_id = s.fingerprint_id "
+            "GROUP BY COALESCE(NULLIF(s.grade, ''), 'Unspecified') "
+            "ORDER BY count DESC, grade ASC"
+        ).fetchall()
+        attendance_by_grade = [
+            {"grade": row["grade"], "count": row["count"]} for row in grade_rows
+        ]
+
+        student_rows = conn.execute(
+            f"{distinct_days_cte},"
+            "student_day_counts AS ("
+            "    SELECT fingerprint_id, COUNT(*) AS count "
+            "    FROM qualified_days GROUP BY fingerprint_id"
+            ") "
+            "SELECT s.fingerprint_id, s.student_name, s.student_no, s.grade, s.section, "
+            "       COALESCE(c.count, 0) AS count "
+            "FROM students s "
+            "LEFT JOIN student_day_counts c ON s.fingerprint_id = c.fingerprint_id "
+            "WHERE s.fingerprint_id > 0 "
+            "ORDER BY count DESC, s.student_name ASC"
+        ).fetchall()
+
+    students = [
+        {
+            "fingerprint_id": row["fingerprint_id"],
+            "student_name": row["student_name"],
+            "student_no": row["student_no"],
+            "grade": row["grade"],
+            "section": row["section"],
+            "count": row["count"],
+        }
+        for row in student_rows
+    ]
+    by_grade: Dict[str, int] = {}
+    students_by_section: Dict[str, int] = {}
+    for student in students:
+        grade_key = student["grade"] or "Unknown"
+        by_grade[grade_key] = by_grade.get(grade_key, 0) + 1
+        section_key = student["section"] or "Unspecified"
+        students_by_section[section_key] = students_by_section.get(section_key, 0) + 1
+
+    total_students = len(students)
+    return {
+        "total_students": total_students,
+        "total_records": total_records,
+        "avg_per_student": round(total_records / total_students, 1) if total_students else 0,
+        "top_students": students[:10],
+        "by_grade": by_grade,
+        "enrolled_by_grade": by_grade,
+        "attendance_by_grade": attendance_by_grade,
+        "students_by_section": [
+            {"section": section, "count": count}
+            for section, count in sorted(
+                students_by_section.items(), key=lambda item: (-item[1], item[0])
+            )
+        ],
+        "attendance_timeline": list(reversed(recent_attendance)),
+        "all_students": students,
+        "recent_attendance": recent_attendance,
+    }
+
+
 def generate_statistics_report() -> str:
     conn = get_connection()
     try:
-        qualifying_sql = "LOWER(TRIM(status)) IN ('good match', 'present', 'logged', 'ok')"
+        qualifying_sql = f"LOWER(TRIM(status)) IN {QUALIFYING_ATTENDANCE_STATUSES_SQL}"
         # Count student-days rather than raw scans: repeated scans and explicit
         # Time Out events are audit events and must not inflate attendance.
         attendance_day_sql = (
@@ -1533,7 +1665,8 @@ def _save_chart(fig: Any, filename: str) -> Optional[str]:
 
 
 def generate_attendance_chart() -> Optional[str]:
-    if not CHARTS_AVAILABLE or plt is None:
+    pyplot = _get_pyplot()
+    if pyplot is None:
         return None
 
     try:
@@ -1548,7 +1681,7 @@ def generate_attendance_chart() -> Optional[str]:
         dates = [row["date"] for row in reversed(rows)]
         counts = [row["count"] for row in reversed(rows)]
 
-        fig, ax = plt.subplots(figsize=(10, 4), dpi=80)
+        fig, ax = pyplot.subplots(figsize=(10, 4), dpi=80)
         ax.plot(range(len(dates)), counts, marker='o', linewidth=2, markersize=6, color='#3b82f6')
         ax.fill_between(range(len(dates)), counts, alpha=0.3, color='#3b82f6')
         ax.set_xlabel('Date', fontsize=10)
@@ -1560,7 +1693,7 @@ def generate_attendance_chart() -> Optional[str]:
         ax.set_xticks(range(0, len(dates), step))
         ax.set_xticklabels(dates[::step], rotation=45, ha='right', fontsize=8)
 
-        plt.tight_layout()
+        pyplot.tight_layout()
         return _save_chart(fig, 'attendance_timeline.png')
     except Exception as exc:
         log.error(f"Attendance chart generation failed: {exc}")
@@ -1568,7 +1701,8 @@ def generate_attendance_chart() -> Optional[str]:
 
 
 def generate_section_chart() -> Optional[str]:
-    if not CHARTS_AVAILABLE or plt is None:
+    pyplot = _get_pyplot()
+    if pyplot is None:
         return None
 
     try:
@@ -1583,7 +1717,7 @@ def generate_section_chart() -> Optional[str]:
         sections = [row["section"] for row in rows]
         counts = [row["count"] for row in rows]
 
-        fig, ax = plt.subplots(figsize=(10, 4), dpi=80)
+        fig, ax = pyplot.subplots(figsize=(10, 4), dpi=80)
         colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
         ax.bar(sections, counts, color=colors[: len(sections)], edgecolor='black', linewidth=1.2)
         ax.set_xlabel('Section', fontsize=10)
@@ -1594,7 +1728,7 @@ def generate_section_chart() -> Optional[str]:
         for i, cnt in enumerate(counts):
             ax.text(i, cnt + 0.1, str(cnt), ha='center', va='bottom', fontweight='bold')
 
-        plt.tight_layout()
+        pyplot.tight_layout()
         return _save_chart(fig, 'section_chart.png')
     except Exception as exc:
         log.error(f"Section chart generation failed: {exc}")
@@ -1602,7 +1736,8 @@ def generate_section_chart() -> Optional[str]:
 
 
 def generate_grade_chart() -> Optional[str]:
-    if not CHARTS_AVAILABLE or plt is None:
+    pyplot = _get_pyplot()
+    if pyplot is None:
         return None
 
     try:
@@ -1623,7 +1758,7 @@ def generate_grade_chart() -> Optional[str]:
         grades = [row["grade"] for row in rows]
         counts = [row["count"] for row in rows]
 
-        fig, ax = plt.subplots(figsize=(8, 6), dpi=80)
+        fig, ax = pyplot.subplots(figsize=(8, 6), dpi=80)
         colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
         wedges, texts, autotexts = ax.pie(
             counts,
@@ -1641,7 +1776,7 @@ def generate_grade_chart() -> Optional[str]:
             autotext.set_fontsize(9)
 
         ax.set_title('Attendance by Grade', fontsize=12, fontweight='bold')
-        plt.tight_layout()
+        pyplot.tight_layout()
         return _save_chart(fig, 'grade_chart.png')
     except Exception as exc:
         log.error(f"Grade chart generation failed: {exc}")
@@ -1893,7 +2028,26 @@ def list_backups() -> List[RowDict]:
         return []
 
 
-def auto_backup_if_needed(min_interval_hours: float = 24.0) -> Optional[str]:
+def _prune_old_auto_backups(backup_dir: Path, keep: int = DEFAULT_MAX_AUTO_BACKUPS) -> None:
+    """Keep only the newest `keep` scheduled `attendance_*.db` backups."""
+    if keep < 1 or not backup_dir.exists():
+        return
+    backups = sorted(
+        backup_dir.glob("attendance_*.db"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+    for stale in backups[keep:]:
+        try:
+            stale.unlink(missing_ok=True)
+        except OSError as exc:
+            log.warning(f"Could not prune old backup {stale.name}: {exc}")
+
+
+def auto_backup_if_needed(
+    min_interval_hours: float = 24.0,
+    max_backups: int = DEFAULT_MAX_AUTO_BACKUPS,
+) -> Optional[str]:
     """Create a backup if enough time has passed since the most recent one.
 
     Meant to be called on startup and/or on a recurring timer. Never raises -
@@ -1903,6 +2057,8 @@ def auto_backup_if_needed(min_interval_hours: float = 24.0) -> Optional[str]:
     Args:
         min_interval_hours: Minimum hours that must have elapsed since the
             last backup before a new one is created.
+        max_backups: Maximum number of automatic `attendance_*.db` backups
+            retained in the backups directory.
 
     Returns:
         Path to the newly created backup file, or None if no backup was
@@ -1917,7 +2073,10 @@ def auto_backup_if_needed(min_interval_hours: float = 24.0) -> Optional[str]:
                 return None
 
         success, _message, backup_path = backup_database()
-        return backup_path if success else None
+        if success and backup_path:
+            _prune_old_auto_backups(Path(backup_path).parent, keep=max_backups)
+            return backup_path
+        return None
     except Exception as exc:
         log.error(f"Auto-backup check failed: {exc}")
         return None

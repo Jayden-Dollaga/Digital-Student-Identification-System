@@ -6,7 +6,7 @@ sys.path.insert(0, str(ROOT / "python"))
 
 import pytest
 
-from core import database
+from core import database, permissions
 
 pytestmark = pytest.mark.unit
 
@@ -15,6 +15,7 @@ def test_clear_all_students_removes_all_profiles(tmp_path, monkeypatch):
     # Never let a destructive reset test touch the user's real attendance DB.
     test_db = tmp_path / "attendance.db"
     monkeypatch.setattr(database, "DB_PATH", str(test_db))
+    monkeypatch.setattr(permissions, "require_permission", lambda action: action == "wipe")
     database.init_database()
 
     # Fingerprint IDs must match the AS608's supported 1-127 range. Assert

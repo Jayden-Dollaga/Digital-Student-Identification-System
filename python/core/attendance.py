@@ -153,15 +153,21 @@ class AttendanceProcessor:
         return self._student_lookup(fingerprint_id)
 
     def lookup_card_student(self, uid: str) -> Optional[StudentRow]:
+        # Prefer the indexed SQL lookup unless a caller injected a custom roster
+        # provider without overriding card lookup.
+        if self._card_lookup is not get_student_by_card_uid or self._all_students is get_all_students:
+            student = self._card_lookup(uid)
+            if student is not None:
+                return student
         try:
-            normalized_uid = str(uid or "").strip().upper()
+            normalized_uid = normalize_card_uid(uid) or str(uid or "").strip().upper()
             for candidate in self.all_students():
-                candidate_uid = str(candidate.get("card_uid") or "").strip().upper()
+                candidate_uid = normalize_card_uid(candidate.get("card_uid")) or str(candidate.get("card_uid") or "").strip().upper()
                 if candidate_uid and candidate_uid == normalized_uid:
                     return candidate
         except sqlite3.OperationalError:
             pass
-        return self._card_lookup(uid)
+        return None
 
     def all_students(self) -> List[StudentRow]:
         return self._all_students()
@@ -338,13 +344,25 @@ class AttendanceProcessor:
     def _handle_confidence_scan(self, confidence: int) -> Optional[ScanResult]:
         fingerprint_id = self.current_id
         self.current_id = None
-        now = datetime.now()
-
         if fingerprint_id is None:
             return None
+        return self._handle_match_scan(fingerprint_id, confidence, event_label="legacy")
+
+    def _handle_json_match_scan(self, fingerprint_id: int, confidence: int) -> Optional[ScanResult]:
+        return self._handle_match_scan(fingerprint_id, confidence, event_label="JSON")
+
+    def _handle_match_scan(
+        self,
+        fingerprint_id: int,
+        confidence: int,
+        *,
+        event_label: str,
+    ) -> Optional[ScanResult]:
+        now = datetime.now()
+
         if not 1 <= fingerprint_id <= 127 or not 0 <= confidence <= 255:
             log.warning(
-                "Out-of-range legacy fingerprint match event ignored",
+                f"Out-of-range {event_label} fingerprint match event ignored",
                 fingerprint_id=fingerprint_id,
                 confidence=confidence,
             )
@@ -376,72 +394,6 @@ class AttendanceProcessor:
         if confidence < self.min_confidence:
             # A low-confidence match is useful diagnostic feedback, but it must
             # never create a presence record that could inflate attendance.
-            log.warning(
-                "Weak fingerprint match rejected for attendance",
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                min_confidence=self.min_confidence,
-            )
-            return ScanOutcome(
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                status="WEAK MATCH",
-                timestamp=now,
-                logged=False,
-                reason="Confidence is below the configured attendance threshold.",
-            ).to_dict()
-
-        status = "GOOD MATCH"
-
-        try:
-            self._log_and_record(fingerprint_id, confidence, status, now)
-            return ScanOutcome(
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                status=status,
-                timestamp=now,
-                logged=True,
-                reason=None,
-            ).to_dict()
-        except Exception as exc:
-            log.error(f"Failed to log attendance for ID {fingerprint_id}: {exc}")
-            return None
-
-    def _handle_json_match_scan(self, fingerprint_id: int, confidence: int) -> Optional[ScanResult]:
-        now = datetime.now()
-
-        if not 1 <= fingerprint_id <= 127 or not 0 <= confidence <= 255:
-            log.warning(
-                "Out-of-range JSON fingerprint match event ignored",
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-            )
-            return ScanOutcome(
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                status="INVALID MATCH",
-                timestamp=now,
-                logged=False,
-                reason="Fingerprint ID must be 1-127 and confidence must be 0-255.",
-            ).to_dict()
-
-        if self._is_in_cooldown(fingerprint_id, now):
-            log.info(
-                "Scan skipped due to cooldown",
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                reason=self._cooldown_reason(fingerprint_id, now),
-            )
-            return ScanOutcome(
-                fingerprint_id=fingerprint_id,
-                confidence=confidence,
-                status=None,
-                timestamp=now,
-                logged=False,
-                reason=self._cooldown_reason(fingerprint_id, now),
-            ).to_dict()
-
-        if confidence < self.min_confidence:
             log.warning(
                 "Weak fingerprint match rejected for attendance",
                 fingerprint_id=fingerprint_id,
