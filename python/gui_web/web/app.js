@@ -217,10 +217,43 @@ function renderWizardProgress(containerId, activeKey) {
   container.innerHTML = html;
 }
 
+let wizardTransitionDirection = 'enter';
+
+function showWizardModal(modalId, direction = wizardTransitionDirection) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return null;
+  modal.classList.remove('wizard-finishing');
+  modal.hidden = false;
+  const card = modal.querySelector('.modal-card.wizard-modal');
+  if (card) {
+    card.classList.remove('wizard-enter', 'wizard-step-forward', 'wizard-step-back', 'wizard-shake');
+    void card.offsetWidth;
+    const animClass = direction === 'back'
+      ? 'wizard-step-back'
+      : direction === 'forward'
+        ? 'wizard-step-forward'
+        : 'wizard-enter';
+    card.classList.add(animClass);
+  }
+  return modal;
+}
+
+function triggerWizardError(modalId, errorEl, message) {
+  if (errorEl) errorEl.textContent = message;
+  const modal = document.getElementById(modalId);
+  const card = modal ? modal.querySelector('.modal-card.wizard-modal') : null;
+  if (card) {
+    card.classList.remove('wizard-enter', 'wizard-step-forward', 'wizard-step-back', 'wizard-shake');
+    void card.offsetWidth;
+    card.classList.add('wizard-shake');
+  }
+}
+
 // "Previous" only ever targets device/schedule (never password - once the
 // administrator account is created there's nothing to go "back" to, the
 // wizard router would just send them right back to this step anyway).
 function wizardGoToPreviousStep(targetKey) {
+  wizardTransitionDirection = 'back';
   ['first-run-setup-modal', 'setup-device-modal', 'setup-schedule-modal', 'setup-branding-modal'].forEach(id => {
     const modal = document.getElementById(id);
     if (modal) modal.hidden = true;
@@ -230,13 +263,12 @@ function wizardGoToPreviousStep(targetKey) {
 }
 
 function openFirstRunSetupModal() {
-  const modal = document.getElementById('first-run-setup-modal');
-  if (!modal) return;
   renderWizardProgress('wizard-progress-password', 'password');
   document.getElementById('first-run-setup-error').textContent = '';
   document.getElementById('first-run-password').value = '';
   document.getElementById('first-run-password-confirm').value = '';
-  modal.hidden = false;
+  const modal = showWizardModal('first-run-setup-modal');
+  if (!modal) return;
   document.getElementById('first-run-password').focus();
 }
 
@@ -246,9 +278,10 @@ async function submitFirstRunSetup() {
   const result = await api().complete_first_run_setup(password, confirm);
   const error = document.getElementById('first-run-setup-error');
   if (!result.ok) {
-    error.textContent = result.message || 'Could not create the administrator password.';
+    triggerWizardError('first-run-setup-modal', error, result.message || 'Could not create the administrator password.');
     return;
   }
+  wizardTransitionDirection = 'forward';
   document.getElementById('first-run-setup-modal').hidden = true;
   runSetupWizardRouter();
 }
@@ -272,11 +305,9 @@ async function runSetupWizardRouter() {
 }
 
 function openSetupDeviceStep() {
-  const modal = document.getElementById('setup-device-modal');
-  if (!modal) return;
   renderWizardProgress('wizard-progress-device', 'device');
   updateSetupDeviceStatus();
-  modal.hidden = false;
+  showWizardModal('setup-device-modal');
 }
 
 async function setupDeviceConnectClick() {
@@ -310,6 +341,7 @@ async function updateSetupDeviceStatus() {
 
 async function completeSetupDeviceStep() {
   await api().complete_setup_device_step(connected);
+  wizardTransitionDirection = 'forward';
   document.getElementById('setup-device-modal').hidden = true;
   runSetupWizardRouter();
 }
@@ -335,6 +367,8 @@ function applySetupWeekdaySelection(selectedDays) {
 
 function attachSetupWeekdayToggles() {
   document.querySelectorAll('.setup-week-day').forEach(button => {
+    if (button.dataset.bound === '1') return;
+    button.dataset.bound = '1';
     button.addEventListener('click', () => {
       const day = Number(button.dataset.weekday);
       const existing = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
@@ -347,14 +381,12 @@ function attachSetupWeekdayToggles() {
 }
 
 function openSetupScheduleStep() {
-  const modal = document.getElementById('setup-schedule-modal');
-  if (!modal) return;
   renderWizardProgress('wizard-progress-schedule', 'schedule');
   document.getElementById('setup-schedule-error').textContent = '';
   attachSetupWeekdayToggles();
   const selectedDays = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
   applySetupWeekdaySelection(selectedDays);
-  modal.hidden = false;
+  showWizardModal('setup-schedule-modal');
 }
 
 async function completeSetupScheduleStep() {
@@ -366,24 +398,23 @@ async function completeSetupScheduleStep() {
   const selectedDays = Array.from(document.querySelectorAll('.setup-week-day.is-off')).map(item => Number(item.dataset.weekday));
   const error = document.getElementById('setup-schedule-error');
   if (!timeIn || !timeOut) {
-    error.textContent = 'Time in and time out are required.';
+    triggerWizardError('setup-schedule-modal', error, 'Time in and time out are required.');
     return;
   }
   const result = await api().complete_setup_schedule_step(timeIn, timeOut, early, late, absent, selectedDays);
   if (!result.ok) {
-    error.textContent = result.message || 'Could not save the schedule.';
+    triggerWizardError('setup-schedule-modal', error, result.message || 'Could not save the schedule.');
     return;
   }
+  wizardTransitionDirection = 'forward';
   document.getElementById('setup-schedule-modal').hidden = true;
   runSetupWizardRouter();
 }
 
 function openSetupBrandingStep() {
-  const modal = document.getElementById('setup-branding-modal');
-  if (!modal) return;
   renderWizardProgress('wizard-progress-branding', 'branding');
   document.getElementById('setup-branding-error').textContent = '';
-  modal.hidden = false;
+  showWizardModal('setup-branding-modal');
 }
 
 async function completeSetupBrandingStep() {
@@ -392,13 +423,22 @@ async function completeSetupBrandingStep() {
   const theme = themeChoice ? themeChoice.value : 'dark';
   const result = await api().complete_setup_branding_step(schoolName, theme);
   if (!result.ok) {
-    document.getElementById('setup-branding-error').textContent = result.message || 'Could not save.';
+    triggerWizardError('setup-branding-modal', document.getElementById('setup-branding-error'), result.message || 'Could not save.');
     return;
   }
   applyTheme(theme);
   applySchoolName(schoolName);
-  document.getElementById('setup-branding-modal').hidden = true;
-  runSetupWizardRouter();
+  const modal = document.getElementById('setup-branding-modal');
+  if (modal) {
+    modal.classList.add('wizard-finishing');
+    setTimeout(() => {
+      modal.hidden = true;
+      modal.classList.remove('wizard-finishing');
+      runSetupWizardRouter();
+    }, 260);
+  } else {
+    runSetupWizardRouter();
+  }
 }
 
 document.addEventListener('keydown', event => {
@@ -618,6 +658,8 @@ function setStatus(state) {
     sbDevSep.style.display = 'block';
     devInfo.style.display = 'block';
   }
+  const scanArea = document.getElementById('scan-result-area');
+  if (scanArea) scanArea.classList.toggle('is-scanning', state === 'scanning');
   updateSerialMeta();
 }
 
@@ -966,6 +1008,12 @@ function handleScanResult(payload) {
   document.getElementById('scan-tag').textContent = isMatch ? (payload.attendance_status || 'Present') : 'UNKNOWN';
   document.getElementById('scan-tag').className = 'scan-status-tag ' + (isMatch ? attendanceBadgeClass(payload.attendance_status) : 'unknown');
   document.getElementById('scan-icon-wrap').className = 'scan-icon-wrap' + (isMatch ? ' match' : '');
+  const scanArea = document.getElementById('scan-result-area');
+  if (scanArea) {
+    scanArea.classList.remove('scan-flash-match', 'scan-flash-miss');
+    void scanArea.offsetWidth;
+    scanArea.classList.add(isMatch ? 'scan-flash-match' : 'scan-flash-miss');
+  }
   const confWrap = document.getElementById('conf-wrap');
   if (payload.confidence != null) {
     confWrap.style.display = 'flex';
@@ -978,6 +1026,7 @@ function handleScanResult(payload) {
   if (payload.logged) {
     const tbody = document.getElementById('activity-tbody');
     const tr = document.createElement('tr');
+    tr.className = 'row-enter';
     tr.innerHTML = `<td>${escapeHtml(now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}))}</td>` +
       `<td>${escapeHtml(student.student_no || '\u2014')}</td>` +
       `<td>${isMatch ? escapeHtml(student.student_name) : `<em style="color:var(--muted)">${escapeHtml(unknownName)}</em>`}</td>` +
@@ -1338,7 +1387,7 @@ function attendanceOnScanEvent(row) {
   if (mode === 'Last 30 Days') return;
   const tbody = document.getElementById('att-tbody');
   tbody.insertAdjacentHTML('afterbegin',
-    `<tr><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.time || '')}</td><td>${escapeHtml(isKnownRow(row) ? row.student_no : '\u2014')}</td>` +
+    `<tr class="row-enter"><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.time || '')}</td><td>${escapeHtml(isKnownRow(row) ? row.student_no : '\u2014')}</td>` +
     `<td>${isKnownRow(row) ? escapeHtml(row.student_name) : escapeHtml(row.method === 'card' ? `Unknown RFID card${row.uid ? ` (${row.uid})` : ''}` : 'Unknown data')}</td>` +
     `<td>${isKnownRow(row) ? `Grade ${escapeHtml(row.grade)} \u2014 ${escapeHtml(row.section)}` : '\u2014'}</td>` +
     `<td>${escapeHtml(row.confidence != null ? row.confidence + '/255' : '\u2014')}</td>` +
@@ -3323,18 +3372,342 @@ function noteUserActivity() {
 document.addEventListener('pointerdown', noteUserActivity);
 document.addEventListener('keydown', noteUserActivity);
 
-// ── Boot ──
+// ── Boot & Opera GX-style startup splash choreography ──
+let splashDismissed = false;
+let splashChoreographyDone = false;
+let splashAppReady = false;
+let splashWizardStarted = false;
+let splashAnimations = [];
+let splashRafId = null;
+
+function launchSetupWizardAfterSplash() {
+  if (splashWizardStarted || !api()) return;
+  splashWizardStarted = true;
+  wizardTransitionDirection = 'enter';
+  runSetupWizardRouter();
+}
+
+function onSplashKeydown(e) {
+  if (!splashDismissed && splashAppReady && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) {
+    dismissStartupSplash(true);
+  }
+}
+
+function dismissStartupSplash(forceImmediate = false) {
+  if (splashDismissed) return;
+  if (!forceImmediate && !(splashChoreographyDone && splashAppReady)) return;
+  splashDismissed = true;
+  document.removeEventListener('keydown', onSplashKeydown);
+  if (splashRafId !== null) {
+    cancelAnimationFrame(splashRafId);
+    splashRafId = null;
+  }
+  const splash = document.getElementById('startup-splash');
+  if (!splash) {
+    launchSetupWizardAfterSplash();
+    return;
+  }
+  splash.classList.add('is-leaving');
+
+  if (typeof Element.prototype.animate !== 'function') {
+    splash.hidden = true;
+    launchSetupWizardAfterSplash();
+    return;
+  }
+
+  const easeOutCubic = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const backdrop = splash.querySelector('.splash-backdrop');
+  const grid = splash.querySelector('.splash-grid');
+  const bootPanel = document.getElementById('bootPanel');
+  const lockup = splash.querySelector('.splash-lockup');
+  const emblem = splash.querySelector('.splash-emblem-assembly');
+
+  // Stage 1 (0ms): Background, grid, and progress bar fade out first,
+  // revealing the live dashboard underneath while the name & logo float.
+  if (backdrop) {
+    backdrop.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 380,
+      easing: easeOutCubic,
+      fill: 'forwards',
+    });
+  }
+  if (grid) {
+    grid.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 340,
+      easing: easeOutCubic,
+      fill: 'forwards',
+    });
+  }
+  if (bootPanel) {
+    const startOpacity = getComputedStyle(bootPanel).opacity || '1';
+    bootPanel.animate(
+      [
+        { opacity: Number(startOpacity), transform: 'translateY(0px)' },
+        { opacity: 0, transform: 'translateY(6px)' },
+      ],
+      { duration: 240, easing: easeOutCubic, fill: 'forwards' }
+    );
+  }
+
+  // Stage 2 (280ms): Brand name and fingerprint logo fade out together.
+  if (lockup) {
+    lockup.animate(
+      [
+        { opacity: 1, transform: 'translateY(0px)' },
+        { opacity: 0, transform: 'translateY(-8px)' },
+      ],
+      { duration: 380, delay: 280, easing: easeOutCubic, fill: 'forwards' }
+    );
+  }
+  if (emblem) {
+    const logoExit = emblem.animate(
+      [
+        { opacity: 1, transform: 'scale(1)' },
+        { opacity: 0, transform: 'scale(1.04)' },
+      ],
+      { duration: 380, delay: 280, easing: easeOutCubic, fill: 'forwards' }
+    );
+    const finishExit = () => {
+      splash.hidden = true;
+      launchSetupWizardAfterSplash();
+    };
+    logoExit.onfinish = finishExit;
+    // Fallback in case onfinish doesn't fire in a headless/mocked environment.
+    setTimeout(finishExit, 720);
+  } else {
+    setTimeout(() => {
+      splash.hidden = true;
+      launchSetupWizardAfterSplash();
+    }, 700);
+  }
+}
+
+function playStartupSplash() {
+  const splash = document.getElementById('startup-splash');
+  if (!splash) {
+    splashChoreographyDone = true;
+    return;
+  }
+  if (typeof Element.prototype.animate !== 'function') {
+    splashChoreographyDone = true;
+    dismissStartupSplash(true);
+    return;
+  }
+
+  const ambientHalo = document.getElementById('ambientHalo');
+  const pulseRing = document.getElementById('pulseRing');
+  const corePulse = document.getElementById('corePulse');
+  const scannerBeam = document.getElementById('scannerBeam');
+  const outerRing = splash.querySelector('.logo-outer-ring');
+  const coreDot = splash.querySelector('.logo-core-dot');
+  const arcs = ['.arc-1', '.arc-2', '.arc-3', '.arc-4', '.arc-5']
+    .map(sel => splash.querySelector(sel))
+    .filter(Boolean);
+  const brandTitle = document.getElementById('brandTitle');
+  const brandChars = Array.from(splash.querySelectorAll('.brand-char'));
+  const brandDivider = document.getElementById('brandDivider');
+  const brandSubtitle = document.getElementById('brandSubtitle');
+  const bootPanel = document.getElementById('bootPanel');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const bootStatusText = document.getElementById('bootStatusText');
+  const bootPercentText = document.getElementById('bootPercentText');
+
+  const trackAnim = anim => {
+    splashAnimations.push(anim);
+    return anim;
+  };
+  const easeOutExpo = 'cubic-bezier(0.16, 1, 0.3, 1)';
+  const easeOutCubic = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const easeBackOut = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+
+  if (outerRing) {
+    const outerLen = outerRing.getTotalLength();
+    outerRing.style.strokeDasharray = `${outerLen}`;
+    outerRing.style.strokeDashoffset = `${outerLen}`;
+    outerRing.style.fillOpacity = '0';
+    trackAnim(outerRing.animate(
+      [
+        { fillOpacity: 0, strokeOpacity: 1, strokeDashoffset: outerLen },
+        { fillOpacity: 1, strokeOpacity: 1, strokeDashoffset: 0 },
+      ],
+      { duration: 580, delay: 40, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+  if (ambientHalo) {
+    trackAnim(ambientHalo.animate(
+      [
+        { opacity: 0, transform: 'translate(-50%, -50%) scale(0.82)' },
+        { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
+      ],
+      { duration: 700, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+  if (coreDot) {
+    trackAnim(coreDot.animate(
+      [
+        { opacity: 0, transform: 'scale(0)' },
+        { opacity: 1, transform: 'scale(1.3)', offset: 0.65 },
+        { opacity: 1, transform: 'scale(1)' },
+      ],
+      { duration: 480, easing: easeBackOut, fill: 'forwards' }
+    ));
+  }
+  if (corePulse) {
+    trackAnim(corePulse.animate(
+      [
+        { opacity: 0, transform: 'scale(0.35)' },
+        { opacity: 0.9, transform: 'scale(1.35)', offset: 0.45 },
+        { opacity: 0, transform: 'scale(2.1)' },
+      ],
+      { duration: 600, delay: 80, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+  arcs.forEach((arc, index) => {
+    const arcLen = arc.getTotalLength();
+    arc.style.strokeDasharray = `${arcLen}`;
+    arc.style.strokeDashoffset = `${arcLen}`;
+    trackAnim(arc.animate(
+      [
+        { opacity: 1, strokeDashoffset: arcLen },
+        { opacity: 1, strokeDashoffset: 0 },
+      ],
+      { duration: 440, delay: 450 + index * 92, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  });
+  if (scannerBeam && scannerBeam.parentElement) {
+    const badgeHeight = scannerBeam.parentElement.clientHeight || 128;
+    trackAnim(scannerBeam.animate(
+      [
+        { opacity: 0, transform: 'translateY(0px)' },
+        { opacity: 0.95, transform: `translateY(${badgeHeight * 0.18}px)`, offset: 0.14 },
+        { opacity: 1, transform: `translateY(${badgeHeight * 0.88}px)`, offset: 0.84 },
+        { opacity: 0, transform: `translateY(${badgeHeight + 22}px)` },
+      ],
+      { duration: 740, delay: 580, easing: 'cubic-bezier(0.37, 0, 0.63, 1)', fill: 'forwards' }
+    ));
+  }
+  if (pulseRing) {
+    trackAnim(pulseRing.animate(
+      [
+        { opacity: 0.8, transform: 'scale(0.98)' },
+        { opacity: 0, transform: 'scale(1.54)' },
+      ],
+      { duration: 620, delay: 1240, easing: easeOutExpo, fill: 'forwards' }
+    ));
+  }
+  if (brandTitle) {
+    trackAnim(brandTitle.animate(
+      [
+        { letterSpacing: '0.42em', paddingLeft: '0.42em' },
+        { letterSpacing: '0.24em', paddingLeft: '0.24em' },
+      ],
+      { duration: 760, delay: 1200, easing: easeOutExpo, fill: 'forwards' }
+    ));
+  }
+  brandChars.forEach((charEl, idx) => {
+    trackAnim(charEl.animate(
+      [
+        { opacity: 0, transform: 'translateY(16px)' },
+        { opacity: 1, transform: 'translateY(0px)' },
+      ],
+      { duration: 480, delay: 1200 + idx * 55, easing: easeOutExpo, fill: 'forwards' }
+    ));
+  });
+  if (brandDivider) {
+    trackAnim(brandDivider.animate(
+      [
+        { opacity: 0, transform: 'scaleX(0)' },
+        { opacity: 1, transform: 'scaleX(1)' },
+      ],
+      { duration: 480, delay: 1520, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+  if (brandSubtitle) {
+    trackAnim(brandSubtitle.animate(
+      [
+        { opacity: 0, transform: 'translateY(10px)' },
+        { opacity: 1, transform: 'translateY(0px)' },
+      ],
+      { duration: 520, delay: 1680, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+  if (bootPanel) {
+    trackAnim(bootPanel.animate(
+      [
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0px)' },
+      ],
+      { duration: 320, delay: 1800, easing: easeOutCubic, fill: 'forwards' }
+    ));
+  }
+
+  const bootStart = performance.now() + 1820;
+  const bootDuration = 1340;
+  function updateBootTelemetry(now) {
+    if (splashDismissed) return;
+    if (now < bootStart) {
+      splashRafId = requestAnimationFrame(updateBootTelemetry);
+      return;
+    }
+    const rawT = Math.min(1, (now - bootStart) / bootDuration);
+    const easedT = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
+    const pct = Math.round(easedT * 100);
+    if (progressFill) progressFill.style.width = `${pct}%`;
+    if (progressBar) progressBar.setAttribute('aria-valuenow', String(pct));
+    if (bootPercentText) bootPercentText.textContent = `${pct}%`;
+    if (bootStatusText) {
+      bootStatusText.textContent = pct < 42
+        ? 'INITIALIZING BIOMETRIC MODULE...'
+        : pct < 86
+          ? 'VERIFYING IDENTITY ENGINE...'
+          : 'SYSTEM READY';
+    }
+    if (rawT < 1) {
+      splashRafId = requestAnimationFrame(updateBootTelemetry);
+    } else {
+      splashRafId = null;
+    }
+  }
+  splashRafId = requestAnimationFrame(updateBootTelemetry);
+
+  // Allow clicking or pressing Escape/Enter to skip the intro once the app is ready.
+  splash.addEventListener('click', () => {
+    if (splashAppReady) dismissStartupSplash(true);
+  });
+  document.addEventListener('keydown', onSplashKeydown);
+
+  setTimeout(() => {
+    splashChoreographyDone = true;
+    dismissStartupSplash();
+  }, 3350);
+}
+
+// Safety fallback so a slow or mocked environment never stalls on the splash.
+setTimeout(() => dismissStartupSplash(true), 4600);
+const startSplashWhenPainted = () => requestAnimationFrame(() => playStartupSplash());
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startSplashWhenPainted, { once: true });
+} else {
+  startSplashWhenPainted();
+}
+
 tick();
 setInterval(tick, 1000);
 whenApiReady(() => {
-  loadDashboard();
-  api().get_settings().then(s => {
+  const initialDashboard = loadDashboard();
+  const initialSettings = api().get_settings().then(s => {
     applyTheme(s.theme);
     applyCompact(!!s.compact_sidebar);
     applySchoolName(s.school_name);
     scheduleStartupAutoConnect(s);
   });
-  runSetupWizardRouter();
+  Promise.allSettled([initialDashboard, initialSettings]).finally(() => {
+    splashAppReady = true;
+    dismissStartupSplash();
+    const splashEl = document.getElementById('startup-splash');
+    if (splashDismissed && (!splashEl || splashEl.hidden)) launchSetupWizardAfterSplash();
+  });
   sessionTouchTimer = setInterval(async () => {
     const state = await api().get_session_state();
     if (state.role !== currentRole) {
