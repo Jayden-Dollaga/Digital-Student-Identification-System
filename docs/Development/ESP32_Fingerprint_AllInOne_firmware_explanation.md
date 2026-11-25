@@ -1,7 +1,11 @@
 # ESP32_Fingerprint_AllInOne Firmware Explanation
 
-This document explains the firmware in `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`.
-It covers the main code sections and describes what each part does.
+> **Historical document:** this page describes the superseded `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` variant. It is retained for implementation lineage and is not an operating specification.
+>
+> For the maintained DSIS v3 device firmware, see [Active Firmware](../Hardware/firmware.md). The maintained sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`.
+
+This document describes `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`.
+It covers the main code sections and describes what that historical variant did.
 
 ## Overview
 

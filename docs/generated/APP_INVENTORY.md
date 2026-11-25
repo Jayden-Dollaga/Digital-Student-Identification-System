@@ -2,6 +2,33 @@
 
 This document is the canonical code-level inventory for the maintained DSIS product. It records the supported runtime, the public API surface, the database model, and the active firmware boundary. When a historical note or an older doc disagrees with the code, this inventory reflects the code.
 
+## Audit metadata
+
+| Item | Evidence |
+| --- | --- |
+| Repository | `AI-Assisted Fingerprint Attendance System` |
+| Branch | `main` |
+| HEAD | `9fc3938` |
+| Audited on | 2026-11-25 |
+| Maintained product | DSIS v3 HTML/pywebview application |
+| Source launcher | `run_web_gui.py` and `run_web_gui.bat` |
+| Primary UI | `python/gui_web/main_web.py`, `python/gui_web/api.py`, `python/gui_web/web/` |
+| Primary backend | `python/core/`, `python/services/`, `python/config.py`, `python/settings_store.py` |
+| Maintained firmware | `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` |
+| Packaging | `Build/DSIS_v3.spec` |
+| Excluded from maintained product | `archive/`, `python/gui/`, `python/gui_qt/`, `python/gui_web/v2_reference/`, standalone legacy firmware sketches |
+
+This inventory was refreshed from the checked-out source. The earlier point-in-time revision named later in this document is retained only as a historical audit note and does not supersede the audit metadata above.
+
+## Audit discrepancies found
+
+| Document claim or path | Source-backed correction |
+| --- | --- |
+| `docs/Hardware/firmware.md` says AS608 failure stops normal command processing. | The maintained sketch reports AS608 initialization failure but continues the main loop for RC522/RFID processing and scan commands. Fingerprint-only commands are rejected while the sensor is offline. |
+| `docs/Architecture/software-flow.md` references `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. | The maintained sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. |
+| `docs/TROUBLESHOOTING.md` instructs uploading `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. | Replace the upload path with `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. |
+| `docs/Development/ESP32_Fingerprint_AllInOne_firmware_explanation.md` names only a superseded sketch. | Reclassify the document as historical and link it to the maintained firmware guide for current behavior. |
+
 ## 1. Active entry points
 
 | Path | State | Notes |

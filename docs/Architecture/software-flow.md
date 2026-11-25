@@ -236,6 +236,6 @@ Closing the pywebview window invokes the API disconnect path. Uncaught main-thre
 - `python/core/auth.py`
 - `python/core/permissions.py`
 - `python/settings_store.py`
-- `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`
+- `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`
 
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-11-25.

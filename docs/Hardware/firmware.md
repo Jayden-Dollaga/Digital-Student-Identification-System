@@ -24,7 +24,7 @@ The firmware starts host serial at 115200, prints device identity JSON, starts t
 
 The boot identity JSON contains the device identifier, board, firmware version, sensor, protocol, and ESP32 eFuse-derived serial number.
 
-If AS608 initialization fails, the firmware enters its sensor-error path and does not continue normal command processing.
+If AS608 initialization fails, the firmware reports the sensor-error state but continues the main loop. RC522/RFID commands and scanning can remain available, while fingerprint-only commands such as enrollment and fingerprint deletion are rejected until the AS608 is usable.
 
 ## Commands
 

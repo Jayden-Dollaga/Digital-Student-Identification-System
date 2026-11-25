@@ -127,7 +127,7 @@ The empty COM4 test device was wiped successfully. Before the firmware update,
 reported zero stored fingerprints. The maintained firmware now calls
 `loadModel()` before `deleteModel()` so an absent template reports failure
 instead of false success. Upload
-`firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino` through
+`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` through
 Arduino IDE or the bundled Arduino CLI, then rerun the guarded hardware test
 before accepting delete verification. This was completed on 2026-09-09 using
 the bundled Arduino CLI 1.5.1, ESP32 core 3.3.11, and Adafruit Fingerprint
