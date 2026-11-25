@@ -29,7 +29,8 @@ Key folders and their purpose:
 - firmware/attendance/: attendance-mode firmware sketch used for live scanning
 - firmware/enroll/: enrollment firmware sketch
 - firmware/delete/: delete/wipe firmware sketch
-- firmware/ESP32_Fingerprint_AllInOne/: bundled all-in-one firmware variant
+- firmware/ESP32_DSIS_AllInOne/: maintained all-in-one firmware variant
+- firmware/ESP32_Fingerprint_AllInOne/: superseded fingerprint-only all-in-one variant, not maintained
 - python/core/: reusable backend services that do not depend on Tkinter/Qt UI widgets
 - python/gui_web/: the maintained HTML/pywebview desktop app and Python API bridge
 - python/gui_qt/ and python/gui/: compatibility/reference packages; archived production UI snapshots are under archive/legacy-ui/

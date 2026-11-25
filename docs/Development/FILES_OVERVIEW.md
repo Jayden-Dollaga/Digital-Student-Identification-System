@@ -46,7 +46,7 @@ The active frontend is `python/gui_web/web/`. It communicates with Python throug
 
 ## Active firmware
 
-`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` is the maintained device firmware; the fingerprint-only all-in-one sketch is an earlier variant.
+`firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino` is the maintained device firmware. The standalone and fingerprint-only sketches under `firmware/` are outside the maintained runtime and are retained for hardware testing or history.
 
 | Property | Value |
 | --- | --- |
@@ -92,4 +92,4 @@ These paths are not the supported v3 launch path.
 - [API Reference](../API/README.md)
 - [v3 Workflows](../UserGuide/v3-workflows.md)
 
-Last reviewed: 2026-09-20.
+Last reviewed: 2026-11-26.

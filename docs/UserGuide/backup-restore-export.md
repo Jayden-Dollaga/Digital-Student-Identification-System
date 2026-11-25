@@ -2,9 +2,7 @@
 
 ## Database backups
 
-Backups are SQLite filesystem copies created by `core.database.backup_database()`.
-
-The current implementation uses `shutil.copy2()` on the main `.db` file. Database connections use WAL mode, but backup creation does not explicitly checkpoint the WAL or use SQLite's online backup API. The code therefore does not guarantee that a copy taken during writes contains every committed WAL-only page. Treat backups as best-effort recovery copies and verify restoration against a known database before relying on them; this limitation is not covered by the current tests.
+Backups are transactionally consistent SQLite snapshots created by `core.database.backup_database()` using SQLite's online backup API. The API copies live database content, including committed WAL state, into `data/backups/attendance_YYYYMMDD_HHMMSS.db`.
 
 Filename:
 
@@ -35,6 +33,8 @@ The selected path must:
 3. exist as a regular file,
 4. end in `.db`,
 5. begin with the SQLite `SQLite format 3\0` header.
+
+The selected file must pass SQLite `PRAGMA quick_check` and contain the required DSIS `students` and `attendance` columns. DSIS also creates a verified pre-restore safety snapshot before replacement.
 
 The validated file replaces `data/attendance.db`.
 

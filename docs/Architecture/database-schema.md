@@ -139,9 +139,9 @@ Backup files are stored under:
 data/backups/
 ```
 
-Restore requires the `restore` permission and checks resolved containment under the backups directory, regular-file existence, `.db` suffix, minimum header length, and the SQLite file magic before replacing the active database. It does not validate the application schema or row-level integrity before copying.
+Restore requires the `restore` permission and checks resolved containment under the backups directory, regular-file existence, `.db` suffix, minimum header length, and the SQLite file magic. It also runs SQLite integrity checking and verifies the required DSIS `students` and `attendance` schema before replacing the active database. Before restore, DSIS creates a verified pre-restore safety snapshot and attempts to recover the live database if replacement fails.
 
-Backup creation currently copies only the main database file with `shutil.copy2()`. Connections use WAL mode, but the backup routine does not explicitly checkpoint WAL or call SQLite's online backup API. Completeness for a copy taken while uncheckpointed writes remain in the WAL is therefore not guaranteed by the implementation and is not covered by tests.
+Backup creation uses SQLite's online backup API, so committed database state is copied through SQLite rather than copied as a raw filesystem file.
 
 A restore is a replacement of the active database, not a merge.
 

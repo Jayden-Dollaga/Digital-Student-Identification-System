@@ -8,8 +8,8 @@ This document is the canonical code-level inventory for the maintained DSIS prod
 | --- | --- |
 | Repository | `AI-Assisted Fingerprint Attendance System` |
 | Branch | `main` |
-| HEAD | `9fc3938` |
-| Audited on | 2026-11-25 |
+| HEAD | `ac2413c` |
+| Audited on | 2026-11-26 |
 | Maintained product | DSIS v3 HTML/pywebview application |
 | Source launcher | `run_web_gui.py` and `run_web_gui.bat` |
 | Primary UI | `python/gui_web/main_web.py`, `python/gui_web/api.py`, `python/gui_web/web/` |
@@ -18,7 +18,7 @@ This document is the canonical code-level inventory for the maintained DSIS prod
 | Packaging | `Build/DSIS_v3.spec` |
 | Excluded from maintained product | `archive/`, `python/gui/`, `python/gui_qt/`, `python/gui_web/v2_reference/`, standalone legacy firmware sketches |
 
-This inventory was refreshed from the checked-out source. The earlier point-in-time revision named later in this document is retained only as a historical audit note and does not supersede the audit metadata above.
+This inventory was refreshed from the checked-out source and supersedes earlier point-in-time inventory metadata. Runtime code and focused tests are the evidence.
 
 ## Audit discrepancies found
 
@@ -28,6 +28,8 @@ This inventory was refreshed from the checked-out source. The earlier point-in-t
 | `docs/Architecture/software-flow.md` references `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. | The maintained sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. |
 | `docs/TROUBLESHOOTING.md` instructs uploading `firmware/ESP32_Fingerprint_AllInOne/ESP32_Fingerprint_AllInOne.ino`. | Replace the upload path with `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. |
 | `docs/Development/ESP32_Fingerprint_AllInOne_firmware_explanation.md` names only a superseded sketch. | Reclassify the document as historical and link it to the maintained firmware guide for current behavior. |
+| Backup guides said backups used `shutil.copy2()` and restore did not validate DSIS schema. | Current source uses SQLite online backup/restore, runs `PRAGMA quick_check`, validates required tables/columns, and creates a pre-restore safety snapshot. |
+| `docs/Development/FILES_OVERVIEW.md` called the superseded fingerprint-only all-in-one sketch maintained. | The maintained sketch is `firmware/ESP32_DSIS_AllInOne/ESP32_DSIS_AllInOne.ino`. |
 
 ## 1. Active entry points
 
@@ -84,7 +86,7 @@ This inventory was refreshed from the checked-out source. The earlier point-in-t
 - `get_dashboard_stats()` → dashboard counts and summary values.
 - `get_recent_activity(limit=25)` → recent attendance rows.
 - `get_attendance(mode="today", offset=0)` → attendance query results by window.
-This is the code-level inventory for the maintained DSIS product. It is a point-in-time snapshot of revision `b315de82a1248585b94994c49fef5c01e9ed54de`, reviewed 2026-10-16. Runtime code and tests are the evidence; historical reports and screenshots do not establish current behavior. No runtime source is changed by this inventory.
+This section is a code-level inventory for the maintained DSIS product at audited revision `ac2413c`. Runtime code and focused tests are the evidence; historical reports and screenshots do not establish current behavior. No runtime source is changed by this inventory.
 
 ## Product boundary and launch
 
@@ -292,13 +294,10 @@ Python card payload format is 48 bytes: version byte, 12-byte nonce, then AES-GC
 - **Attendance:** host event parser resolves identity and inserts event; unknown fingerprint/card events use ID 0. Repeated events can be suppressed by Python cooldown. Status presentation uses schedule and optional half-day override.
 - **Fingerprint deletion:** device success event required before local deletion; old attendance becomes ID 0.
 - **Device wipe:** local data clear occurs after firmware reports successful wipe; device and DB are separate stores, so partial failure can leave mismatch.
-- **Backup/restore:** database-only snapshots; restore replaces live DB and does not restore firmware templates, settings, or card keys. API permission is `restore`; source validation must be checked in `database.py` when changing the implementation.
-- **Backup/restore:** backup currently uses `shutil.copy2()` on the main DB file while connections use WAL mode; it does not call SQLite's backup API or explicitly checkpoint WAL. Whether a copy includes all recently committed WAL-only pages is not guaranteed by this code and is not covered by tests. Restore replaces the live DB and does not restore firmware templates, settings, or card keys. Restore is limited to resolved files under the backup directory and checks regular-file existence, `.db` suffix, minimum SQLite header size/magic before copying; it does not validate app schema or row-level integrity.
+- **Backup/restore:** database-only online SQLite snapshots; restore replaces the live DB and does not restore firmware templates, settings, or card keys. API permission is `restore`. Restore requires a file inside `data/backups/`, verifies SQLite integrity and required DSIS schema, creates a pre-restore safety snapshot, and attempts rollback if replacement fails.
 - **Exports:** CSV writer uses UTF-8 with BOM and prefixes formula-triggering strings with apostrophe; 10+-digit student numbers are forced to text. Native Save As is used when a window exists.
 
 Do not claim DB backup includes sensor templates, settings, RFID key, or logs. Do not claim card UIDs/templates are synchronized with a restored DB. The application does not provide remote/cloud synchronization or biometric sensor backup.
-
-The host-only suite run for this audit also exposed a stale test assumption in `tests/test_database_features.py`: it attempts to register fingerprint ID `999999` and expects a row to be cleared, but current validation rejects IDs outside 1-127. That test failed; it was not changed as part of this documentation task.
 
 ## Tests and evidence coverage
 
@@ -323,4 +322,4 @@ v1 is CustomTkinter and v2 is Qt/PySide. Those implementations, their UI tests, 
 
 Key implementation: `run_web_gui.py`, `python/startup_preflight.py`, `python/gui_web/main_web.py`, `python/gui_web/api.py`, `python/config.py`, `python/settings_store.py`, `python/core/{auth,permissions,database,serial_handler,device_discovery,commands,attendance,attendance_status,attendance_calendar,rfid_card,logger}.py`, `python/gui_web/web/`, `firmware/ESP32_DSIS_AllInOne/`, `Build/DSIS_v3.spec`, and the tests listed above. The displayed repo may contain additional archived, generated, build, asset, and local runtime files; their presence alone does not make them maintained application components.
 
-Last reviewed: 2026-10-16.
+Last reviewed: 2026-11-26.
